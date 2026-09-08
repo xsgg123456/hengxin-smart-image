@@ -25,6 +25,66 @@ class HarnessTests(unittest.TestCase):
     def call(self, action, data=None):
         return h.handle(action, data or {}, self.root)
 
+    def committed_code(self):
+        code = self.root / "app.py"
+        code.write_text("print(1)")
+        subprocess.run(["git", "-C", str(self.root), "add", "app.py"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=测试", "-c", "user.email=test@example.invalid", "commit", "-qm", "初始化测试"], check=True)
+        return code
+
+    def test_clean_checkout_readonly_does_not_require_review(self):
+        self.committed_code()
+        self.call("check-evolution")
+        self.call("mark-review-needed", {"tool_input": {"command": "git status"}})
+        self.assertIsNone(self.call("stop-gate"))
+
+    def test_first_start_preserves_existing_dirty_changes(self):
+        code = self.committed_code()
+        code.write_text("print(2)")
+        self.call("check-evolution")
+        self.assertEqual(self.call("stop-gate")["decision"], "block")
+
+    def test_first_start_preserves_existing_deletion(self):
+        self.committed_code().unlink()
+        self.call("check-evolution")
+        self.assertEqual(self.call("stop-gate")["decision"], "block")
+
+    def test_first_start_preserves_existing_untracked_code(self):
+        self.committed_code()
+        (self.root / "new.py").write_text("print(2)")
+        self.call("check-evolution")
+        self.assertEqual(self.call("stop-gate")["decision"], "block")
+
+    def test_array_command_input_is_supported(self):
+        self.committed_code()
+        self.call("mark-review-needed", {"tool_input": {"command": ["powershell", "-Command", "git status"]}})
+        self.assertIsNone(self.call("stop-gate"))
+
+    def test_unobserved_change_after_clean_is_blocked(self):
+        code = self.committed_code()
+        self.call("mark-review-needed")
+        (self.root / ".codex/.needs-review").write_text("clean")
+        code.write_text("print('unreviewed')")
+        self.assertEqual(self.call("stop-gate")["decision"], "block")
+
+    def test_quoted_git_directory_checks_actual_target(self):
+        target = self.root / "my project"
+        subprocess.run(["git", "init", "-q", str(target)], check=True)
+        (target / "tsconfig.json").write_text("{}")
+        for cmd in ('git -C "my project" commit -m "测试"', "git -C 'my project' -c user.name=测试 commit -m 测试"):
+            result = self.call("pre-tool-shell", {"tool_input": {"command": cmd}})
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_powershell_here_strings_do_not_break_commit_parser(self):
+        for cmd in ('Write-Output @"\nhello\n"@', "@'\n脚本内容\n'@ | python -", 'git status; Write-Output @"\nhello\n"@'):
+            self.assertIsNone(self.call("pre-tool-shell", {"tool_input": {"command": cmd}}))
+
+    def test_git_commit_after_here_string_still_checked(self):
+        (self.root / "tsconfig.json").write_text("{}")
+        cmd = 'Write-Output @"\nhello\n"@\ngit commit -m "中文提交"'
+        result = self.call("pre-tool-shell", {"tool_input": {"command": cmd}})
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
     def test_fresh_session_and_stop(self):
         self.assertIsNone(self.call("check-evolution"))
         self.assertIsNone(self.call("stop-gate"))

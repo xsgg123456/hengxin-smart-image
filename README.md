@@ -43,8 +43,8 @@ python scripts/check_harness.py
 
 - 补齐 `hooks.json` 的顶层 `hooks`，匹配当前 Codex 的 `Bash`、`apply_patch` 等工具事件。
 - 用 Python 标准库替代 Bash/jq/lsof 依赖，原 `.sh` 文件保留为 POSIX 兼容入口。
-- 从真实补丁路径和 Git 文件内容变动维护审查标记，覆盖普通 Shell 写入；空审查状态也会拦截停止。审查通过后主 Agent 写入 `clean`。
-- 提交前运行项目本地 TypeScript 编译器；依赖缺失明确阻止提交，不临时下载编译器。
+- 从真实补丁路径和 Git 文件内容变动维护审查标记，覆盖普通 Shell 写入、数组命令和子目录。首次启动按 HEAD 与工作区差异建立基线，保留已有未提交修改；Stop 再次检查磁盘，防止写入 `clean` 后的额外修改漏审。空审查状态也会拦截停止。
+- 提交前运行项目本地 TypeScript 编译器；支持带引号、空格的 `git -C` 路径并检查实际目标仓库。只解析 Git 提交前缀，兼容 PowerShell here-string。依赖缺失明确阻止提交，不临时下载编译器。
 - 开发服务启动前报告常见端口占用，由 Agent 检查进程或换端口。
 - 自动推送默认关闭。需要时执行 `git config --local harness.autoPush true`；仅单条 `git commit` 命令明确成功后推送普通分支，`main/master` 不自动推送。复合命令、包装脚本、`git -C` 调用跳过自动推送；未返回结构化成功状态的客户端会提示手动核查。
 - 自进化运行状态不上传 Git，SessionStart 自动补建；最终采纳的规则仍进入版本控制。

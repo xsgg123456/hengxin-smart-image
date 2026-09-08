@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import socket
 import subprocess
 import sys
@@ -53,24 +54,42 @@ def snapshot(root):
     return files
 
 
+def initial_snapshot(root, current):
+    """A clean checkout starts reviewed; pre-existing dirty files do not."""
+    changed = git(root, "diff", "--name-only", "--no-renames", "-z", "HEAD", "--")
+    if changed.returncode:
+        return {}
+    previous = dict(current)
+    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z")
+    if untracked.returncode:
+        raise RuntimeError(untracked.stderr)
+    for name in untracked.stdout.split("\0"):
+        previous.pop(name, None)
+    for name in changed.stdout.split("\0"):
+        if name and code_path(name):
+            previous[name] = "unreviewed-head-difference"
+    return previous
+
+
 def mark_review(root, data):
     state = root / ".codex/.needs-review"
     saved = root / ".codex/.review-snapshot.json"
     current = snapshot(root)
-    previous = json.loads(saved.read_text(encoding="utf-8")) if saved.exists() else {}
+    previous = json.loads(saved.read_text(encoding="utf-8")) if saved.exists() else initial_snapshot(root, current)
     if current != previous:
         state.write_text("needs_review\n", encoding="utf-8")
+    if current != previous or not saved.exists():
         saved.write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
     # Also cover deletions before the first snapshot and exact apply_patch payloads.
     tool_input = data.get("tool_input") or {}
     if isinstance(tool_input, str):
         tool_input = {"command": tool_input}
-    paths = re.findall(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", tool_input.get("command", ""), re.M)
+    paths = re.findall(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", command(data), re.M)
     if tool_input.get("file_path"):
         paths.append(tool_input["file_path"])
     for name in paths:
         path = Path(name)
-        path = path if path.is_absolute() else root / path
+        path = path if path.is_absolute() else Path(data.get("cwd") or root) / path
         try:
             relative = path.resolve().relative_to(root.resolve())
         except ValueError:
@@ -85,6 +104,40 @@ def command(data):
         return value
     value = value.get("command", value.get("cmd", data.get("command", "")))
     return " ".join(value) if isinstance(value, list) else str(value)
+
+
+def commit_roots(root, data):
+    """Find ordinary Git commits, including quoted and repeated -C options."""
+    # Parse only the Git prefix, never arbitrary PowerShell/here-string bodies
+    # or commit messages. shlex is not a parser for the user's whole shell.
+    argument = r'''(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|"']+)'''
+    prefix = rf"\bgit(?:\.exe)?\s+(?:(?:-C|-c)\s+{argument}\s+|--(?:no-pager|no-optional-locks)\s+)*commit\b"
+    for match in re.finditer(prefix, command(data)):
+        lexer = shlex.shlex(match.group(), posix=False)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = [token.strip("\"'") for token in lexer]
+        cwd = Path(data.get("cwd") or root)
+        args = data.get("tool_input") or {}
+        if isinstance(args, dict) and args.get("workdir"):
+            cwd = Path(args["workdir"])
+        cursor = 1
+        while cursor < len(tokens):
+            option = tokens[cursor]
+            if option in {"-C", "-c"} and cursor + 1 < len(tokens):
+                if option == "-C":
+                    cwd = (cwd / tokens[cursor + 1]).resolve()
+                cursor += 2
+            elif option in {"--no-pager", "--no-optional-locks"}:
+                cursor += 1
+            elif option == "commit":
+                target = git(cwd, "rev-parse", "--show-toplevel")
+                if target.returncode:
+                    raise RuntimeError(target.stderr)
+                yield Path(target.stdout.strip())
+                break
+            else:
+                break
 
 
 def typecheck(root):
@@ -113,6 +166,7 @@ def typecheck(root):
 def handle(action, data, root):
     bootstrap(root)
     if action == "check-evolution":
+        mark_review(root, {})
         proposals = (root / ".codex/evolution/proposals.md").read_text(encoding="utf-8")
         section = re.search(r"^## 待审阅\s*\n(.*?)(?=^## |\Z)", proposals, re.M | re.S)
         count = len(re.findall(r"^- ", section.group(1), re.M)) if section else 0
@@ -127,6 +181,8 @@ def handle(action, data, root):
     elif action == "mark-review-needed":
         mark_review(root, data)
     elif action == "stop-gate":
+        # Re-check disk even when no PostToolUse observed the latest write.
+        mark_review(root, {})
         state = root / ".codex/.needs-review"
         if state.exists():
             if state.read_text(encoding="utf-8-sig").strip() == "clean":
@@ -136,8 +192,8 @@ def handle(action, data, root):
                 return {"decision": "block", "reason": "代码已修改但未通过审查。派发 code-reviewer 两阶段审查，通过后将 .codex/.needs-review 写为 clean。"}
     elif action == "pre-tool-shell":
         cmd = command(data)
-        if re.search(r"\bgit\s+(?:-[Cc]\s+\S+\s+)*commit\b", cmd):
-            failure = typecheck(root)
+        for target in commit_roots(root, data):
+            failure = typecheck(target)
             if failure:
                 return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": failure}}
         if re.search(r"\b(?:pnpm dev|npm run dev|yarn dev)\b", cmd):
