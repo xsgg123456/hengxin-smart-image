@@ -99,6 +99,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     要把整个 Phase 交给 /goal 自驱，用 /goal-creator 生成指令，完成条件就是四步走验收，比如交付清单逐项贴出、tsc 零错误输出已贴、code-reviewer 两阶段 PASS 已贴。
 
 [初始化模式]
+    Git 提交信息遵循 AGENTS.md：标题描述和正文必须使用中文，可保留 Conventional Commits 类型、scope 和代码标识符。普通、合并和 squash 提交均适用，提交前检查语言。
     无代码时搭骨架：
     - 项目代码放在以项目名命名的子文件夹，不平铺根目录，规划文档留根目录
     - 按 DEV-PLAN 技术栈表配置，TypeScript strict，装依赖，配环境变量
