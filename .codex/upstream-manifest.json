@@ -1,0 +1,205 @@
+{
+  "source": "Agent-Harness-Code/codex 版",
+  "files": [
+    {
+      "source_path": "agents/skills/bug-fixer/SKILL.md",
+      "installed_path": ".agents/skills/bug-fixer/SKILL.md",
+      "source_sha256": "d0dec9ec98a5317b27c4b5b9f6f5e331843a47d0716ab84bfaa36f110e6dd02e"
+    },
+    {
+      "source_path": "agents/skills/code-review/SKILL.md",
+      "installed_path": ".agents/skills/code-review/SKILL.md",
+      "source_sha256": "7d7d0043e1e4e498b2a228206831c7bc995a030b791b1fb5eb36d338a91294c4"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/examples/claude-code-desktop.md",
+      "installed_path": ".agents/skills/design-brief-builder/examples/claude-code-desktop.md",
+      "source_sha256": "1fb14fc411155fcdcf3a5bf4bc73d76de5d1739df728bfd02859888440776918"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/references/interview-principles.md",
+      "installed_path": ".agents/skills/design-brief-builder/references/interview-principles.md",
+      "source_sha256": "5b4bb113e46b91b899f2a8d57401aae621d0bb299700147aa42a0a110a3f8299"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/references/question-bank.md",
+      "installed_path": ".agents/skills/design-brief-builder/references/question-bank.md",
+      "source_sha256": "84073f4f30c96d7aab5c169569871aff620e1f7aa14faa0aecb8c83269a6c68e"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/references/workflow-0-1.md",
+      "installed_path": ".agents/skills/design-brief-builder/references/workflow-0-1.md",
+      "source_sha256": "4e308dd80fd41b14b0c513fab7b331982903932334feaee0bbdc1c54f5471c4a"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/references/workflow-iteration.md",
+      "installed_path": ".agents/skills/design-brief-builder/references/workflow-iteration.md",
+      "source_sha256": "4e4990ccca43bd75ef2c6fec1867edca84f515e6db83181cfcbba570f8803da2"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/SKILL.md",
+      "installed_path": ".agents/skills/design-brief-builder/SKILL.md",
+      "source_sha256": "90443aa1338e4c2341ebc851b97090a56d0f7b3a385d9d9742485439349fb69d"
+    },
+    {
+      "source_path": "agents/skills/design-brief-builder/templates/design-brief-template.md",
+      "installed_path": ".agents/skills/design-brief-builder/templates/design-brief-template.md",
+      "source_sha256": "2251038278310c3842578ccaf1c8d274fb5928d13dc1926408313e1af43b40f1"
+    },
+    {
+      "source_path": "agents/skills/design-maker/SKILL.md",
+      "installed_path": ".agents/skills/design-maker/SKILL.md",
+      "source_sha256": "0784e82977e34b63b214e127cd6536b0867189f2b03016f59edd3ce6a3c46b4b"
+    },
+    {
+      "source_path": "agents/skills/dev-builder/SKILL.md",
+      "installed_path": ".agents/skills/dev-builder/SKILL.md",
+      "source_sha256": "9de7ec00fb11cb8224ea4d81a94d794d205ef24acd0f010e2738c2ba17701681"
+    },
+    {
+      "source_path": "agents/skills/dev-planner/SKILL.md",
+      "installed_path": ".agents/skills/dev-planner/SKILL.md",
+      "source_sha256": "e504e03a87af1ae2482ec732f7965231aa32eee8dddf01493993c27f391c2078"
+    },
+    {
+      "source_path": "agents/skills/dev-planner/templates/dev-plan-template.md",
+      "installed_path": ".agents/skills/dev-planner/templates/dev-plan-template.md",
+      "source_sha256": "6c0636695772440e9ffeb2cd723b04b8f6be766f4d8582a6597b2958d22b1a9a"
+    },
+    {
+      "source_path": "agents/skills/evolution-engine/SKILL.md",
+      "installed_path": ".agents/skills/evolution-engine/SKILL.md",
+      "source_sha256": "58dec9b9d679b0fe35d179bcc992c40d0306b0ed1cd1c816957369de098ec55a"
+    },
+    {
+      "source_path": "agents/skills/goal-creator/SKILL.md",
+      "installed_path": ".agents/skills/goal-creator/SKILL.md",
+      "source_sha256": "c5a49389b02b4f8e87d6c0aca009f0262cea4b11fa4e72b4c62ad7bc5ca76000"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/examples/claude-code-desktop.md",
+      "installed_path": ".agents/skills/product-spec-builder/examples/claude-code-desktop.md",
+      "source_sha256": "4173e0c019eaa33dc28a92a6837ce69632ecd8a2131f7a14d9490f2e583d023a"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/references/interview-principles.md",
+      "installed_path": ".agents/skills/product-spec-builder/references/interview-principles.md",
+      "source_sha256": "5b4bb113e46b91b899f2a8d57401aae621d0bb299700147aa42a0a110a3f8299"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/references/question-bank.md",
+      "installed_path": ".agents/skills/product-spec-builder/references/question-bank.md",
+      "source_sha256": "e0f671e20a861792bb52f32b139e2415c23462eb8d0ec1978d38ecd08e655caf"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/references/workflow-0-1.md",
+      "installed_path": ".agents/skills/product-spec-builder/references/workflow-0-1.md",
+      "source_sha256": "e466d666b73f69d1ada33167619cba663dd13f5d23fd95e2ccd639148f02d4f8"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/references/workflow-iteration.md",
+      "installed_path": ".agents/skills/product-spec-builder/references/workflow-iteration.md",
+      "source_sha256": "7d151ad5c5972d6b6b022de2d4cb2ff2cf36148a47143549f064ac7ac7f9272d"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/SKILL.md",
+      "installed_path": ".agents/skills/product-spec-builder/SKILL.md",
+      "source_sha256": "206273f25c8f7f5d02bbc18dd577c738581665d3cfd527631ff7443ab2243516"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/templates/changelog-template.md",
+      "installed_path": ".agents/skills/product-spec-builder/templates/changelog-template.md",
+      "source_sha256": "4512541da02b0c1fdbff54a05e2ebe6cf576f0dabf5b774a4061feaa7b3e164e"
+    },
+    {
+      "source_path": "agents/skills/product-spec-builder/templates/product-spec-template.md",
+      "installed_path": ".agents/skills/product-spec-builder/templates/product-spec-template.md",
+      "source_sha256": "caf5109173229c8bf7248b514d84f7195bec6958867d1f763def7dacf533ec11"
+    },
+    {
+      "source_path": "agents/skills/release-builder/SKILL.md",
+      "installed_path": ".agents/skills/release-builder/SKILL.md",
+      "source_sha256": "e39267889d6bf01f020672415232dbcc87b1be326cec4a25eae2ec91a6b06699"
+    },
+    {
+      "source_path": "agents/skills/skill-builder/SKILL.md",
+      "installed_path": ".agents/skills/skill-builder/SKILL.md",
+      "source_sha256": "f45799b8013b28d365c02de5fafe1b582b91f3493840d17e229c4a8954c50b15"
+    },
+    {
+      "source_path": "agents/skills/skill-builder/templates/skill-template.md",
+      "installed_path": ".agents/skills/skill-builder/templates/skill-template.md",
+      "source_sha256": "6c4685b0a87f140e1ec14eb4064a69440344312de5df7d570e0a63b8e6e557a6"
+    },
+    {
+      "source_path": "AGENTS.md",
+      "installed_path": "AGENTS.md",
+      "source_sha256": "bb1b1508700cdca83623e4b05e4d056d08074b6dc620d2bff7258fd9df8fbae9"
+    },
+    {
+      "source_path": "codex/agents/code-reviewer.toml",
+      "installed_path": ".codex/agents/code-reviewer.toml",
+      "source_sha256": "267abab9c802472a9c2cc1b9ca3d317f23aee3c7bbdd86044a147a1584f693ed"
+    },
+    {
+      "source_path": "codex/agents/evolution-runner.toml",
+      "installed_path": ".codex/agents/evolution-runner.toml",
+      "source_sha256": "6ca3dc36e1283024280bd43e1e2b4df1bd4151ec4d6c1abd37d1c62140c82110"
+    },
+    {
+      "source_path": "codex/evolution/proposals.md",
+      "installed_path": ".codex/evolution/proposals.md",
+      "source_sha256": "96b2edd8fa2ad10b30687af1649062b57acba9c7e008245deb262da020849bdb"
+    },
+    {
+      "source_path": "codex/evolution/signals.jsonl",
+      "installed_path": ".codex/evolution/signals.jsonl",
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "codex/EVOLUTION.md",
+      "installed_path": ".codex/EVOLUTION.md",
+      "source_sha256": "9a815064fcbec17a59d1b075ed1872d281a6126815620450a23b1c1bf2976e44"
+    },
+    {
+      "source_path": "codex/hooks/auto-push.sh",
+      "installed_path": ".codex/hooks/auto-push.sh",
+      "source_sha256": "aae21caa90da1700327b70049bed653f3c21b661311d46bc752289c36743d7ab"
+    },
+    {
+      "source_path": "codex/hooks/check-evolution.sh",
+      "installed_path": ".codex/hooks/check-evolution.sh",
+      "source_sha256": "4680ee88304fae7284527bca3e71e0af97f982f551733bed98455e1a75332206"
+    },
+    {
+      "source_path": "codex/hooks/detect-feedback-signal.sh",
+      "installed_path": ".codex/hooks/detect-feedback-signal.sh",
+      "source_sha256": "8570a50bceaa11669485f55b641ba1b80c5264055ccbea5c1a527a28adbc602c"
+    },
+    {
+      "source_path": "codex/hooks/mark-review-needed.sh",
+      "installed_path": ".codex/hooks/mark-review-needed.sh",
+      "source_sha256": "25149ea52edf21882fbb122cfe4f6e21e7c4190e4f0972f03f82680654078cd6"
+    },
+    {
+      "source_path": "codex/hooks/pre-tool-shell.sh",
+      "installed_path": ".codex/hooks/pre-tool-shell.sh",
+      "source_sha256": "76aaad8f3b84b442f26dd24e63eca05741c5f8fb606c79d7d7976c1293c83ff9"
+    },
+    {
+      "source_path": "codex/hooks/stop-gate.sh",
+      "installed_path": ".codex/hooks/stop-gate.sh",
+      "source_sha256": "9365e7b98965474adb8ee9bec95d7e8ea11a055952bb6e284c1a5bd3e19a0937"
+    },
+    {
+      "source_path": "codex/hooks.json",
+      "installed_path": ".codex/hooks.json",
+      "source_sha256": "77f19b0de70bd848e447695fa8c35248707aad8a510898ee9811ac70270f41a5"
+    },
+    {
+      "source_path": "使用说明.md",
+      "installed_path": ".codex/UPSTREAM-INSTALL.md",
+      "source_sha256": "762b15a839dd802f056c8edd3c87e3eddc7e51362e4286beac3c29de9d682e54"
+    }
+  ]
+}

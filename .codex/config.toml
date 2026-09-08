@@ -1,0 +1,7 @@
+# Project-scoped harness; inherit the user's model and permission settings.
+[features]
+hooks = true
+multi_agent = true
+
+[agents]
+enabled = true

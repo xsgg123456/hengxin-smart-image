@@ -1,0 +1,78 @@
+{
+  "description": "Harness lifecycle hooks: Python 3, Windows/POSIX.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" detect-feedback-signal",
+            "commandWindows": "python -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" detect-feedback-signal",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" check-evolution",
+            "commandWindows": "python -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" check-evolution",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" pre-tool-shell",
+            "commandWindows": "python -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" pre-tool-shell",
+            "timeout": 120
+          }
+        ],
+        "matcher": "^(Bash|shell|local_shell|exec|exec_command)$"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" auto-push",
+            "commandWindows": "python -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" auto-push",
+            "timeout": 30
+          }
+        ],
+        "matcher": "^(Bash|shell|local_shell|exec|exec_command)$"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" mark-review-needed",
+            "commandWindows": "python -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" mark-review-needed",
+            "timeout": 10
+          }
+        ],
+        "matcher": "^(Bash|shell|local_shell|exec|exec_command|apply_patch|Edit|Write|edit|write)$"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" stop-gate",
+            "commandWindows": "python -c \"import subprocess,runpy; runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/.codex/hooks/harness.py',run_name='__main__')\" stop-gate",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
