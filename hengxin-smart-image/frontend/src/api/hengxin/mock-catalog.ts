@@ -5,7 +5,7 @@ import { IMAGE_MIME_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from './limits'
 
 export type MockScenario = 'default' | 'empty' | 'no-skills' | 'upload-error' | 'save-error' | 'submit-error' | 'list-error'
   | 'execution-error' | 'partial-result' | 'revision-error' | 'archive-error'
-export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scenario: MockScenario) {
+export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, operatorId: () => string = () => MOCK_USER_ID, maxUploadBytes: () => number = () => MAX_IMAGE_BYTES) {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const files = new Map<string, Picture>()
   const objectUrls: string[] = []
@@ -60,7 +60,8 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
     async listSkills(mode) { await wait(); return copy(skills.filter(s => !mode || s.mode === mode)) },
     async uploadFile(file) {
       await wait(); fail('upload')
-      if (!IMAGE_MIME_TYPES.includes(file.type) || !file.size || file.size > MAX_IMAGE_BYTES) throw new ApiError('VALIDATION', '仅接收非空且不超过 10 MiB 的 JPG、PNG、WebP', 422)
+      const limit = Math.min(MAX_IMAGE_BYTES, maxUploadBytes())
+      if (!IMAGE_MIME_TYPES.includes(file.type) || !file.size || file.size > limit) throw new ApiError('VALIDATION', `仅接收非空且不超过 ${limit / 1048576} MiB 的 JPG、PNG、WebP`, 422)
       const url = URL.createObjectURL(file)
       objectUrls.push(url)
       const picture = { fileId: `mock-file-${crypto.randomUUID()}`, name: file.name, url }
@@ -78,7 +79,7 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       const saved = { id: previous?.id ?? `T-${crypto.randomUUID()}`, name: input.name.trim(), mode: input.mode, images,
         skill: skill?.name ?? '', skillVersionId: skill?.id ?? null, active: !!skill && input.active,
         notes: input.notes.trim(), version: previous ? previous.version + 1 : 1,
-        updatedAt: new Date().toISOString(), ownerId: previous?.ownerId ?? MOCK_USER_ID }
+        updatedAt: new Date().toISOString(), ownerId: previous?.ownerId ?? operatorId() }
       if (previous) db.templates[db.templates.indexOf(previous)] = saved
       else db.templates.unshift(saved)
       return copy(saved)
@@ -87,10 +88,10 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       await wait()
       if (db.templates.some(t => t.id === id)) {
         db.deletions ??= []
-        db.deletions.push({ id, operatorId: MOCK_USER_ID, deletedAt: new Date().toISOString(), resourceType: 'template' })
+        db.deletions.push({ id, operatorId: operatorId(), deletedAt: new Date().toISOString(), resourceType: 'template' })
       }
       db.templates = db.templates.filter(t => t.id !== id)
     }
   }
-  return { service, resolvePictures, resolveSkill, fail, dispose() { objectUrls.forEach(url => URL.revokeObjectURL(url)) } }
+  return { skills, service, resolvePictures, resolveSkill, fail, dispose() { objectUrls.forEach(url => URL.revokeObjectURL(url)) } }
 }

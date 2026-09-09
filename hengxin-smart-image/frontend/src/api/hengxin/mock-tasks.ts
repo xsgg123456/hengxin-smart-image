@@ -2,13 +2,15 @@ import type { Accepted, HengxinService, PageQuery, Picture, ResultSlot, ResultVe
 import { ApiError } from './http'
 import { MOCK_USER_ID, sampleImages } from './fixtures'
 import type { MockScenario } from './mock-catalog'
+import type { UsageAttempt } from '../../types/management'
 
-export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, stepMs = 700) {
+export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, stepMs = 700, operatorId: () => string = () => MOCK_USER_ID, getConfig = () => ({ version: 1, concurrency: 1, timeoutSeconds: 600 })) {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const stamp = () => new Date().toISOString()
   const id = () => crypto.randomUUID()
   const active = new Map<string, ReturnType<typeof setInterval>>()
   const slots = new Map<string, ResultSlot[]>(), rounds = new Map<string, Round[]>()
+  const history = new Map<string, Task>()
   let scenarioUsed = false, archiveFailureUsed = false
   function find(taskId: string) {
     const task = db.tasks.find(t => t.id === taskId)
@@ -16,6 +18,7 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     return task
   }
   function initialize(task: Task) {
+    history.set(task.id, task)
     task.outputCount ??= task.images.length
     const existing = task.state === '失败' ? [] : task.images
     const result = Array.from({ length: task.outputCount }, (_, slot): ResultSlot => {
@@ -44,13 +47,17 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     const targets = slots.get(task.id)!.filter(s => target === null || s.slot === target)
     const failure = !scenarioUsed && ((scenario === 'execution-error' && initial) || (scenario === 'revision-error' && !initial) || scenario === 'partial-result')
     if (failure) scenarioUsed = true
-    const round: Round = { id: id(), taskId: task.id, operatorId: MOCK_USER_ID, target, note,
+    const round: Round = { id: id(), taskId: task.id, operatorId: operatorId(), target, note, executionConfig: copy(getConfig()),
       state: '排队中', createdAt: stamp(), startedAt: null, finishedAt: null, error: null }
     rounds.get(task.id)!.unshift(round)
     task.currentRoundId = round.id; task.state = '排队中'; task.progress = 0; task.error = null
     if (note) task.feedback.unshift(`${round.createdAt} · ${target === null ? '整套' : `第 ${target + 1} 张`}：${note}`)
     const timer = setInterval(() => {
+      if (!round.startedAt && [...active.keys()].filter(key => rounds.get(key)?.[0].state === '执行中').length >= round.executionConfig!.concurrency) return
       round.startedAt ??= stamp(); round.state = task.state = '执行中'
+      if (Date.now() - Date.parse(round.startedAt) >= round.executionConfig!.timeoutSeconds * 1000) {
+        clearInterval(timer); active.delete(task.id); task.state = round.state = '失败'; task.error = round.error = '模拟执行超时，已有结果保留'; round.finishedAt = stamp(); return
+      }
       task.progress = (task.progress ?? 0) + 25
       if (task.progress < 100) return
       clearInterval(timer); active.delete(task.id)
@@ -92,8 +99,10 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     async deleteTask(taskId) {
       await wait(); find(taskId)
       clearInterval(active.get(taskId)); active.delete(taskId)
-      db.tasks = db.tasks.filter(t => t.id !== taskId); slots.delete(taskId); rounds.delete(taskId)
-      const receipt = { id: taskId, operatorId: MOCK_USER_ID, deletedAt: stamp(), resourceType: 'task' as const }
+      db.tasks = db.tasks.filter(t => t.id !== taskId)
+      const running = rounds.get(taskId)?.find(round => round.startedAt && !round.finishedAt)
+      if (running) { running.finishedAt = stamp(); running.state = '失败'; running.error = '任务删除，模拟执行已停止' }
+      const receipt = { id: taskId, operatorId: operatorId(), deletedAt: stamp(), resourceType: 'task' as const }
       db.deletions ??= []; db.deletions.push(receipt)
       return copy(receipt)
     },
@@ -121,7 +130,7 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
       const imageVersionIds = versions.map(v => v.id)
       const previous = db.archives.find(a => a.taskId === taskId && JSON.stringify(a.imageVersionIds) === JSON.stringify(imageVersionIds))
       if (previous) return copy(previous)
-      const archive = { id: `A-${id()}`, taskId, name: task.name, mode: task.mode, images: copy(versions), time: stamp(), ownerId: MOCK_USER_ID, imageVersionIds }
+      const archive = { id: `A-${id()}`, taskId, name: task.name, mode: task.mode, images: copy(versions), time: stamp(), ownerId: operatorId(), imageVersionIds }
       db.archives.unshift(archive); task.archived = true
       return copy(archive)
     },
@@ -142,12 +151,24 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
       const archive = db.archives.find(a => a.id === archiveId)
       if (archive) {
         db.deletions ??= []
-        db.deletions.push({ id: archiveId, operatorId: MOCK_USER_ID, deletedAt: stamp(), resourceType: 'archive' })
+        db.deletions.push({ id: archiveId, operatorId: operatorId(), deletedAt: stamp(), resourceType: 'archive' })
       }
       db.archives = db.archives.filter(a => a.id !== archiveId)
       const task = db.tasks.find(t => t.id === archive?.taskId)
       if (task) sync(task)
     }
   }
-  return { service, run, dispose() { active.forEach(clearInterval); active.clear() } }
+  function getUsageAttempts(): UsageAttempt[] {
+    return [...history.values()].flatMap(task => (rounds.get(task.id) ?? []).filter(round => round.startedAt).map((round, index, history) => {
+      const ended = round.finishedAt !== null
+      const versions = (slots.get(task.id) ?? []).flatMap(slot => slot.versions).filter(version => version.roundId === round.id)
+      return { id: round.id, taskId: task.id, taskName: task.name, creatorId: task.ownerId, operatorId: round.operatorId, operatorName: round.operatorId,
+        mode: task.mode, kind: index === history.length - 1 ? 'initial' : round.target === null ? 'whole' : 'single',
+        startedAt: round.startedAt!, finishedAt: round.finishedAt,
+        state: !ended ? 'running' : round.error?.includes('超时') ? 'timeout' : round.state === '待查看' ? 'success' : round.state === '部分失败' ? 'partial' : 'failed',
+        outputImages: versions.length, queueSeconds: Math.max(0, (Date.parse(round.startedAt!) - Date.parse(round.createdAt)) / 1000),
+        durationSeconds: ended ? Math.max(0, (Date.parse(round.finishedAt!) - Date.parse(round.startedAt!)) / 1000) : null, usage: null }
+    }))
+  }
+  return { service, run, getUsageAttempts, getHistoricalTasks: () => [...history.values()], dispose() { active.forEach(clearInterval); active.clear() } }
 }

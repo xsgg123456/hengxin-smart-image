@@ -7,7 +7,8 @@
       shadow: 'never'
     }"
   >
-    <template v-if="bootstrap.ready">
+    <DingtalkLogin v-if="bootstrap.authRequired" />
+    <template v-else-if="bootstrap.ready">
       <RouterView />
     </template>
     <div v-else class="hx-page">
@@ -25,6 +26,7 @@
 
 <script setup lang="ts">
   import { RouterView } from 'vue-router'
+  import DingtalkLogin from './views/auth/dingtalk-login.vue'
   import { useUserStore } from './store/modules/user'
   import { bootstrap, retryBootstrap } from './api/hengxin/bootstrap'
   import zh from 'element-plus/es/locale/lang/zh-cn'

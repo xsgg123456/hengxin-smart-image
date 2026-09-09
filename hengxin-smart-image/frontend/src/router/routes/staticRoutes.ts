@@ -26,20 +26,8 @@ export const staticRoutes: AppRouteRecordRaw[] = [
   {
     path: '/auth/login',
     name: 'Login',
-    component: () => import('@views/auth/login/index.vue'),
+    component: () => import('@views/auth/dingtalk-login.vue'),
     meta: { title: 'menus.login.title', isHideTab: true }
-  },
-  {
-    path: '/auth/register',
-    name: 'Register',
-    component: () => import('@views/auth/register/index.vue'),
-    meta: { title: 'menus.register.title', isHideTab: true }
-  },
-  {
-    path: '/auth/forget-password',
-    name: 'ForgetPassword',
-    component: () => import('@views/auth/forget-password/index.vue'),
-    meta: { title: 'menus.forgetPassword.title', isHideTab: true }
   },
   {
     path: '/403',

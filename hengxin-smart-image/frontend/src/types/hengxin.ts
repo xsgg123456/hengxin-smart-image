@@ -1,3 +1,4 @@
+import type { ManagementService } from './management'
 /** 前端契约；传输字段统一 camelCase，时间使用 ISO 8601。 */
 export type Mode = 'wallpaper' | 'product' | 'text'
 export type Role = 'super_admin' | 'design_manager' | 'designer' | 'operator'
@@ -66,6 +67,7 @@ export interface Task {
   error?: string | null
 }
 export interface Round {
+  executionConfig?: { version: number; concurrency: number; timeoutSeconds: number }
   id: string
   taskId: string
   operatorId: string
@@ -154,7 +156,7 @@ export interface CreateTaskInput {
   note: string
 }
 export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean }
-export interface HengxinService {
+export interface HengxinService extends ManagementService {
   getUser(): Promise<User>
   getWorkspace(): Promise<Workspace>
   listTasks(query: TaskQuery): Promise<TaskPage>

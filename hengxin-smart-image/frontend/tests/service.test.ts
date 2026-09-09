@@ -42,7 +42,7 @@ test('返工串行、单图版本隔离、归档快照和重复归档幂等', as
   await assert.rejects(service.revise({ taskId, target: 100, note: '越界' }), { code: 'VALIDATION' })
   await service.revise({ taskId, target: 1, note: '调整第二张' })
   await assert.rejects(service.revise({ taskId, target: null, note: '并行' }), { code: 'CONFLICT' })
-  await pause(45)
+  for (let i = 0; i < 100; i++) { if ((await service.getTask(taskId)).task.state === '待查看') break; await pause(10) }
   const current = (await service.getWorkspace()).tasks.find(task => task.id === taskId)!
   assert.equal(current.state, '待查看')
   assert.equal(current.images[0].version, 1)

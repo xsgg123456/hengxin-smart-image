@@ -52,6 +52,7 @@ const slot: Guard<ResultSlot> = (value): value is ResultSlot => record(value) &&
   && list(value.versions, version) && (value.error === null || text(value.error))
   && (value.currentVersionId === null || (id(value.currentVersionId) && value.versions.some(v => v.id === value.currentVersionId)))
 const round: Guard<Round> = (value): value is Round => record(value)
+  && (value.executionConfig === undefined || (record(value.executionConfig) && ['version','concurrency','timeoutSeconds'].every(key => record(value.executionConfig) && count(value.executionConfig[key]) && Number(value.executionConfig[key]) > 0)))
   && id(value.id) && id(value.taskId) && id(value.operatorId) && (value.target === null || count(value.target))
   && text(value.note) && state(value.state) && text(value.createdAt)
   && (value.startedAt === null || text(value.startedAt)) && (value.finishedAt === null || text(value.finishedAt))

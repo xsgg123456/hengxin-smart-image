@@ -1,5 +1,7 @@
 # 前端接口契约 — Phase 1
 
+Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续 Phase 2/3 补充共同组成当前前端契约。产品权限以 Product-Spec v0.14 为准。
+
 版本 0.1 · 2026-09-09。对应 DEV-PLAN Phase 1、Product-Spec v0.12。类型源：`frontend/src/types/hengxin.ts`。这是前端承接契约，不代表后端接口已实现；Phase 2–4 逐页细化分页、文件引用与管理查询，Phase 5 对齐 OpenAPI。
 
 ## 模式与边界

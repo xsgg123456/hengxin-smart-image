@@ -379,7 +379,7 @@ async function fetchUserInfo(): Promise<void> {
  * 重置路由相关状态
  */
 export function resetRouterState(delay: number): void {
-  setTimeout(() => {
+  const reset = () => {
     routeRegistry?.unregister()
     IframeRouteManager.getInstance().clear()
 
@@ -389,7 +389,9 @@ export function resetRouterState(delay: number): void {
 
     // 重置路由初始化状态，允许重新登录后再次初始化
     resetRouteInitState()
-  }, delay)
+  }
+  if (delay <= 0) reset()
+  else setTimeout(reset, delay)
 }
 
 /**
