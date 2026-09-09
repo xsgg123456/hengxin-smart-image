@@ -1,27 +1,27 @@
 # 前后端接口契约
 
-更新：2026-09-09。当前需求依据 Product-Spec v0.16；前端类型源为 `frontend/src/types/hengxin.ts`，管理类型另见 `frontend/src/types/management.ts`。本文汇总 Phase 1–4 已交付的前端契约及 Phase 5 发布的目标 OpenAPI；末尾明确标记的并发补充在 Phase 8–10 实现。
+更新：2026-09-09。当前需求依据 Product-Spec v0.17；前端类型源为 `frontend/src/types/hengxin.ts`，管理类型另见 `frontend/src/types/management.ts`。本文汇总前端契约、目标 OpenAPI 及 Phase 6–8 真实接入；任务并发与受理已在 Phase 8 接入，CLI 和返工业务按 Phase 9–10 实现。
 
 ## Phase 5 后端基础补充
 
-FastAPI 在 `/openapi.json` 发布业务的目标结构（28 个方法、20 条路径）；业务方法均明确返回 501 `NOT_IMPLEMENTED`，正式实现按 Phase 6–13 接替。身份未接入前保留前端 mock 预览，HTTP 模式不回退。分页暂定默认 1/20，pageSize 上限 100，非法参数统一 422。可选传输字段在后续业务序列化中应省略未提供值；必要 nullable 字段必须保留 null。业务写入幂等键的前端传输在 Phase 8 接入；Phase 5 仅内部测试入口实施该机制。
+FastAPI 在 `/openapi.json` 发布业务的目标结构（28 个方法、20 条路径）；Phase 5 时业务方法均明确返回 501 `NOT_IMPLEMENTED`，正式实现按 Phase 6–13 接替。身份未接入前保留前端 mock 预览，HTTP 模式不回退。分页暂定默认 1/20，pageSize 上限 100，非法参数统一 422。可选传输字段在后续业务序列化中应省略未提供值；必要 nullable 字段必须保留 null。业务写入幂等键的前端传输在 Phase 8 接入；Phase 5 仅内部测试入口实施该机制。
 
 已实现 `/api/v1/health/live` 与 `/api/v1/health/ready`（后者依赖 PG 迁移、Redis、MinIO 授权探针；失败 503）。测试模式显式开启 `ENABLE_TEST_JOBS` 后，`POST /api/v1/internal/test-jobs` 接受 `{value,delaySeconds?}` 与必填 `Idempotency-Key`，同事务持久写入测试作业/outbox 后返回 202 `{jobId,status,result,executionCount}`；同键同内容返回同一作业，同键不同内容返回 409。`GET /api/v1/internal/test-jobs/{id}` 查询 PG 状态。该入口默认关闭且生产禁止开启，不是图片生成 API。独立 outbox 派发进程持续重派未完成作业；纯计算 Worker 通过 PG 行锁与原子提交防止重复完成，不能据此宣称外部 AI 调用恰好一次。
 
-Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续 Phase 2/3 补充共同组成当前前端契约。产品权限与会话并发规则以 Product-Spec v0.16 为准；文末并发补充在 Phase 8–10 接入，不代表当前 OpenAPI/前端类型已实现。
+Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续补充共同组成当前前端契约。产品权限与会话并发规则以 Product-Spec v0.17 为准；各阶段真实实现的边界见文末 Phase 7/8 补充。
 
 本文最初由 Phase 1 建立，已合并 Phase 2–4 的分页、文件引用、结果版本及管理查询。早期契约不覆盖后续字段；真实业务行为仍按 DEV-PLAN 分阶段接入。
 
 ## 模式与边界
 
 - `pnpm dev` / `pnpm build:preview` 显式使用 mock 模式。模拟服务采用独立内存，刷新重置，不读写原型 localStorage；不执行真实 Skill、不上传到 MinIO、不建立真实 CLI 会话。
-- `pnpm dev:api` / `pnpm build` 使用 `/api/v1` HTTP 服务。模拟模块仅动态加载于 mock 模式；请求失败不回退模拟服务。HTTP 超时 10 秒，无自动重试写操作。
-- Art 用户展示使用业务用户 ID；仅模拟服务提供四角色身份预览。真实模式必须先从 `/auth/me` 获取启用且已授权的身份，身份无效或工作区加载失败时阻断入口，显示错误与重试。真实钉钉登录仍为 Phase 12。
+- `pnpm dev:api` / `pnpm build` 使用 `/api/v1` HTTP 服务。模拟模块仅动态加载于 mock 模式；请求失败不回退模拟服务。HTTP 默认超时 10 秒，图片上传 60 秒，无自动重试写操作。
+- Art 用户展示使用业务用户 ID；仅模拟服务提供四角色身份预览。真实模式必须先从 `/auth/me` 获取启用且已授权的身份，身份无效时阻断入口；Phase 6 起 HTTP 启动不读取聚合快照，各业务页面独立显示加载失败，显示错误与重试。真实钉钉登录仍为 Phase 12。
 - 页面禁止直接写业务集合，调用 model 门面再由 HengxinService 选择适配器。示例文件只在 mock 模式使用。当前保留原型布局和浏览器内示例下载；正式文件上传、鉴权下载与服务端 ZIP 分别在后续阶段接入。
 
 ## 基础约定
 
-JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 8601，展示可按 Asia/Shanghai 格式化。文件使用稳定 fileId，对象存储路径不作为公开链接；url 是短期预览地址，urlExpiresAt 为空仅限本地示例或明确不适用。服务端负责生成业务 ID、归属与审计，不能信任客户端提供的 ownerId。
+JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 8601，展示可按 Asia/Shanghai 格式化。文件使用稳定 fileId，对象存储路径不作为公开链接；url 是受控预览地址（Phase 6 为逐次鉴权的稳定 API 路径），urlExpiresAt 为空仅限本地示例或明确不适用。服务端负责生成业务 ID、归属与审计，不能信任客户端提供的 ownerId。
 
 错误响应为 `{ "code": "CONFLICT", "message": "任务正在处理中", "requestId": "..." }`。401 未认证、403 无权限、404 不存在、409 冲突、422 输入无效、5xx 服务异常；前端额外使用 UNAVAILABLE（网络/超时）、INVALID_RESPONSE（无法解析或非 JSON）。用户界面展示 message，不展示凭据与服务器路径。
 
@@ -29,7 +29,7 @@ JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 
 
 ## 当前业务接口契约
 
-下表路径均以 `/api/v1` 为前缀；包含 18 个业务方法，管理部分的 10 个方法见 PHASE4-CONTRACT。成功响应是前端 mock/HTTP 适配及目标 OpenAPI 的约定，当前真实业务路由仍返回 501。
+下表路径均以 `/api/v1` 为前缀；管理部分见 PHASE4-CONTRACT 及本文 Phase 7 补充。身份、文件、模板和 Skill 已接真实服务；Phase 8 接入任务创建、分页、详情和删除，执行来源及能力见文末补充。成品归档、返工和其他尚未实施的管理接口仍返回 501。
 
 | 方法与路径 | 请求 | 目标成功响应 |
 |---|---|---|
@@ -37,6 +37,7 @@ JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 
 | GET /workspace | 无 | 200 Workspace，启动兼容快照 |
 | GET /templates | TemplateQuery | 200 PageResult&lt;Template&gt; |
 | GET /templates/:id | 无 | 200 Template |
+| GET /templates/:id/versions | 无 | 200 Template[]，按版本倒序 |
 | POST /templates | TemplateInput | 200 Template |
 | PUT /templates/:id | TemplateInput | 200 Template；expectedVersion 冲突返回 409 |
 | DELETE /templates/:id | 无 | 204；历史任务快照不变 |
@@ -116,3 +117,29 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 - sessionId 只由服务端根据实际 CLI 事件绑定。新任务受理时可以尚未取得 sessionId；每轮进程结束后保留同任务会话记录，返工按精确 ID 续接，禁止按用户或共享“最近会话”选择。执行环境不能跨任务读取或修改输入、输出、临时文件与会话材料；这不改变员工对共享业务资源的查看权限。前端不能指定任意会话 ID。
 
 实现验收按 DEV-PLAN Phase 8 的多进程竞争、Phase 9 的实际 CLI 中断/续接与容器重建、Phase 10 的双用户返工分别取证；本补充不将现有 mock 串行行为计为后端并发安全已通过。
+
+## Phase 6 身份与文件接入
+
+- GET /auth/me：服务端显式 ENABLE_DEV_IDENTITY 后读取固定开发用户，默认关闭、生产拒绝启用。请求中的角色、用户 ID、模拟角色参数均不能指定可信身份。开发数据不自动关联钉钉成员；Phase 12 接真实会话。
+
+- POST /files：multipart 单文件，200 Picture{name,url,fileId}；JPG/PNG/WebP 实际解码通过且最多 10 MiB 后保存原字节到私有 MinIO，PG 保存大小、尺寸、类型、校验和、owner_id。浏览器负责每组20张上限，Phase 7/8 在业务组提交时追加服务端数量校验。
+- GET /files/{id}：200 Picture，稳定引用可在刷新后重新获取；不是素材库或草稿列表。
+- GET /files/{id}/content：每次鉴权后流式预览原图，download=true 设置附件下载。有效四角色可跨创建人访问；匿名/停用/待授权拒绝，未知/未完成文件不可读取。url 使用同源 /api/v1/files/{id}/content，浏览器不访问 MinIO 内网地址、不持久化签名链接。
+- 真实前端只以 /auth/me 作为身份入口，各页独立请求模板/Skill等；后续业务仍501并保留错误和重试，不把未实现解释为空数据。素材组件在这些接口失败时仍可上传/预览/下载，生成保持禁用。移除图片仅取消当前表单选择，不删除服务器对象；草稿恢复/生命周期仍属后续范围。
+
+## Phase 7 模板与 Skill 接入
+
+- 模板 CRUD、分页搜索排序及 GET /templates/:id/versions 接真实 PostgreSQL。编辑要求 expectedVersion，竞争返回409。图片必须是1–20个ready文件引用，名称/url从服务端取得；逻辑删除保留快照、原始对象和实际操作者审计。四角色共享操作。
+- Template.skillBinding 为 specific 或 module_default；skillVersionId 是保存时冻结的实际版本。TemplateInput.skillVersionId=null 使用该模块当时可用默认；无默认保存草稿，显式不可用版本可保留为草稿，类型错配或不存在422。切换默认不改旧模板，重新保存才解析新默认。
+- GET /skills 仅返回可用版本；GET /management/skills、POST /management/skills（multipart file/mode/version，201）、POST /management/skills/:id/install、PUT /management/skills/:id/status 仅超级管理员可用。安装受理返回200 installing，需继续查询安装结果。上传失败可重传内容相同的原版本包；成功版本不可覆盖。
+- GET/PUT /management/skills/defaults 仅超管，返回/提交 `{wallpaper: string|null, product: string|null, text: string|null}`，三个键必需；必须是对应模块可用版本。绑定和启停保存审计记录。
+- ZIP最大20MiB，解压100MiB、单文件20MiB、1000条目、压缩比100；验证CRC、拒绝路径穿越/符号链接/特殊文件。根或唯一顶层目录内SKILL.md须UTF8 YAML name/description；可选hengxin-skill.json声明mode/version及requires.executables/pythonModules，依赖须预装，不执行安装脚本或联网装依赖。
+- Worker使用持久化skill_data卷，按作业租约、心跳和独立尝试目录安装，成功原子发布不可变目录，失败不影响旧版。失败/成功/取消为终态，活跃租约不重复派发；测试包验证安装流程，不代表实际图像生成Skill已交付。
+
+## Phase 8 任务接入契约
+
+- POST /tasks 必须携带 Idempotency-Key，成功202 Accepted。同操作者、操作、目标及键相同且内容一致重放原回执；同键不同内容409。新请求冻结服务器模板快照、可用Skill版本、ready素材和要求，文字不需模板。缺少执行器时新请求503且不入库，不影响原已受理请求重放。
+- GET /tasks、GET /tasks/:id、DELETE /tasks/:id接真实数据库，四角色共享。删除回执表示逻辑删除和取消意图已保存，原文件及历史不回收。迟到/过期/已取消执行不能发布结果；执行待核实时不重新启动或允许新轮次。
+- Task新增可选executionSource（fixture/unavailable/cli），真实接口明确来源；fixture结果必须显示测试标记。TaskDetailData新增必需executionControl（canRevise/canRetry/blockedReason），前端按服务端能力控制按钮。Phase8返工HTTP尚未接入，两能力返回false并说明原因；模拟预览仍保留既有返工演示。
+- 默认不启用测试执行器，仅APP_ENV=test与ENABLE_FIXTURE_EXECUTOR=true同时满足才可生成fixture；fixture复制冻结图片为独立可读结果，不生成CLI会话或虚构usage。GENERATION_CONCURRENCY默认1，范围1–10；过期未知执行保持占用，不能自动接管再次运行。
+- HTTP前端同一次不确定提交保留请求键和输入快照；受理后的详情读取失败保留taskId并引导查询，不重新创建。轮询按运行/空闲状态3/10秒，离页停止。真实CLI和用户返工分别Phase9/10接入。

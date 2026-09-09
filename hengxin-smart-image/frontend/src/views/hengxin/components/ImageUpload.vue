@@ -12,7 +12,7 @@
     <ElButton v-if="isMockMode" text type="primary" :disabled="disabled" :loading="examplesLoading" @click="example">
       {{ exampleLabel || '使用示例素材' }}
     </ElButton>
-    <p class="hx-footnote">{{ isMockMode ? '模拟接收，仅本次页面有效。示例按钮将替换当前图片。' : '图片校验和接收完成后才可提交。' }}
+    <p class="hx-footnote">{{ isMockMode ? '模拟接收，仅本次页面有效。示例按钮将替换当前图片。' : '图片上传后保存在服务器；移除仅取消当前选择。' }}
       <template v-if="sortable">JPG / PNG / WebP · 单张不超过 10 MiB · 每组最多 20 张</template>
     </p>
     <div v-if="entries.length" :class="sortable ? 'hx-editor-pictures' : 'hx-source-list'">
@@ -26,6 +26,7 @@
           </small>
         </section>
         <div class="picture-actions">
+          <ElButton v-if="!isMockMode && entry.picture" text :loading="downloading.has(entry.id)" :aria-label="`下载图片 ${index + 1}`" @click="download(entry.id, entry.picture)">下载</ElButton>
           <ElButton v-if="sortable" text :disabled="disabled || examplesLoading || index === 0" :aria-label="`前移图片 ${index + 1}`" @click="move(index, -1)">前移</ElButton>
           <ElButton v-if="sortable" text :disabled="disabled || examplesLoading || index === entries.length - 1" :aria-label="`后移图片 ${index + 1}`" @click="move(index, 1)">后移</ElButton>
           <ElButton v-if="entry.state === 'failed'" text type="primary" :disabled="disabled || examplesLoading" :aria-label="`重试图片 ${index + 1}`" @click="retry(entry.id)">重试</ElButton>
@@ -42,6 +43,7 @@ import type { UploadFile, UploadInstance } from 'element-plus'
 import type { Mode, Picture } from '@/types/hengxin'
 import { isMockMode } from '@/api/hengxin/client'
 import { useImageUpload } from '../use-image-upload'
+import { downloadPicture } from '../download'
 
 const props = defineProps<{ mode: Mode; disabled?: boolean; label?: string; sortable?: boolean; exampleCount?: number; exampleLabel?: string }>()
 const model = defineModel<Picture[]>({ required: true })
@@ -51,6 +53,13 @@ const uploadGeneration = ref(0)
 const descriptions = { wallpaper: '上传希望放入手机屏幕的新壁纸', product: '上传希望替换到模板中的商品图片', text: '上传需要替换文字的商品图片' }
 const { entries, error, blocked, examplesLoading, add, remove, move, retry, useExamples } = useImageUpload(model, props)
 watch(blocked, value => emit('blocked', value), { immediate: true, flush: 'sync' })
+const downloading = ref(new Set<number>())
+async function download(id: number, picture: Picture) {
+  if (downloading.value.has(id)) return
+  downloading.value.add(id)
+  try { await downloadPicture(picture) }
+  finally { downloading.value.delete(id) }
+}
 let pendingCallbacks = 0
 async function onChange(file: UploadFile) {
   if (!file.raw) return

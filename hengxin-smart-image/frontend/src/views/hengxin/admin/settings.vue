@@ -9,7 +9,7 @@
         <h2 class="hx-gap">钉钉接入</h2><p class="hx-muted">检测状态：{{dingStates[data.dingtalk.state]}}。AppSecret 和 CLI 凭据保留部署环境，不在网页输入或回传。</p>
         <div class="hx-template-options"><ElFormItem label="企业 CorpId"><ElInput v-model="form.dingtalk.corpId" maxlength="120" aria-label="企业 CorpId" /></ElFormItem><ElFormItem label="应用 App 标识"><ElInput v-model="form.dingtalk.appId" maxlength="120" aria-label="应用 App 标识" /></ElFormItem><ElFormItem label="HTTPS 回调域名"><ElInput v-model="form.dingtalk.callbackDomain" placeholder="https://image.example.com" aria-label="HTTPS 回调域名" /></ElFormItem></div>
       </ElForm><ElAlert v-if="saveError" :title="saveError" type="error" :closable="false" /><ElButton class="hx-gap" type="primary" :loading="saving" :disabled="loading" @click="save">保存配置</ElButton></ElCard>
-      <ElCard class="art-card hx-section"><h2>配置变更记录</h2><ArtTable :data="data.audit" :columns="columns" :show-pagination="false" empty-text="尚无配置变更"><template #changedAt="{row}">{{new Date(row.changedAt).toLocaleString('zh-CN')}}</template><template #fields="{row}">{{row.fields.map((field: string)=>fieldLabels[field] || field).join('、')}}</template></ArtTable></ElCard>
+      <ElCard class="art-card hx-section"><h2>配置变更记录</h2><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data.audit" :columns="columns" :show-pagination="false" empty-text="尚无配置变更"><template #changedAt="{row}">{{new Date(row.changedAt).toLocaleString('zh-CN')}}</template><template #fields="{row}">{{row.fields.map((field: string)=>fieldLabels[field] || field).join('、')}}</template></ArtTable></ElCard>
     </div>
   </div>
 </template>

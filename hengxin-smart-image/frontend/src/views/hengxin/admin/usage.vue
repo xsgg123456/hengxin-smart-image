@@ -15,13 +15,13 @@
         <p class="hx-muted">首次 {{ report.summary.initial }} / 单张返工 {{ report.summary.single }} / 整套返工 {{ report.summary.whole }}；成功 {{ report.summary.success }} / 部分失败 {{ report.summary.partial }} / 失败 {{ report.summary.failed }} / 超时 {{ report.summary.timeout }} / 进行中 {{ report.summary.running }}。</p>
         <p class="hx-muted">平均排队 {{ seconds(report.summary.averageQueueSeconds) }} · 平均执行 {{ seconds(report.summary.averageDurationSeconds) }} · 输入 Token {{ report.summary.inputTokens ?? '未提供' }} · 输出 Token {{ report.summary.outputTokens ?? '未提供' }}</p>
         <p class="hx-footnote">成功率 = 成功 / 已结束执行，部分失败计入分母；未结束不计入。成功产出包含返工新版本。缺失 usage 不视为零，不估算费用或额度。</p>
-        <ArtTable :data="report.rows" :loading="loading" :columns="columns" :show-pagination="false" empty-text="此范围暂无执行记录">
+        <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="report.rows" :loading="loading" :columns="columns" :show-pagination="false" empty-text="此范围暂无执行记录">
           <template #attempts="{ row }">{{ row.summary.attempts }}</template><template #outputs="{ row }">{{ row.summary.outputImages }}</template>
           <template #action="{ row }"><ElButton text type="primary" @click="selected = row; detailOpen = true">展开明细</ElButton></template>
         </ArtTable>
       </template>
     </ElCard>
-    <ElDrawer v-model="detailOpen" title="调用明细" size="82%" destroy-on-close><template v-if="selected"><p>{{ selected.date }} · {{ selected.userName }} · 按实际操作者归属</p><ArtTable :data="selected.details" :columns="detailColumns" :show-pagination="false" empty-text="暂无执行明细">
+    <ElDrawer v-model="detailOpen" title="调用明细" size="82%" destroy-on-close><template v-if="selected"><p>{{ selected.date }} · {{ selected.userName }} · 按实际操作者归属</p><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="selected.details" :columns="detailColumns" :show-pagination="false" empty-text="暂无执行明细">
       <template #taskName="{ row }"><ElButton text type="primary" @click="openTask(row.taskId)">{{ row.taskName }}</ElButton></template>
       <template #kind="{ row }">{{ kinds[row.kind as keyof typeof kinds] }}</template><template #state="{ row }">{{ states[row.state as keyof typeof states] }}</template>
       <template #usage="{ row }">{{ row.usage ? `${row.usage.inputTokens} / ${row.usage.outputTokens}` : '未提供' }}</template>

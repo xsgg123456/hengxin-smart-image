@@ -54,6 +54,7 @@ class SkillVersion(BaseModel):
 
 
 class Template(BaseModel):
+    skillBinding: Literal['module_default', 'specific'] = omitted()
     id: str
     name: str
     mode: Mode
@@ -88,6 +89,7 @@ class Round(BaseModel):
 
 
 class Task(BaseModel):
+    executionSource: Literal['fixture', 'unavailable', 'cli'] = omitted()
     id: str
     name: str
     mode: Mode
@@ -161,7 +163,14 @@ class ResultSlot(BaseModel):
     error: str | None
 
 
+class ExecutionControl(BaseModel):
+    canRevise: bool
+    canRetry: bool
+    blockedReason: str | None
+
+
 class TaskDetailData(BaseModel):
+    executionControl: ExecutionControl
     task: Task
     slots: list[ResultSlot]
     rounds: list[Round]

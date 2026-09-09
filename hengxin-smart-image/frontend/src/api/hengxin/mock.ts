@@ -1,4 +1,4 @@
-import type { HengxinService, Task, User, Workspace } from '../../types/hengxin'
+import type { Accepted, HengxinService, Task, User, Workspace } from '../../types/hengxin'
 import { createMockCatalog, type MockScenario } from './mock-catalog'
 import { createMockTasks } from './mock-tasks'
 import { ApiError } from './http'
@@ -13,6 +13,7 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   let user = copy(options.user ?? getPreviewUser())
   let uploadLimit = 10 * 1048576
+  const submissions = new Map<string, { fingerprint: string; accepted: Accepted }>()
   let executionConfig = { version: 1, concurrency: 1, timeoutSeconds: 600 }
   const wait = async () => { await new Promise<void>(resolve => setTimeout(resolve, options.delayMs ?? 120)); if (user.status !== 'active' || !user.role) { if (typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:unauthorized')); throw new ApiError('UNAUTHORIZED', '账号未授权或已禁用', 401) } }
   const catalog = createMockCatalog(db, wait, options.scenario ?? 'default', () => user.id, () => uploadLimit)
@@ -22,8 +23,15 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
     async getUser() { return copy(user) },
     async getWorkspace() { await wait(); return copy(db) },
     ...catalog.service, ...tasks.service, ...management,
-    async createTask(input) {
-      await wait(); catalog.fail('submit')
+    async createTask(input, idempotencyKey = crypto.randomUUID()) {
+      await wait()
+      const key = `${user.id}:${idempotencyKey}`, fingerprint = JSON.stringify(input)
+      const previous = submissions.get(key)
+      if (previous) {
+        if (previous.fingerprint !== fingerprint) throw new ApiError('CONFLICT', '同一请求标识的内容不一致', 409)
+        return copy(previous.accepted)
+      }
+      catalog.fail('submit')
       const template = input.mode === 'text' ? undefined : db.templates.find(t => t.id === input.templateId)
       if (!input.name.trim() || !input.sources.length || (input.mode === 'text' && !input.note.trim())) throw new ApiError('VALIDATION', '请填写任务名称、素材及必要修改要求', 422)
       if (input.mode !== 'text' && (!template?.active || !template.skill || template.mode !== input.mode)) throw new ApiError('VALIDATION', '请选择类型匹配且 Skill 可用的模板', 422)
@@ -40,7 +48,9 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
         time: new Date().toISOString(), archived: false, currentRoundId: ''
       }
       db.tasks.unshift(task)
-      return tasks.run(task, null, input.note, true)
+      const accepted = tasks.run(task, null, input.note, true)
+      submissions.set(key, { fingerprint, accepted })
+      return copy(accepted)
     },
     dispose() { tasks.dispose(); catalog.dispose() }
   }

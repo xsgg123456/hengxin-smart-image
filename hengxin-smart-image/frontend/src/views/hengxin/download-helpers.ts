@@ -18,7 +18,7 @@ export function imageExtension(data: Uint8Array, mime: string): string {
   const starts = (...bytes: number[]) => bytes.every((byte, i) => data[i] === byte)
   const ascii = (start: number, end: number) => new TextDecoder().decode(data.slice(start, end))
   if (mime === 'image/png' && data.length >= 24 && starts(137, 80, 78, 71, 13, 10, 26, 10) && ascii(12, 16) === 'IHDR') return 'png'
-  if (mime === 'image/jpeg' && data.length >= 4 && starts(255, 216, 255) && data.at(-2) === 255 && data.at(-1) === 217) return 'jpg'
+  if (mime === 'image/jpeg' && data.length >= 4 && starts(255, 216, 255) && data.some((byte, index) => index >= 2 && byte === 255 && data[index + 1] === 217)) return 'jpg'
   if (mime === 'image/webp' && data.length >= 20 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP' && ['VP8 ', 'VP8L', 'VP8X'].includes(ascii(12, 16))) return 'webp'
   if (mime === 'image/gif' && data.length >= 14 && ['GIF87a', 'GIF89a'].includes(ascii(0, 6)) && data.at(-1) === 59) return 'gif'
   if (mime === 'image/svg+xml') {

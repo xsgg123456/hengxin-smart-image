@@ -7,12 +7,12 @@ export class ApiError extends Error {
 }
 
 export function createRequest(baseUrl: string, fetcher: typeof fetch = fetch) {
-  async function request<T>(path: string, guard: (value: unknown) => value is T, method = 'GET', body?: unknown): Promise<T> {
+  async function request<T>(path: string, guard: (value: unknown) => value is T, method = 'GET', body?: unknown, timeoutMs = 10000, headers: Record<string, string> = {}): Promise<T> {
     let response: Response
     try {
       response = await fetcher(`${baseUrl.replace(/\/$/, '')}${path}`, {
-        method, credentials: 'include', signal: AbortSignal.timeout(10000),
-        headers: { Accept: 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) },
+        method, credentials: 'include', signal: AbortSignal.timeout(timeoutMs),
+        headers: { Accept: 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers },
         body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body)
       })
     } catch {
@@ -63,15 +63,16 @@ export function createHttpService(baseUrl: string, fetcher: typeof fetch = fetch
       return request(`/templates?${params}`, validate.templatePage)
     },
     getTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.template),
+    getTemplateVersions: id => request(`/templates/${encodeURIComponent(id)}/versions`, validate.templateList),
     listSkills: mode => request(`/skills${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, validate.skillList),
     uploadFile: file => {
       const data = new FormData()
       data.append('file', file)
-      return request('/files', validate.uploadedPicture, 'POST', data)
+      return request('/files', validate.uploadedPicture, 'POST', data, 60000)
     },
     saveTemplate: template => request(template.id ? `/templates/${encodeURIComponent(template.id)}` : '/templates', validate.template, template.id ? 'PUT' : 'POST', template),
     deleteTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),
-    createTask: input => request('/tasks', validate.accepted, 'POST', input),
+    createTask: (input, idempotencyKey = crypto.randomUUID()) => request('/tasks', validate.accepted, 'POST', input, 10000, { 'Idempotency-Key': idempotencyKey }),
     revise: input => request(`/tasks/${encodeURIComponent(input.taskId)}/rounds`, validate.accepted, 'POST', input),
     archive: taskId => request(`/tasks/${encodeURIComponent(taskId)}/archives`, validate.archive, 'POST'),
     deleteArchive: id => request(`/archives/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),

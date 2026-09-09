@@ -27,7 +27,7 @@
               <h3>{{ t.name }}</h3><p>{{ t.images.length }} 张模板图 <span>·</span> {{ t.skill || '尚未绑定 Skill' }}</p>
               <p>版本 v{{ t.version }} <span>·</span> {{ formatTime(t.updatedAt) }}</p>
               <div class="hx-row"><ElButton :disabled="loading || !!deleting || !t.active || !t.skillVersionId" type="primary" plain @click="use(t)">使用模板</ElButton><ElButton text :disabled="loading || !!deleting" @click="edit(t)">配置模板</ElButton></div>
-              <div class="hx-gap"><ElButton text type="danger" :loading="deleting === t.id" :disabled="loading || !!deleting" @click="remove(t)">删除模板</ElButton></div>
+              <div class="hx-gap"><ElButton text :disabled="loading || !!deleting" @click="historyId = t.id">历史版本</ElButton><ElButton text type="danger" :loading="deleting === t.id" :disabled="loading || !!deleting" @click="remove(t)">删除模板</ElButton></div>
             </div>
           </ElCard>
         </div>
@@ -36,6 +36,7 @@
       <ElPagination v-model:current-page="page" class="hx-gap" :page-size="pageSize" :total="total" layout="prev, pager, next, total" :disabled="loading || !!deleting" />
     </ElCard>
     <TemplateEditor v-if="dialog" :template-id="editing" @close="dialog = false" @saved="saved" />
+    <TemplateHistory v-if="historyId" :template-id="historyId" @close="historyId = ''" />
   </div>
 </template>
 <script setup lang="ts">
@@ -46,11 +47,13 @@ import { listTemplates, deleteTemplate } from '@/api/templates'
 import type { Mode, Template, TemplateQuery } from '@/types/hengxin'
 import { labels } from '../model'
 import TemplateEditor from './TemplateEditor.vue'
+import TemplateHistory from './TemplateHistory.vue'
 
 const router = useRouter()
 const mode = ref<Mode | 'all'>('all'), search = ref(''), sort = ref<NonNullable<TemplateQuery['sort']>>('updated')
 const templates = ref<Template[]>([]), total = ref(0), page = ref(1), pageSize = 12
 const loading = ref(false), error = ref(''), dialog = ref(false), editing = ref<string>(), deleting = ref('')
+const historyId = ref('')
 let request = 0
 function message(reason: unknown, fallback: string) { return reason instanceof Error ? reason.message : fallback }
 async function load() {

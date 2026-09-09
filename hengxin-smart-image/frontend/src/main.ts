@@ -71,7 +71,8 @@ retryBootstrap.run = async () => {
   bootstrap.error = ''
   try {
     const user = await fetchGetUserInfo()
-    await refreshWorkspace()
+    // 真实页面各自加载业务数据，不让尚未接入的聚合接口阻断文件上传。
+    if (isMockMode) await refreshWorkspace()
     useUserStore().setUserInfo(user)
     useUserStore().setLoginStatus(true)
     if (!routerInitialized) { initRouter(app); routerInitialized = true }

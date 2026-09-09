@@ -4,7 +4,7 @@ import { createHttpService } from './http'
 import { createHttpManagement } from '../management'
 
 // 只有显式 mock 模式加载模拟模块；生产构建采用真实 HTTP，不回退。
-export const isMockMode = import.meta.env.MODE === 'mock'
+export const isMockMode = import.meta.env?.MODE === 'mock'
 let service: Promise<HengxinService> | undefined
 export function getService(): Promise<HengxinService> {
   service ??= isMockMode

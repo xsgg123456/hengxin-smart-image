@@ -74,3 +74,15 @@ test('仓库示例 SVG 均可下载，整套成功保留实际格式', async () 
     assert.equal(view.getUint16(bytes.length - 12, true), 2)
   } finally { globalThis.fetch = original }
 })
+
+
+test('合法 JPEG 结束标记后的附加字节下载时完整保留', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const bytes = new Uint8Array(await readFile(new URL('./fixtures/jpeg-with-trailer.jpg', import.meta.url)))
+  assert.equal(imageExtension(bytes, 'image/jpeg'), 'jpg')
+  assert.notEqual(bytes.at(-1), 217)
+  const original = globalThis.fetch
+  globalThis.fetch = async () => new Response(bytes, { headers: { 'content-type': 'image/jpeg' } })
+  try { assert.deepEqual((await readImage('/api/v1/files/test/content')).data, bytes) }
+  finally { globalThis.fetch = original }
+})

@@ -36,6 +36,8 @@ export interface ManagementService {
   listUsers(query: UserQuery): Promise<PageResult<ManagedUser>>
   saveUser(input: UserInput): Promise<ManagedUser>
   listManagedSkills(): Promise<ManagedSkill[]>
+  getSkillDefaults(): Promise<SystemConfig['defaultSkillIds']>
+  saveSkillDefaults(input: SystemConfig['defaultSkillIds']): Promise<SystemConfig['defaultSkillIds']>
   uploadSkill(file: File, mode: Mode, version: string): Promise<ManagedSkill>
   installSkill(id: string): Promise<ManagedSkill>
   setSkillStatus(id: string, status: 'available' | 'disabled'): Promise<ManagedSkill>

@@ -36,11 +36,13 @@
           <dl><div><dt>处理类型</dt><dd>{{ labels[mode] }}</dd></div><div><dt>已选模板</dt><dd>{{ mode === 'text' ? '无需模板' : template ? `${template.name} · v${template.version}` : '尚未选择' }}</dd></div><div><dt>替换素材</dt><dd>{{ sources.length }} 张</dd></div><div><dt>预计输出</dt><dd>{{ mode === 'text' ? sources.length : template?.images.length || 0 }} 张</dd></div></dl>
           <div class="hx-skill-note"><ArtSvgIcon icon="ri:sparkling-2-line" /><div><strong>{{ loading ? '加载 Skill…' : skill?.name || '暂无可用 Skill' }}</strong><small>{{ skill ? `v${skill.version}${isMockMode ? ' · 模拟绑定' : ''}` : '请联系超级管理员配置可用版本' }}</small></div></div>
           <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon class="hx-gap" />
-          <ElButton type="primary" size="large" class="hx-full hx-gap" :loading="submitting" :disabled="blocked" @click="submit"><ArtSvgIcon icon="ri:sparkling-line" /> 提交生成任务</ElButton>
+          <ElAlert v-if="accepted" :title="`任务已受理：${accepted.taskId}`" type="success" :closable="false" class="hx-gap"><ElButton text @click="viewAccepted">查看已受理任务</ElButton><ElButton text @click="startNew">另建任务</ElButton></ElAlert>
+          <ElAlert v-else-if="uncertain" title="上次提交结果尚未确认；输入已保留，请确认原请求以避免重复任务。" type="warning" :closable="false" class="hx-gap"><ElButton text :loading="submitting" @click="submit(true)">确认上次提交</ElButton></ElAlert>
+          <ElButton type="primary" size="large" class="hx-full hx-gap" :loading="submitting" :disabled="blocked || !!accepted" @click="submit()"><ArtSvgIcon icon="ri:sparkling-line" /> 提交生成任务</ElButton>
           <p v-if="uploadBlocked" class="hx-footnote">请等待图片接收完成；失败图片需重试或移除。</p>
           <p class="hx-footnote">{{ isMockMode ? '生成返回示例图片，仅用于前端预览。' : '任务受理后可在任务中心查看状态。' }}</p>
         </ElCard>
-        <div class="hx-tips"><h3>每一次套图，都可以继续完善</h3><p>生成后支持整套或单张提出修改意见，满意后再归档到成品库。</p></div>
+        <div class="hx-tips"><h3>{{ isMockMode ? '每一次套图，都可以继续完善' : '任务进度随时可查' }}</h3><p>{{ isMockMode ? '生成后支持整套或单张提出修改意见，满意后再归档到成品库。' : '受理后可关闭页面，稍后到任务中心查看状态并下载已完成图片。返工与归档功能将在后续开放。' }}</p></div>
       </aside>
     </div>
   </div>
@@ -56,5 +58,5 @@ const props = defineProps<{ mode: Mode }>()
 const router = useRouter()
 const descriptions = { wallpaper: '保留商品与画面设计，为整套图片换上新的屏幕壁纸。', product: '复用成熟的商品模板，让新商品自然融入原有场景。', text: '说清楚要改的文字，其余处理交给对应的 Skill。' }
 const { available, template, sources, name, sku, note, search, page, pageSize, total, loading, loadError, error,
-  submitting, uploadBlocked, skill, blocked, select, load, example, submit } = useCreateTask(toRef(props, 'mode'))
+  submitting, uploadBlocked, skill, blocked, select, load, example, submit, accepted, uncertain, viewAccepted, startNew } = useCreateTask(toRef(props, 'mode'))
 </script>

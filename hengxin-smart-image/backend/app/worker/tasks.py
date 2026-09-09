@@ -17,7 +17,7 @@ def run_job(job_id: str, factory=None):
     factory = factory or session_factory()
     with factory.begin() as session:
         job = session.scalar(select(Job).where(Job.id == UUID(job_id)).with_for_update())
-        if job is None or job.status == "succeeded":
+        if job is None or job.status in ('succeeded', 'failed', 'cancelled'):
             return
         # Only a bounded, side-effect-free test computation runs under this lock.
         # Process death rolls back; duplicate messages wait then observe completion.
@@ -33,3 +33,25 @@ def run_job(job_id: str, factory=None):
 @celery_app.task(name="hengxin.test_job")
 def execute_test_job(job_id: str):
     run_job(job_id)
+
+
+@celery_app.task(name='hengxin.job')
+def execute_job(job_id: str):
+    factory = session_factory()
+    with factory() as session:
+        job = session.get(Job, UUID(job_id))
+        kind = job.kind if job else None
+    if kind == 'test':
+        run_job(job_id, factory)
+    elif kind == 'generation':
+        from app.execution.fixture_runner import run_generation
+        run_generation(job_id, factory)
+    elif kind == 'skill_install':
+        from app.worker.skill_install import run_install
+        run_install(job_id, factory)
+    elif kind is not None:
+        from app.worker.leases import finish_job
+        with factory.begin() as session:
+            job = session.scalar(select(Job).where(Job.id == UUID(job_id)).with_for_update())
+            if job.status not in ('succeeded', 'failed', 'cancelled'):
+                finish_job(session, job, 'failed', '未知作业类型')

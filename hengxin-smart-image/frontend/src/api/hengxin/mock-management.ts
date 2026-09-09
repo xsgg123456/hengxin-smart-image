@@ -31,6 +31,20 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
   const skillService = createSkillManagement(db, skills, check, options)
   return {
     ...skillService,
+    async getSkillDefaults() { await check(true); return copy(settings.defaultSkillIds) },
+    async saveSkillDefaults(input) {
+      await check(true, 'save')
+      for (const mode of ['wallpaper', 'product', 'text'] as const) {
+        if (input[mode] !== null && !skills.some(s => s.id === input[mode] && s.mode === mode && s.status === 'available')) {
+          throw new ApiError('VALIDATION', '默认版本必须属于该模块且可用', 422)
+        }
+      }
+      settings.defaultSkillIds = copy(input)
+      settings.version++
+      skills.forEach(s => { s.isDefault = input[s.mode] === s.id })
+      options.onSettingsChanged?.(copy(settings))
+      return copy(input)
+    },
     async getUsage(query) {
       const user = await check()
       const names = [...users, ...(users.some(u => u.id === user.id) ? [] : [{ ...user, department: '', lastLoginAt: null }])]

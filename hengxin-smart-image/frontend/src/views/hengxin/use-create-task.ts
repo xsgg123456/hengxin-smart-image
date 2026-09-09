@@ -3,14 +3,24 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTemplate, listTemplates } from '@/api/templates'
 import { listSkills } from '@/api/skills'
-import type { Mode, Picture, SkillVersion, Template } from '@/types/hengxin'
-import { createTask } from './model'
+import type { Mode, SkillVersion, Template } from '@/types/hengxin'
+import { getService } from '@/api/hengxin/client'
+import { useUserStore } from '@/store/modules/user'
+import { useTaskCreationSession } from './task-creation-session'
 
 export function useCreateTask(mode: Ref<Mode>) {
   const router = useRouter(), route = useRoute()
-  const available = ref<Template[]>([]), template = ref<Template>()
+  const user = useUserStore()
+  const identity = () => user.isLogin && user.info.userId != null ? String(user.info.userId) : undefined
+  const { submission, session, template, sources, name, sku, note } = useTaskCreationSession(identity, () => mode.value,
+    () => route.query.template, async (input, key) => {
+      const owner = identity(), service = await getService()
+      if (!owner || owner !== identity()) throw new Error('登录身份已变化，请重新确认提交')
+      return service.createTask(input, key)
+    })
+  const { accepted, uncertain } = submission
+  const available = ref<Template[]>([])
   const skillVersions = ref<SkillVersion[]>([])
-  const sources = ref<Picture[]>([]), name = ref(''), sku = ref(''), note = ref('')
   const search = ref(''), page = ref(1), total = ref(0), pageSize = 4
   const loading = ref(false), loadError = ref(''), error = ref(''), submitting = ref(false), uploadBlocked = ref(false)
   let sequence = 0, alive = true
@@ -22,6 +32,9 @@ export function useCreateTask(mode: Ref<Mode>) {
   function select(value: Template) { template.value = value; error.value = '' }
   async function load() {
     const current = ++sequence
+    if (!identity()) { loading.value = false; return }
+    const requestedSession = session.value
+    const isCurrent = () => current === sequence && requestedSession === session.value
     const requestedMode = mode.value
     loading.value = true; loadError.value = ''
     try {
@@ -30,25 +43,25 @@ export function useCreateTask(mode: Ref<Mode>) {
           page: page.value, pageSize, search: search.value.trim(), mode: requestedMode, activeOnly: true, sort: 'updated'
         })
       ])
-      if (current !== sequence) return
+      if (!isCurrent()) return
       skillVersions.value = catalog
       available.value = result?.items ?? []; total.value = result?.total ?? 0
       const requestedId = typeof route.query.template === 'string' ? route.query.template : undefined
       if (requestedMode !== 'text' && requestedId && !template.value) {
         const linked = await getTemplate(requestedId)
-        if (current !== sequence) return
+        if (!isCurrent()) return
         if (linked.mode !== requestedMode || !linked.active) throw new Error('链接中的模板不可用于当前类型，请前往模板库重新选择')
         template.value = linked
       } else if (!template.value) template.value = available.value[0]
       else if (result?.items.some(t => t.id === template.value?.id)) template.value = result.items.find(t => t.id === template.value?.id)
     } catch (cause) {
-      if (current === sequence) loadError.value = cause instanceof Error ? cause.message : '模板或 Skill 加载失败，请重试'
-    } finally { if (current === sequence) loading.value = false }
+      if (isCurrent()) loadError.value = cause instanceof Error ? cause.message : '模板或 Skill 加载失败，请重试'
+    } finally { if (isCurrent()) loading.value = false }
   }
   watch(search, () => { page.value = 1 }, { flush: 'sync' })
   watch([search, page], load)
-  watch([mode, () => route.query.template], () => {
-    template.value = undefined; sources.value = []; name.value = ''; sku.value = ''; note.value = ''; error.value = ''
+  watch(session, () => {
+    error.value = ''; skillVersions.value = []; available.value = []
     search.value = ''; page.value = 1; void load()
   }, { immediate: true })
   function example() {
@@ -56,23 +69,29 @@ export function useCreateTask(mode: Ref<Mode>) {
     if (mode.value === 'text' && !note.value) note.value = '将「新品上市」改为「秋日上新」，其他内容保持不变'
     error.value = ''
   }
-  async function submit() {
-    if (blocked.value) return
+  async function viewAccepted() {
+    if (accepted.value) await router.push({ path: '/tasks/index', query: { task: accepted.value.taskId } })
+  }
+  function startNew() { submission.startNew(); error.value = '' }
+  async function submit(resolvePrevious = false) {
+    if (accepted.value) { await viewAccepted(); return }
+    if (submitting.value || (!resolvePrevious && blocked.value)) return
     error.value = !sources.value.length ? '请先上传素材' : !name.value.trim() ? '请填写任务名称'
       : mode.value === 'text' && !note.value.trim() ? '请填写文字修改要求' : ''
-    if (error.value) { ElMessage.warning(error.value); return }
+    if (error.value && !resolvePrevious) { ElMessage.warning(error.value); return }
     submitting.value = true
     const submittedFrom = route.fullPath
+    const submittedSession = session.value, submittedOwner = identity()
     try {
-      const accepted = await createTask({ mode: mode.value, name: name.value.trim(), sku: sku.value.trim() || undefined,
+      const receipt = resolvePrevious ? await submission.resolvePrevious() : await submission.submit({ mode: mode.value, name: name.value.trim(), sku: sku.value.trim() || undefined,
         templateId: template.value?.id, templateVersion: template.value?.version, skillVersionId: skill.value?.id,
         sources: sources.value.map(p => ({ ...p })), note: note.value.trim() })
       // 工作区读取错误会卸载表单，但不应丢弃已经受理的任务标识。
-      if (router.currentRoute.value.fullPath === submittedFrom) await router.push({ path: '/tasks/index', query: { task: accepted.taskId } })
+      if (alive && identity() === submittedOwner && session.value === submittedSession && router.currentRoute.value.fullPath === submittedFrom) await router.push({ path: '/tasks/index', query: { task: receipt.taskId } })
     } catch (cause) {
       if (alive) { error.value = cause instanceof Error ? cause.message : '提交失败，请重试'; ElMessage.error(error.value) }
     } finally { if (alive) submitting.value = false }
   }
   return { available, template, sources, name, sku, note, search, page, pageSize, total, loading, loadError, error,
-    submitting, uploadBlocked, skill, blocked, select, load, example, submit }
+    submitting, uploadBlocked, skill, blocked, select, load, example, submit, accepted, uncertain, viewAccepted, startNew }
 }

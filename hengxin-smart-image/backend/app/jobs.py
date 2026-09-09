@@ -28,7 +28,7 @@ class TestJobInput(BaseModel):
 
 class JobResponse(BaseModel):
     jobId: UUID
-    status: Literal["queued", "succeeded"]
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: str | None
     executionCount: int
 

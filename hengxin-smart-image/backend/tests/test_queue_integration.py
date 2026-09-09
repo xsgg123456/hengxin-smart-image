@@ -1,6 +1,7 @@
 """Opt in with TEST_DATABASE_URL pointing to a disposable *_test database."""
 import hashlib
 import os
+from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
@@ -31,13 +32,17 @@ def factory(monkeypatch):
     monkeypatch.setenv("ENABLE_TEST_JOBS", "true")
     get_settings.cache_clear()
     engine = create_engine(url)
-    Base.metadata.create_all(engine)
+    schema = 'test_queue_' + uuid4().hex
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE job_outbox, job_records"))
-    yield sessionmaker(engine, expire_on_commit=False)
-    with engine.begin() as conn:
-        conn.execute(text("TRUNCATE job_outbox, job_records"))
-    engine.dispose()
+        conn.execute(text(f'CREATE SCHEMA {schema}'))
+    isolated = engine.execution_options(schema_translate_map={None: schema})
+    Base.metadata.create_all(isolated)
+    try:
+        yield sessionmaker(isolated, expire_on_commit=False)
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f'DROP SCHEMA {schema} CASCADE'))
+        engine.dispose()
     get_settings.cache_clear()
 
 

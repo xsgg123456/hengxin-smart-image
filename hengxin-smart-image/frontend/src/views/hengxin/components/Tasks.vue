@@ -10,9 +10,9 @@
       </div>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon><ElButton text @click="load()">重试加载</ElButton></ElAlert>
       <ElAlert v-if="deleteError" :title="deleteError" type="error" :closable="false" show-icon />
-      <ArtTable :data="tasks" :columns="columns" :loading="loading" row-key="id" empty-text="暂无匹配任务" :show-pagination="false">
+      <ArtTable :data="tasks" :columns="columns" :loading="loading" height="auto" empty-height="340px" :show-table-header="false" row-key="id" empty-text="暂无匹配任务" :show-pagination="false">
         <template #name="{ row }"><div class="hx-table-name"><img v-if="row.images[0]" :src="row.images[0].url" alt="当前结果缩略图" /><div><strong>{{ row.name }}</strong><small>{{ row.id }}{{ row.sku ? ` · ${row.sku}` : '' }}</small></div></div></template>
-        <template #mode="{ row }"><ElTag effect="plain">{{ labels[row.mode as Mode] }}</ElTag></template>
+        <template #mode="{ row }"><ElTag effect="plain">{{ labels[row.mode as Mode] }}</ElTag><ElTag v-if="row.executionSource === 'fixture'" type="warning" size="small">测试任务</ElTag></template>
         <template #state="{ row }"><ElTag :type="['失败', '部分失败'].includes(row.state) ? 'danger' : row.state === '待查看' ? 'success' : 'primary'">{{ row.state }}</ElTag></template>
         <template #progress="{ row }"><ElProgress v-if="row.progress !== null" :percentage="row.progress" :stroke-width="5" /><span v-else>{{ row.state }}</span><small class="hx-muted">{{ row.images.length }} 张已有结果{{ row.outputCount ? ` / ${row.outputCount} 张` : '' }}</small></template>
         <template #time="{ row }">{{ formatTime(row.time) }}</template>

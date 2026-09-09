@@ -95,7 +95,14 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
       return { ...paginate(items, query), stats: { total: db.tasks.length, processing: db.tasks.filter(t => active.has(t.id)).length,
         ready: db.tasks.filter(t => t.state === '待查看').length, archived: db.archives.length } }
     },
-    async getTask(taskId) { await wait(); return copy({ task: find(taskId), slots: slots.get(taskId)!, rounds: rounds.get(taskId)! }) },
+    async getTask(taskId) {
+      await wait()
+      const task = find(taskId)
+      const canRevise = task.state === '待查看' && !active.has(taskId)
+      const canRetry = ['失败', '部分失败'].includes(task.state) && !active.has(taskId)
+      return copy({ task, slots: slots.get(taskId)!, rounds: rounds.get(taskId)!,
+        executionControl: { canRevise, canRetry, blockedReason: canRevise || canRetry ? null : '任务正在处理中，请稍后再试' } })
+    },
     async deleteTask(taskId) {
       await wait(); find(taskId)
       clearInterval(active.get(taskId)); active.delete(taskId)

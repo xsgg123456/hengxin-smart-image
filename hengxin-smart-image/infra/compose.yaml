@@ -1,7 +1,7 @@
 name: hengxin-smart-image
 
 x-app: &app
-  image: hengxin-smart-image-backend:phase5
+  image: hengxin-smart-image-backend:phase8
   build:
     context: ..
     dockerfile: infra/Dockerfile.backend
@@ -9,7 +9,17 @@ x-app: &app
   restart: unless-stopped
   environment: &environment
     APP_ENV: ${APP_ENV:-development}
+    ENABLE_DEV_IDENTITY: ${ENABLE_DEV_IDENTITY:-false}
+    DEV_USER_ID: ${DEV_USER_ID:-00000000-0000-4000-8000-000000000001}
+    DEV_USER_NAME: ${DEV_USER_NAME:-本地联调用户}
+    DEV_USER_ROLE: ${DEV_USER_ROLE:-operator}
+    MINIO_BUCKET: ${MINIO_BUCKET:-hengxin-smart-image}
     ENABLE_TEST_JOBS: ${ENABLE_TEST_JOBS:-false}
+    ENABLE_FIXTURE_EXECUTOR: ${ENABLE_FIXTURE_EXECUTOR:-false}
+    GENERATION_CONCURRENCY: ${GENERATION_CONCURRENCY:-1}
+    FIXTURE_DELAY_SECONDS: ${FIXTURE_DELAY_SECONDS:-3}
+    SKILL_INSTALL_ROOT: /var/lib/hengxin/skills
+    WORKER_NODE_NAME: worker-1
     DATABASE_URL: postgresql+psycopg://hengxin:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/hengxin
     REDIS_URL: redis://redis:6379/0
     MINIO_ENDPOINT: minio:9000
@@ -83,6 +93,7 @@ services:
       retries: 6
   worker:
     <<: *app
+    volumes: [skill_data:/var/lib/hengxin/skills]
     command: ['celery', '-A', 'app.worker.celery_app:celery_app', 'worker', '--loglevel=INFO', '--concurrency=1']
     healthcheck:
       test: ['CMD-SHELL', 'celery -A app.worker.celery_app:celery_app inspect ping --destination celery@$$HOSTNAME --timeout 5']
@@ -97,3 +108,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  skill_data:

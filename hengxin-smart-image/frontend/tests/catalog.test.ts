@@ -20,7 +20,7 @@ const file = () => new File([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAA
 
 test('模板分页/筛选/排序，页界互斥且查询不污染存量', async t => {
   const service = createMockService({ delayMs: 0, empty: true }); t.after(() => service.dispose())
-  for (let i = 0; i < 15; i++) await service.saveTemplate({ ...draft, name: `模板 ${String(i).padStart(2, '0')}` })
+  for (let i = 0; i < 15; i++) await service.saveTemplate({ ...draft, active: false, name: `模板 ${String(i).padStart(2, '0')}` })
   const a = await service.listTemplates({ page: 1, pageSize: 12, sort: 'name' })
   const b = await service.listTemplates({ page: 2, pageSize: 12, sort: 'name' })
   assert.equal(a.total, 15); assert.equal(a.items.length, 12); assert.equal(b.items.length, 3)
@@ -34,10 +34,10 @@ test('模板分页/筛选/排序，页界互斥且查询不污染存量', async 
 
 test('草稿不可生成，类型匹配 Skill、版本冲突及历史快照不被编辑删除覆盖', async t => {
   const service = createMockService({ delayMs: 0, stepMs: 3 }); t.after(() => service.dispose())
-  const initial = await service.saveTemplate(draft)
-  assert.equal(initial.active, false); assert.equal(initial.skillVersionId, null)
+  const initial = await service.saveTemplate({ ...draft, active: false })
+  assert.equal(initial.active, false); assert.equal(initial.skillVersionId, 'mock-wallpaper-1')
   await assert.rejects(service.createTask({ ...taskInput, templateId: initial.id }), { code: 'VALIDATION' })
-  await assert.rejects(service.saveTemplate({ ...draft, skillVersionId: 'mock-product-1' }), { code: 'SKILL_UNAVAILABLE' })
+  await assert.rejects(service.saveTemplate({ ...draft, skillVersionId: 'mock-product-1' }), { code: 'VALIDATION' })
   const linked = await service.saveTemplate({ ...draft, id: initial.id, expectedVersion: 1, skillVersionId: 'mock-wallpaper-1' })
   assert.equal(linked.version, 2); assert.equal(linked.active, true)
   await assert.rejects(service.createTask({ ...taskInput, templateId: linked.id, templateVersion: 1 }), { code: 'CONFLICT' })

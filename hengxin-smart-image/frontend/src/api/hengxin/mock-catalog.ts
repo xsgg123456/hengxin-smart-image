@@ -1,4 +1,4 @@
-import type { HengxinService, Mode, Picture, SkillVersion, TemplateInput, Workspace } from '../../types/hengxin'
+import type { HengxinService, Mode, Picture, SkillVersion, Template, TemplateInput, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
 import { MOCK_USER_ID, sampleImages, skillNames } from './fixtures'
 import { IMAGE_MIME_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from './limits'
@@ -18,6 +18,7 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
     sampleImages(mode, 4).forEach(picture => files.set(picture.fileId!, picture))
   }
   if (scenario === 'no-skills') db.templates.forEach(template => { template.active = false })
+  const history = new Map<string, Template[]>(db.templates.map(t => [t.id, [copy(t)]]))
   function fail(operation: string) {
     if (scenario === `${operation}-error` && !consumed.has(operation)) {
       consumed.add(operation)
@@ -42,7 +43,7 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
     if (!template) throw new ApiError('NOT_FOUND', '模板已删除，请重新选择', 404)
     return template
   }
-  const service: Pick<HengxinService, 'listTemplates' | 'getTemplate' | 'listSkills' | 'uploadFile' | 'saveTemplate' | 'deleteTemplate'> = {
+  const service: Pick<HengxinService, 'listTemplates' | 'getTemplate' | 'getTemplateVersions' | 'listSkills' | 'uploadFile' | 'saveTemplate' | 'deleteTemplate'> = {
     async listTemplates(query) {
       await wait(); fail('list')
       if (!Number.isInteger(query.page) || query.page < 1 || !Number.isInteger(query.pageSize) || query.pageSize < 1 || query.pageSize > 100) {
@@ -57,6 +58,7 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       return { items: copy(result.slice((query.page - 1) * query.pageSize, query.page * query.pageSize)), page: query.page, pageSize: query.pageSize, total: result.length }
     },
     async getTemplate(id) { await wait(); return copy(get(id)) },
+    async getTemplateVersions(id) { await wait(); get(id); return copy(history.get(id) ?? []) },
     async listSkills(mode) { await wait(); return copy(skills.filter(s => !mode || s.mode === mode)) },
     async uploadFile(file) {
       await wait(); fail('upload')
@@ -73,15 +75,20 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       if (!input.name.trim() || input.name.trim().length > 60) throw new ApiError('VALIDATION', '请填写 1–60 字模板名称', 422)
       if (input.mode === 'text') throw new ApiError('VALIDATION', '文字替换不使用套图模板', 422)
       const images = resolvePictures(input.images)
-      const skill = input.skillVersionId ? resolveSkill(input.mode, input.skillVersionId) : null
+      const skill = input.skillVersionId
+        ? skills.find(s => s.id === input.skillVersionId && s.mode === input.mode)
+        : skills.find(s => s.mode === input.mode && s.isDefault && s.status === 'available')
+      if (input.skillVersionId && !skill) throw new ApiError('VALIDATION', 'Skill 不存在或不适用于该模块', 422)
       const previous = input.id ? get(input.id) : undefined
       if (previous && input.expectedVersion !== previous.version) throw new ApiError('CONFLICT', '模板已被更新，请关闭后重新打开；本次输入尚未保存', 409)
-      const saved = { id: previous?.id ?? `T-${crypto.randomUUID()}`, name: input.name.trim(), mode: input.mode, images,
-        skill: skill?.name ?? '', skillVersionId: skill?.id ?? null, active: !!skill && input.active,
+      const saved: Template = { id: previous?.id ?? `T-${crypto.randomUUID()}`, name: input.name.trim(), mode: input.mode, images,
+        skillBinding: input.skillVersionId ? 'specific' : 'module_default',
+        skill: skill?.name ?? '', skillVersionId: skill?.id ?? null, active: skill?.status === 'available' && input.active,
         notes: input.notes.trim(), version: previous ? previous.version + 1 : 1,
         updatedAt: new Date().toISOString(), ownerId: previous?.ownerId ?? operatorId() }
       if (previous) db.templates[db.templates.indexOf(previous)] = saved
       else db.templates.unshift(saved)
+      history.set(saved.id, [copy(saved), ...(history.get(saved.id) ?? [])])
       return copy(saved)
     },
     async deleteTemplate(id) {

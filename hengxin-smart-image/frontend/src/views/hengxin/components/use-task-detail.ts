@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { getTask } from '@/api/tasks'
+import { taskPollDelay } from '../task-state'
 import type { TaskDetailData } from '@/types/hengxin'
 
 export function useTaskDetail(taskId: Ref<string>, visible: Ref<boolean>) {
@@ -21,7 +22,7 @@ export function useTaskDetail(taskId: Ref<string>, visible: Ref<boolean>) {
     } finally {
       if (current === request) {
         loading.value = false
-        if (visible.value) timer = setTimeout(() => { void load(true) }, 3000)
+        if (visible.value) timer = setTimeout(() => { void load(true) }, taskPollDelay(data.value ? [data.value.task] : []))
       }
     }
   }

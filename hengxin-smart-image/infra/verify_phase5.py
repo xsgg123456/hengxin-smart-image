@@ -127,8 +127,8 @@ def main():
         inspected = json.loads(subprocess.check_output(['docker', 'inspect', *containers]))
         volumes = {mount['Name'] for item in inspected for mount in item['Mounts']
                    if mount['Type'] == 'volume'}
-        assert len(volumes) == 3 and all(v.startswith(PROJECT + '_') for v in volumes)
-        print('PASS only three isolated test volumes mounted', flush=True)
+        assert len(volumes) == 4 and all(v.startswith(PROJECT + '_') for v in volumes)
+        print('PASS only four isolated test volumes mounted', flush=True)
         print('PHASE5 INTEGRATION PASS', flush=True)
     finally:
         # The generated project prefix is the boundary for destructive cleanup.

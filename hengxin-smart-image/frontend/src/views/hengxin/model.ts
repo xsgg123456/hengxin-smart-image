@@ -1,7 +1,8 @@
 import { reactive } from 'vue'
 import { workspace as validWorkspace } from '../../api/hengxin/validate'
 import { getService } from '../../api/hengxin/client'
-import type { CreateTaskInput, Mode } from '../../types/hengxin'
+import type { Mode } from '../../types/hengxin'
+export { createTask } from '../../api/tasks'
 export type { Archive, Mode, Picture, Task, Template } from '../../types/hengxin'
 export const labels: Record<Mode, string> = { wallpaper: '替换壁纸', product: '替换商品', text: '替换文字' }
 export const connection = reactive({ loading: false, error: '' })
@@ -21,7 +22,4 @@ export async function refreshWorkspace(): Promise<void> {
     } finally { connection.loading = false }
   })()
   try { await refreshing } finally { refreshing = undefined }
-}
-export async function createTask(input: CreateTaskInput) {
-  return (await getService()).createTask(input)
 }

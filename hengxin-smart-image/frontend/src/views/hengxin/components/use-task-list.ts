@@ -1,5 +1,6 @@
 import { onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
 import { listTasks } from '@/api/tasks'
+import { taskPollDelay } from '../task-state'
 import type { Mode, Task, TaskPage, TaskQuery } from '@/types/hengxin'
 
 export function useTaskList() {
@@ -24,7 +25,7 @@ export function useTaskList() {
     } finally {
       if (current === request) {
         loading.value = false
-        if (active.value) timer = setTimeout(() => { void load(true) }, 4000)
+        if (active.value) timer = setTimeout(() => { void load(true) }, taskPollDelay(tasks.value))
       }
     }
   }

@@ -1,7 +1,7 @@
 # Development Plan — 恒信 AI 换套图系统
 
-> 版本 v1.12 · 2026-09-09。依据 Product-Spec.md v0.16、Design-Brief.md 和用户认可的现有原型。
-> 当前状态：Phase 1–4 已验收；Phase 5 开发、四步验证及两阶段审查通过，待用户验收；Phase 6–14 未开始。证据见 hengxin-smart-image/docs/PHASE5-VALIDATION.md；Phase 5 用户验收后，下一步为 Phase 6 用户归属与真实文件存储。
+> 版本 v1.14 · 2026-09-09。依据 Product-Spec.md v0.17、Design-Brief.md 和用户认可的现有原型。
+> 当前状态：Phase 1–7 已验收（用户授权继续）；Phase 8 已完成技术验证，待用户验收，Phase 9–14 未开始。证据见 hengxin-smart-image/docs/PHASE8-VALIDATION.md、PHASE8-INTEGRATION.md、PHASE8-REVIEW.md；下一步 Phase 9 真实 CLI 执行与会话隔离。
 
 ## 1. 开发方向与已有成果
 
@@ -97,7 +97,7 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 |---|---|---|
 | Q-001 上传规格 | 已确认 JPG/PNG/WebP，单文件 10 MiB，每组最多 20 张；模板输出数跟随有序模板图，文字输出数跟随输入图。建议不主动缩放；真实输出尺寸和格式兼容仍待联调 | 前端 Phase 2；后端 Phase 6/7 |
 | Q-004 账号与权限 | 钉钉双端登录与四角色已确认；超管绑定成员角色；主管查看全员任务/统计，模板无需审批，全员查看/删除三类资源、编辑全员模板、返工和归档全员任务 | 前端 Phase 2–4 实现已确认规则；Phase 12 验证真实权限 |
-| Q-002 Skill 管理 | 已确认仅超级管理员上传、安装、维护和启停；其他角色只绑定已发布版本。模块默认与模板专用 Skill 的绑定细则仍待确认 | 前端 Phase 4；后端 Phase 7 |
+| Q-002 Skill 管理 | 已确认仅超级管理员上传、安装、维护和启停；其他角色只绑定已发布版本。专用优先、未指定按模块默认解析，保存冻结版本；无可用版本存草稿已确认 | 前端 Phase 4；后端 Phase 7 |
 | Q-008 钉钉配置 | 企业内部应用、可见范围、接口权限、HTTPS 域名/回调及初始超级管理员成员标识，见 PRD 第 13 节 | Phase 12；Phase 14 双端回归 |
 | Q-003 文字输入 | 已确认：上传图片 + 自然语言修改要求，任务名称必填、SKU 可选，不增加排版编辑器 | 前端 Phase 2；后端 Phase 8 |
 | Q-007 历史与归档 | 同任务整套/单张返工互斥已确认；旧版本保留、单张下载和整套 ZIP、全套完整后归档不可变快照及相同版本归档幂等仍按建议默认管理 | 前端 Phase 3；后端 Phase 10/11 |
@@ -117,10 +117,10 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 | Phase 2 创建与模板页面 | 三类处理、素材交互和模板维护 | 1 | 已验收 |
 | Phase 3 任务与成品页面 | 任务详情、返工、版本、下载及归档交互 | 2 | 已验收 |
 | Phase 4 管理及登录页面 | 五个管理页面、四角色视图、登录状态；全部前端验收 | 3 | 已验收 |
-| Phase 5 后端基础 | FastAPI、PG、MinIO、Redis、Worker/outbox | 4 | 技术验证通过，待用户验收 |
-| Phase 6 文件与用户归属 | 真实上传下载及后端测试身份 | 5 | 未开始 |
-| Phase 7 模板与 Skill | 模板持久化、Skill 版本及安装 | 6 | 未开始 |
-| Phase 8 任务与队列 | 真实异步提交、任务状态 | 7 | 未开始 |
+| Phase 5 后端基础 | FastAPI、PG、MinIO、Redis、Worker/outbox | 4 | 已验收（用户授权继续 Phase 6） |
+| Phase 6 文件与用户归属 | 真实上传下载及后端测试身份 | 5 | 已验收 |
+| Phase 7 模板与 Skill | 模板持久化、Skill 版本及安装 | 6 | 已验收（用户授权继续 Phase 8） |
+| Phase 8 任务与队列 | 真实异步提交、任务状态 | 7 | 技术验证通过，待用户验收 |
 | Phase 9 Codex 执行 | 独立会话、结果回传及调用记录 | 8 + CLI 环境 | 未开始 |
 | Phase 10 返工 | 同会话整套/单张修改、版本持久化 | 8；真实执行依赖 9 | 未开始 |
 | Phase 11 归档 | 真实下载、快照与生命周期 | 10 | 未开始 |
@@ -245,6 +245,8 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 ## Phase 7：模板与 Skill 版本管理
 
+2026-09-09交付：模板与Skill真实接口、版本历史、模块默认、Linux安装和通用队列已接入；后端108项/前端41项测试、类型编译、构建、隔离API/Worker/浏览器和旧队列回归通过。真实业务Skill及图片生成仍属于后续。执行拆分及审查闭环见docs/PHASE7-PLAN.md、PHASE7-REVIEW.md、PHASE7-VALIDATION.md。
+
 **交付内容**：
 - 实现模板创建、搜索、排序、编辑、停用、全员逻辑删除及历史版本；保存后直接可用，无审批发布步骤；无 Skill 时可保存草稿。
 - 仅超级管理员可上传、安装、更新、启停 Skill 和配置模块默认绑定；其他角色只选已发布版本。异步安装区分上传成功/安装中/可用/失败，安装失败保留旧版，历史任务冻结版本。
@@ -254,7 +256,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 **关键文件**：
 - `hengxin-smart-image/backend/app/modules/templates/router.py`、`hengxin-smart-image/backend/app/modules/templates/service.py`：模板与版本。
 - `hengxin-smart-image/backend/app/modules/skills/router.py`、`hengxin-smart-image/backend/app/modules/skills/package_validator.py`：Skill 管理、ZIP 路径/大小/元数据校验。
-- `hengxin-smart-image/backend/app/worker/install_skill.py`：超级管理员触发的异步版本安装和状态记录。
+- `hengxin-smart-image/backend/app/worker/skill_install.py`：超级管理员触发的异步版本安装和状态记录。
 - `hengxin-smart-image/backend/app/models.py`、`hengxin-smart-image/backend/app/worker/outbox.py`、`hengxin-smart-image/backend/migrations/versions/`：将 Phase 5 测试作业关联扩为通用作业类型及终态，保持迁移可回归。
 - `hengxin-smart-image/frontend/src/api/templates.ts`、`hengxin-smart-image/frontend/src/api/skills.ts`：业务接口。
 - `hengxin-smart-image/frontend/src/views/hengxin/components/Templates.vue`、`hengxin-smart-image/frontend/src/views/hengxin/admin/skills.vue`：模板现有交互与管理表单。
@@ -264,6 +266,8 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 队列增补验收：安装任务路由正确，成功、永久失败和已完成取消均停止重派；有效认领期间不会持续产生重复消息，Redis 故障后未完成的有效作业仍可恢复。
 
 ## Phase 8：任务提交、持久队列与状态
+
+执行拆分及工程边界见 hengxin-smart-image/docs/PHASE8-PLAN.md。仅显式test环境启用fixture结果；本地development无真实执行器时清楚返回503，Phase9再接真实CLI。
 
 **交付内容**：
 - 建立供 fixture 和真实 CLI 共用的图片版本及结果持久化模型，再将三个独立入口接入真实任务 API，冻结模板/Skill/素材/要求快照；文字入口不强制套图模板。

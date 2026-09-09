@@ -31,6 +31,7 @@ export interface SkillVersion {
   status: 'uploaded' | 'installing' | 'available' | 'disabled' | 'failed'
 }
 export interface Template {
+  skillBinding?: 'module_default' | 'specific'
   id: string
   name: string
   mode: Mode
@@ -44,6 +45,7 @@ export interface Template {
   ownerId: string
 }
 export interface Task {
+  executionSource?: 'fixture' | 'unavailable' | 'cli'
   id: string
   name: string
   mode: Mode
@@ -133,7 +135,8 @@ export interface TaskQuery extends PageQuery { state?: TaskState | 'processing' 
 export interface TaskPage extends PageResult<Task> { stats: { total: number; processing: number; ready: number; archived: number } }
 export interface ResultVersion extends Picture { id: string; version: number; roundId: string; createdAt: string }
 export interface ResultSlot { slot: number; versions: ResultVersion[]; currentVersionId: string | null; error: string | null }
-export interface TaskDetailData { task: Task; slots: ResultSlot[]; rounds: Round[] }
+export interface ExecutionControl { canRevise: boolean; canRetry: boolean; blockedReason: string | null }
+export interface TaskDetailData { task: Task; slots: ResultSlot[]; rounds: Round[]; executionControl: ExecutionControl }
 export interface TemplateQuery extends PageQuery { sort?: 'updated' | 'name' | 'images'; activeOnly?: boolean }
 export interface TemplateInput {
   id?: string
@@ -166,11 +169,12 @@ export interface HengxinService extends ManagementService {
   getArchive(id: string): Promise<Archive>
   listTemplates(query: TemplateQuery): Promise<PageResult<Template>>
   getTemplate(id: string): Promise<Template>
+  getTemplateVersions(id: string): Promise<Template[]>
   listSkills(mode?: Mode): Promise<SkillVersion[]>
   uploadFile(file: File): Promise<Picture>
   saveTemplate(template: TemplateInput): Promise<Template>
   deleteTemplate(id: string): Promise<void>
-  createTask(input: CreateTaskInput): Promise<Accepted>
+  createTask(input: CreateTaskInput, idempotencyKey?: string): Promise<Accepted>
   revise(input: RevisionInput): Promise<Accepted>
   archive(taskId: string): Promise<Archive>
   deleteArchive(id: string): Promise<void>

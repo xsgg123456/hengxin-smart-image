@@ -18,7 +18,7 @@ def contract_app():
 
 def test_business_contracts_are_explicitly_unimplemented():
     client = TestClient(contract_app())
-    for path in ['/auth/me', '/workspace', '/templates', '/tasks', '/archives',
+    for path in ['/workspace', '/archives',
                  '/management/users', '/management/settings', '/management/monitor']:
         response = client.get('/api/v1' + path)
         assert response.status_code == 501
@@ -26,17 +26,20 @@ def test_business_contracts_are_explicitly_unimplemented():
 
 
 def test_openapi_request_response_and_pagination():
-    schema = contract_app().openapi()
+    app = contract_app()
+    from app.modules.tasks.router import router as tasks_router
+    app.include_router(tasks_router, prefix='/api/v1')
+    schema = app.openapi()
     paths = schema['paths']
-    assert len(paths) == 20
+    assert len(paths) == 12
     accepted = paths['/api/v1/tasks']['post']['responses']['202']
     assert accepted['content']['application/json']['schema']['$ref'].endswith('/Accepted')
     assert schema['components']['schemas']['Accepted']['properties']['state']['const'] == '排队中'
     assert schema['components']['schemas']['Task']['properties']['progress']['anyOf'][1]['type'] == 'null'
     client = TestClient(contract_app())
     for query in ['page=0', 'pageSize=0', 'pageSize=101', 'mode=invalid']:
-        assert client.get('/api/v1/tasks?' + query).status_code == 422
-    assert client.post('/api/v1/tasks', json={'name': ''}).status_code == 422
+        assert client.get('/api/v1/archives?' + query).status_code == 422
+    assert client.post('/api/v1/tasks/test/rounds', json={'name': ''}).status_code == 422
 
 
 def test_optional_and_nullable_are_distinct_and_preserved_in_nested_results():

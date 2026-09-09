@@ -16,9 +16,11 @@ export const user: Guard<User> = (value): value is User => record(value) && id(v
   && text(value.status) && ['pending', 'active', 'disabled'].includes(value.status)
   && (value.role === null || (text(value.role) && ['super_admin', 'design_manager', 'designer', 'operator'].includes(value.role)))
 export const template: Guard<Template> = (value): value is Template => record(value)
+  && (value.skillBinding === undefined || value.skillBinding === 'module_default' || value.skillBinding === 'specific')
   && id(value.id) && text(value.name) && mode(value.mode) && list(value.images, picture)
   && text(value.skill) && typeof value.active === 'boolean' && number(value.version) && id(value.ownerId)
   && (value.skillVersionId === null || id(value.skillVersionId)) && text(value.notes) && text(value.updatedAt)
+export const templateList: Guard<Template[]> = (value): value is Template[] => list(value, template)
 const skill: Guard<SkillVersion> = (value): value is SkillVersion => record(value)
   && id(value.id) && text(value.name) && mode(value.mode) && text(value.version)
   && text(value.checksum) && typeof value.isDefault === 'boolean'
@@ -29,6 +31,7 @@ export const templatePage: Guard<PageResult<Template>> = (value): value is PageR
   && number(value.page) && Number.isInteger(value.page) && value.page >= 1
   && number(value.pageSize) && Number.isInteger(value.pageSize) && value.pageSize >= 1
 const task: Guard<Task> = (value): value is Task => record(value)
+  && (value.executionSource === undefined || value.executionSource === 'fixture' || value.executionSource === 'unavailable' || value.executionSource === 'cli')
   && id(value.id) && text(value.name) && mode(value.mode) && text(value.template)
   && (value.templateSnapshot === undefined || template(value.templateSnapshot))
   && id(value.skillVersionId) && id(value.ownerId) && (value.sessionId === null || id(value.sessionId))
@@ -59,6 +62,9 @@ const round: Guard<Round> = (value): value is Round => record(value)
   && (value.error === null || text(value.error))
 export const taskDetail: Guard<TaskDetailData> = (value): value is TaskDetailData => {
   if (!record(value) || !task(value.task) || !list(value.slots, slot) || !list(value.rounds, round)) return false
+  const control = value.executionControl
+  if (!record(control) || typeof control.canRevise !== 'boolean' || typeof control.canRetry !== 'boolean'
+    || !(control.blockedReason === null || id(control.blockedReason))) return false
   const taskId = value.task.id
   return value.slots.every((s, i) => s.slot === i) && value.rounds.every(r => r.taskId === taskId)
     && (value.task.outputCount === undefined || value.slots.length === value.task.outputCount)

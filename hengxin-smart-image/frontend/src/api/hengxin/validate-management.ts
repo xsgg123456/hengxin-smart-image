@@ -1,5 +1,5 @@
 import type { ManagedSettings, ManagedSkill, ManagedUser, MonitorReport, UsageAttempt, UsageReport, UsageSummary } from '../../types/management'
-import type { PageResult } from '../../types/hengxin'
+import type { PageResult, SystemConfig } from '../../types/hengxin'
 import { user, skillList } from './validate'
 type Guard<T> = (v: unknown) => v is T
 const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -28,6 +28,8 @@ export const managedUser: Guard<ManagedUser> = (v): v is ManagedUser => user(v) 
 export const userPage: Guard<PageResult<ManagedUser>> = (v): v is PageResult<ManagedUser> => obj(v) && list(v.items, managedUser) && integer(v.total) && integer(v.page) && v.page > 0 && integer(v.pageSize) && v.pageSize > 0
 export const managedSkill: Guard<ManagedSkill> = (v): v is ManagedSkill => skillList([v]) && obj(v) && nullableDate(v.installedAt) && (v.node === null || str(v.node)) && date(v.updatedAt) && (v.error === null || str(v.error)) && typeof v.referenced === 'boolean'
 export const managedSkills: Guard<ManagedSkill[]> = (v): v is ManagedSkill[] => list(v, managedSkill)
+export const skillDefaults: Guard<SystemConfig['defaultSkillIds']> = (v): v is SystemConfig['defaultSkillIds'] => obj(v)
+  && ['wallpaper', 'product', 'text'].every(k => v[k] === null || (str(v[k]) && v[k].trim().length > 0))
 export const monitor: Guard<MonitorReport> = (v): v is MonitorReport => {
   if (obj(v) && v.issue !== undefined && (!obj(v.issue) || !str(v.issue.code) || !str(v.issue.message))) return false
   if (!obj(v) || !nullableDate(v.checkedAt) || !choice(v.state, ['idle', 'running', 'unavailable', 'unknown']) || !integer(v.queueSize) || !integer(v.runningCount)

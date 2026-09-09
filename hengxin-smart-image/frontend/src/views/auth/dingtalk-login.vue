@@ -42,6 +42,7 @@
 import { computed, ref } from 'vue'
 import { isMockMode } from '@/api/hengxin/client'
 import { bootstrap, retryBootstrap } from '@/api/hengxin/bootstrap'
+import { router } from '@/router'
 import { getLoginScenario, getPreviewUser, loginScenarios, previewRoles, safeReturnPath, type LoginScenario } from '@/api/hengxin/session'
 
 const state = ref<LoginScenario>(isMockMode ? getLoginScenario() : 'success')
@@ -90,7 +91,8 @@ async function authorize() {
 }
 async function reconnect() {
   await retryBootstrap.run()
-  if (bootstrap.ready) enterWorkspace()
+  // 会话重连保留当前应用内存中的未确认请求；整页跳转会丢失原幂等键。
+  if (bootstrap.ready) await router.replace(destination())
 }
 </script>
 <style scoped>

@@ -11,7 +11,9 @@ export function createHttpManagement(baseUrl: string, fetcher: typeof fetch = fe
     listUsers: q => request(`/management/users?${queryString(q)}`, guard.userPage),
     saveUser: input => request(`/management/users/${encodeURIComponent(input.id)}`, guard.managedUser, 'PUT', input),
     listManagedSkills: () => request('/management/skills', guard.managedSkills),
-    uploadSkill: (file, mode, version) => { const data = new FormData(); data.append('file', file); data.append('mode', mode); data.append('version', version); return request('/management/skills', guard.managedSkill, 'POST', data) },
+    getSkillDefaults: () => request('/management/skills/defaults', guard.skillDefaults),
+    saveSkillDefaults: input => request('/management/skills/defaults', guard.skillDefaults, 'PUT', input),
+    uploadSkill: (file, mode, version) => { const data = new FormData(); data.append('file', file); data.append('mode', mode); data.append('version', version); return request('/management/skills', guard.managedSkill, 'POST', data, 60000) },
     installSkill: id => request(`/management/skills/${encodeURIComponent(id)}/install`, guard.managedSkill, 'POST'),
     setSkillStatus: (id, status) => request(`/management/skills/${encodeURIComponent(id)}/status`, guard.managedSkill, 'PUT', { status }),
     getSettings: () => request('/management/settings', guard.settings),
@@ -24,10 +26,12 @@ export const managementApi: ManagementService = {
   listUsers: async q => (await getService()).listUsers(q),
   saveUser: async input => (await getService()).saveUser(input),
   listManagedSkills: async () => (await getService()).listManagedSkills(),
+  getSkillDefaults: async () => (await getService()).getSkillDefaults(),
+  saveSkillDefaults: async input => (await getService()).saveSkillDefaults(input),
   uploadSkill: async (file, mode, version) => (await getService()).uploadSkill(file, mode, version),
   installSkill: async id => (await getService()).installSkill(id),
   setSkillStatus: async (id, status) => (await getService()).setSkillStatus(id, status),
   getSettings: async () => (await getService()).getSettings(),
   saveSettings: async input => (await getService()).saveSettings(input)
 }
-export const { getUsage, getMonitor, listUsers, saveUser, listManagedSkills, uploadSkill, installSkill, setSkillStatus, getSettings, saveSettings } = managementApi
+export const { getUsage, getMonitor, listUsers, saveUser, listManagedSkills, getSkillDefaults, saveSkillDefaults, uploadSkill, installSkill, setSkillStatus, getSettings, saveSettings } = managementApi
