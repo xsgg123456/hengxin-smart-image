@@ -1,12 +1,14 @@
 # hengxin-smart-image
 
-本仓库已安装 Agent Harness（Codex 版），用于从需求、设计、研发计划到开发、审查和发布的文档驱动流程。当前已完成 PRD、设计说明、14 阶段开发计划（先完成全部前端，再开发后端及联调）及 art-design-pro 交互原型；正式前后端业务工程尚未启动。需求以 Product-Spec.md 为准，开发顺序见 DEV-PLAN.md，原型说明见 prototype/README.md。
+本仓库已安装 Agent Harness（Codex 版），用于从需求、设计、研发计划到开发、审查和发布的文档驱动流程。当前已完成 PRD、设计说明、14 阶段开发计划及 art-design-pro 交互原型，并启动 Phase 1 正式前端工程承接。先完成全部前端，再开发后端及联调。需求以 Product-Spec.md 为准，开发顺序见 DEV-PLAN.md，原型说明见 prototype/README.md。
+
+正式前端位于 `hengxin-smart-image/frontend/`，进入该目录执行 `pnpm install --frozen-lockfile`、`pnpm dev`，预览 [http://127.0.0.1:3008](http://127.0.0.1:3008)。当前使用独立模拟服务，刷新重置数据；接口契约和验收见 `hengxin-smart-image/docs/`，后端未启动。依赖审计中的继承风险需在上线前整改。
 
 ## 开始使用
 
 在 Codex 中打开本仓库，先读取现有 PRD 和开发计划，按阶段承接已认可原型。例如：
 
-> 按 DEV-PLAN.md 开始 Phase 1，直接承接现有 art-design-pro 原型源码。
+> 按 DEV-PLAN.md 继续 Phase 2，完成三类图片处理与模板库前端。
 
 也可在终端从仓库根目录运行 `codex`，通过 `/skills` 查看技能、`/hooks` 查看门禁。旧会话未必重新加载新配置，安装后应开启新会话。
 

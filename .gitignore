@@ -10,6 +10,9 @@
 node_modules/
 .next/
 dist/
+dist-preview/
+output/playwright/
+.playwright-cli/
 build/
 coverage/
 .venv/
