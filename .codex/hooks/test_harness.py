@@ -32,6 +32,36 @@ class HarnessTests(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=测试", "-c", "user.email=test@example.invalid", "commit", "-qm", "初始化测试"], check=True)
         return code
 
+    def approve(self):
+        candidate = self.call("review-prepare")["candidateId"]
+        (self.root / "review.md").write_text("Stage 1 PASS; Stage 2 PASS", encoding="utf-8")
+        self.call("review-approve", {"candidateId": candidate, "report": "review.md",
+                                     "stage1": "PASS", "stage2": "PASS"})
+
+    def test_git_executable_case_cannot_skip_gate(self):
+        code = self.committed_code()
+        code.write_text("print(99)")
+        subprocess.run(["git", "-C", str(self.root), "add", "app.py"], check=True)
+        for executable in ("git", "Git", "GIT.EXE"):
+            result = self.call("pre-tool-shell", {"tool_input": {"cmd": executable + " commit -m 测试"}})
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_status_performs_no_writes(self):
+        self.committed_code()
+        for initialized in (False, True):
+            if initialized:
+                self.approve()
+            with patch.object(h, "bootstrap", side_effect=AssertionError("write")), patch("review_store.write", side_effect=AssertionError("write")), patch("review_store.os.open", side_effect=AssertionError("lock")):
+                result = self.call("review-status")
+            self.assertEqual(result["changedFiles"], [])
+            self.assertEqual(result["approved"], initialized)
+
+    def test_unknown_git_global_options_fail_closed(self):
+        self.committed_code()
+        for cmd in ("git --git-dir=.git commit -m 测试", "git --literal-pathspecs commit -m 测试"):
+            result = self.call("pre-tool-shell", {"tool_input": {"cmd": cmd}})
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
     def test_clean_checkout_readonly_does_not_require_review(self):
         self.committed_code()
         self.call("check-evolution")
@@ -92,7 +122,10 @@ class HarnessTests(unittest.TestCase):
     def test_registered_commands_from_nested_directory(self):
         hook_dir = self.root / ".codex/hooks"
         hook_dir.mkdir()
-        shutil.copyfile(Path(__file__).with_name("harness.py"), hook_dir / "harness.py")
+        for filename in ("harness.py", "review_gate.py", "review_files.py", "review_store.py"):
+            shutil.copyfile(Path(__file__).with_name(filename), hook_dir / filename)
+        subprocess.run(["git", "-C", str(self.root), "add", ".codex/hooks"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=测试", "-c", "user.email=test@example.invalid", "commit", "-qm", "安装框架测试"], check=True)
         nested = self.root / "nested directory"
         nested.mkdir()
         config = json.loads(Path(__file__).parents[1].joinpath("hooks.json").read_text(encoding="utf-8"))
@@ -128,7 +161,7 @@ class HarnessTests(unittest.TestCase):
         code.write_text("print(1)")
         self.call("mark-review-needed")
         self.assertEqual(self.call("stop-gate")["decision"], "block")
-        (self.root / ".codex/.needs-review").write_text("clean\n")
+        self.approve()
         self.assertIsNone(self.call("stop-gate"))
         self.call("mark-review-needed")
         self.assertIsNone(self.call("stop-gate"))
@@ -137,15 +170,48 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(self.call("stop-gate")["decision"], "block")
 
     def test_patch_deletion_and_external_exclusion(self):
-        self.call("mark-review-needed", {"tool_input": {"command": "*** Delete File: src/old.ts\n"}})
+        code = self.committed_code()
+        self.call("mark-review-needed")
+        code.unlink()
+        self.call("mark-review-needed", {"tool_input": {"command": "*** Delete File: app.py\n"}})
         self.assertEqual(self.call("stop-gate")["decision"], "block")
-        (self.root / ".codex/.needs-review").unlink()
+        self.approve()
         self.call("mark-review-needed", {"tool_input": {"file_path": str(self.root.parent / "outside.py")}})
         self.assertIsNone(self.call("stop-gate"))
 
-    def test_empty_review_state_fails_closed(self):
+    def test_empty_legacy_review_state_cannot_approve_dirty_code(self):
+        self.committed_code().write_text("print(2)")
         (self.root / ".codex/.needs-review").touch()
         self.assertEqual(self.call("stop-gate")["decision"], "block")
+
+    def test_commit_modes_require_explicit_staging(self):
+        for command in ("git commit -a -m 测试", "git commit -am 测试", "git commit app.py",
+                        "git commit --only app.py", "git commit --pathspec-from-file=paths",
+                        'git commit -m "$(git add app.py)说明"', "git -C. commit -am 测试",
+                        "git add app.py; git commit -m 测试", "git commit -m 测试; git add app.py; git commit -m 再次"):
+            self.assertIn("提交被阻止", h.commit_mode_error(command))
+        for command in ('git commit -m "含 -a 的描述"', "git -c harness.autoPush=false commit -m 测试",
+                        "git -C 'my project' commit --amend --no-edit", "git commit --message=测试", "git -C. commit -m 测试"):
+            self.assertIsNone(h.commit_mode_error(command))
+
+    def test_attached_git_directory_cannot_skip_gate(self):
+        code = self.committed_code()
+        code.write_text("print(2)")
+        subprocess.run(["git", "-C", str(self.root), "add", "app.py"], check=True)
+        command = {"tool_input": {"command": "git -C. commit -m 测试"}}
+        self.assertEqual(list(h.commit_roots(self.root, command)), [self.root])
+        self.assertEqual(self.call("pre-tool-shell", command)["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.approve()
+        self.assertIsNone(self.call("pre-tool-shell", command))
+
+    def test_commit_gate_checks_index_before_types(self):
+        code = self.committed_code()
+        code.write_text("print(2)")
+        subprocess.run(["git", "-C", str(self.root), "add", "app.py"], check=True)
+        command = {"tool_input": {"command": "git commit -m 测试"}}
+        self.assertEqual(self.call("pre-tool-shell", command)["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.approve()
+        self.assertIsNone(self.call("pre-tool-shell", command))
 
     def test_commit_without_typescript(self):
         self.assertIsNone(self.call("pre-tool-shell", {"tool_input": {"command": "git commit -m init"}}))

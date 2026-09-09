@@ -45,6 +45,7 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
     有 Playwright 则测核心路径、错误场景、状态变化、导航。
 
 [输出报告]
+    主Agent应先提供 review-prepare 的 candidateId；报告记录该编号和审查范围。审查中代码变化必须报告，不得将旧结论直接批准新快照；由主Agent复核差异后用 review-approve 登记两阶段PASS，不写 clean。具体协议见 docs/HARNESS-REVIEW.md。
     分组列出：完整实现、部分实现、未实现、Spec 漂移、安全问题、代码质量、编译结果，每项附文件行号。
     Priority：HIGH 核心功能缺失或安全问题；MEDIUM 辅助功能、UI 细节、代码质量；LOW 增强建议。
     报告到此为止。修复由主 Agent 路由：Stage 1 失败回 dev-builder 补实现，Stage 2 的质量和重构回 dev-builder、缺陷和安全才回 bug-fixer，修完重派从 Stage 1 起。

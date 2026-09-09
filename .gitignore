@@ -29,5 +29,8 @@ Thumbs.db
 # Machine-local harness state (skills, specifications and config stay tracked)
 .codex/.needs-review
 .codex/.review-snapshot.json
+.codex/review-state.json
+.codex/.review-state.lock
+.codex/review-state.*.tmp
 .codex/evolution/signals.jsonl
 .codex/evolution/proposals.md

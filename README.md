@@ -37,6 +37,8 @@
 | `.codex/config.toml` | 项目级 hooks 与多代理配置，继承用户模型和权限 |
 | `.codex/hooks.json` | 6 个 hook 的唯一注册源 |
 | `.codex/hooks/harness.py` | Windows / POSIX 共用的 hook 实现 |
+| `.codex/hooks/review_*.py` | 审查快照、凭据、暂存区检查与原子状态存储 |
+| `docs/HARNESS-REVIEW.md` | 审查、提交和中途暂停的交接协议 |
 | `.codex/evolution/` | 本地纠正信号和待审阅建议 |
 | `scripts/check_harness.py` | 可重复运行的离线自检 |
 
@@ -58,8 +60,8 @@ python scripts/check_harness.py
 
 - 补齐 `hooks.json` 的顶层 `hooks`，匹配当前 Codex 的 `Bash`、`apply_patch` 等工具事件。
 - 用 Python 标准库替代 Bash/jq/lsof 依赖，原 `.sh` 文件保留为 POSIX 兼容入口。
-- 从真实补丁路径和 Git 文件内容变动维护审查标记，覆盖普通 Shell 写入、数组命令和子目录。首次启动按 HEAD 与工作区差异建立基线，保留已有未提交修改；Stop 再次检查磁盘，防止写入 `clean` 后的额外修改漏审。空审查状态也会拦截停止。
-- 提交前优先运行项目已安装的 vue-tsc，未安装时使用本地 TypeScript 编译器；支持带引号、空格的 `git -C` 路径并检查实际目标仓库。只解析 Git 提交前缀，兼容 PowerShell here-string。依赖缺失或类型检查失败明确阻止提交，不临时下载编译器。
+- 审查使用 `review-prepare` 固定候选快照，独立两阶段通过后 `review-approve` 登记同一快照和报告哈希；代码变化检测不会覆盖批准记录。Stop核对当前内容，变化时列出差异文件；旧clean字符串不再授权放行。首次接入以既有HEAD为基线，预先存在的脏改动和未跟踪代码仍需审查。中途问答或暂停用一次性 `review-checkpoint`，不批准代码或允许未审提交。协议见 [HARNESS-REVIEW.md](docs/HARNESS-REVIEW.md)。
+- 提交前先确认暂存区的受控变化与审查凭据一致，再优先运行项目已安装的vue-tsc或本地TypeScript编译器。支持带引号、空格的git -C目标；要求先单独git add，再另次调用独立git commit，不支持复合脚本、commit -a或路径提交。依赖缺失、未审内容或类型失败均阻止提交，不临时下载编译器。
 - 开发服务启动前报告常见端口占用，由 Agent 检查进程或换端口。
 - 自动推送默认关闭。需要时执行 `git config --local harness.autoPush true`；仅单条 `git commit` 命令明确成功后推送普通分支，`main/master` 不自动推送。复合命令、包装脚本、`git -C` 调用跳过自动推送；未返回结构化成功状态的客户端会提示手动核查。
 - 自进化运行状态不上传 Git，SessionStart 自动补建；最终采纳的规则仍进入版本控制。

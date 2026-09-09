@@ -80,10 +80,10 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     每个 Task 走 review→fix 循环：
         编码前读 DEV-PLAN 交付清单、Spec 功能描述、Design-Brief 视觉方向的原文，不凭记忆
         编码后自检：代码实际值对照设计数值，行为对照 Spec
-        派发 code-reviewer 两阶段审查
+        实现、自测、格式整理后运行 harness.py review-prepare，携带 candidateId 派发 code-reviewer 两阶段审查
         Stage 1 失败补实现，重新派 code-reviewer
         Stage 2 失败：质量和重构问题自己按修改纪律修，确属缺陷或安全漏洞才调 bug-fixer，重新派 code-reviewer
-        两阶段都过 → echo clean > .codex/.needs-review → commit → 下一个 Task
+        两阶段都过 → review-approve 登记同一 candidateId、报告路径、stage1/stage2 PASS → 用户已授权时单独 git add 再 commit → 下一个 Task。登记前代码变化则重新 prepare 并复核差异，不写 clean；具体协议见 docs/HARNESS-REVIEW.md。
     用户强调某环节是追加要求，不替换基础流程，review 闭环照常走。
 
 [Phase 完成度判断]

@@ -100,6 +100,8 @@
     2. evolution-runner：.codex/agents/evolution-runner.toml，用 evolution-engine skill，消化进化信号生成改动建议。
 
     Codex 只在主 Agent 显式请求时 spawn subagent，不自动 spawn。所以 code-review 闭环、自进化消化都靠主 Agent 主动 spawn 对应 agent。
+    审查交接使用代码快照凭据：先运行 harness.py review-prepare，把 candidateId 交 reviewer；两阶段通过后用 review-approve 登记同一 candidateId、报告路径及两阶段 PASS。审查中有改动必须重新固定快照并复核差异；不得用写 clean 代替凭据。具体命令见 docs/HARNESS-REVIEW.md。
+    中途问答、等待用户或明确暂停时，可用 review-checkpoint 记录原因后结束当前回复；这不是验收通过，不允许据此提交未审代码或宣称完成。完成交付必须匹配已批准快照。
     除这两个固定角色外，主 Agent 可按 [规划与执行] 临时 spawn 执行型子 Agent 处理可隔离的并行工作。
     执行型子 Agent 只编码和自检，不再 spawn 子 Agent、不 commit。review 闭环和 commit 始终由主 Agent 控制。
     隔离原则：每个子 Agent 用 fresh 实例，不复用、不继承 session 历史。主 Agent 显式提供完整上下文：Spec 条目、交付清单、涉及文件、项目结构。这是隔离保证，防止一个子 Agent 的错误假设污染另一个。

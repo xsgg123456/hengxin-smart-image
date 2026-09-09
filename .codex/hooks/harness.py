@@ -1,7 +1,6 @@
 """Codex lifecycle handlers. Python standard library only; Windows/POSIX."""
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,9 +11,12 @@ import socket
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import review_gate
+
 CORRECTIONS = re.compile("不是这样|不是这个意思|不应该|搞错|你错|又错|理解错|弄错|不合理|不通用|不对劲|这不对|完全不对|去掉|删掉|删除|改成|换成|改为|不需要|没必要|多余|你漏|漏掉|漏了|你忘|忘了|没提到|没有提到|你没提|少了|每次都|怎么又|怎么还|我说过|说过了|提醒过|强调过|不是让你|没复用|你没按|没生效|没有生效|没执行|不喜欢|不太喜欢|我的意思是|我是说|其实应该|应该是|应该写")
 EXCLUDED = {".git", ".codex", ".agents", "node_modules", ".venv", ".next", "dist", "build", "coverage", "__pycache__"}
-NON_CODE = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".lock", ".log", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".pdf"}
+
 
 
 def git(root, *args):
@@ -34,68 +36,8 @@ def bootstrap(root):
         proposals.write_text("# 进化建议\n\n## 待审阅\n\n暂无。\n", encoding="utf-8")
 
 
-def code_path(path):
-    p = Path(path)
-    return not (set(p.parts) & EXCLUDED) and p.suffix.lower() not in NON_CODE and not p.name.startswith(".")
-
-
-def snapshot(root):
-    result = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
-    if result.returncode:
-        raise RuntimeError(result.stderr)
-    files = {}
-    for name in result.stdout.split("\0"):
-        if not name or not code_path(name):
-            continue
-        path = root / name
-        # Do not follow repository symlinks to external files.
-        if path.is_file() and not path.is_symlink():
-            files[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return files
-
-
-def initial_snapshot(root, current):
-    """A clean checkout starts reviewed; pre-existing dirty files do not."""
-    changed = git(root, "diff", "--name-only", "--no-renames", "-z", "HEAD", "--")
-    if changed.returncode:
-        return {}
-    previous = dict(current)
-    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z")
-    if untracked.returncode:
-        raise RuntimeError(untracked.stderr)
-    for name in untracked.stdout.split("\0"):
-        previous.pop(name, None)
-    for name in changed.stdout.split("\0"):
-        if name and code_path(name):
-            previous[name] = "unreviewed-head-difference"
-    return previous
-
-
 def mark_review(root, data):
-    state = root / ".codex/.needs-review"
-    saved = root / ".codex/.review-snapshot.json"
-    current = snapshot(root)
-    previous = json.loads(saved.read_text(encoding="utf-8")) if saved.exists() else initial_snapshot(root, current)
-    if current != previous:
-        state.write_text("needs_review\n", encoding="utf-8")
-    if current != previous or not saved.exists():
-        saved.write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
-    # Also cover deletions before the first snapshot and exact apply_patch payloads.
-    tool_input = data.get("tool_input") or {}
-    if isinstance(tool_input, str):
-        tool_input = {"command": tool_input}
-    paths = re.findall(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", command(data), re.M)
-    if tool_input.get("file_path"):
-        paths.append(tool_input["file_path"])
-    for name in paths:
-        path = Path(name)
-        path = path if path.is_absolute() else Path(data.get("cwd") or root) / path
-        try:
-            relative = path.resolve().relative_to(root.resolve())
-        except ValueError:
-            continue
-        if code_path(relative):
-            state.write_text("needs_review\n", encoding="utf-8")
+    return review_gate.run(root, "review-status", {})
 
 
 def command(data):
@@ -111,8 +53,8 @@ def commit_roots(root, data):
     # Parse only the Git prefix, never arbitrary PowerShell/here-string bodies
     # or commit messages. shlex is not a parser for the user's whole shell.
     argument = r'''(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|"']+)'''
-    prefix = rf"\bgit(?:\.exe)?\s+(?:(?:-C|-c)\s+{argument}\s+|--(?:no-pager|no-optional-locks)\s+)*commit\b"
-    for match in re.finditer(prefix, command(data)):
+    prefix = rf"\bgit(?:\.exe)?\s+(?:(?:-C|-c)(?:\s+{argument}|{argument})\s+|--(?:no-pager|no-optional-locks)\s+)*commit\b"
+    for match in re.finditer(prefix, command(data), re.I):
         lexer = shlex.shlex(match.group(), posix=False)
         lexer.whitespace_split = True
         lexer.commenters = ""
@@ -128,9 +70,14 @@ def commit_roots(root, data):
                 if option == "-C":
                     cwd = (cwd / tokens[cursor + 1]).resolve()
                 cursor += 2
+            elif option.startswith("-C") and len(option) > 2:
+                cwd = (cwd / option[2:]).resolve()
+                cursor += 1
+            elif option.startswith("-c") and len(option) > 2:
+                cursor += 1
             elif option in {"--no-pager", "--no-optional-locks"}:
                 cursor += 1
-            elif option == "commit":
+            elif option.lower() == "commit":
                 target = git(cwd, "rev-parse", "--show-toplevel")
                 if target.returncode:
                     raise RuntimeError(target.stderr)
@@ -138,6 +85,40 @@ def commit_roots(root, data):
                 break
             else:
                 break
+
+
+def commit_mode_error(cmd):
+    """Only approve commits whose contents come from the inspected index."""
+    argument = r"""(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|"']+)"""
+    prefix = rf"\bgit(?:\.exe)?\s+(?:(?:-C|-c)(?:\s+{argument}|{argument})\s+|--(?:no-pager|no-optional-locks)\s+)*commit\b"
+    flags = {"--amend", "--no-edit", "--allow-empty", "--allow-empty-message", "--no-verify",
+             "--signoff", "-s", "--quiet", "-q", "--verbose", "-v", "--no-gpg-sign"}
+    values = {"-m", "--message", "-F", "--file", "--author", "--date", "--cleanup", "--trailer"}
+    failure = "提交被阻止：请先单独 git add，再提交已审查的暂存区；请使用独立的 git commit 命令，不支持复合脚本、-a、路径提交或改变暂存内容的提交选项。"
+    if any(character in cmd for character in ("$", "`", "\n", "\r", "<", ">")):
+        return failure + " 含Shell表达式或特殊字符的说明请先写文件，再用 -F 提交。"
+    for match in re.finditer(prefix, cmd, re.I):
+        if cmd[:match.start()].strip():
+            return failure
+        lexer = shlex.shlex(cmd[match.end():], posix=False, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = iter(lexer)
+        for token in tokens:
+            if token in {";", "&&", "||", "&", "|"}:
+                return failure
+            if token in values:
+                if next(tokens, None) is None:
+                    return failure
+            elif token in flags or token.startswith("-S"):
+                continue
+            elif any(token.startswith(option + "=") for option in values if option.startswith("--")):
+                continue
+            elif token.startswith("-m") and len(token) > 2:
+                continue
+            else:
+                return failure
+    return None
 
 
 def typecheck(root):
@@ -164,6 +145,8 @@ def typecheck(root):
 
 
 def handle(action, data, root):
+    if action == "review-status":
+        return review_gate.run(root, action, data)
     bootstrap(root)
     if action == "check-evolution":
         mark_review(root, {})
@@ -181,19 +164,17 @@ def handle(action, data, root):
     elif action == "mark-review-needed":
         mark_review(root, data)
     elif action == "stop-gate":
-        # Re-check disk even when no PostToolUse observed the latest write.
-        mark_review(root, {})
-        state = root / ".codex/.needs-review"
-        if state.exists():
-            if state.read_text(encoding="utf-8-sig").strip() == "clean":
-                (root / ".codex/.review-snapshot.json").write_text(json.dumps(snapshot(root)), encoding="utf-8")
-                state.unlink()
-            else:
-                return {"decision": "block", "reason": "代码已修改但未通过审查。派发 code-reviewer 两阶段审查，通过后将 .codex/.needs-review 写为 clean。"}
+        return review_gate.stop(root)
+    elif action.startswith("review-"):
+        return review_gate.run(root, action, data)
     elif action == "pre-tool-shell":
         cmd = command(data)
-        for target in commit_roots(root, data):
-            failure = typecheck(target)
+        targets = list(commit_roots(root, data))
+        if not targets and re.search(r"\bgit(?:\.exe)?\b[^;|&\r\n]*\bcommit\b", cmd, re.I):
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                    "permissionDecisionReason": "无法可靠解析 Git 提交，请使用独立 git commit，仅支持 -C、-c、--no-pager、--no-optional-locks 全局参数。"}}
+        for target in targets:
+            failure = commit_mode_error(cmd) or review_gate.check_commit(target) or typecheck(target)
             if failure:
                 return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": failure}}
         if re.search(r"\b(?:pnpm dev|npm run dev|yarn dev)\b", cmd):
@@ -231,7 +212,12 @@ def handle(action, data, root):
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")
+    if len(sys.argv) > 2:
+        data = json.loads(sys.argv[2])
+    elif sys.argv[1].startswith("review-") and sys.stdin.isatty():
+        data = {}
+    else:
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")
     root_result = git(data.get("cwd") or Path.cwd(), "rev-parse", "--show-toplevel")
     if root_result.returncode:
         raise RuntimeError("Harness requires a Git working tree")

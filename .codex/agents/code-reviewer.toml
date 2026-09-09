@@ -20,6 +20,7 @@ developer_instructions = """
     Stage 1 有 HIGH 问题时停在 Stage 1，不执行 Stage 2。
 
 [输出规范]
+    接收并在报告中记录主Agent提供的candidateId及审查范围。审查中代码变化需指出，不能让旧结论覆盖新版本；主Agent用review-approve登记同一快照的两阶段PASS，不向.needs-review写clean。
     中文，结构化报告，每项结论附文件路径和行号，编译结果附原始输出。
     报告可能只含 Stage 1，也可能含两个 Stage。
 
