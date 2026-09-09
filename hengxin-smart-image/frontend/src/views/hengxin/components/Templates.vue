@@ -1,42 +1,94 @@
 <template>
   <div class="hx-page">
-    <div class="hx-heading"><div><span class="hx-eyebrow">YOUR TEMPLATE COLLECTION</span><h1>模板库</h1><p>把成熟的商品设计，沉淀为下一次创作的起点。</p></div><ElButton type="primary" @click="edit()"><ArtSvgIcon icon="ri:add-line" /> 新建模板</ElButton></div>
-    <ElCard class="art-card hx-section" shadow="never"><div class="hx-filter"><ElRadioGroup v-model="mode"><ElRadioButton value="all">全部模板</ElRadioButton><ElRadioButton value="wallpaper">壁纸模板</ElRadioButton><ElRadioButton value="product">商品模板</ElRadioButton></ElRadioGroup><ElInput v-model="search" clearable placeholder="搜索模板名称" class="hx-search"><template #prefix><ArtSvgIcon icon="ri:search-line" /></template></ElInput></div>
-    <div class="hx-library-grid"><ElCard v-for="t in filtered" :key="t.id" class="art-card hx-library-card" shadow="never"><div class="hx-library-mosaic"><img v-for="(p, i) in t.images.slice(0, 4)" :key="i" :src="p.url" :alt="p.name" /></div><div class="hx-library-info"><div class="hx-row"><ElTag size="small" effect="plain">{{ labels[t.mode] }}</ElTag><ElTag size="small" :type="t.active ? 'success' : 'info'">{{ t.active ? '可使用' : '草稿 / 停用' }}</ElTag></div><h3>{{ t.name }}</h3><p>{{ t.images.length }} 张模板图 <span>·</span> {{ t.skill || '尚未绑定 Skill' }}</p><div class="hx-row"><ElButton :disabled="!t.active" type="primary" plain @click="use(t)">使用模板</ElButton><ElButton text @click="edit(t)">配置模板</ElButton><ElButton text type="danger" @click="remove(t)">删除</ElButton></div></div></ElCard></div><ElEmpty v-if="!filtered.length" description="暂无匹配模板，可新建或清除筛选" /></ElCard>
-    <ElDialog v-model="dialog" :title="editing ? '配置模板' : '新建套图模板'" width="680px" destroy-on-close>
-      <ElForm label-position="top"><ElFormItem label="模板名称" required><ElInput v-model="name" maxlength="60" placeholder="给这套模板起个容易找到的名字" /></ElFormItem><ElFormItem label="适用功能"><ElRadioGroup v-model="formMode" @change="skill = skills[formMode]"><ElRadioButton value="wallpaper">替换壁纸</ElRadioButton><ElRadioButton value="product">替换商品</ElRadioButton></ElRadioGroup></ElFormItem><ElFormItem label="处理 Skill"><ElSelect v-model="skill" clearable placeholder="稍后绑定可保存草稿"><ElOption :label="`${skills[formMode]}${isMockMode ? '（模拟绑定）' : ''}`" :value="skills[formMode]" /></ElSelect><p v-if="isMockMode" class="hx-muted hx-gap">真实 Skill 待后续配置，此处仅展示关联方式。</p></ElFormItem><ElFormItem label="模板图片" required><ElUpload multiple :auto-upload="false" :show-file-list="false" accept="image/png,image/jpeg,image/webp" :on-change="upload"><ElButton>上传图片</ElButton></ElUpload><ElButton v-if="isMockMode" text type="primary" @click="useExample">使用示例套图</ElButton></ElFormItem><div class="hx-editor-pictures"><div v-for="(p, i) in pictures" :key="i"><img :src="p.url" :alt="p.name" /><div><ElButton text :disabled="i === 0" :aria-label="`前移图片 ${i + 1}`" @click="move(i)">前移</ElButton><ElButton text type="danger" :aria-label="`移除模板图 ${i + 1}`" @click="pictures.splice(i, 1)">移除</ElButton></div></div></div><ElFormItem label="模板状态"><ElSwitch v-model="enabled" active-text="可使用" inactive-text="停用 / 草稿" :disabled="!skill" /></ElFormItem></ElForm>
-      <template #footer><ElButton @click="dialog = false">取消</ElButton><ElButton type="primary" :loading="saving" @click="save">保存模板</ElButton></template>
-    </ElDialog>
+    <div class="hx-heading">
+      <div><span class="hx-eyebrow">YOUR TEMPLATE COLLECTION</span><h1>模板库</h1><p>把成熟的商品设计，沉淀为下一次创作的起点。</p></div>
+      <ElButton type="primary" :disabled="!!deleting" @click="edit()"><ArtSvgIcon icon="ri:add-line" /> 新建模板</ElButton>
+    </div>
+    <ElCard class="art-card hx-section" shadow="never">
+      <div class="hx-filter">
+        <ElRadioGroup v-model="mode" aria-label="模板类型">
+          <ElRadioButton value="all">全部模板</ElRadioButton><ElRadioButton value="wallpaper">壁纸模板</ElRadioButton>
+          <ElRadioButton value="product">商品模板</ElRadioButton>
+        </ElRadioGroup>
+        <ElInput v-model="search" clearable placeholder="搜索模板名称" aria-label="搜索模板名称" class="hx-search"><template #prefix><ArtSvgIcon icon="ri:search-line" /></template></ElInput>
+        <ElSelect v-model="sort" class="hx-search" aria-label="模板排序">
+          <ElOption value="updated" label="最近更新" /><ElOption value="name" label="名称排序" /><ElOption value="images" label="图片数量" />
+        </ElSelect>
+      </div>
+      <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon>
+        <ElButton text type="primary" :disabled="loading" @click="load">重试加载</ElButton>
+      </ElAlert>
+      <div v-loading="loading" :aria-busy="loading">
+        <div class="hx-library-grid">
+          <ElCard v-for="t in templates" :key="t.id" class="art-card hx-library-card" shadow="never">
+            <div class="hx-library-mosaic"><img v-for="(p, i) in t.images.slice(0, 4)" :key="i" :src="p.url" :alt="p.name" loading="lazy" /></div>
+            <div class="hx-library-info">
+              <div class="hx-row"><ElTag size="small" effect="plain">{{ labels[t.mode] }}</ElTag><ElTag size="small" :type="t.active && t.skillVersionId ? 'success' : 'info'">{{ t.active && t.skillVersionId ? '可使用' : '草稿 / 停用' }}</ElTag></div>
+              <h3>{{ t.name }}</h3><p>{{ t.images.length }} 张模板图 <span>·</span> {{ t.skill || '尚未绑定 Skill' }}</p>
+              <p>版本 v{{ t.version }} <span>·</span> {{ formatTime(t.updatedAt) }}</p>
+              <div class="hx-row"><ElButton :disabled="loading || !!deleting || !t.active || !t.skillVersionId" type="primary" plain @click="use(t)">使用模板</ElButton><ElButton text :disabled="loading || !!deleting" @click="edit(t)">配置模板</ElButton></div>
+              <div class="hx-gap"><ElButton text type="danger" :loading="deleting === t.id" :disabled="loading || !!deleting" @click="remove(t)">删除模板</ElButton></div>
+            </div>
+          </ElCard>
+        </div>
+        <ElEmpty v-if="!templates.length" :description="loading ? '正在加载模板…' : error ? '模板加载失败，请重试' : '暂无匹配模板，可新建或清除筛选'" />
+      </div>
+      <ElPagination v-model:current-page="page" class="hx-gap" :page-size="pageSize" :total="total" layout="prev, pager, next, total" :disabled="loading || !!deleting" />
+    </ElCard>
+    <TemplateEditor v-if="dialog" :template-id="editing" @close="dialog = false" @saved="saved" />
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useUserStore } from '@/store/modules/user'
-import { isMockMode } from '@/api/hengxin/client'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
-import { db, labels, skills, loadExamples, saveTemplate, deleteTemplate, readPictures, type Mode, type Template, type Picture } from '../model'
-const router = useRouter(), mode = ref('all'), search = ref(''), dialog = ref(false), editing = ref(''), name = ref(''), formMode = ref<Mode>('wallpaper'), skill = ref(''), pictures = ref<Picture[]>([]), enabled = ref(true)
-const filtered = computed(() => db.templates.filter(t => (mode.value === 'all' || mode.value === t.mode) && t.name.includes(search.value)))
-function edit(t?: Template) { editing.value = t?.id || ''; name.value = t?.name || ''; formMode.value = t?.mode || 'wallpaper'; skill.value = t ? t.skill : skills.wallpaper; pictures.value = t?.images.map(p => ({ ...p })) || []; enabled.value = t?.active ?? true; dialog.value = true }
-function use(t: Template) { router.push({ path: `/image-processing/${t.mode}`, query: { template: t.id } }) }
-async function upload(file: UploadFile) { if (!file.raw) return; try { pictures.value.push(...await readPictures([file.raw])) } catch { ElMessage.error('图片读取失败') } }
-function move(i: number) { if (i > 0) [pictures.value[i - 1], pictures.value[i]] = [pictures.value[i], pictures.value[i - 1]] }
-const saving = ref(false)
-async function useExample() { pictures.value = await loadExamples(formMode.value) }
-async function save() {
-  if (saving.value) return
-  if (!name.value.trim() || !pictures.value.length) { ElMessage.warning('请填写模板名称并添加图片'); return }
-  saving.value = true
-  const t: Template = { id: editing.value || `T-${crypto.randomUUID()}`, name: name.value.trim(), mode: formMode.value, skill: skill.value, images: pictures.value.map(p => ({ ...p })), active: !!skill.value && enabled.value, version: 1, ownerId: String(useUserStore().getUserInfo.userId || '') }
-  try { await saveTemplate(t); dialog.value = false; ElMessage.success(isMockMode ? '模板已保存到模拟工作区' : '模板已保存') }
-  catch (error) { ElMessage.error(error instanceof Error ? error.message : '保存失败，草稿已保留') }
-  finally { saving.value = false }
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { listTemplates, deleteTemplate } from '@/api/templates'
+import type { Mode, Template, TemplateQuery } from '@/types/hengxin'
+import { labels } from '../model'
+import TemplateEditor from './TemplateEditor.vue'
+
+const router = useRouter()
+const mode = ref<Mode | 'all'>('all'), search = ref(''), sort = ref<NonNullable<TemplateQuery['sort']>>('updated')
+const templates = ref<Template[]>([]), total = ref(0), page = ref(1), pageSize = 12
+const loading = ref(false), error = ref(''), dialog = ref(false), editing = ref<string>(), deleting = ref('')
+let request = 0
+function message(reason: unknown, fallback: string) { return reason instanceof Error ? reason.message : fallback }
+async function load() {
+  const current = ++request
+  loading.value = true
+  error.value = ''
+  try {
+    const result = await listTemplates({ page: page.value, pageSize, search: search.value.trim(), mode: mode.value === 'all' ? undefined : mode.value, sort: sort.value })
+    if (current !== request) return
+    const lastPage = Math.max(1, Math.ceil(result.total / pageSize))
+    if (page.value > lastPage) { page.value = lastPage; return }
+    templates.value = result.items
+    total.value = result.total
+  } catch (reason) {
+    if (current === request) { templates.value = []; total.value = 0; error.value = message(reason, '模板加载失败，请重试') }
+  } finally { if (current === request) loading.value = false }
 }
-async function remove(t: Template) {
-  try { await ElMessageBox.confirm('删除此模板？历史任务中的图片会保留。', '删除模板', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }) }
-  catch { return }
-  try { await deleteTemplate(t.id) }
-  catch (error) { ElMessage.error(error instanceof Error ? error.message : '删除失败') }
+watch([mode, search, sort], () => { page.value = 1 }, { flush: 'sync' })
+watch([mode, search, sort, page], load, { immediate: true })
+onBeforeUnmount(() => { request++ })
+function edit(template?: Template) { editing.value = template?.id; dialog.value = true }
+function use(template: Template) { void router.push({ path: `/image-processing/${template.mode}`, query: { template: template.id } }) }
+function saved() { dialog.value = false; void load() }
+function formatTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '更新时间未知' : date.toLocaleString('zh-CN', { hour12: false })
+}
+async function remove(template: Template) {
+  if (deleting.value) return
+  deleting.value = template.id
+  try {
+    try {
+      await ElMessageBox.confirm(`删除“${template.name}”？历史任务中的图片会保留。`, '删除模板', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' })
+    } catch { return }
+    await deleteTemplate(template.id)
+    ElMessage.success('模板已删除')
+    await load()
+  } catch (reason) { ElMessage.error(message(reason, '删除失败，请重试')) }
+  finally { deleting.value = '' }
 }
 </script>

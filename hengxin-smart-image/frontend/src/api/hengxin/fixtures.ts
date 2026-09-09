@@ -2,7 +2,7 @@ import type { Mode, Picture, Workspace } from '../../types/hengxin'
 export const MOCK_USER_ID = 'mock-operator'
 export const skillNames: Record<Mode, string> = { wallpaper: '壁纸替换 Skill', product: '商品替换 Skill', text: '文字替换 Skill' }
 export const sampleImages = (mode: Mode, count = 8): Picture[] => Array.from({ length: count }, (_, i) => ({
-  name: `主图 ${String(i + 1).padStart(2, '0')}`, url: `/samples/${mode}-${i % 4}.svg`, version: 1
+  name: `主图 ${String(i + 1).padStart(2, '0')}`, url: `/samples/${mode}-${i % 4}.svg`, fileId: `sample-${mode}-${i % 4}`, version: 1
 }))
 export function createFixtures(): Workspace {
   const templates = [
@@ -11,7 +11,7 @@ export function createFixtures(): Workspace {
     { id: 't3', name: '原色轻透 · 钢化膜系列', mode: 'product' as const, count: 8 },
     { id: 't4', name: '桌面好物 · 产品展示', mode: 'product' as const, count: 4 }
   ].map(t => ({ id: t.id, name: t.name, mode: t.mode, images: sampleImages(t.mode, t.count),
-    skill: skillNames[t.mode], active: true, version: 1, ownerId: MOCK_USER_ID }))
+    skill: skillNames[t.mode], skillVersionId: `mock-${t.mode}-1`, notes: '', updatedAt: '2026-09-09T02:00:00.000Z', active: true, version: 1, ownerId: MOCK_USER_ID }))
   return {
     templates,
     tasks: (['wallpaper', 'product', 'text'] as const).map((mode, i) => ({

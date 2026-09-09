@@ -2,8 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMockService } from '../src/api/hengxin/mock'
 import { createHttpService, ApiError } from '../src/api/hengxin/http'
+import { sampleImages } from '../src/api/hengxin/fixtures'
 
-const input = { mode: 'wallpaper' as const, name: '独立模拟任务', templateId: 't1', sources: [{ name: '素材', url: '/local.png' }], note: '保持边框' }
+const input = { mode: 'wallpaper' as const, name: '独立模拟任务', templateId: 't1', sources: sampleImages('wallpaper', 1), note: '保持边框' }
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 test('模拟服务隔离快照与实例，空工作区无种子污染', async () => {

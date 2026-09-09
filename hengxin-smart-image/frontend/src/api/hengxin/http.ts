@@ -11,8 +11,8 @@ export function createHttpService(baseUrl: string, fetcher: typeof fetch = fetch
     try {
       response = await fetcher(`${baseUrl.replace(/\/$/, '')}${path}`, {
         method, credentials: 'include', signal: AbortSignal.timeout(10000),
-        headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-        body: body === undefined ? undefined : JSON.stringify(body)
+        headers: { Accept: 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) },
+        body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body)
       })
     } catch {
       throw new ApiError('UNAVAILABLE', '服务连接失败，请检查网络或稍后重试')
@@ -40,7 +40,19 @@ export function createHttpService(baseUrl: string, fetcher: typeof fetch = fetch
   return {
     getUser: () => request('/auth/me', validate.user),
     getWorkspace: () => request('/workspace', validate.workspace),
-    saveTemplate: template => request(`/templates/${encodeURIComponent(template.id)}`, validate.template, 'PUT', template),
+    listTemplates: query => {
+      const params = new URLSearchParams()
+      Object.entries(query).forEach(([key, value]) => { if (value !== undefined) params.set(key, String(value)) })
+      return request(`/templates?${params}`, validate.templatePage)
+    },
+    getTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.template),
+    listSkills: mode => request(`/skills${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, validate.skillList),
+    uploadFile: file => {
+      const data = new FormData()
+      data.append('file', file)
+      return request('/files', validate.uploadedPicture, 'POST', data)
+    },
+    saveTemplate: template => request(template.id ? `/templates/${encodeURIComponent(template.id)}` : '/templates', validate.template, template.id ? 'PUT' : 'POST', template),
     deleteTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),
     createTask: input => request('/tasks', validate.accepted, 'POST', input),
     revise: input => request(`/tasks/${encodeURIComponent(input.taskId)}/rounds`, validate.accepted, 'POST', input),

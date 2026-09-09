@@ -49,3 +49,18 @@ TaskState 使用排队中、执行中、待查看、部分失败、失败，保�
 当前模拟服务保证类型匹配、异步受理返回标识、串行返工、目标图片独立版本更新、归档快照与读写拷贝隔离；尚未覆盖 Phase 2–4 全部异常场景，不据此宣称真实业务验收完成。
 
 上传格式/数量上限、删除保留、正式文字表单等建议默认仍按 PRD 第 11 节管理，不因契约示例而变成已确认需求。HTTP 写操作幂等键与持久化 outbox 在后端阶段实现；当前 UI 防止重复点击，不宣称跨网络重放幂等。
+
+
+## Phase 2 契约扩展（2026-09-09）
+
+依据 PRD v0.13：上传 JPG/PNG/WebP，每文件最大10 MiB，每组最多20张；名称必填、SKU可选、文字要求必填、输出数按模板/输入图。以下扩展先用于前端适配，后端实现仍在Phase5之后。
+
+- Template 增加 skillVersionId（可空）、notes、updatedAt；skill 保留展示名，active 表示可用。TemplateInput 为 id?、name、mode、images、skillVersionId、active、notes、expectedVersion?，归属由服务填写，不采信客户端角色/ownerId。
+- TemplateQuery 继承 PageQuery，增加 sort=updated/name/images、activeOnly?；GET /templates 返回 PageResult<Template>，GET /templates/:id 用于跨页模板跳转。POST /templates 新建，PUT /templates/:id 更新，expectedVersion 不匹配返回409并保留编辑输入。
+- GET /skills?mode=... 返回 SkillVersion[]，新增 isDefault 布尔标记；仅状态available且类型匹配的版本能绑定。每个模拟模块预置一个默认可用版本，真实默认/专用Skill配置的管理规则仍待Q-002确定，Phase2不实现Skill安装/发布。
+- POST /files 接收 multipart/form-data 的 file，返回 Picture（name/url/fileId）。模拟上传创建内存文件引用；本地图片解码通过后才提交；真实上传落地在Phase6。本地预览与模拟接收不声称已写入MinIO。
+- CreateTaskInput 增加 sku?、templateVersion?、skillVersionId?；sources 必须包含已受理的fileId。模拟服务检查输入文件与版本，冻结素材顺序、模板版本、Skill版本、SKU与要求，任务输出仍为示例。
+- 故障场景由仅mock模式的 URL search 参数 scenario 选择：default、empty、no-skills、upload-error、save-error、submit-error、list-error。error场景只让相应首次操作失败，重试恢复；切换场景刷新整个页面并清空模拟工作区。测试实例隔离，不污染真实模式。
+- 页面取消/关闭编辑不会提交；请求进行中按钮锁定，重复响应与过期列表响应不会覆盖最新选择。上传队列按选择顺序展示，失败项保留、单项可重试或移除，存在失败/进行中项时禁止保存/提交。
+
+Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含有序图片与 Skill 版本），创建时由服务端取当前版本生成，客户端不能自填；旧 Phase 1/历史响应可无此字段。编辑和删除模板不改变已受理任务的快照。

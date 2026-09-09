@@ -2,9 +2,8 @@ import { reactive, shallowReadonly } from 'vue'
 import { ElMessage } from 'element-plus'
 import { workspace as validWorkspace } from '../../api/hengxin/validate'
 import { getService, isMockMode } from '../../api/hengxin/client'
-import type { Archive, CreateTaskInput, Mode, Task, Template, Workspace } from '../../types/hengxin'
+import type { Archive, CreateTaskInput, Mode, Task, Workspace } from '../../types/hengxin'
 export type { Archive, Mode, Picture, Task, Template } from '../../types/hengxin'
-export { loadExamples, readPictures } from '../../api/hengxin/local-pictures'
 export const labels: Record<Mode, string> = { wallpaper: '替换壁纸', product: '替换商品', text: '替换文字' }
 export const skills: Record<Mode, string> = { wallpaper: '壁纸替换 Skill', product: '商品替换 Skill', text: '文字替换 Skill' }
 
@@ -53,12 +52,6 @@ async function update<T>(action: () => Promise<T>): Promise<T> {
 }
 export async function createTask(input: CreateTaskInput) {
   return update(async () => (await getService()).createTask(input))
-}
-export async function saveTemplate(template: Template) {
-  return update(async () => (await getService()).saveTemplate(template))
-}
-export async function deleteTemplate(id: string) {
-  return update(async () => (await getService()).deleteTemplate(id))
 }
 export async function run(task: Task, target = -1, note = '') {
   return update(async () => (await getService()).revise({ taskId: task.id, target: target < 0 ? null : target, note }))

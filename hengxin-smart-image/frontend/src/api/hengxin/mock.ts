@@ -1,15 +1,17 @@
 import type { Accepted, HengxinService, Task, Workspace } from '../../types/hengxin'
+import { createMockCatalog, type MockScenario } from './mock-catalog'
 import { ApiError } from './http'
 import { createFixtures, MOCK_USER_ID, sampleImages } from './fixtures'
 
 /** 独立内存模拟，不读写原型 localStorage，不代表后台持久化。 */
-export function createMockService(options: { empty?: boolean; delayMs?: number; stepMs?: number } = {}): HengxinService {
-  const db: Workspace = options.empty ? { templates: [], tasks: [], archives: [] } : createFixtures()
+export function createMockService(options: { empty?: boolean; delayMs?: number; stepMs?: number; scenario?: MockScenario } = {}): HengxinService {
+  const db: Workspace = (options.empty || options.scenario === 'empty') ? { templates: [], tasks: [], archives: [] } : createFixtures()
   const active = new Map<string, ReturnType<typeof setInterval>>()
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const stamp = () => new Date().toISOString()
   const id = () => crypto.randomUUID()
   const wait = () => new Promise<void>(resolve => setTimeout(resolve, options.delayMs ?? 120))
+  const catalog = createMockCatalog(db, wait, options.scenario ?? 'default')
   const findTask = (taskId: string) => {
     const task = db.tasks.find(t => t.id === taskId)
     if (!task) throw new ApiError('NOT_FOUND', '任务不存在', 404)
@@ -41,31 +43,28 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
   return {
     async getUser() { await wait(); return { id: MOCK_USER_ID, name: '模拟运营', role: 'operator', status: 'active' } },
     async getWorkspace() { await wait(); return copy(db) },
-    async saveTemplate(template) {
-      await wait()
-      if (!template.name.trim() || !template.images.length) throw new ApiError('VALIDATION', '模板名称和图片不能为空', 422)
-      const index = db.templates.findIndex(t => t.id === template.id)
-      const saved = copy({ ...template, version: index < 0 ? 1 : db.templates[index].version + 1 })
-      if (index < 0) db.templates.unshift(saved)
-      else db.templates[index] = saved
-      return copy(saved)
-    },
-    async deleteTemplate(templateId) { await wait(); db.templates = db.templates.filter(t => t.id !== templateId) },
+    ...catalog.service,
     async createTask(input) {
       await wait()
-      const template = db.templates.find(t => t.id === input.templateId)
+      catalog.fail('submit')
+      const template = input.mode === 'text' ? undefined : db.templates.find(t => t.id === input.templateId)
       if (!input.name.trim() || !input.sources.length || (input.mode === 'text' && !input.note.trim())) {
         throw new ApiError('VALIDATION', '请填写任务名称、素材及必要修改要求', 422)
       }
       if (input.mode !== 'text' && (!template?.active || !template.skill || template.mode !== input.mode)) {
         throw new ApiError('VALIDATION', '请选择类型匹配且 Skill 可用的模板', 422)
       }
+      const sources = catalog.resolvePictures(input.sources)
+      if (input.name.trim().length > 60 || (input.sku?.length ?? 0) > 80 || input.note.length > 1000) throw new ApiError('VALIDATION', '名称、SKU 或说明长度超限', 422)
+      if (template && input.templateVersion !== undefined && template.version !== input.templateVersion) throw new ApiError('CONFLICT', '模板版本已更新，请重新选择模板', 409)
+      const skill = catalog.resolveSkill(input.mode, template?.skillVersionId ?? input.skillVersionId)
       const task: Task = {
         id: `HX-${id()}`, name: input.name, mode: input.mode, template: template?.name ?? '无需模板',
         templateId: template?.id, templateVersion: template?.version,
-        skillVersionId: `mock-${input.mode}-1`, ownerId: MOCK_USER_ID, sessionId: null,
+        templateSnapshot: template ? copy(template) : undefined,
+        skillVersionId: skill.id, sku: input.sku?.trim(), ownerId: MOCK_USER_ID, sessionId: null,
         state: '排队中', progress: 0, images: sampleImages(input.mode, template?.images.length ?? input.sources.length),
-        sources: copy(input.sources), feedback: input.note ? [`初始要求：${input.note}`] : [],
+        sources, feedback: input.note ? [`初始要求：${input.note}`] : [],
         time: stamp(), archived: false, currentRoundId: ''
       }
       db.tasks.unshift(task)
@@ -98,6 +97,6 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
       const task = db.tasks.find(t => t.id === archive?.taskId)
       if (task) task.archived = db.archives.some(a => a.taskId === task.id && JSON.stringify(a.images) === JSON.stringify(task.images))
     },
-    dispose() { active.forEach(clearInterval); active.clear() }
+    dispose() { active.forEach(clearInterval); active.clear(); catalog.dispose() }
   }
 }

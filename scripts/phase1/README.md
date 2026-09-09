@@ -8,3 +8,5 @@ New-Item -ItemType Directory -Force output/playwright | Out-Null
 ```
 
 每条命令完成后再执行下一条；不要并发操作同一浏览器会话。完成后运行 `playwright-cli -s=hx-phase1 close` 关闭独立会话，停止本次临时3018服务。生成结果仅存浏览器临时内存；不读取用户生产数据。脚本不持久化登录凭据。
+
+Phase 2 更新后，请使用 scripts/phase2/README.md 的当前契约回归套件。本目录保留 Phase 1 验收时点的历史脚本。
