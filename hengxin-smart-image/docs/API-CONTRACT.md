@@ -1,5 +1,11 @@
 # 前端接口契约 — Phase 1
 
+## Phase 5 后端基础补充
+
+FastAPI 在 `/openapi.json` 发布上述业务的目标结构（28 个方法、20 条路径）；业务方法均明确返回 501 `NOT_IMPLEMENTED`，正式实现按 Phase 6–13 接替。身份未接入前保留前端 mock 预览，HTTP 模式不回退。分页暂定默认 1/20，pageSize 上限 100，非法参数统一 422。可选传输字段在后续业务序列化中应省略未提供值；必要 nullable 字段必须保留 null。业务写入幂等键的前端传输在 Phase 8 接入；Phase 5 仅内部测试入口实施该机制。
+
+已实现 `/api/v1/health/live` 与 `/health/ready`（后者依赖 PG 迁移、Redis、MinIO 授权探针；失败 503）。测试模式显式开启 `ENABLE_TEST_JOBS` 后，`POST /api/v1/internal/test-jobs` 接受 `{value,delaySeconds?}` 与必填 `Idempotency-Key`，同事务持久写入测试作业/outbox 后返回 202 `{jobId,status,result,executionCount}`；同键同内容返回同一作业，同键不同内容返回 409。`GET /api/v1/internal/test-jobs/{id}` 查询 PG 状态。该入口默认关闭且生产禁止开启，不是图片生成 API。独立 outbox 派发进程持续重派未完成作业；纯计算 Worker 通过 PG 行锁与原子提交防止重复完成，不能据此宣称外部 AI 调用恰好一次。
+
 Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续 Phase 2/3 补充共同组成当前前端契约。产品权限以 Product-Spec v0.14 为准。
 
 版本 0.1 · 2026-09-09。对应 DEV-PLAN Phase 1、Product-Spec v0.12。类型源：`frontend/src/types/hengxin.ts`。这是前端承接契约，不代表后端接口已实现；Phase 2–4 逐页细化分页、文件引用与管理查询，Phase 5 对齐 OpenAPI。

@@ -1,7 +1,7 @@
 # Development Plan — 恒信 AI 换套图系统
 
 > 版本 v1.10 · 2026-09-09。依据 Product-Spec.md v0.14、Design-Brief.md 和用户认可的现有原型。
-> 当前状态：Phase 1–3 已验收；Phase 4 前端技术验证通过，待用户验收；Phase 5–14 未开始。完整前端验证记录见 hengxin-smart-image/docs/PHASE4-VALIDATION.md。
+> 当前状态：Phase 1–4 已验收；Phase 5 开发、四步验证及两阶段审查通过，待用户验收；Phase 6–14 未开始。证据见 hengxin-smart-image/docs/PHASE5-VALIDATION.md，下一步为 Phase 6 用户归属与真实文件存储。
 
 ## 1. 开发方向与已有成果
 
