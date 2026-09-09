@@ -149,9 +149,9 @@ def typecheck(root):
     for config in configs:
         compiler = None
         for parent in (config.parent, *config.parent.parents):
-            candidate = parent / "node_modules/typescript/bin/tsc"
-            if candidate.is_file():
-                compiler = candidate
+            candidates = [parent / "node_modules/vue-tsc/bin/vue-tsc.js", parent / "node_modules/typescript/bin/tsc"]
+            compiler = next((candidate for candidate in candidates if candidate.is_file()), None)
+            if compiler is not None:
                 break
             if parent == root:
                 break

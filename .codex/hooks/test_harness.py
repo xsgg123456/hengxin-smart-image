@@ -164,6 +164,19 @@ class HarnessTests(unittest.TestCase):
         compiler.write_text("console.error('compile failed'); process.exit(1)")
         self.assertIn("compile failed", h.typecheck(self.root))
 
+    def test_vue_compiler_selected_and_failure_blocks(self):
+        (self.root / "tsconfig.json").write_text("{}")
+        tsc = self.root / "node_modules/typescript/bin/tsc"
+        vue = self.root / "node_modules/vue-tsc/bin/vue-tsc.js"
+        tsc.parent.mkdir(parents=True)
+        vue.parent.mkdir(parents=True)
+        tsc.write_text("console.error('wrong compiler'); process.exit(1)")
+        vue.write_text("process.exit(0)")
+        self.assertIsNone(h.typecheck(self.root))
+        tsc.write_text("process.exit(0)")
+        vue.write_text("console.error('vue failed'); process.exit(1)")
+        self.assertIn("vue failed", h.typecheck(self.root))
+
     def test_autopush_disabled_by_default(self):
         self.assertIsNone(self.call("auto-push", {"tool_input": {"command": "git commit -m test"}, "tool_response": {"exit_code": 0}}))
 

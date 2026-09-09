@@ -1,12 +1,12 @@
 # hengxin-smart-image
 
-本仓库已安装 Agent Harness（Codex 版），用于从需求、设计、研发计划到开发、审查和发布的文档驱动流程。当前仅完成研发框架初始化，尚无产品需求或业务代码。
+本仓库已安装 Agent Harness（Codex 版），用于从需求、设计、研发计划到开发、审查和发布的文档驱动流程。当前已完成 PRD、设计说明、14 阶段开发计划（先完成全部前端，再开发后端及联调）及 art-design-pro 交互原型；正式前后端业务工程尚未启动。需求以 Product-Spec.md 为准，开发顺序见 DEV-PLAN.md，原型说明见 prototype/README.md。
 
 ## 开始使用
 
-在 Codex 中打开本仓库，开始一个新的项目会话，直接描述产品需求。例如：
+在 Codex 中打开本仓库，先读取现有 PRD 和开发计划，按阶段承接已认可原型。例如：
 
-> 使用 product-spec-builder，帮我梳理恒信智能图片项目的目标用户、核心场景和第一版范围。
+> 按 DEV-PLAN.md 开始 Phase 1，直接承接现有 art-design-pro 原型源码。
 
 也可在终端从仓库根目录运行 `codex`，通过 `/skills` 查看技能、`/hooks` 查看门禁。旧会话未必重新加载新配置，安装后应开启新会话。
 
@@ -35,7 +35,7 @@
 python scripts/check_harness.py
 ```
 
-自检覆盖文件完整性、技能与 TOML/JSON 配置、进化队列、审查门禁、补丁删除、Shell 写入、TypeScript 编译成功/失败以及自动推送保护。Node 是 TypeScript 测试和未来 TypeScript 项目的依赖；实际项目依赖在技术栈确定后安装。
+自检覆盖文件完整性、技能与 TOML/JSON 配置、进化队列、审查门禁、补丁删除、Shell 写入、TypeScript 编译成功/失败以及自动推送保护。此处 Python 标准库和 Node 说明仅针对 Harness 自检；产品技术栈已确定 Vue/TypeScript、Python FastAPI、PostgreSQL 和 MinIO，具体依赖按 DEV-PLAN.md 安装。
 
 本机已通过 Codex 实际加载检查：11 个项目技能启用、2 个角色进入模型上下文、6 个 hook 被发现且配置解析无错误。6 个 hook 已通过 Codex 原生信任界面启用。信任记录属于本机；其他机器克隆后仍需在 `/hooks` 审阅并信任，修改 hook 定义也会要求重新信任。
 
@@ -44,7 +44,7 @@ python scripts/check_harness.py
 - 补齐 `hooks.json` 的顶层 `hooks`，匹配当前 Codex 的 `Bash`、`apply_patch` 等工具事件。
 - 用 Python 标准库替代 Bash/jq/lsof 依赖，原 `.sh` 文件保留为 POSIX 兼容入口。
 - 从真实补丁路径和 Git 文件内容变动维护审查标记，覆盖普通 Shell 写入、数组命令和子目录。首次启动按 HEAD 与工作区差异建立基线，保留已有未提交修改；Stop 再次检查磁盘，防止写入 `clean` 后的额外修改漏审。空审查状态也会拦截停止。
-- 提交前运行项目本地 TypeScript 编译器；支持带引号、空格的 `git -C` 路径并检查实际目标仓库。只解析 Git 提交前缀，兼容 PowerShell here-string。依赖缺失明确阻止提交，不临时下载编译器。
+- 提交前优先运行项目已安装的 vue-tsc，未安装时使用本地 TypeScript 编译器；支持带引号、空格的 `git -C` 路径并检查实际目标仓库。只解析 Git 提交前缀，兼容 PowerShell here-string。依赖缺失或类型检查失败明确阻止提交，不临时下载编译器。
 - 开发服务启动前报告常见端口占用，由 Agent 检查进程或换端口。
 - 自动推送默认关闭。需要时执行 `git config --local harness.autoPush true`；仅单条 `git commit` 命令明确成功后推送普通分支，`main/master` 不自动推送。复合命令、包装脚本、`git -C` 调用跳过自动推送；未返回结构化成功状态的客户端会提示手动核查。
 - 自进化运行状态不上传 Git，SessionStart 自动补建；最终采纳的规则仍进入版本控制。
