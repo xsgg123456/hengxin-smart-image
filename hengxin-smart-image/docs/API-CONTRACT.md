@@ -64,3 +64,18 @@ TaskState 使用排队中、执行中、待查看、部分失败、失败，保�
 - 页面取消/关闭编辑不会提交；请求进行中按钮锁定，重复响应与过期列表响应不会覆盖最新选择。上传队列按选择顺序展示，失败项保留、单项可重试或移除，存在失败/进行中项时禁止保存/提交。
 
 Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含有序图片与 Skill 版本），创建时由服务端取当前版本生成，客户端不能自填；旧 Phase 1/历史响应可无此字段。编辑和删除模板不改变已受理任务的快照。
+
+## Phase 3：任务、返工和成品接口
+
+沿用 Spec REQ-004/005/006 建议默认方案，仍仅前端模拟与真实 HTTP 适配，不代表后端落地。
+
+- `GET /tasks` 接收 TaskQuery（PageQuery + state?: TaskState|'processing'|'error'），按时间倒序及 ID 稳定排序；返回 TaskPage（PageResult<Task> + stats: {total,processing,ready,archived}，统计为全工作区）。支持名称、编号、SKU 搜索及类型筛选。
+- `GET /tasks/:id` 返回 TaskDetailData：{task,slots:ResultSlot[],rounds:Round[]}。ResultSlot={slot:number,versions:ResultVersion[],currentVersionId:string|null,error:string|null}；ResultVersion=Picture + {id,version:number,roundId,createdAt}。只有成功结果进入版本列表，槽位顺序固定。Task 增加可选 outputCount/error，images 只含当前已成功的图，不能用该数组下标作为返工目标，返工必须用 slot。
+- `POST /tasks/:id/rounds` 使用 RevisionInput，新增 retry?:boolean；正常修改要求非空意见、同一任务串行。重试只允许失败/部分失败任务；重试上一失败范围，保留原轮次意见。服务从任务冻结 Skill、模板和素材取得执行上下文，不接受前端自行切换。成功后目标槽新增版本，失败不更改旧 currentVersionId。首次生成在完成前不预填输出图片。
+- `DELETE /tasks/:id` 返回 DeletionReceipt={id,operatorId,deletedAt}，模拟服务记入 Workspace 可选 deletions。删除运行任务在本阶段取消模拟计时，任务详情返回404，已归档图片与版本引用保留。后端阶段实现真实执行取消/引用计数。
+- `GET /archives` 接收 PageQuery，返回 PageResult<Archive>；`GET /archives/:id` 详情；`POST /tasks/:id/archives` 只允许完整当前结果（待查看且所有槽可用），按当前 imageVersionIds 幂等创建不可变归档。历史查看不改变归档选择，归档按钮只保存当前整套版本。
+- `DELETE /archives/:id` 沿用204，删除不删除任务当前图。读写失败保留界面上下文；受理后的读取故障不重复返工/归档写入。
+- 页面使用独立列表/详情查询与离页停止的轮询，工作区快照仅用于启动兼容，不再驱动任务/成品列表。深链接可直接查询列表当前页以外的任务。
+- 新 mock 场景：execution-error（首次生成失败）、partial-result（首次执行部分失败）、revision-error（首次返工执行失败）、archive-error（首次归档写失败）；默认场景不触发。模拟明确标识，重试恢复。下载保持实际图片 MIME/字节，不把 HTML/JSON 网关错误保存为图片；整套完整读取后一次保存 ZIP，任一文件失败可重试、不输出残缺包。
+
+删除审计补充：模拟 Workspace.deletions 统一记录模板、任务、成品删除，DeletionReceipt 可带 resourceType（template/task/archive），由服务填充实际 operatorId 与删除时间。不存在的记录不重复记审计；真实 DELETE 成品/模板仍返回204，审计由后端持久化。

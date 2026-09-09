@@ -17,7 +17,9 @@ const scenarios = [
   { value: 'default', label: '常规预览' }, { value: 'empty', label: '空工作区' },
   { value: 'no-skills', label: '无可用 Skill' }, { value: 'upload-error', label: '上传失败与重试' },
   { value: 'save-error', label: '保存失败与重试' }, { value: 'submit-error', label: '提交失败与重试' },
-  { value: 'list-error', label: '列表失败与重试' }
+  { value: 'list-error', label: '列表失败与重试' },
+  { value: 'execution-error', label: '生成执行失败' }, { value: 'partial-result', label: '部分图片失败' },
+  { value: 'revision-error', label: '返工失败保留旧图' }, { value: 'archive-error', label: '归档失败与重试' }
 ]
 const scenario = new URLSearchParams(window.location.search).get('scenario') || 'default'
 function changeScenario(value: string) {

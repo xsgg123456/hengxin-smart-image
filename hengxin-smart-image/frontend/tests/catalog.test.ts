@@ -5,6 +5,13 @@ import { createHttpService } from '../src/api/hengxin/http'
 import { sampleImages } from '../src/api/hengxin/fixtures'
 import { MAX_IMAGE_BYTES } from '../src/api/hengxin/limits'
 import type { TemplateInput } from '../src/types/hengxin'
+async function settle(service: ReturnType<typeof createMockService>, taskId: string) {
+  for (let i = 0; i < 100; i++) {
+    if ((await service.getTask(taskId)).task.state === '待查看') return
+    await new Promise(resolve => setTimeout(resolve, 3))
+  }
+  throw new Error('模拟执行未完成')
+}
 
 const draft: TemplateInput = { name: '测试模板', mode: 'wallpaper', images: sampleImages('wallpaper', 2),
   skillVersionId: null, notes: '保持边框', active: true }
@@ -26,7 +33,7 @@ test('模板分页/筛选/排序，页界互斥且查询不污染存量', async 
 })
 
 test('草稿不可生成，类型匹配 Skill、版本冲突及历史快照不被编辑删除覆盖', async t => {
-  const service = createMockService({ delayMs: 0 }); t.after(() => service.dispose())
+  const service = createMockService({ delayMs: 0, stepMs: 3 }); t.after(() => service.dispose())
   const initial = await service.saveTemplate(draft)
   assert.equal(initial.active, false); assert.equal(initial.skillVersionId, null)
   await assert.rejects(service.createTask({ ...taskInput, templateId: initial.id }), { code: 'VALIDATION' })
@@ -35,6 +42,7 @@ test('草稿不可生成，类型匹配 Skill、版本冲突及历史快照不�
   assert.equal(linked.version, 2); assert.equal(linked.active, true)
   await assert.rejects(service.createTask({ ...taskInput, templateId: linked.id, templateVersion: 1 }), { code: 'CONFLICT' })
   const accepted = await service.createTask({ ...taskInput, templateId: linked.id, templateVersion: 2 })
+  await settle(service, accepted.taskId)
   const snapshot = (await service.getWorkspace()).tasks.find(task => task.id === accepted.taskId)!
   assert.equal(snapshot.templateVersion, 2); assert.equal(snapshot.skillVersionId, 'mock-wallpaper-1'); assert.equal(snapshot.sku, 'SKU-123')
   const edited = await service.saveTemplate({ ...draft, id: linked.id, expectedVersion: 2, name: '新版模板', images: sampleImages('wallpaper', 4), skillVersionId: 'mock-wallpaper-1' })
@@ -59,7 +67,7 @@ test('无 Skill 场景允许草稿但阻止文字默认与模板执行', async t
 })
 
 test('上传 MIME/大小/空文件、文件引用及20张边界，文字输出数等于输入', async t => {
-  const service = createMockService({ delayMs: 0 }); t.after(() => service.dispose())
+  const service = createMockService({ delayMs: 0, stepMs: 3 }); t.after(() => service.dispose())
   for (const invalid of [new File([], 'a.png', { type: 'image/png' }), new File(['x'], 'a.svg', { type: 'image/svg+xml' }),
     new File([new Uint8Array(MAX_IMAGE_BYTES + 1)], 'a.png', { type: 'image/png' })]) {
     await assert.rejects(service.uploadFile(invalid), { code: 'VALIDATION' })
@@ -68,6 +76,7 @@ test('上传 MIME/大小/空文件、文件引用及20张边界，文字输出�
   await assert.rejects(service.createTask({ ...taskInput, templateId: 't1', sources: [{ name: '伪造', url: '/fake' }] }), { code: 'VALIDATION' })
   await assert.rejects(service.createTask({ ...taskInput, mode: 'text', note: '替换标题', sources: Array(21).fill(picture) }), { code: 'VALIDATION' })
   const accepted = await service.createTask({ ...taskInput, mode: 'text', note: '替换标题', sources: Array(20).fill({ ...picture, url: '/tampered' }) })
+  await settle(service, accepted.taskId)
   const task = (await service.getWorkspace()).tasks.find(task => task.id === accepted.taskId)!
   assert.equal(task.images.length, 20); assert.equal(task.skillVersionId, 'mock-text-1'); assert.equal(task.sources[0].url, picture.url)
 })

@@ -62,6 +62,8 @@ export interface Task {
   archived: boolean
   currentRoundId: string
   sku?: string
+  outputCount?: number
+  error?: string | null
 }
 export interface Round {
   id: string
@@ -123,7 +125,13 @@ export interface PageResult<T> { items: T[]; page: number; pageSize: number; tot
 export interface ApiErrorBody { code: string; message: string; requestId?: string }
 export interface Accepted { taskId: string; roundId: string; state: '排队中' }
 /** 过渡期工作区快照；Phase 2–4 逐页拆分页接口，不用作永久全量接口。 */
-export interface Workspace { templates: Template[]; tasks: Task[]; archives: Archive[] }
+export interface Workspace { templates: Template[]; tasks: Task[]; archives: Archive[]; deletions?: DeletionReceipt[] }
+export interface DeletionReceipt { id: string; operatorId: string; deletedAt: string; resourceType?: 'task' | 'archive' | 'template' }
+export interface TaskQuery extends PageQuery { state?: TaskState | 'processing' | 'error' }
+export interface TaskPage extends PageResult<Task> { stats: { total: number; processing: number; ready: number; archived: number } }
+export interface ResultVersion extends Picture { id: string; version: number; roundId: string; createdAt: string }
+export interface ResultSlot { slot: number; versions: ResultVersion[]; currentVersionId: string | null; error: string | null }
+export interface TaskDetailData { task: Task; slots: ResultSlot[]; rounds: Round[] }
 export interface TemplateQuery extends PageQuery { sort?: 'updated' | 'name' | 'images'; activeOnly?: boolean }
 export interface TemplateInput {
   id?: string
@@ -145,10 +153,15 @@ export interface CreateTaskInput {
   sources: Picture[]
   note: string
 }
-export interface RevisionInput { taskId: string; target: number | null; note: string }
+export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean }
 export interface HengxinService {
   getUser(): Promise<User>
   getWorkspace(): Promise<Workspace>
+  listTasks(query: TaskQuery): Promise<TaskPage>
+  getTask(id: string): Promise<TaskDetailData>
+  deleteTask(id: string): Promise<DeletionReceipt>
+  listArchives(query: PageQuery): Promise<PageResult<Archive>>
+  getArchive(id: string): Promise<Archive>
   listTemplates(query: TemplateQuery): Promise<PageResult<Template>>
   getTemplate(id: string): Promise<Template>
   listSkills(mode?: Mode): Promise<SkillVersion[]>

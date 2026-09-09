@@ -9,7 +9,7 @@ export function getService(): Promise<HengxinService> {
   service ??= isMockMode
     ? import('./mock').then(({ createMockService }) => {
       const value = new URLSearchParams(window.location.search).get('scenario') ?? 'default'
-      const scenario = ['default', 'empty', 'no-skills', 'upload-error', 'save-error', 'submit-error', 'list-error'].includes(value) ? value as MockScenario : 'default'
+      const scenario = ['default', 'empty', 'no-skills', 'upload-error', 'save-error', 'submit-error', 'list-error', 'execution-error', 'partial-result', 'revision-error', 'archive-error'].includes(value) ? value as MockScenario : 'default'
       return createMockService({ scenario })
     })
     : Promise.resolve(createHttpService(import.meta.env.VITE_API_URL || '/api/v1'))

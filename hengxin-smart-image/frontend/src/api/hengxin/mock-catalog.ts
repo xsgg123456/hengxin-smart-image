@@ -4,6 +4,7 @@ import { MOCK_USER_ID, sampleImages, skillNames } from './fixtures'
 import { IMAGE_MIME_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from './limits'
 
 export type MockScenario = 'default' | 'empty' | 'no-skills' | 'upload-error' | 'save-error' | 'submit-error' | 'list-error'
+  | 'execution-error' | 'partial-result' | 'revision-error' | 'archive-error'
 export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scenario: MockScenario) {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const files = new Map<string, Picture>()
@@ -82,7 +83,14 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       else db.templates.unshift(saved)
       return copy(saved)
     },
-    async deleteTemplate(id) { await wait(); db.templates = db.templates.filter(t => t.id !== id) }
+    async deleteTemplate(id) {
+      await wait()
+      if (db.templates.some(t => t.id === id)) {
+        db.deletions ??= []
+        db.deletions.push({ id, operatorId: MOCK_USER_ID, deletedAt: new Date().toISOString(), resourceType: 'template' })
+      }
+      db.templates = db.templates.filter(t => t.id !== id)
+    }
   }
   return { service, resolvePictures, resolveSkill, fail, dispose() { objectUrls.forEach(url => URL.revokeObjectURL(url)) } }
 }

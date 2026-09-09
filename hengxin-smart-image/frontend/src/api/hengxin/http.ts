@@ -37,9 +37,19 @@ export function createHttpService(baseUrl: string, fetcher: typeof fetch = fetch
     if (!guard(value)) throw new ApiError('INVALID_RESPONSE', '服务返回的数据不完整，请稍后重试')
     return value
   }
+  const queryString = (query: object) => {
+    const params = new URLSearchParams()
+    Object.entries(query).forEach(([key, value]) => { if (value !== undefined) params.set(key, String(value)) })
+    return params.toString()
+  }
   return {
     getUser: () => request('/auth/me', validate.user),
     getWorkspace: () => request('/workspace', validate.workspace),
+    listTasks: query => request(`/tasks?${queryString(query)}`, validate.taskPage),
+    getTask: id => request(`/tasks/${encodeURIComponent(id)}`, validate.taskDetail),
+    deleteTask: id => request(`/tasks/${encodeURIComponent(id)}`, validate.deletion, 'DELETE'),
+    listArchives: query => request(`/archives?${queryString(query)}`, validate.archivePage),
+    getArchive: id => request(`/archives/${encodeURIComponent(id)}`, validate.archive),
     listTemplates: query => {
       const params = new URLSearchParams()
       Object.entries(query).forEach(([key, value]) => { if (value !== undefined) params.set(key, String(value)) })

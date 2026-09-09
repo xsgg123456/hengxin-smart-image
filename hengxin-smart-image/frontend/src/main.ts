@@ -1,11 +1,11 @@
 import App from './App.vue'
 import { useUserStore } from './store/modules/user'
 import { bootstrap, retryBootstrap } from './api/hengxin/bootstrap'
-import { refreshWorkspace, startPolling, stopPolling } from './views/hengxin/model'
+import { refreshWorkspace } from './views/hengxin/model'
 import { fetchGetUserInfo } from './api/auth'
 import { createApp } from 'vue'
 import { initStore } from './store'                 // Store
-import { initRouter, router } from './router'               // Router
+import { initRouter } from './router'               // Router
 import language from './locales'                    // 国际化
 import '@styles/core/tailwind.css'                  // tailwind
 import '@/views/hengxin/prototype.css'
@@ -38,7 +38,6 @@ retryBootstrap.run = async () => {
     await refreshWorkspace()
     useUserStore().setUserInfo(user)
     useUserStore().setLoginStatus(true)
-    router.afterEach(to => { if (to.path === '/tasks/index') startPolling(); else stopPolling() })
     initRouter(app)
     bootstrap.ready = true
   } catch (error) {
@@ -46,4 +45,3 @@ retryBootstrap.run = async () => {
   } finally { bootstrap.loading = false }
 }
 void retryBootstrap.run()
-window.addEventListener('pagehide', stopPolling)
