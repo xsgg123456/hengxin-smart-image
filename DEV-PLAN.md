@@ -1,23 +1,25 @@
 # Development Plan — 恒信 AI 换套图系统
 
-> 版本 v1.10 · 2026-09-09。依据 Product-Spec.md v0.14、Design-Brief.md 和用户认可的现有原型。
-> 当前状态：Phase 1–4 已验收；Phase 5 开发、四步验证及两阶段审查通过，待用户验收；Phase 6–14 未开始。证据见 hengxin-smart-image/docs/PHASE5-VALIDATION.md，下一步为 Phase 6 用户归属与真实文件存储。
+> 版本 v1.12 · 2026-09-09。依据 Product-Spec.md v0.16、Design-Brief.md 和用户认可的现有原型。
+> 当前状态：Phase 1–4 已验收；Phase 5 开发、四步验证及两阶段审查通过，待用户验收；Phase 6–14 未开始。证据见 hengxin-smart-image/docs/PHASE5-VALIDATION.md；Phase 5 用户验收后，下一步为 Phase 6 用户归属与真实文件存储。
 
 ## 1. 开发方向与已有成果
 
-前端直接继承 `prototype/source/`，保留图片处理一级菜单及替换壁纸、替换商品、替换文字三个二级菜单，以及任务中心、模板库、成品库。当前页面是正式开发的视觉和交互基准。后端确定为 Python FastAPI + PostgreSQL，图片与 Skill 包存入 MinIO。四角色及钉钉双端接入详见 Product-Spec.md 第 13 节；钉钉电脑端和浏览器共用同一前端。设计与运营同权限已确认；主管查看全员任务及统计、模板免审批直接使用、全员查看/删除模板任务成品均已确认。
+前端直接继承 `prototype/source/`，保留图片处理一级菜单及替换壁纸、替换商品、替换文字三个二级菜单，以及任务中心、模板库、成品库。当前页面是正式开发的视觉和交互基准。后端确定为 Python FastAPI + PostgreSQL，图片与 Skill 包存入 MinIO。四角色及钉钉双端接入详见 Product-Spec.md 第 13 节；钉钉电脑端和浏览器共用同一前端。设计与运营同权限已确认；主管查看全员任务及统计、模板免审批直接使用、全员查看/删除模板任务成品、编辑全员模板及返工/归档全员任务均已确认。
 
-| 已有内容 | 承接方式 | 正式开发需要完成 |
+下表列出正式前端的当前状态及后端待接内容；前端源码路径相对于 `hengxin-smart-image/frontend/src/`，原型路径相对于仓库根目录。各阶段的“关键文件”是交付规划，未来文件尚未创建不算缺失。
+
+| 已有内容 | 当前状态 | 后端阶段需要完成 |
 |---|---|---|
-| ArtSidebarMenu、ArtHeaderBar、ArtWorkTab、ArtPageContent、ArtTable、主题 | 直接保留 | 接入真实身份和授权 |
-| `views/hengxin/components/CreateTask.vue` 及三个页面包装组件 | 保留结构、样式、表单交互 | 接口上传、模板加载、真实提交 |
-| Templates.vue、Tasks.vue、TaskDetail.vue、Archive.vue | 逐页接接口，避免整套重写 | 分页、错误状态、持久数据、版本关联 |
-| `views/hengxin/model.ts` | 替换模拟业务层，提取接口类型 | 移除 seed 数据、localStorage 业务库及定时模拟生成 |
-| `src/main.ts`、`src/api/auth.ts` 的演示身份 | Phase 6 隔离开发身份，Phase 12 接真实登录 | 生产禁止演示身份及自动提权 |
-| `views/hengxin/download.ts` | 保留下载操作入口 | 使用鉴权下载、服务端 ZIP，移除手写演示打包实现 |
+| ArtSidebarMenu、ArtHeaderBar、ArtWorkTab、ArtPageContent、ArtTable、主题 | 已承接到正式前端 | 接入真实身份和授权 |
+| `views/hengxin/components/CreateTask.vue` 及三个页面包装组件 | 上传、模板选择、表单和异常交互已通过前端验收 | 真实文件上传、模板加载和任务受理 |
+| Templates.vue、Tasks.vue、TaskDetail.vue、Archive.vue | 分页、错误状态、图片版本和归档交互已完成 | 持久化业务接口与版本关联 |
+| `views/hengxin/model.ts`、`api/hengxin/` | 已分离内存 mock 与 HTTP 适配，不再使用原型 localStorage 业务库 | 后端按契约接入；生产继续禁止回退模拟数据 |
+| `views/auth/dingtalk-login.vue` 及管理页面 | 登录状态、四角色视图和管理交互已完成前端验证 | Phase 6 建可信开发身份，Phase 12/13 接真实认证、授权和管理接口 |
+| `views/hengxin/download.ts` | 示例图片和 ZIP 下载已完成前端验证 | 授权文件下载与服务端 ZIP |
 | `prototype/html/` | 保留只读视觉对照 | 不编辑压缩产物，不把其当源码 |
 
-前端阶段将原型源码承接到 `hengxin-smart-image/frontend/`；全部前端完成后，Phase 5 才建立 `hengxin-smart-image/backend/` 和 `hengxin-smart-image/infra/`；整个工程沿用当前根 Git 仓库。复制时排除 node_modules、dist、缓存、演示资料，重新按锁文件安装依赖。原型 node_modules 是指向参考项目的 junction，不能当普通目录递归复制。原型保持可供对照，正式前端成为唯一业务维护源。
+前端阶段已将原型源码承接到 `hengxin-smart-image/frontend/`；Phase 5 已建立 `hengxin-smart-image/backend/` 和 `hengxin-smart-image/infra/`；整个工程沿用当前根 Git 仓库。复制时排除 node_modules、dist、缓存、演示资料，重新按锁文件安装依赖。原型 node_modules 是指向参考项目的 junction，不能当普通目录递归复制。原型保持可供对照，正式前端成为唯一业务维护源。
 
 ## 2. 本机 Docker 检查及复用方案
 
@@ -55,9 +57,10 @@
 ```mermaid
 flowchart LR
   UI[现有 Vue 前端] --> API[FastAPI 接口与鉴权]
-  API --> PG[(PostgreSQL 业务状态)]
+  API -->|同一事务保存任务、轮次和待发消息| PG[(PostgreSQL 业务状态)]
   API --> M[(MinIO 私有图片与 Skill 包)]
-  API --> Q[Redis / Celery 队列]
+  PG -->|读取事务内保存的待发消息| O[Outbox 派发器]
+  O --> Q[Redis / Celery 队列]
   Q --> W[Python Worker]
   W --> PG
   W <--> M
@@ -71,9 +74,20 @@ Phase 3 前端阶段的轮询频率为任务列表每 4 秒、打开的详情每
 
 Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，收集并校验输出，上传 MinIO，最后提交 PG 图片版本。用对象键和校验和记录文件，数据库不保存永久预签名 URL；预览/下载经 API 校验权限后提供短期签名地址。
 
-初始生成并发为 1，可配置扩展。20/100 是使用人数，不是 CLI 并发数；服务器 CPU、内存、磁盘、带宽未检查，不承诺容量。Celery Worker 和 CLI 使用 Linux 容器或 WSL2，不能把 Windows 原生 Worker 测试当作 Ubuntu 验收。
+建议初始生成并发从 1 起步，具体上限待确认并实测，可配置扩展。20/100 是使用人数，不是 CLI 并发数；服务器 CPU、内存、磁盘、带宽未检查，不承诺容量。Celery Worker 和 CLI 使用 Linux 容器或 WSL2，不能把 Windows 原生 Worker 测试当作 Ubuntu 验收。
 
 会话规则（2026-09-09 已确认）：按业务任务分配，任务 A 首次生成和后续单张/整套返工均使用会话 A；同一运营创建任务 B 时新建会话 B。归档是后端操作，不调用 CLI。保留输入快照、会话 ID 与图片版本等基础记录，不引入复杂上下文管理。
+
+### 3.1 会话生命周期与并发实施约束
+
+业务规则以 Product-Spec 第 9.1–9.2 节为准。本次只规划实现，Phase 5 的短时测试队列不能直接作为真实 CLI 的并发保障。
+
+- Phase 8 用 PG 事务、唯一约束与条件更新落实请求幂等、任务级执行互斥和轮次认领；业务锁只在短事务中持有，CLI/文件处理在事务外执行。多个 Worker 并发验证不能通过全局并发固定为 1 或 Python 线程锁替代。
+- Phase 8 冻结内部执行状态与 API 操作资格，Phase 9 接入实际进程、执行代次/租约和不确定状态对账；租约过期不直接释放同任务执行权。核实旧执行停止及已有结果后，才允许按既定重试规则重新执行。
+- Phase 9 保证执行环境不能跨任务读取或修改会话材料、输入、输出及临时文件，并将临时轮次输入/输出目录与持久会话材料分开，按任务映射明确 session ID；每轮进程结束退出，返工重新启动并续接原会话。需要返工的任务不使用 ephemeral 会话；原会话不能恢复时失败并保留旧结果。
+- 取消、最终图片版本提交和当前版本切换共同校验任务/轮次有效性及当前认领凭证；删除或旧执行者的迟到结果不得写回。Phase 11 的回收不能清理运行中或仍可返工任务的会话材料，保留时长仍按 PRD 第 11 节管理。
+
+隔离方式的调研见 [Codex CLI 多任务并发与隔离评估](hengxin-smart-image/docs/CODEX-CLI-ISOLATION-ASSESSMENT.md)。每轮独立容器、凭据分配等是研究建议，尚未选定具体实现；任务之间必须隔离是已确认要求。
 
 ## 4. 业务默认方案与阶段入口
 
@@ -81,15 +95,15 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 
 | PRD 问题 | 计划采用的建议 | 进入阶段 |
 |---|---|---|
-| Q-001 上传规格 | 已确认 JPG/PNG/WebP，单文件 10 MiB，每组最多 20 张；模板输出数跟随有序模板图，文字输出数跟随输入图；输出不主动缩放，有格式变化时保留真实类型 | 前端 Phase 2；后端 Phase 6/7 |
-| Q-004 账号与权限 | 钉钉双端登录与四角色已确认；超管绑定成员角色；主管查看全员任务/统计，模板无需审批，全员查看/删除三类资源 | 前端 Phase 2–4 实现已确认规则；Phase 12 验证真实权限 |
-| Q-002 Skill 管理 | 已确认仅超级管理员上传、安装、维护和启停；设计主管/设计/运营只绑定已发布版本，禁止提交或安装包 | 前端 Phase 4；后端 Phase 7 |
+| Q-001 上传规格 | 已确认 JPG/PNG/WebP，单文件 10 MiB，每组最多 20 张；模板输出数跟随有序模板图，文字输出数跟随输入图。建议不主动缩放；真实输出尺寸和格式兼容仍待联调 | 前端 Phase 2；后端 Phase 6/7 |
+| Q-004 账号与权限 | 钉钉双端登录与四角色已确认；超管绑定成员角色；主管查看全员任务/统计，模板无需审批，全员查看/删除三类资源、编辑全员模板、返工和归档全员任务 | 前端 Phase 2–4 实现已确认规则；Phase 12 验证真实权限 |
+| Q-002 Skill 管理 | 已确认仅超级管理员上传、安装、维护和启停；其他角色只绑定已发布版本。模块默认与模板专用 Skill 的绑定细则仍待确认 | 前端 Phase 4；后端 Phase 7 |
 | Q-008 钉钉配置 | 企业内部应用、可见范围、接口权限、HTTPS 域名/回调及初始超级管理员成员标识，见 PRD 第 13 节 | Phase 12；Phase 14 双端回归 |
 | Q-003 文字输入 | 已确认：上传图片 + 自然语言修改要求，任务名称必填、SKU 可选，不增加排版编辑器 | 前端 Phase 2；后端 Phase 8 |
-| Q-007 历史与归档 | 整套/单张返工串行、旧版本保留；单张下载和整套 ZIP；全套完整后归档不可变快照，相同版本重复归档幂等 | 前端 Phase 3；后端 Phase 10/11 |
-| Q-004 删除保留 | 删除先逻辑删除，30 天回收；仍被任务或归档引用的文件禁止物理清理，过期未引用临时素材由清理作业回收 | Phase 11 |
-| Q-005 服务器资源 | 部署前采集硬件及剩余空间，按并发 1 起步压测；不足时调整资源或限制，不按用户人数猜算 | Phase 14 |
-| Q-006 CLI 身份和运行限制 | 使用服务器专用执行身份；单轮 30 分钟硬超时作为初始可调上限，自动重跑默认 0；费用记录可用 usage，账号预算需部署者设置 | Phase 9/13/14 |
+| Q-007 历史与归档 | 同任务整套/单张返工互斥已确认；旧版本保留、单张下载和整套 ZIP、全套完整后归档不可变快照及相同版本归档幂等仍按建议默认管理 | 前端 Phase 3；后端 Phase 10/11 |
+| Q-004 删除保留 | 已确认删除失效执行且保护历史引用；回收站形式、30 天回收及临时素材清理时限仍是待确认建议 | Phase 11 |
+| Q-005 服务器资源 | 部署前采集硬件及剩余空间；建议从并发 1 起步压测，实际运行上限待确认，不按用户人数猜算 | Phase 14 |
+| Q-006 CLI 身份和运行限制 | 建议服务器专用执行身份、单轮 30 分钟硬超时和自动重跑 0，均待确认；记录可用 usage，账号预算仍需设置 | Phase 9/13/14 |
 
 尚无三个真实 Skill 不阻塞 Phase 1–8 和使用测试执行器的平台功能；Phase 9 的 CLI 传输实测需要可用 CLI 认证，Phase 14 的真实业务验收需要三个 Skill 及其工具依赖。模拟输出始终标识为测试，生产配置禁止选择模拟执行器。图片效果评测、Skill 编写不在本计划工作量中。
 
@@ -102,8 +116,8 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 | Phase 1 前端承接 | 原有布局、组件、路由及模拟接口契约 | 原型源码 | 已完成 |
 | Phase 2 创建与模板页面 | 三类处理、素材交互和模板维护 | 1 | 已验收 |
 | Phase 3 任务与成品页面 | 任务详情、返工、版本、下载及归档交互 | 2 | 已验收 |
-| Phase 4 管理及登录页面 | 五个管理页面、四角色视图、登录状态；全部前端验收 | 3 | 技术验证通过，待用户验收 |
-| Phase 5 后端基础 | FastAPI、PG、MinIO、Redis、Worker/outbox | 4 | 未开始 |
+| Phase 4 管理及登录页面 | 五个管理页面、四角色视图、登录状态；全部前端验收 | 3 | 已验收 |
+| Phase 5 后端基础 | FastAPI、PG、MinIO、Redis、Worker/outbox | 4 | 技术验证通过，待用户验收 |
 | Phase 6 文件与用户归属 | 真实上传下载及后端测试身份 | 5 | 未开始 |
 | Phase 7 模板与 Skill | 模板持久化、Skill 版本及安装 | 6 | 未开始 |
 | Phase 8 任务与队列 | 真实异步提交、任务状态 | 7 | 未开始 |
@@ -234,38 +248,47 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 **交付内容**：
 - 实现模板创建、搜索、排序、编辑、停用、全员逻辑删除及历史版本；保存后直接可用，无审批发布步骤；无 Skill 时可保存草稿。
 - 仅超级管理员可上传、安装、更新、启停 Skill 和配置模块默认绑定；其他角色只选已发布版本。异步安装区分上传成功/安装中/可用/失败，安装失败保留旧版，历史任务冻结版本。
+- 为安装与后续生成扩展通用作业类型、路由及成功/失败/取消终态；结束的作业停止 outbox 重派，健康运行中的作业不持续堆积重复消息，消息补发与再次执行业务分开记录。
 - 保存模板时生成版本并冻结图片顺序，满足条件即成为可用版本；模板更新不改变旧任务引用，不增加审批发布步骤。
 
 **关键文件**：
 - `hengxin-smart-image/backend/app/modules/templates/router.py`、`hengxin-smart-image/backend/app/modules/templates/service.py`：模板与版本。
 - `hengxin-smart-image/backend/app/modules/skills/router.py`、`hengxin-smart-image/backend/app/modules/skills/package_validator.py`：Skill 管理、ZIP 路径/大小/元数据校验。
 - `hengxin-smart-image/backend/app/worker/install_skill.py`：超级管理员触发的异步版本安装和状态记录。
+- `hengxin-smart-image/backend/app/models.py`、`hengxin-smart-image/backend/app/worker/outbox.py`、`hengxin-smart-image/backend/migrations/versions/`：将 Phase 5 测试作业关联扩为通用作业类型及终态，保持迁移可回归。
 - `hengxin-smart-image/frontend/src/api/templates.ts`、`hengxin-smart-image/frontend/src/api/skills.ts`：业务接口。
 - `hengxin-smart-image/frontend/src/views/hengxin/components/Templates.vue`、`hengxin-smart-image/frontend/src/views/hengxin/admin/skills.vue`：模板现有交互与管理表单。
 
 **验收标准**：本阶段通过注入测试身份验证权限，Phase 12 再以真实登录回归：设计主管、设计和运营直接调用 Skill 包上传/安装/启停接口均被拒绝（模板图片上传允许）；管理员异步安装失败不影响旧版；不同类型只能绑定匹配 Skill；缺失可用 Skill 不可提交生成；四角色均能查看和逻辑删除他人模板，保存后无需审批即可选用；删除记录实际操作者；模板 t1 的新版本不更改旧引用；解压拒绝越界路径、符号链接及超限包。构建、迁移和模板浏览器主流程通过。不在此阶段制作业务 Skill。
 
+队列增补验收：安装任务路由正确，成功、永久失败和已完成取消均停止重派；有效认领期间不会持续产生重复消息，Redis 故障后未完成的有效作业仍可恢复。
+
 ## Phase 8：任务提交、持久队列与状态
 
 **交付内容**：
 - 建立供 fixture 和真实 CLI 共用的图片版本及结果持久化模型，再将三个独立入口接入真实任务 API，冻结模板/Skill/素材/要求快照；文字入口不强制套图模板。
-- 复用 Phase 5 的 Celery、Redis 和通用 PG 事务 outbox 接入生成任务，提交成功但消息发布失败时可补发；Worker 用轮次原子认领抵御重复投递。
+- 复用 Phase 5 的 Celery、Redis 和 Phase 7 扩展的通用 PG 事务 outbox 接入生成任务；同事务保存幂等请求、任务/轮次、执行占用和待发消息，数据库保证同任务只有一个未结束轮次，重复消息只允许一个 Worker 原子认领。
 - 接入全员任务分页、筛选、详情、逻辑删除与轮询状态；测试环境使用显式 fixture 执行器证明队列闭环。
+- 接入持久取消意图、执行状态待核实及操作资格契约，失效认领不能提交版本。前端显示服务端返回的可返工/可重试能力与原因，不只根据“失败”状态开放重试；字段见 API-CONTRACT 并发安全补充。
 
 **关键文件**：
 - `hengxin-smart-image/backend/app/modules/tasks/router.py`、`hengxin-smart-image/backend/app/modules/tasks/service.py`：提交及快照。
+- `hengxin-smart-image/backend/app/modules/tasks/idempotency.py`、`hengxin-smart-image/backend/app/modules/tasks/claims.py`、`hengxin-smart-image/backend/app/modules/tasks/cancellations.py`：幂等请求、任务级占用、轮次认领、取消及失效条件。
 - `hengxin-smart-image/backend/app/worker/celery_app.py`、`hengxin-smart-image/backend/app/worker/jobs.py`、`hengxin-smart-image/backend/app/worker/outbox.py`：消息及认领。
 - `hengxin-smart-image/backend/app/modules/tasks/results.py`：通用图片版本及持久化结果入口。
 - `hengxin-smart-image/backend/app/execution/fixture_runner.py`：仅测试的确定性执行器。
 - `hengxin-smart-image/frontend/src/api/tasks.ts`、`hengxin-smart-image/frontend/src/views/hengxin/components/CreateTask.vue`、`hengxin-smart-image/frontend/src/views/hengxin/components/Tasks.vue`：提交及真实状态。
+- `hengxin-smart-image/frontend/src/types/hengxin.ts`、`hengxin-smart-image/frontend/src/api/hengxin/validate.ts`、`hengxin-smart-image/backend/app/contracts/business.py`、`hengxin-smart-image/frontend/src/views/hengxin/components/TaskDetail.vue`：幂等与操作资格契约、响应校验、忙碌/待核实提示，适配已完成前端。
 
 **验收标准**：四角色均能查看和逻辑删除他人任务并留存操作者；重复提交同一请求只有一条任务；并发限额 1 时第二条排队；关闭页面不终止后台任务；Redis 短暂不可用不丢已入库任务；重复消息不能重复发布结果。使用尚未结束的受控作业验证提交已返回 202 和任务 ID，状态可独立查询；Web 请求不得等待作业结束。fixture 明确展示测试来源。前后端编译、迁移和队列故障验证通过。
+
+并发增补验收：按 PRD AC-010、021–023、025，用并发 HTTP 请求和两个独立 Worker 验证同键重放、同键异内容、同任务不同新请求互斥、重复消息单次启动、取消和旧结果屏障；Phase 8 使用受控执行器及内部轮次服务，Phase 10 再验证用户返工入口。任务执行期间可查询状态和写取消意图；状态待核实时不允许新执行。不得以单 Worker 或内存锁替代多进程争用验证。
 
 ## Phase 9：Codex CLI 独立会话与输出接入
 
 **交付内容**：
 - 建立 runner 适配层，下载冻结输入及指定 Skill 版本到每任务/轮次独立目录，以参数数组和 stdin 调用 CLI；不拼接用户内容为 shell 命令。
-- 解析 JSONL 事件并保存明确会话 ID；新业务任务新会话，返工只按记录的 ID 续接，禁止使用共享的 `--last`。会话不可恢复时明确失败并保留旧结果；第一期不实现自动重建会话、上下文摘要或历史要求整理。
+- 解析 JSONL 事件并保存明确会话 ID 及任务唯一关联；新业务任务新会话，返工只按记录的 ID 续接，禁止使用共享的 `--last`。临时轮次目录与受保护的持久会话存储分开，每轮进程退出不删除会话材料，不使用 ephemeral 模式。会话不可恢复时明确失败并保留旧结果；第一期不实现自动重建会话、上下文摘要或历史要求整理。
 - 校验输出清单、图片解码、模板 slot 对应关系和目录边界，上传 MinIO 后落库；实现超时终止、进程退出与不确定状态对账。
 - 记录每次实际 CLI attempt、操作者、轮次、耗时及可用 usage（去重且缺失为 null），采集 Worker 心跳、依赖健康和检查时间，供 Phase 13 使用。
 
@@ -276,16 +299,19 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 - `hengxin-smart-image/backend/app/worker/health.py`：执行端状态采集。
 - `hengxin-smart-image/backend/app/modules/tasks/attempts.py`：每次实际 CLI 执行事实及 usage 去重。
 - `hengxin-smart-image/infra/Dockerfile.worker`、`hengxin-smart-image/docs/CODEX-EXECUTION.md`：Linux 执行环境、固定版本及实机证据。
+- `hengxin-smart-image/infra/compose.yaml`：配置独立会话持久存储及临时轮次空间，记录固定 CLI 版本恢复所需的最小材料；禁止通过共享可写会话目录绕过任务隔离。
 
-**验收标准**：在 Linux 上用已知测试图片执行无效果要求的传输冒烟；两任务会话 ID 不同、目录隔离；无文件的文本成功不能标图片成功；越界输出拒绝；超时停止整个进程组；重启后不盲目重跑可能已收费的轮次。保留 CLI 版本、认证状态结果及事件证据，不记录凭据。真实三类 Skill 效果不作为此阶段验收。
+**验收标准**：在 Linux 上用已知测试图片执行无效果要求的传输冒烟；两任务会话 ID 不同，分别验证读取和修改另一任务材料均被拒绝；无文件的文本成功不能标图片成功；越界输出拒绝；超时停止整个进程组；重启后不盲目重跑可能已收费的轮次。保留 CLI 版本、认证状态结果及事件证据，不记录凭据。真实三类 Skill 效果不作为此阶段验收。
 
-长任务需配置 Redis visibility timeout 高于运行硬上限并留余量，仍以 PG 认领/租约防重复；队列重投不等于再次启动 CLI。执行进程只访问本轮目录，不挂载其他项目卷、Docker socket 或全局宿主目录；认证和运行工具按最小需要配置。Skill 指定与包隔离可校验，但不能把模型文本中的“已调用”当作真实产出证据。
+生命周期与恢复增补验收：PRD AC-015、021–025 要保留实际 CLI 证据；每轮结束后进程退出，空闲期间不挂起等待用户，Worker 容器重建后能在新轮次目录续接原会话。模拟 CLI 已启动/输出已落盘但 PG 未提交时失联，重复消息、租约过期和人工点击均不能绕过待核实门禁；确认旧进程停止后才能处理恢复或重试。验证排队删除、运行删除、上传后提交前删除及旧执行者迟到，图片当前版本和既有快照引用不被覆盖。此处通过内部轮次服务进行无效果要求的传输/续接冒烟，用户返工入口在 Phase 10、归档完整流程在 Phase 11 回归，真实 Skill 效果验收仍在 Phase 14。
+
+长任务需配置 Redis visibility timeout 高于运行硬上限及收尾时间并留余量，仍以 PG 认领/租约防重复；队列重投不等于再次启动 CLI，不能直接沿用 Phase 5 的 60 秒测试值。执行进程只访问本轮目录及本任务必要会话材料，不授予其他任务文件的读写权限，不挂载其他项目卷、Docker socket 或全局宿主目录；认证和运行工具按最小需要配置。Skill 指定与包隔离可校验，但不能把模型文本中的“已调用”当作真实产出证据。
 
 ## Phase 10：整套与单张返工
 
 **交付内容**：
 - 接入整套预览、单图查看、修改意见、执行轮次及历史版本展示，沿用当前详情页。
-- 实现任务内串行返工、固定目标 slot 与输入快照；仅新结果成功后切换对应图片当前版本。
+- 返工复用 Phase 8 的幂等、任务执行占用和轮次认领，同任务跨用户的整套/单张/重试请求互斥；固定目标 slot 与输入快照，仅有效执行的新结果成功后切换对应图片当前版本。
 - 返工同样通过持久队列异步执行，提交返回 202、任务 ID 与轮次 ID，Worker 按原会话 ID 续接。
 - 保留失败前旧结果；部分失败可预览已成功图片，整套与单张修改冲突返回明确提示。
 
@@ -296,19 +322,22 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 **验收标准**：第 N 张返工成功只改变该图的当前版本，其他图对象键及校验和相同；失败保持原图；整套反馈可追溯；连续双击不重复建轮次。返工作业未结束时提交已返回受理标识；关闭页面后继续运行；首次生成和返工会话 ID 一致。fixture 可验证平台状态，实际 CLI 返工证据在 Phase 14 补齐；构建和迁移通过。
 
+多人返工增补验收：按 PRD AC-021，两个不同用户同时提交整套与单张返工只有一个 202，其余新请求返回 409 并保留意见；同一已受理请求的幂等重放返回原标识。排队、运行、收集结果、取消处理及待核实期间均不能另开轮次；跨用户操作记录真实操作者，不能按用户分别加锁而放过同任务争用。
+
 ## Phase 11：下载、成品归档与生命周期
 
 **交付内容**：
 - 实现单张授权下载和服务端流式 ZIP，沿用前端入口；大文件打包避免一次全部读入内存。
 - 建立归档快照，接入成品库搜索、筛选、预览和下载；后续返工不覆盖归档对象。
 - 实现幂等归档、逻辑删除与引用保护清理；删除模板/任务/归档不连带破坏仍被使用的对象。
+- 会话材料清理与任务生命周期关联：只回收按已确认策略可清理、无有效执行且不再支持返工的任务材料；归档操作不直接清理会话，回收与执行/续接竞争时保护有效任务。保留天数不沿用未确认建议自动生效。
 
 **关键文件**：
 - `hengxin-smart-image/backend/app/modules/archives/router.py`、`hengxin-smart-image/backend/app/modules/archives/service.py`：归档事务与筛选。
 - `hengxin-smart-image/backend/app/modules/files/downloads.py`、`hengxin-smart-image/backend/app/worker/cleanup.py`：ZIP 和垃圾回收。
 - `hengxin-smart-image/frontend/src/api/archives.ts`、`hengxin-smart-image/frontend/src/views/hengxin/components/Archive.vue`、`hengxin-smart-image/frontend/src/views/hengxin/download.ts`：成品及下载接入。
 
-**验收标准**：归档后返工，旧归档对象校验和不变；重复点击不增记录；部分失败不能整套归档；移除归档不误删任务文件；四角色均可删除他人归档，删除记录实际操作者且保留引用保护；下载鉴权与 ZIP 内容数量/格式一致；构建、迁移及浏览器闭环通过。
+**验收标准**：归档后返工，旧归档对象校验和不变；重复点击不增记录；部分失败不能整套归档；移除归档不误删任务文件；四角色均可删除他人归档，删除记录实际操作者且保留引用保护；下载鉴权与 ZIP 内容数量/格式一致；清理与续接同时发生时不删除仍可返工或正在执行的会话材料，保留策略未确认前不启用会话自动清理；构建、迁移及浏览器闭环通过。
 
 ## Phase 12：钉钉双端登录与四角色
 
@@ -352,14 +381,15 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 **交付内容**：
 - 安装外部提供的壁纸、商品、文字 Skill 及依赖，逐类验证指定规则、真实图片回传、返工和归档全过程。
 - 建立 Ubuntu Compose 发布、HTTPS 入口、备份恢复、日志轮转与失败告警，生产关闭 fixture；限制内部数据库和存储管理入口。
+- 将仍可返工任务的会话材料纳入受保护的备份与恢复边界，验证数据库会话关联、会话材料和图片版本在恢复后相互对应。
 - 完成 20 人初期试运行及 100 登录用户的普通接口负载测试，独立测量 CLI 并发资源占用，形成实际运行参数和回滚记录。
 
 **关键文件**：
 - `hengxin-smart-image/infra/compose.prod.yaml`、`hengxin-smart-image/infra/nginx.conf`：发布配置。
-- `hengxin-smart-image/infra/backup.sh`、`hengxin-smart-image/infra/restore.sh`：PG 与 MinIO 配套备份恢复。
+- `hengxin-smart-image/infra/backup.sh`、`hengxin-smart-image/infra/restore.sh`：PG、MinIO 及必要 CLI 会话材料的配套备份恢复。
 - `hengxin-smart-image/docs/DEPLOYMENT.md`、`hengxin-smart-image/docs/ACCEPTANCE.md`：机器规格、锁定版本、运行阈值、验收和回滚证据。
 
-**验收标准**：PRD AC-001–020 中已确认的规则全部有真实证据；跨账号/重启/断线/失败重试验证通过；PG 与 MinIO 备份在独立环境恢复后能打开归档图。普通列表接口初始目标 P95 ≤ 1 秒（排除上传下载及生成，测试报告记录网络和数据量），不达标必须调优或明确调整目标。备份初始目标每日一次、RPO 24 小时、RTO 4 小时，由恢复演练检验。100 用户结果不等于 100 CLI 并发承诺。钉钉电脑端与 Chrome/Edge 实测登录、上传、预览、单张/ZIP 下载及异步闭环，权限、Cookie、窗口和回调兼容性均需证据。
+**验收标准**：PRD AC-001–025 中已确认的规则全部有真实证据；跨账号/重启/断线/失败重试验证通过；PG、MinIO 与必要会话材料在独立环境恢复后能打开归档图并按原会话返工。普通列表接口建议目标 P95 ≤ 1 秒（排除上传下载及生成，测试报告记录网络和数据量）；建议每日备份、RPO 24 小时、RTO 4 小时。这些数值仍按 PRD 第 11 节确认，再分别用负载测试和恢复演练验收。100 用户结果不等于 100 CLI 并发承诺。钉钉电脑端与 Chrome/Edge 实测登录、上传、预览、单张/ZIP 下载及异步闭环，权限、Cookie、窗口和回调兼容性均需证据。
 
 没有真实 Skill、认证或服务器资源信息时，记录具体缺口，不能把 fixture 回归替代本阶段完成。图像美观程度仍由运营审阅，不制定本轮效果评分。
 
@@ -376,13 +406,15 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 | templates、template_versions、template_images | 7 | 模板元信息、不可变配置版本、有序 slot |
 | skills、skill_versions、module_skill_bindings | 7 | 包状态、内容校验和、默认与专用绑定 |
 | tasks、task_inputs、execution_rounds | 8 | 创建请求、输入快照、排队执行和失败原因 |
-| queue_outbox | 5 | 通用可靠派发；Phase 7 用于安装，Phase 8 用于生成 |
+| operation_requests | 8 | 操作者/操作范围内的幂等键、载荷指纹及原受理标识，唯一约束防止并发重放 |
+| 任务执行占用、轮次认领与取消字段 | 8 | 在 tasks/execution_rounds 持久化同任务唯一未结束轮次、当前认领凭证、取消意图及待核实状态；Phase 9 接实际进程和租约 |
+| job_outbox（后续扩为通用作业） | 5 | 当前关联测试作业；Phase 7 增加作业类型与终态，Phase 8 用于生成 |
 | task_events、image_versions | 8 | 业务事件、fixture 与真实执行共用的图片版本 |
-| execution_sessions | 9 | CLI 会话；为 execution_rounds 增加租约/会话关联迁移，复用 Phase 8 图片版本模型 |
+| execution_sessions | 9 | taskId/sessionId 唯一关联、受保护会话材料位置及可恢复状态；为 execution_rounds 增加实际执行代次/租约迁移，复用 Phase 8 图片版本模型 |
 | revision_requests | 10 | 修改意见与目标范围；任务表增加当前版本集合关联迁移 |
 | archives、archive_images | 11 | 归档快照、选定版本和回收时间 |
 
-MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs/、outputs/、skills/ 前缀；每个版本新对象键，归档引用不可变版本并保护引用，不依赖覆盖同名对象。CLI 本地目录是临时执行空间，MinIO 是持久文件来源。数据库事务与对象上传用暂存/确认/孤儿回收衔接，不能假定跨系统原子提交。
+MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs/、outputs/、skills/ 前缀；每个版本新对象键，归档引用不可变版本并保护引用，不依赖覆盖同名对象。CLI 每轮输入/输出目录是临时执行空间，必要会话材料单独持久化并保护任务归属，MinIO 是持久图片与 Skill 文件来源。数据库事务与对象上传用暂存/确认/孤儿回收衔接，不能假定跨系统原子提交。
 
 ## 7. 覆盖与完成规则
 
@@ -391,8 +423,8 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 | REQ-001 / SCOPE-001–003 三类功能 | 1、2 | 8、9、14 | AC-001 |
 | REQ-002 / SCOPE-004 模板与 Skill | 2、4 | 7 | AC-002、003、012 |
 | REQ-003 素材和提交 | 2 | 6、8 | AC-003、010 |
-| REQ-004 / SCOPE-005 会话和执行 | 3 | 8、9 | AC-004、005、009、010、015、016 |
-| REQ-005 / SCOPE-006 反馈返工 | 3 | 10、14 | AC-006、007、011 |
+| REQ-004 / SCOPE-005 会话和执行 | 3 | 8、9、14 | AC-004、005、009、010、015、016、022–025 |
+| REQ-005 / SCOPE-006 反馈返工 | 3 | 8–10、14 | AC-006、007、011、021、025 |
 | REQ-006 / SCOPE-007 下载归档 | 3 | 11 | AC-005、008、013 |
 | SCOPE-008 四角色、登录和历史保护 | 3、4 | 7、11、12、14 | AC-012–014、017、019、020 |
 | REQ-007 / SCOPE-009 管理中心 | 4 | 9、12、13 | AC-017、018 |
@@ -401,7 +433,7 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 
 每阶段完成后按 Code Review（独立 code-reviewer 两阶段）→ 测试完整性 → 编译验证 → 功能测试执行，证据写入开发记录。后端阶段的 Python 检查包括静态检查、导入/启动和迁移；前端执行类型检查及生产构建。针对幂等、权限、版本隔离和重启恢复编写有意义的测试，不用复述实现的测试凑数。只在用户授权提交时提交，Git 标题和正文使用中文。
 
-本轮自检：14 个有序阶段（前四阶段只开发前端，后十阶段实现后端及联调）均列交付、关键文件及验收；8 项 REQ、9 项 SCOPE、20 项 AC 均有映射；前端复用与 Python/PG/MinIO 约束一致；不包含业务 Skill 编写或效果评测。已确认技术栈不等于批准所有建议业务默认，Phase 入口仍按第 4 节管理。
+本轮自检：14 个有序阶段（前四阶段只开发前端，后十阶段实现后端及联调）均列交付、关键文件及验收；8 项 REQ、9 项 SCOPE、25 项 AC 均有映射；前端复用与 Python/PG/MinIO 约束一致；不包含业务 Skill 编写或效果评测。已确认技术栈不等于批准所有建议业务默认，Phase 入口仍按第 4 节管理。
 
 ## 8. 官方资料与版本核查
 

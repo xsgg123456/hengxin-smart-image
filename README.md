@@ -1,14 +1,27 @@
 # hengxin-smart-image
 
-本仓库已安装 Agent Harness（Codex 版），用于从需求、设计、研发计划到开发、审查和发布的文档驱动流程。当前已完成 PRD、设计说明、14 阶段开发计划及 art-design-pro 交互原型，并启动 Phase 1 正式前端工程承接。先完成全部前端，再开发后端及联调。需求以 Product-Spec.md 为准，开发顺序见 DEV-PLAN.md，原型说明见 prototype/README.md。
+本仓库用于开发恒信 AI 换套图系统，已安装 Agent Harness（Codex 版）。截至 2026-09-09，正式前端 Phase 1–4 已验收；后端基础 Phase 5 已完成技术验证和两阶段审查，待用户验收；后端业务 Phase 6–14 尚未开始。开发顺序仍是先完成前端，再逐模块接入后端及联调。
 
-正式前端位于 `hengxin-smart-image/frontend/`，进入该目录执行 `pnpm install --frozen-lockfile`、`pnpm dev`，预览 [http://127.0.0.1:3008](http://127.0.0.1:3008)。当前使用独立模拟服务，刷新重置数据；接口契约和验收见 `hengxin-smart-image/docs/`，后端未启动。依赖审计中的继承风险需在上线前整改。
+正式前端位于 `hengxin-smart-image/frontend/`，进入该目录执行 `pnpm install --frozen-lockfile`、`pnpm dev`，预览 [http://127.0.0.1:3008](http://127.0.0.1:3008)。当前使用独立内存模拟服务，刷新重置数据。后端已具备 FastAPI、数据库、对象存储、测试队列和 outbox 基础；业务接口目前返回 501，真实上传、图片生成和钉钉鉴权尚未接入。前端预览和基础队列验证不代表真实业务或并发容量已通过。
+
+## 文档入口
+
+| 要了解的内容 | 文档 |
+|---|---|
+| 当前需求和确认边界 | [Product-Spec.md](Product-Spec.md)；历史变更见 [CHANGELOG](Product-Spec-CHANGELOG.md) |
+| 当前进度和后续开发顺序 | [DEV-PLAN.md](DEV-PLAN.md) |
+| 页面规范与原型用途 | [Design-Brief.md](Design-Brief.md)、[原型说明](prototype/README.md) |
+| 前后端接口 | [API-CONTRACT.md](hengxin-smart-image/docs/API-CONTRACT.md)、[管理接口补充](hengxin-smart-image/docs/PHASE4-CONTRACT.md) |
+| 后端启动与基础验证 | [后端开发说明](hengxin-smart-image/docs/BACKEND-DEVELOPMENT.md)、[Phase 5 验证记录](hengxin-smart-image/docs/PHASE5-VALIDATION.md) |
+| 后端架构和隔离调研 | [架构评估](hengxin-smart-image/docs/BACKEND-ARCHITECTURE-ASSESSMENT.md)、[Codex CLI 隔离评估](hengxin-smart-image/docs/CODEX-CLI-ISOLATION-ASSESSMENT.md) |
+
+`PHASE*-PLAN/REVIEW/VALIDATION.md` 保留当时的执行与验收证据，旧版本号不代表当前需求版本。调研文档中的推荐方案不等于已选定实现；实际完成状态以 DEV-PLAN 为准。
 
 ## 开始使用
 
-在 Codex 中打开本仓库，先读取现有 PRD 和开发计划，按阶段承接已认可原型。例如：
+在 Codex 中打开本仓库，先读取需求、计划和最近阶段的验证记录。例如：
 
-> 按 DEV-PLAN.md 继续 Phase 2，完成三类图片处理与模板库前端。
+> 查看 Phase 5 的验收证据，并按 DEV-PLAN.md 整理 Phase 6 用户归属与真实文件存储的开发准备。
 
 也可在终端从仓库根目录运行 `codex`，通过 `/skills` 查看技能、`/hooks` 查看门禁。旧会话未必重新加载新配置，安装后应开启新会话。
 
@@ -56,6 +69,6 @@ python scripts/check_harness.py
 
 Hooks 是 Codex 生命周期检查，不是服务端分支保护；外部编辑器、普通终端提交不会直接触发 Codex hook。审查标记用于协作，不能替代 CI 或人工审查。TypeScript 提交检查面向常见 `tsconfig.json` 工程；其他语言或特殊 monorepo 构建流程应在选定技术栈后补齐。
 
-设计稿步骤需要已连接的设计工具；本会话可用 Pencil。发布步骤需要对应平台的账号与项目配置，这些在实际产品开发和发布阶段确定。
+设计稿步骤使用当次环境已连接的设计工具；现有页面继续以已认可原型和 Design-Brief 为准。发布步骤需要对应平台的账号与项目配置，这些在实际产品开发和发布阶段确定。
 
 Codex 格式依据：[Hooks](https://learn.chatgpt.com/docs/hooks)、[Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)。
