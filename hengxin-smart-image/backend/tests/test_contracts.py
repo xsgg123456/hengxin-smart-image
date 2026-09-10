@@ -28,7 +28,9 @@ def test_business_contracts_are_explicitly_unimplemented():
 def test_openapi_request_response_and_pagination():
     app = contract_app()
     from app.modules.tasks.router import router as tasks_router
+    from app.modules.revisions.router import router as revisions_router
     app.include_router(tasks_router, prefix='/api/v1')
+    app.include_router(revisions_router, prefix='/api/v1')
     schema = app.openapi()
     paths = schema['paths']
     assert len(paths) == 12
@@ -39,7 +41,7 @@ def test_openapi_request_response_and_pagination():
     client = TestClient(contract_app())
     for query in ['page=0', 'pageSize=0', 'pageSize=101', 'mode=invalid']:
         assert client.get('/api/v1/archives?' + query).status_code == 422
-    assert client.post('/api/v1/tasks/test/rounds', json={'name': ''}).status_code == 422
+    assert '/api/v1/tasks/{id}/rounds' in paths
 
 
 def test_optional_and_nullable_are_distinct_and_preserved_in_nested_results():

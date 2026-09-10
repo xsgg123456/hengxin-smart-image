@@ -10,6 +10,8 @@
         <ElAlert v-if="isMockMode" title="交互演示：以下为示例图片，尚未调用真实 Skill。修改操作演示版本与状态变化。" type="info" show-icon :closable="false" />
         <ElAlert v-if="fixtureNotice(task)" :title="fixtureNotice(task)" type="warning" show-icon :closable="false" />
         <ElAlert v-if="data.executionControl.blockedReason" :title="data.executionControl.blockedReason" type="info" show-icon :closable="false" class="hx-gap" />
+        <ElAlert v-if="revision.session.value.uncertain" title="上次修改的受理结果尚未确认，当前意见已保留。" type="warning" :closable="false" class="hx-gap"><ElButton :loading="submitting" @click="confirmPrevious">确认上次提交</ElButton></ElAlert>
+        <ElAlert v-if="revision.session.value.accepted && !revision.session.value.settled" title="修改请求已受理，正在获取最新执行状态。" type="info" :closable="false" class="hx-gap" />
         <ElAlert v-if="actionError" :title="actionError" class="hx-gap" type="error" show-icon :closable="false" />
         <div class="hx-gap"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null" :percentage="task.progress" :status="failed ? 'exception' : undefined" /><p v-if="task.error" class="hx-muted">{{ task.error }}</p>
           <p v-if="failed" class="hx-muted">执行未全部成功，已有成功结果和旧版本保留。重试沿用上一失败轮次的范围与意见。</p>
@@ -23,14 +25,16 @@
   <ElDialog v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" width="520px" append-to-body :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
     <p class="hx-muted">{{ target === null ? '本轮意见应用于整套图片。' : '仅重新生成这个位置的图片，其余图片保留。' }}</p><ElInput v-model="feedback" :disabled="submitting" type="textarea" :rows="5" placeholder="填写本轮修改意见" maxlength="1000" show-word-limit />
     <ElAlert v-if="actionError" :title="actionError" type="error" :closable="false" />
+    <ElButton v-if="revision.session.value.uncertain" :loading="submitting" @click="confirmPrevious">确认上次提交（保留当前意见）</ElButton>
     <template #footer><ElButton :disabled="submitting" @click="feedbackOpen = false">取消</ElButton><ElButton type="primary" :disabled="!feedback.trim() || feedback.trim().length > 1000 || !editable" :loading="submitting" @click="applyFeedback">提交修改</ElButton></template>
   </ElDialog>
 </template>
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { isMockMode } from '@/api/hengxin/client'
-import { submitRevision } from '@/api/revisions'
+import { getService, isMockMode } from '@/api/hengxin/client'
+import { useUserStore } from '@/store/modules/user'
+import { useRevisionSession } from '../revision-session'
 import { archiveTask } from '@/api/archives'
 import type { RevisionInput } from '@/types/hengxin'
 import { labels } from '../model'
@@ -43,38 +47,54 @@ const props = defineProps<{ taskId: string; active?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 const visible = computed(() => open.value && props.active !== false)
 const { data, task, complete, loading, error, load } = useTaskDetail(toRef(props, 'taskId'), visible)
-const feedbackOpen = ref(false), target = ref<number | null>(null), feedback = ref(''), actionError = ref('')
-const submitting = ref(false), archiving = ref(false), downloading = ref(false)
+const user = useUserStore()
+const identity = () => user.isLogin && user.info.userId != null ? String(user.info.userId) : undefined
+const revision = useRevisionSession(identity, () => props.taskId, async (input, key) => {
+  const owner = identity(), service = await getService()
+  if (!owner || owner !== identity()) throw new Error('登录身份已变化，请重新确认提交')
+  return service.revise(input, key)
+})
+const { target, note: feedback } = revision
+const feedbackOpen = ref(false), archiving = ref(false), downloading = ref(false)
+const actionError = computed({ get: () => revision.session.value.error, set: value => { revision.session.value.error = value } })
+const submitting = computed(() => revision.session.value.pending)
+let alive = true
+onBeforeUnmount(() => { alive = false })
+watch(data, value => { if (value) revision.observe(value) })
 const busy = computed(() => submitting.value || archiving.value || downloading.value)
 const failed = computed(() => !!task.value && ['失败', '部分失败'].includes(task.value.state))
-const actions = computed(() => taskActions(data.value, busy.value, error.value))
+const actions = computed(() => taskActions(data.value, busy.value || revision.blocked.value, error.value))
 const editable = computed(() => actions.value.canRevise)
 const lastFailed = computed(() => data.value?.rounds.find(r => r.id === task.value?.currentRoundId && ['失败', '部分失败'].includes(r.state)))
-watch(() => props.taskId, () => { feedbackOpen.value = false; feedback.value = ''; actionError.value = '' })
+watch([() => props.taskId, identity], () => { feedbackOpen.value = false })
 watch(visible, shown => { if (!shown && !submitting.value) feedbackOpen.value = false })
 function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
 function closeDrawer(done: () => void) { if (!busy.value) { feedbackOpen.value = false; done() } }
 function closeFeedback(done: () => void) { if (!submitting.value) done() }
-function edit(slot: number | null) { if (!editable.value) return; target.value = slot; feedback.value = ''; actionError.value = ''; feedbackOpen.value = true }
-async function revise(input: RevisionInput) {
-  if (input.retry ? !actions.value.canRetry : !actions.value.canRevise) return
-  submitting.value = true; actionError.value = ''
+function edit(slot: number | null) {
+  if (!editable.value || !revision.begin()) return
+  target.value = slot; feedbackOpen.value = true
+}
+async function revise(input?: RevisionInput) {
+  if (input && (input.retry ? !actions.value.canRetry : !actions.value.canRevise)) return
+  const owner = identity(), id = props.taskId
   try {
-    const accepted = await submitRevision(input)
-    if (props.taskId !== input.taskId) return
-    if (task.value?.id === input.taskId) { task.value.state = accepted.state; task.value.progress = null; task.value.currentRoundId = accepted.roundId }
+    const accepted = await (input ? revision.submit(input) : revision.resolvePrevious())
+    if (!alive || props.taskId !== id || identity() !== owner) return
+    if (task.value?.id === id) { task.value.state = accepted.state; task.value.progress = null; task.value.currentRoundId = accepted.roundId }
     feedbackOpen.value = false; ElMessage.success('修改请求已受理，正在排队'); emit('changed')
     await load(true)
-  } catch (reason) { if (props.taskId === input.taskId) actionError.value = reason instanceof Error ? reason.message : '提交失败，请重试' }
-  finally { submitting.value = false }
+  } catch { /* 提交错误保留在原身份、原任务；详情错误由 load 单独显示。 */ }
 }
+function confirmPrevious() { if (!submitting.value) void revise() }
 function applyFeedback() {
   if (!feedback.value.trim() || feedback.value.trim().length > 1000 || !task.value) return
   void revise({ taskId: task.value.id, target: target.value, note: feedback.value.trim() })
 }
 function retry() {
-  if (!task.value || !lastFailed.value) return
-  void revise({ taskId: task.value.id, target: lastFailed.value.target, note: lastFailed.value.note, retry: true })
+  if (!task.value || !lastFailed.value || !actions.value.canRetry || !revision.begin()) return
+  void revise({ taskId: task.value.id, target: lastFailed.value.target, note: lastFailed.value.note,
+    retry: true, sourceRoundId: lastFailed.value.id })
 }
 async function archive() {
   if (!isMockMode || !task.value || !complete.value || busy.value) return

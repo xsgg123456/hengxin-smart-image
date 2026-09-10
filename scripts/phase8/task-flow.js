@@ -37,7 +37,7 @@ async (page) => {
   const drawer = page.locator('.hx-detail.el-drawer');
   await drawer.getByText('待查看', { exact: true }).waitFor();
   await drawer.getByText(/测试执行器/).first().waitFor();
-  if (await drawer.getByRole('button', { name: '整套修改', exact: true }).isEnabled()) throw Error('未遵守executionControl');
+  if (!(await drawer.getByRole('button', { name: '整套修改', exact: true }).isEnabled())) throw Error('成功任务未开放返工');
   const download = page.waitForEvent('download');
   await drawer.getByRole('button', { name: '下载整套', exact: true }).click();
   await (await download).saveAs('output/playwright/phase8-results.zip');

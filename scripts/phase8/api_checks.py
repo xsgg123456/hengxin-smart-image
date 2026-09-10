@@ -107,7 +107,7 @@ def verify(api, upload, package, wait, compose, sql, env, pixel):
                 result_bytes = response.read()
                 readable_png(result_bytes)
                 assert result_bytes == pixel, 'Fixture must preserve the frozen input bytes'
-        assert not data['executionControl']['canRevise'] and not data['executionControl']['canRetry']
+        assert data['executionControl']['canRevise'] and not data['executionControl']['canRetry']
     print('PASS three entry API snapshots, real MinIO bytes, fixture provenance and no fake CLI session', flush=True)
 
     env['GENERATION_CONCURRENCY'] = '2'
@@ -181,6 +181,12 @@ def verify(api, upload, package, wait, compose, sql, env, pixel):
         data = detail(lost)
         assert '待核实' in data['executionControl']['blockedReason']
         assert not data['executionControl']['canRevise'] and not data['executionControl']['canRetry']
+        for retry in (False, True):
+            body = dict(taskId=lost['taskId'], target=None, note='受控集成输入', retry=retry)
+            if retry:
+                body['sourceRoundId'] = lost['roundId']
+            assert api('/tasks/' + lost['taskId'] + '/rounds', body, 'POST', headers={
+                'Content-Type': 'application/json', 'Idempotency-Key': str(uuid4())})[0] == 409
         assert detail(blocked)['task']['state'] == '排队中'
         assert sql(f"SELECT execution_count FROM job_records WHERE id='{lost_job}'") == '1'
         assert sql(f"SELECT count(*) FROM image_versions WHERE round_id='{lost['roundId']}'") == '0'

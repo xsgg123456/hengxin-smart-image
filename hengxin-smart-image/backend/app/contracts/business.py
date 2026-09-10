@@ -1,7 +1,8 @@
 from .fields import omitted
 from typing import Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from uuid import UUID
 
 Mode = Literal['wallpaper', 'product', 'text']
 Role = Literal['super_admin', 'design_manager', 'designer', 'operator']
@@ -209,9 +210,15 @@ class CreateTaskInput(BaseModel):
 
 class RevisionInput(BaseModel):
     taskId: str
-    target: int | None
-    note: str
+    target: int | None = Field(ge=0, strict=True)
+    note: str = Field(max_length=1000)
     retry: bool = omitted()
+    sourceRoundId: str = omitted()
+
+    @field_validator('taskId', 'sourceRoundId')
+    @classmethod
+    def valid_uuid(cls, value):
+        return str(UUID(value))
 
 
 class Accepted(BaseModel):

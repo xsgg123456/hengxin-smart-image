@@ -18,6 +18,9 @@ def publish_results(factory, job_id, token, outputs):
         if len(outputs) != len(targets):
             raise ValueError('Result count must match frozen output slots')
         for slot, file_id in zip(targets, outputs):
+            if file_id is None:
+                slot.error = '本轮该图片生成失败，已有版本保留'
+                continue
             file = session.get(FileRecord, file_id)
             if not file or file.status != 'ready' or file.deleted_at:
                 raise ValueError('Output file is not readable')
@@ -28,5 +31,7 @@ def publish_results(factory, job_id, token, outputs):
             session.add(record)
             session.flush()
             slot.current_version_id, slot.error = record.id, None
-        end(session, round, job, 'succeeded')
+        succeeded = sum(file_id is not None for file_id in outputs)
+        status = 'succeeded' if succeeded == len(targets) else 'partial' if succeeded else 'failed'
+        end(session, round, job, status, None if status == 'succeeded' else '本轮未全部成功，已有图片和历史版本保留')
         return True

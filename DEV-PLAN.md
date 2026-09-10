@@ -1,7 +1,7 @@
 # Development Plan — 恒信 AI 换套图系统
 
 > 版本 v1.14 · 2026-09-09。依据 Product-Spec.md v0.17、Design-Brief.md 和用户认可的现有原型。
-> 当前状态：Phase 1–7 已验收（用户授权继续）；Phase 8 已完成技术验证，待用户验收，Phase 9–14 未开始。证据见 hengxin-smart-image/docs/PHASE8-VALIDATION.md、PHASE8-INTEGRATION.md、PHASE8-REVIEW.md；下一步 Phase 9 真实 CLI 执行与会话隔离。
+> 当前状态：Phase 1–9 已验收（用户授权继续）；Phase 10 技术验证与独立审查通过、待用户验收；Phase 11–14 未开始。Phase10证据见 hengxin-smart-image/docs/PHASE10-VALIDATION.md。
 
 ## 1. 开发方向与已有成果
 
@@ -74,7 +74,7 @@ Phase 3 前端阶段的轮询频率为任务列表每 4 秒、打开的详情每
 
 Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，收集并校验输出，上传 MinIO，最后提交 PG 图片版本。用对象键和校验和记录文件，数据库不保存永久预签名 URL；预览/下载经 API 校验权限后提供短期签名地址。
 
-建议初始生成并发从 1 起步，具体上限待确认并实测，可配置扩展。20/100 是使用人数，不是 CLI 并发数；服务器 CPU、内存、磁盘、带宽未检查，不承诺容量。Celery Worker 和 CLI 使用 Linux 容器或 WSL2，不能把 Windows 原生 Worker 测试当作 Ubuntu 验收。
+初始生成并发已确认从 1 起步，更高上限需实测后配置。20/100 是使用人数，不是 CLI 并发数；服务器基础资源已检查，带宽和负载容量未压测，不承诺容量。Phase9真实执行采用Linux原生Celery Worker和CLI，不能把Windows原生Worker测试当作Ubuntu验收。
 
 会话规则（2026-09-09 已确认）：按业务任务分配，任务 A 首次生成和后续单张/整套返工均使用会话 A；同一运营创建任务 B 时新建会话 B。归档是后端操作，不调用 CLI。保留输入快照、会话 ID 与图片版本等基础记录，不引入复杂上下文管理。
 
@@ -103,7 +103,7 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 | Q-007 历史与归档 | 同任务整套/单张返工互斥已确认；旧版本保留、单张下载和整套 ZIP、全套完整后归档不可变快照及相同版本归档幂等仍按建议默认管理 | 前端 Phase 3；后端 Phase 10/11 |
 | Q-004 删除保留 | 已确认删除失效执行且保护历史引用；回收站形式、30 天回收及临时素材清理时限仍是待确认建议 | Phase 11 |
 | Q-005 服务器资源 | 部署前采集硬件及剩余空间；建议从并发 1 起步压测，实际运行上限待确认，不按用户人数猜算 | Phase 14 |
-| Q-006 CLI 身份和运行限制 | 建议服务器专用执行身份、单轮 30 分钟硬超时和自动重跑 0，均待确认；记录可用 usage，账号预算仍需设置 | Phase 9/13/14 |
+| Q-006 CLI 身份和运行限制 | 已确认 codex 专用身份、并发 1、单轮 60 分钟硬超时、自动重跑 0；记录可用 usage，账号预算仍需设置 | Phase 9/13/14 |
 
 尚无三个真实 Skill 不阻塞 Phase 1–8 和使用测试执行器的平台功能；Phase 9 的 CLI 传输实测需要可用 CLI 认证，Phase 14 的真实业务验收需要三个 Skill 及其工具依赖。模拟输出始终标识为测试，生产配置禁止选择模拟执行器。图片效果评测、Skill 编写不在本计划工作量中。
 
@@ -120,9 +120,9 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 | Phase 5 后端基础 | FastAPI、PG、MinIO、Redis、Worker/outbox | 4 | 已验收（用户授权继续 Phase 6） |
 | Phase 6 文件与用户归属 | 真实上传下载及后端测试身份 | 5 | 已验收 |
 | Phase 7 模板与 Skill | 模板持久化、Skill 版本及安装 | 6 | 已验收（用户授权继续 Phase 8） |
-| Phase 8 任务与队列 | 真实异步提交、任务状态 | 7 | 技术验证通过，待用户验收 |
-| Phase 9 Codex 执行 | 独立会话、结果回传及调用记录 | 8 + CLI 环境 | 未开始 |
-| Phase 10 返工 | 同会话整套/单张修改、版本持久化 | 8；真实执行依赖 9 | 未开始 |
+| Phase 8 任务与队列 | 真实异步提交、任务状态 | 7 | 已验收（用户授权继续） |
+| Phase 9 Codex 执行 | 独立会话、结果回传及调用记录 | 8 + CLI 环境 | 已验收（用户授权继续） |
+| Phase 10 返工 | 同会话整套/单张修改、版本持久化 | 8；真实执行依赖 9 | 技术验证及独立审查通过，待用户验收 |
 | Phase 11 归档 | 真实下载、快照与生命周期 | 10 | 未开始 |
 | Phase 12 钉钉与权限 | 双端认证、真实授权及业务回归 | 6–11 + 钉钉应用 | 未开始 |
 | Phase 13 管理接口 | 真实统计、监控、配置及页面联调 | 9、12 | 未开始 |
@@ -290,6 +290,8 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 ## Phase 9：Codex CLI 独立会话与输出接入
 
+2026-09-10 用户授权实施；执行身份沿用专用 codex，生成并发1，单轮硬上限60分钟，失败不自动重跑。CLI实测版本0.153.4。详细方案及证据见 docs/PHASE9-PLAN.md（位于项目代码子目录）。
+
 **交付内容**：
 - 建立 runner 适配层，下载冻结输入及指定 Skill 版本到每任务/轮次独立目录，以参数数组和 stdin 调用 CLI；不拼接用户内容为 shell 命令。
 - 解析 JSONL 事件并保存明确会话 ID 及任务唯一关联；新业务任务新会话，返工只按记录的 ID 续接，禁止使用共享的 `--last`。临时轮次目录与受保护的持久会话存储分开，每轮进程退出不删除会话材料，不使用 ephemeral 模式。会话不可恢复时明确失败并保留旧结果；第一期不实现自动重建会话、上下文摘要或历史要求整理。
@@ -302,7 +304,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 - `hengxin-smart-image/backend/app/worker/reconcile.py`：重启恢复、租约和过期轮次写入屏障。
 - `hengxin-smart-image/backend/app/worker/health.py`：执行端状态采集。
 - `hengxin-smart-image/backend/app/modules/tasks/attempts.py`：每次实际 CLI 执行事实及 usage 去重。
-- `hengxin-smart-image/infra/Dockerfile.worker`、`hengxin-smart-image/docs/CODEX-EXECUTION.md`：Linux 执行环境、固定版本及实机证据。
+- `hengxin-smart-image/infra/hengxin-worker.service.example`、`hengxin-smart-image/docs/CODEX-EXECUTION.md`：Linux 原生Worker与外层Bubblewrap任务隔离、固定CLI版本及实机证据；API/PG/Redis/MinIO保持Compose部署。
 - `hengxin-smart-image/infra/compose.yaml`：配置独立会话持久存储及临时轮次空间，记录固定 CLI 版本恢复所需的最小材料；禁止通过共享可写会话目录绕过任务隔离。
 
 **验收标准**：在 Linux 上用已知测试图片执行无效果要求的传输冒烟；两任务会话 ID 不同，分别验证读取和修改另一任务材料均被拒绝；无文件的文本成功不能标图片成功；越界输出拒绝；超时停止整个进程组；重启后不盲目重跑可能已收费的轮次。保留 CLI 版本、认证状态结果及事件证据，不记录凭据。真实三类 Skill 效果不作为此阶段验收。

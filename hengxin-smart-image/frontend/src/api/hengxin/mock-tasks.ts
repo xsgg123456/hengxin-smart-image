@@ -11,6 +11,7 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
   const active = new Map<string, ReturnType<typeof setInterval>>()
   const slots = new Map<string, ResultSlot[]>(), rounds = new Map<string, Round[]>()
   const history = new Map<string, Task>()
+  const revisionReceipts = new Map<string, { fingerprint: string; receipt: Accepted }>()
   let scenarioUsed = false, archiveFailureUsed = false
   function find(taskId: string) {
     const task = db.tasks.find(t => t.id === taskId)
@@ -113,21 +114,30 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
       db.deletions ??= []; db.deletions.push(receipt)
       return copy(receipt)
     },
-    async revise(input) {
+    async revise(input, idempotencyKey = crypto.randomUUID()) {
       await wait()
+      const key = JSON.stringify([operatorId(), input.taskId, idempotencyKey]), fingerprint = JSON.stringify(input)
+      const previousReceipt = revisionReceipts.get(key)
+      if (previousReceipt) {
+        if (previousReceipt.fingerprint !== fingerprint) throw new ApiError('CONFLICT', '同一请求的意见不能改变', 409)
+        return copy(previousReceipt.receipt)
+      }
       const task = find(input.taskId)
       if (active.has(task.id)) throw new ApiError('CONFLICT', '任务正在处理中，请稍后再试', 409)
       let target = input.target, note = input.note.trim()
       if (input.retry) {
         if (!['失败', '部分失败'].includes(task.state)) throw new ApiError('CONFLICT', '当前任务无需重试', 409)
         const previous = rounds.get(task.id)![0]
+        if (input.sourceRoundId && input.sourceRoundId !== previous?.id) throw new ApiError('CONFLICT', '失败轮次已变化，请刷新后重试', 409)
         target = previous?.target ?? null; note = previous?.note ?? '重试初始生成'
       } else {
         if (task.state !== '待查看') throw new ApiError('CONFLICT', '请先重试失败轮次，再提交新的修改意见', 409)
         if (!note || note.length > 1000) throw new ApiError('VALIDATION', '请填写 1–1000 字修改意见', 422)
       }
       if (target !== null && (!Number.isInteger(target) || target < 0 || target >= (task.outputCount ?? 0))) throw new ApiError('VALIDATION', '目标图片不存在', 422)
-      return run(task, target, note)
+      const receipt = run(task, target, note)
+      revisionReceipts.set(key, { fingerprint, receipt })
+      return receipt
     },
     async archive(taskId) {
       await wait()

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.models import Job, Outbox, utcnow
 
-TERMINAL = ('succeeded', 'failed', 'cancelled')
+TERMINAL = ('succeeded', 'partial', 'failed', 'cancelled')
 
 
 def lease_active(job):

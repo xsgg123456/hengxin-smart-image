@@ -13,6 +13,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.files.router import router as files_router
 from app.modules.templates.router import router as templates_router
 from app.modules.tasks.router import router as tasks_router
+from app.modules.revisions.router import router as revisions_router
 from app.modules.skills.router import router as skills_router
 
 
@@ -34,4 +35,5 @@ app.include_router(files_router, prefix="/api/v1")
 app.include_router(templates_router, prefix="/api/v1")
 app.include_router(skills_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")
+app.include_router(revisions_router, prefix="/api/v1")
 app.include_router(contracts_router, prefix="/api/v1")

@@ -17,7 +17,7 @@ def run_job(job_id: str, factory=None):
     factory = factory or session_factory()
     with factory.begin() as session:
         job = session.scalar(select(Job).where(Job.id == UUID(job_id)).with_for_update())
-        if job is None or job.status in ('succeeded', 'failed', 'cancelled'):
+        if job is None or job.status in ('succeeded', 'partial', 'failed', 'cancelled'):
             return
         # Only a bounded, side-effect-free test computation runs under this lock.
         # Process death rolls back; duplicate messages wait then observe completion.
@@ -44,7 +44,17 @@ def execute_job(job_id: str):
     if kind == 'test':
         run_job(job_id, factory)
     elif kind == 'generation':
-        from app.execution.fixture_runner import run_generation
+        from app.modules.tasks.models import RoundRecord, TaskRecord
+        with factory() as session:
+            round = session.scalar(select(RoundRecord).where(RoundRecord.job_id == UUID(job_id)))
+            task = session.get(TaskRecord, round.task_id) if round else None
+            source = task.execution_source if task else None
+        if source == 'cli':
+            from app.execution.codex_runner import run_generation
+        elif source == 'fixture':
+            from app.execution.fixture_runner import run_generation
+        else:
+            return
         run_generation(job_id, factory)
     elif kind == 'skill_install':
         from app.worker.skill_install import run_install
@@ -53,5 +63,5 @@ def execute_job(job_id: str):
         from app.worker.leases import finish_job
         with factory.begin() as session:
             job = session.scalar(select(Job).where(Job.id == UUID(job_id)).with_for_update())
-            if job.status not in ('succeeded', 'failed', 'cancelled'):
+            if job.status not in ('succeeded', 'partial', 'failed', 'cancelled'):
                 finish_job(session, job, 'failed', '未知作业类型')

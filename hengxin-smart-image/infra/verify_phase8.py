@@ -127,6 +127,10 @@ def main():
         sys.path.insert(0, str(ROOT.parent / 'scripts/phase8'))
         from api_checks import verify
         verify_uncertain = verify(api, upload, package, wait, compose, sql, env, PIXEL)
+        if '--phase10' in sys.argv:
+            sys.path.insert(0, str(ROOT.parent / 'scripts/phase10'))
+            from revision_checks import verify_revisions
+            verify_revisions(api, wait, compose, sql, env)
         containers = compose('ps', '-q').stdout.split()
         inspected = json.loads(subprocess.check_output([docker, 'inspect', *containers], **creation))
         workers = [item for item in inspected if item['Config']['Labels'].get('com.docker.compose.service') == 'worker']
@@ -168,6 +172,10 @@ def main():
             result = browser('run-code', '--filename', 'scripts/phase8/recovery-screenshots.js', '--raw')
             assert 'PHASE8 RECOVERY VISUAL PASS' in result, result
             print(result, flush=True)
+            if '--phase10' in sys.argv:
+                result = browser('run-code', '--filename', 'scripts/phase10/revisions.js', '--raw')
+                assert 'PHASE10 BROWSER PASS' in result, result
+                print(result, flush=True)
         verify_uncertain()
         print('PHASE8 INTEGRATION PASS (four isolated volumes)', flush=True)
     finally:

@@ -158,7 +158,7 @@ export interface CreateTaskInput {
   sources: Picture[]
   note: string
 }
-export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean }
+export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean; sourceRoundId?: string }
 export interface HengxinService extends ManagementService {
   getUser(): Promise<User>
   getWorkspace(): Promise<Workspace>
@@ -175,7 +175,7 @@ export interface HengxinService extends ManagementService {
   saveTemplate(template: TemplateInput): Promise<Template>
   deleteTemplate(id: string): Promise<void>
   createTask(input: CreateTaskInput, idempotencyKey?: string): Promise<Accepted>
-  revise(input: RevisionInput): Promise<Accepted>
+  revise(input: RevisionInput, idempotencyKey?: string): Promise<Accepted>
   archive(taskId: string): Promise<Archive>
   deleteArchive(id: string): Promise<void>
   dispose(): void

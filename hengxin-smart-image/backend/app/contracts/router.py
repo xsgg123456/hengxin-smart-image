@@ -22,11 +22,6 @@ def workspace():
     return pending()
 
 
-@router.post('/tasks/{id}/rounds', response_model=b.Accepted, status_code=202)
-def revise(id: str, body: b.RevisionInput):
-    return pending()
-
-
 @router.post('/tasks/{id}/archives', response_model=b.Archive)
 def archive_task(id: str):
     return pending()

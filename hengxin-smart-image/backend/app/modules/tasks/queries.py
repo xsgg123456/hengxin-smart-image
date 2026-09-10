@@ -1,12 +1,15 @@
 from datetime import timezone
 from fastapi import HTTPException
-from sqlalchemy import select, func, or_, cast, String
+from sqlalchemy import select, func, or_, and_, cast, String
 from app.contracts import business as b
 from app.resource_models import FileRecord
 from .models import TaskRecord, TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
+from .attempts import ExecutionSession
+from app.modules.revisions.service import eligibility
 
 STATE = {'queued': '排队中', 'running': '执行中', 'collecting': '执行中', 'cancelling': '执行中',
-         'uncertain': '失败', 'failed': '失败', 'cancelled': '失败', 'succeeded': '待查看'}
+         'uncertain': '失败', 'failed': '失败', 'cancelled': '失败', 'succeeded': '待查看',
+         'partial': '部分失败'}
 
 
 def stamp(value):
@@ -40,9 +43,13 @@ def serialize(session, task):
         if slot.current_version_id:
             version = session.get(ImageVersion, slot.current_version_id)
             images.append(picture(session.get(FileRecord, version.file_id), version.version))
+    identity = session.get(ExecutionSession, task.id) if task.execution_source == 'cli' else None
+    incomplete = any(slot.current_version_id is None or slot.error for slot in slots)
+    state = '部分失败' if current.status == 'succeeded' and incomplete else STATE[current.status]
     data = dict(id=str(task.id), name=task.name, mode=task.mode, template='',
-        skillVersionId=str(task.skill_version_id), ownerId=str(task.owner_id), sessionId=None,
-        state=STATE[current.status], progress=100 if current.status == 'succeeded' else None,
+        skillVersionId=str(task.skill_version_id), ownerId=str(task.owner_id),
+        sessionId=identity.session_id if identity else None,
+        state=state, progress=100 if state == '待查看' else None,
         images=images, sources=[picture(session.get(FileRecord, source.file_id)) for source in sources],
         feedback=[r.note for r in rounds if r.note], time=stamp(task.created_at), archived=False,
         currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots), error=current.error,
@@ -69,16 +76,12 @@ def detail(session, task_id):
     rounds = session.scalars(select(RoundRecord).where(RoundRecord.task_id == task.id)
                             .order_by(RoundRecord.created_at)).all()
     current = next(r for r in rounds if r.id == task.current_round_id)
-    reason = '返工和重试功能将在后续阶段开放'
-    if current.status == 'uncertain':
-        reason = '执行状态待核实，禁止返工或重试'
-    elif current.status in ('queued', 'running', 'collecting', 'cancelling'):
-        reason = '任务仍有未结束轮次，请等待处理完成'
+    can_revise, can_retry, reason = eligibility(session, task, current, rounds)
     return b.TaskDetailData(task=serialize(session, task), slots=result_slots, rounds=[b.Round(
         id=str(r.id), taskId=str(task.id), operatorId=str(r.operator_id), target=r.target,
         note=r.note, state=STATE[r.status], createdAt=stamp(r.created_at), startedAt=stamp(r.started_at),
         finishedAt=stamp(r.finished_at), error=r.error) for r in rounds],
-        executionControl=b.ExecutionControl(canRevise=False, canRetry=False, blockedReason=reason))
+        executionControl=b.ExecutionControl(canRevise=can_revise, canRetry=can_retry, blockedReason=reason))
 
 
 def list_tasks(session, query):
@@ -87,9 +90,13 @@ def list_tasks(session, query):
     def count(extra=None):
         selected = statement.where(extra) if extra is not None else statement
         return session.scalar(select(func.count()).select_from(selected.subquery()))
+    incomplete = select(ResultSlotRecord.id).where(ResultSlotRecord.task_id == TaskRecord.id,
+        or_(ResultSlotRecord.current_version_id.is_(None), ResultSlotRecord.error.is_not(None))).exists()
+    ready = and_(RoundRecord.status == 'succeeded', ~incomplete)
+    partial = or_(RoundRecord.status == 'partial', and_(RoundRecord.status == 'succeeded', incomplete))
     stats = b.TaskStats(total=count(), processing=count(RoundRecord.status.in_(
         ['queued', 'running', 'collecting', 'cancelling'])),
-        ready=count(RoundRecord.status == 'succeeded'), archived=0)
+        ready=count(ready), archived=0)
     if query.mode:
         statement = statement.where(TaskRecord.mode == query.mode)
     if query.search:
@@ -103,7 +110,13 @@ def list_tasks(session, query):
     if query.state:
         public = {'processing': ('排队中', '执行中'), 'error': ('失败', '部分失败')}.get(
             query.state, (query.state,))
-        statement = statement.where(RoundRecord.status.in_([key for key, value in STATE.items() if value in public]))
+        filters = [RoundRecord.status.in_([key for key, value in STATE.items()
+                   if value in public and key not in ('succeeded', 'partial')])]
+        if '待查看' in public:
+            filters.append(ready)
+        if '部分失败' in public:
+            filters.append(partial)
+        statement = statement.where(or_(*filters))
     total = count()
     rows = session.scalars(statement.order_by(TaskRecord.created_at.desc(), TaskRecord.id).offset(
         (query.page - 1) * query.pageSize).limit(query.pageSize)).all()

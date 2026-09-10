@@ -5,6 +5,7 @@ from app.models import Base
 from app import resource_models  # noqa: F401 - register metadata for schema comparison
 from app.modules.skills import models as skill_models  # noqa: F401
 from app.modules.tasks import models as task_models  # noqa: F401
+from app.modules.tasks import attempts as execution_models  # noqa: F401
 from app.modules.templates import models as template_models  # noqa: F401
 
 if context.is_offline_mode():
