@@ -35,7 +35,7 @@
 | `.agents/skills/` | 11 个技能及其模板、参考和示例 |
 | `.codex/agents/` | code-reviewer、evolution-runner |
 | `.codex/config.toml` | 项目级 hooks 与多代理配置，继承用户模型和权限 |
-| `.codex/hooks.json` | 6 个 hook 的唯一注册源 |
+| `.codex/hooks.json` | 5 个 hook 的唯一注册源 |
 | `.codex/hooks/harness.py` | Windows / POSIX 共用的 hook 实现 |
 | `.codex/hooks/review_*.py` | 审查快照、凭据、暂存区检查与原子状态存储 |
 | `docs/HARNESS-REVIEW.md` | 审查、提交和中途暂停的交接协议 |
@@ -54,13 +54,13 @@ python scripts/check_harness.py
 
 自检覆盖文件完整性、技能与 TOML/JSON 配置、进化队列、审查门禁、补丁删除、Shell 写入、TypeScript 编译成功/失败以及自动推送保护。此处 Python 标准库和 Node 说明仅针对 Harness 自检；产品技术栈已确定 Vue/TypeScript、Python FastAPI、PostgreSQL 和 MinIO，具体依赖按 DEV-PLAN.md 安装。
 
-本机已通过 Codex 实际加载检查：11 个项目技能启用、2 个角色进入模型上下文、6 个 hook 被发现且配置解析无错误。6 个 hook 已通过 Codex 原生信任界面启用。信任记录属于本机；其他机器克隆后仍需在 `/hooks` 审阅并信任，修改 hook 定义也会要求重新信任。
+初次安装时已通过 Codex 实际加载检查：11 个项目技能启用、2 个角色进入模型上下文、当时的 6 个 hook 被发现并通过本机信任。当前配置取消 Stop 后为 4 类事件、5 个 hook，离线自检已覆盖；当前会话是否已重载仍以运行时状态为准。信任记录属于本机；其他机器克隆后仍需在 `/hooks` 审阅并信任，修改 hook 定义也会要求重新信任。
 
 ## 本次兼容修复
 
 - 补齐 `hooks.json` 的顶层 `hooks`，匹配当前 Codex 的 `Bash`、`apply_patch` 等工具事件。
 - 用 Python 标准库替代 Bash/jq/lsof 依赖，原 `.sh` 文件保留为 POSIX 兼容入口。
-- 审查使用 `review-prepare` 固定候选快照，独立两阶段通过后 `review-approve` 登记同一快照和报告哈希；代码变化检测不会覆盖批准记录。Stop核对当前内容，变化时列出差异文件；旧clean字符串不再授权放行。首次接入以既有HEAD为基线，预先存在的脏改动和未跟踪代码仍需审查。中途问答或暂停用一次性 `review-checkpoint`，不批准代码或允许未审提交。协议见 [HARNESS-REVIEW.md](docs/HARNESS-REVIEW.md)。
+- 审查使用 `review-prepare` 固定候选快照，独立两阶段通过后 `review-approve` 登记同一快照和报告哈希；代码变化检测不会覆盖批准记录。完成交付前用 `review-status` 核对当前内容；旧clean字符串不再授权放行。首次接入以既有HEAD为基线，预先存在的脏改动和未跟踪代码仍需审查。默认不注册 Stop，中途问答或暂停无需 `review-checkpoint`；提交前的审查凭据和类型检查仍保留。协议见 [HARNESS-REVIEW.md](docs/HARNESS-REVIEW.md)。
 - 提交前先确认暂存区的受控变化与审查凭据一致，再优先运行项目已安装的vue-tsc或本地TypeScript编译器。支持带引号、空格的git -C目标；要求先单独git add，再另次调用独立git commit，不支持复合脚本、commit -a或路径提交。依赖缺失、未审内容或类型失败均阻止提交，不临时下载编译器。
 - 开发服务启动前报告常见端口占用，由 Agent 检查进程或换端口。
 - 自动推送默认关闭。需要时执行 `git config --local harness.autoPush true`；仅单条 `git commit` 命令明确成功后推送普通分支，`main/master` 不自动推送。复合命令、包装脚本、`git -C` 调用跳过自动推送；未返回结构化成功状态的客户端会提示手动核查。
