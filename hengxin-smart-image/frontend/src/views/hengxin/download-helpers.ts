@@ -61,3 +61,34 @@ export async function prepareSet(images: { name: string; url: string }[]): Promi
   }
   return buildZip(files)
 }
+
+export async function requestDownload(baseUrl: string, fileIds: (string | undefined)[], name?: string): Promise<Blob> {
+  if (!fileIds.length || fileIds.length > 20 || fileIds.some(id => !id || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id))) {
+    throw new Error('图片文件标识缺失或无效，请刷新后重试')
+  }
+  const zipped = name !== undefined
+  const path = zipped ? '/files/download-zip' : `/files/${fileIds[0]}/content?download=true`
+  const response = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+    method: zipped ? 'POST' : 'GET', credentials: 'include', signal: AbortSignal.timeout(300000),
+    headers: zipped ? { 'Content-Type': 'application/json', Accept: 'application/zip' } : { Accept: 'image/*' },
+    body: zipped ? JSON.stringify({ fileIds, name }) : undefined
+  })
+  if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:unauthorized'))
+    let message = `下载请求失败（${response.status}）`
+    try {
+      const error: unknown = await response.json()
+      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') message = error.message
+    } catch { /* 网关非 JSON 错误使用状态提示 */ }
+    throw new Error(message)
+  }
+  const blob = await response.blob()
+  if (zipped) {
+    if (blob.type.split(';')[0] !== 'application/zip' || blob.size < 22) throw new Error('打包响应无效，请重试')
+    const end = new DataView(await blob.slice(-22).arrayBuffer())
+    if (end.getUint32(0, true) !== 0x06054b50 || end.getUint16(10, true) !== fileIds.length) throw new Error('打包结果不完整，请重试')
+  } else {
+    imageExtension(new Uint8Array(await blob.arrayBuffer()), blob.type.split(';')[0])
+  }
+  return blob
+}

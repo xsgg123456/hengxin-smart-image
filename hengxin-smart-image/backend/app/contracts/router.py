@@ -22,26 +22,6 @@ def workspace():
     return pending()
 
 
-@router.post('/tasks/{id}/archives', response_model=b.Archive)
-def archive_task(id: str):
-    return pending()
-
-
-@router.get('/archives', response_model=b.PageResult[b.Archive])
-def archives(query: Annotated[b.PageQuery, Query()]):
-    return pending()
-
-
-@router.get('/archives/{id}', response_model=b.Archive)
-def archive(id: str):
-    return pending()
-
-
-@router.delete('/archives/{id}', status_code=204)
-def delete_archive(id: str):
-    return pending()
-
-
 @router.get('/management/usage', response_model=m.UsageReport)
 def usage(query: Annotated[m.UsageQuery, Query()]):
     return pending()

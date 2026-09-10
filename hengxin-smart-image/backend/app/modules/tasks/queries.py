@@ -5,6 +5,7 @@ from app.contracts import business as b
 from app.resource_models import FileRecord
 from .models import TaskRecord, TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
 from .attempts import ExecutionSession
+from app.modules.archives.models import ArchiveRecord
 from app.modules.revisions.service import eligibility
 
 STATE = {'queued': '排队中', 'running': '执行中', 'collecting': '执行中', 'cancelling': '执行中',
@@ -51,7 +52,9 @@ def serialize(session, task):
         sessionId=identity.session_id if identity else None,
         state=state, progress=100 if state == '待查看' else None,
         images=images, sources=[picture(session.get(FileRecord, source.file_id)) for source in sources],
-        feedback=[r.note for r in rounds if r.note], time=stamp(task.created_at), archived=False,
+        feedback=[r.note for r in rounds if r.note], time=stamp(task.created_at), archived=bool(
+            session.scalar(select(ArchiveRecord.id).where(ArchiveRecord.task_id == task.id,
+                ArchiveRecord.deleted_at.is_(None)).limit(1))),
         currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots), error=current.error,
         executionSource=task.execution_source)
     if task.template_snapshot:
@@ -96,7 +99,8 @@ def list_tasks(session, query):
     partial = or_(RoundRecord.status == 'partial', and_(RoundRecord.status == 'succeeded', incomplete))
     stats = b.TaskStats(total=count(), processing=count(RoundRecord.status.in_(
         ['queued', 'running', 'collecting', 'cancelling'])),
-        ready=count(ready), archived=0)
+        ready=count(ready), archived=count(select(ArchiveRecord.id).where(
+            ArchiveRecord.task_id == TaskRecord.id, ArchiveRecord.deleted_at.is_(None)).exists()))
     if query.mode:
         statement = statement.where(TaskRecord.mode == query.mode)
     if query.search:

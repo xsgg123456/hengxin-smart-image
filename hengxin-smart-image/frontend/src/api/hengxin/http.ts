@@ -74,7 +74,9 @@ export function createHttpService(baseUrl: string, fetcher: typeof fetch = fetch
     deleteTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),
     createTask: (input, idempotencyKey = crypto.randomUUID()) => request('/tasks', validate.accepted, 'POST', input, 10000, { 'Idempotency-Key': idempotencyKey }),
     revise: (input, idempotencyKey = crypto.randomUUID()) => request(`/tasks/${encodeURIComponent(input.taskId)}/rounds`, validate.accepted, 'POST', input, 10000, { 'Idempotency-Key': idempotencyKey }),
-    archive: taskId => request(`/tasks/${encodeURIComponent(taskId)}/archives`, validate.archive, 'POST'),
+    archive: (taskId, imageVersionIds, idempotencyKey) => request(`/tasks/${encodeURIComponent(taskId)}/archives`, validate.archive, 'POST',
+      imageVersionIds ? { imageVersionIds } : undefined, 10000,
+      idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
     deleteArchive: id => request(`/archives/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),
     dispose() {}
   }

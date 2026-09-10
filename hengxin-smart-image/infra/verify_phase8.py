@@ -49,6 +49,13 @@ def main():
             '-s=' + PROJECT, *args], cwd=ROOT.parent, env=browser_env, text=True, encoding='utf-8',
             errors='replace', capture_output=True, timeout=180, **creation)
         if check and (result.returncode or '### Error' in result.stdout):
+            if browser_open:
+                diagnostic = subprocess.run([npx, '--yes', '--package', '@playwright/cli', 'playwright-cli',
+                    '-s=' + PROJECT, 'snapshot'], cwd=ROOT.parent, env=browser_env, text=True,
+                    encoding='utf-8', errors='replace', capture_output=True, timeout=30, **creation)
+                print(diagnostic.stdout, flush=True)
+            if frontend and frontend.poll() is not None:
+                print('Vite exited:', frontend.returncode, flush=True)
             raise AssertionError(result.stdout + result.stderr)
         return result.stdout
 
@@ -140,7 +147,9 @@ def main():
         if '--browser' in sys.argv:
             sql(f"UPDATE users SET role='super_admin' WHERE id='{env['DEV_USER_ID']}'")
             browser_dir = tempfile.TemporaryDirectory(prefix=PROJECT)
-            vite_log = open(Path(browser_dir.name) / 'vite.log', 'w', encoding='utf-8')
+            log_path = ROOT.parent / 'output/phase-integration-vite.log'
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            vite_log = open(log_path, 'w', encoding='utf-8')
             port = free_port()
             vite_env = dict(browser_env, VITE_API_PROXY_URL=f'http://127.0.0.1:{ports[0]}')
             node = shutil.which('node') or 'D:/Apps/nodejs/node.exe'
@@ -151,7 +160,7 @@ def main():
             def vite_ready():
                 with urlopen(origin, timeout=5) as response:
                     return response.status == 200
-            wait(vite_ready, 'isolated Vite browser frontend')
+            wait(vite_ready, 'isolated Vite browser frontend ' + origin)
             output = ROOT.parent / 'output/playwright'
             output.mkdir(parents=True, exist_ok=True)
             (output / 'phase8-skill.zip').write_bytes(package('3.0.0'))
@@ -176,6 +185,15 @@ def main():
                 result = browser('run-code', '--filename', 'scripts/phase10/revisions.js', '--raw')
                 assert 'PHASE10 BROWSER PASS' in result, result
                 print(result, flush=True)
+            if '--phase11' in sys.argv:
+                result = browser('run-code', '--filename', 'scripts/phase11/archives.js', '--raw')
+                assert 'PHASE11 BROWSER PASS' in result, result
+                print(result, flush=True)
+                with zipfile.ZipFile(output / 'phase11-archive.zip') as downloaded:
+                    assert len(downloaded.namelist()) == 2
+                    assert all(downloaded.read(name) == PIXEL for name in downloaded.namelist())
+                assert (output / 'phase11-single.png').read_bytes() == PIXEL
+                print('PASS Phase11 single/ZIP exact archived fixture bytes', flush=True)
         verify_uncertain()
         print('PHASE8 INTEGRATION PASS (four isolated volumes)', flush=True)
     finally:

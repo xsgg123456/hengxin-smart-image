@@ -176,7 +176,7 @@ export interface HengxinService extends ManagementService {
   deleteTemplate(id: string): Promise<void>
   createTask(input: CreateTaskInput, idempotencyKey?: string): Promise<Accepted>
   revise(input: RevisionInput, idempotencyKey?: string): Promise<Accepted>
-  archive(taskId: string): Promise<Archive>
+  archive(taskId: string, imageVersionIds?: string[], idempotencyKey?: string): Promise<Archive>
   deleteArchive(id: string): Promise<void>
   dispose(): void
 }

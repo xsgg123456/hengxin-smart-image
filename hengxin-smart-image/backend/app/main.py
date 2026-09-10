@@ -11,9 +11,11 @@ from app.jobs import router as jobs_router
 from app.modules.auth.dev_identity import seed_dev_identity
 from app.modules.auth.router import router as auth_router
 from app.modules.files.router import router as files_router
+from app.modules.files.downloads import router as downloads_router
 from app.modules.templates.router import router as templates_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.revisions.router import router as revisions_router
+from app.modules.archives.router import router as archives_router
 from app.modules.skills.router import router as skills_router
 
 
@@ -32,8 +34,10 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
+app.include_router(downloads_router, prefix="/api/v1")
 app.include_router(templates_router, prefix="/api/v1")
 app.include_router(skills_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")
 app.include_router(revisions_router, prefix="/api/v1")
+app.include_router(archives_router, prefix="/api/v1")
 app.include_router(contracts_router, prefix="/api/v1")

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildZip, crc32, safeFilename, readImage, prepareSet, imageExtension } from '../src/views/hengxin/download-helpers'
+import { buildZip, crc32, safeFilename, readImage, prepareSet, imageExtension, requestDownload } from '../src/views/hengxin/download-helpers'
 const png = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=', 'base64'))
 test('下载命名去路径与非法字符，替换旧后缀', () => {
   assert.equal(safeFilename('../产品\\主图.jpg.png', 'webp'), '.._产品_主图.webp')
@@ -85,4 +85,41 @@ test('合法 JPEG 结束标记后的附加字节下载时完整保留', async ()
   globalThis.fetch = async () => new Response(bytes, { headers: { 'content-type': 'image/jpeg' } })
   try { assert.deepEqual((await readImage('/api/v1/files/test/content')).data, bytes) }
   finally { globalThis.fetch = original }
+})
+
+test('真实下载携带授权、走文件ID和服务端ZIP且保留顺序', async () => {
+  const original = globalThis.fetch
+  const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002']
+  const calls: string[] = []
+  globalThis.fetch = async (url, options) => {
+    calls.push(String(url))
+    assert.equal(options?.credentials, 'include')
+    if (options?.method === 'POST') {
+      assert.deepEqual(JSON.parse(String(options.body)), { fileIds: ids, name: '套图' })
+      return new Response(buildZip(ids.map((id) => ({ name: `${id}.png`, data: png }))))
+    }
+    return new Response(png, { headers: { 'content-type': 'image/png' } })
+  }
+  try {
+    assert.deepEqual(new Uint8Array(await (await requestDownload('/api/v1/', [ids[0]])).arrayBuffer()), png)
+    assert.equal((await requestDownload('/api/v1', ids, '套图')).type, 'application/zip')
+    assert.deepEqual(calls, [`/api/v1/files/${ids[0]}/content?download=true`, '/api/v1/files/download-zip'])
+    await assert.rejects(requestDownload('/api/v1', [undefined], '套图'), /标识/)
+    assert.equal(calls.length, 2)
+  } finally { globalThis.fetch = original }
+})
+
+test('真实下载拒绝授权错误、伪ZIP及数量不完整的套图', async () => {
+  const original = globalThis.fetch
+  const ids = ['00000000-0000-4000-8000-000000000001']
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ message: '成员已停用' }), { status: 403 })
+    await assert.rejects(requestDownload('/api/v1', ids, '套图'), /成员已停用/)
+    globalThis.fetch = async () => new Response('<html>login</html>', { headers: { 'content-type': 'text/html' } })
+    await assert.rejects(requestDownload('/api/v1', ids, '套图'), /响应无效/)
+    globalThis.fetch = async () => new Response(buildZip([{ name: 'a.png', data: png }, { name: 'b.png', data: png }]))
+    await assert.rejects(requestDownload('/api/v1', ids, '套图'), /不完整/)
+    globalThis.fetch = async () => { throw new Error('断开连接') }
+    await assert.rejects(requestDownload('/api/v1', ids, '套图'), /断开连接/)
+  } finally { globalThis.fetch = original }
 })

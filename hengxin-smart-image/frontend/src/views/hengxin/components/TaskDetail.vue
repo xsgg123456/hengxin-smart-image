@@ -5,8 +5,8 @@
       <ElEmpty v-if="!task && !loading" description="任务不可用，请重试或返回任务列表" />
       <template v-if="task && data">
         <div class="hx-detail-toolbar"><div><ElTag>{{ labels[task.mode] }}</ElTag><span class="hx-muted">{{ task.id }} · {{ formatTime(task.time) }}</span></div></div>
-        <div class="hx-filter"><ElButton :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!isMockMode || !complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
-        <p class="hx-footnote">{{ isMockMode ? '整套下载和归档使用每个位置的当前版本；历史版本选择仅用于查看和单张下载。相同版本再次归档会返回已有成品。' : '整套下载使用每个位置的当前版本；归档功能将在后续开放。' }}</p>
+        <div class="hx-filter"><ElButton :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
+        <p class="hx-footnote">整套下载和归档使用每个位置的当前版本；历史版本选择仅用于查看和单张下载。相同版本再次归档会返回已有成品。</p>
         <ElAlert v-if="isMockMode" title="交互演示：以下为示例图片，尚未调用真实 Skill。修改操作演示版本与状态变化。" type="info" show-icon :closable="false" />
         <ElAlert v-if="fixtureNotice(task)" :title="fixtureNotice(task)" type="warning" show-icon :closable="false" />
         <ElAlert v-if="data.executionControl.blockedReason" :title="data.executionControl.blockedReason" type="info" show-icon :closable="false" class="hx-gap" />
@@ -36,6 +36,7 @@ import { getService, isMockMode } from '@/api/hengxin/client'
 import { useUserStore } from '@/store/modules/user'
 import { useRevisionSession } from '../revision-session'
 import { archiveTask } from '@/api/archives'
+import { submitArchive } from '../archive-requests'
 import type { RevisionInput } from '@/types/hengxin'
 import { labels } from '../model'
 import { downloadSet } from '../download'
@@ -97,10 +98,12 @@ function retry() {
     retry: true, sourceRoundId: lastFailed.value.id })
 }
 async function archive() {
-  if (!isMockMode || !task.value || !complete.value || busy.value) return
-  const id = task.value.id
+  if (!task.value || !data.value || !complete.value || busy.value) return
+  const id = task.value.id, owner = identity()
+  if (!owner) return
+  const versionIds = data.value.slots.flatMap(slot => slot.currentVersionId ? [slot.currentVersionId] : [])
   archiving.value = true; actionError.value = ''
-  try { const result = await archiveTask(id); if (props.taskId !== id) return; ElMessage.success(`已归档：${result.name}（相同版本会返回已有成品）`); emit('changed'); await load(true) }
+  try { const result = await submitArchive(owner, id, versionIds, archiveTask); if (!alive || props.taskId !== id || identity() !== owner) return; ElMessage.success(`已归档：${result.name}（相同版本会返回已有成品）`); emit('changed'); await load(true) }
   catch (reason) { if (props.taskId === id) actionError.value = reason instanceof Error ? reason.message : '归档失败，请重试' }
   finally { archiving.value = false }
 }

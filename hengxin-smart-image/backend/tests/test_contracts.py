@@ -18,7 +18,7 @@ def contract_app():
 
 def test_business_contracts_are_explicitly_unimplemented():
     client = TestClient(contract_app())
-    for path in ['/workspace', '/archives',
+    for path in ['/workspace',
                  '/management/users', '/management/settings', '/management/monitor']:
         response = client.get('/api/v1' + path)
         assert response.status_code == 501
@@ -29,8 +29,10 @@ def test_openapi_request_response_and_pagination():
     app = contract_app()
     from app.modules.tasks.router import router as tasks_router
     from app.modules.revisions.router import router as revisions_router
+    from app.modules.archives.router import router as archives_router
     app.include_router(tasks_router, prefix='/api/v1')
     app.include_router(revisions_router, prefix='/api/v1')
+    app.include_router(archives_router, prefix='/api/v1')
     schema = app.openapi()
     paths = schema['paths']
     assert len(paths) == 12
@@ -38,9 +40,9 @@ def test_openapi_request_response_and_pagination():
     assert accepted['content']['application/json']['schema']['$ref'].endswith('/Accepted')
     assert schema['components']['schemas']['Accepted']['properties']['state']['const'] == '排队中'
     assert schema['components']['schemas']['Task']['properties']['progress']['anyOf'][1]['type'] == 'null'
-    client = TestClient(contract_app())
-    for query in ['page=0', 'pageSize=0', 'pageSize=101', 'mode=invalid']:
-        assert client.get('/api/v1/archives?' + query).status_code == 422
+    for query in [dict(page=0), dict(pageSize=0), dict(pageSize=101), dict(mode='invalid')]:
+        with pytest.raises(ValidationError):
+            business.PageQuery(**query)
     assert '/api/v1/tasks/{id}/rounds' in paths
 
 
