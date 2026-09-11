@@ -87,7 +87,7 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 - Phase 9 保证执行环境不能跨任务读取或修改会话材料、输入、输出及临时文件，并将临时轮次输入/输出目录与持久会话材料分开，按任务映射明确 session ID；每轮进程结束退出，返工重新启动并续接原会话。需要返工的任务不使用 ephemeral 会话；原会话不能恢复时失败并保留旧结果。
 - 取消、最终图片版本提交和当前版本切换共同校验任务/轮次有效性及当前认领凭证；删除或旧执行者的迟到结果不得写回。Phase 11 的回收不能清理运行中或仍可返工任务的会话材料，保留时长仍按 PRD 第 11 节管理。
 
-隔离方式的调研见 [Codex CLI 多任务并发与隔离评估](hengxin-smart-image/docs/CODEX-CLI-ISOLATION-ASSESSMENT.md)。每轮独立容器、凭据分配等是研究建议，尚未选定具体实现；任务之间必须隔离是已确认要求。
+早期隔离方案调研见 [Codex CLI 多任务并发与隔离评估](hengxin-smart-image/docs/CODEX-CLI-ISOLATION-ASSESSMENT.md)。Phase 9 已选用 Linux 原生 Worker 与受控 Bubblewrap，每任务独立持久 home、每轮独立 work/control；实际环境与实机证据见 [CODEX-EXECUTION.md](hengxin-smart-image/docs/CODEX-EXECUTION.md) 和 [PHASE9-VALIDATION.md](hengxin-smart-image/docs/PHASE9-VALIDATION.md)。每轮独立 Docker 容器属于早期研究建议，不能作为当前实现说明；任务之间必须隔离的已确认要求不变。
 
 ## 4. 业务默认方案与阶段入口
 

@@ -1,6 +1,6 @@
 # 前后端接口契约
 
-更新：2026-09-09。当前需求依据 Product-Spec v0.17；前端类型源为 `frontend/src/types/hengxin.ts`，管理类型另见 `frontend/src/types/management.ts`。本文汇总前端契约、目标 OpenAPI 及 Phase 6–8 真实接入；任务并发与受理已在 Phase 8 接入，CLI 和返工业务按 Phase 9–10 实现。
+更新：2026-09-10。当前需求依据 Product-Spec v0.17；前端类型源为 `frontend/src/types/hengxin.ts`，管理类型另见 `frontend/src/types/management.ts`。本文汇总前端契约、目标 OpenAPI 及 Phase 6–11 真实接入。整体进度以 [DEV-PLAN.md](../../DEV-PLAN.md) 为准；Phase 11 技术验证与独立两阶段审查通过、待用户验收，不因本文同步而视为用户已验收。
 
 ## Phase 5 后端基础补充
 
@@ -8,16 +8,16 @@ FastAPI 在 `/openapi.json` 发布业务的目标结构（28 个方法、20 条�
 
 已实现 `/api/v1/health/live` 与 `/api/v1/health/ready`（后者依赖 PG 迁移、Redis、MinIO 授权探针；失败 503）。测试模式显式开启 `ENABLE_TEST_JOBS` 后，`POST /api/v1/internal/test-jobs` 接受 `{value,delaySeconds?}` 与必填 `Idempotency-Key`，同事务持久写入测试作业/outbox 后返回 202 `{jobId,status,result,executionCount}`；同键同内容返回同一作业，同键不同内容返回 409。`GET /api/v1/internal/test-jobs/{id}` 查询 PG 状态。该入口默认关闭且生产禁止开启，不是图片生成 API。独立 outbox 派发进程持续重派未完成作业；纯计算 Worker 通过 PG 行锁与原子提交防止重复完成，不能据此宣称外部 AI 调用恰好一次。
 
-Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续补充共同组成当前前端契约。产品权限与会话并发规则以 Product-Spec v0.17 为准；各阶段真实实现的边界见文末 Phase 7/8 补充。
+Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续补充共同组成当前前端契约。产品权限与会话并发规则以 Product-Spec v0.17 为准；各阶段真实实现的边界见文末 Phase 6–11 补充。
 
-本文最初由 Phase 1 建立，已合并 Phase 2–4 的分页、文件引用、结果版本及管理查询。早期契约不覆盖后续字段；真实业务行为仍按 DEV-PLAN 分阶段接入。
+本文最初由 Phase 1 建立，保留各阶段的契约演进。阶段章节中的“未接入”描述该阶段结束时的边界，后续接入以最新补充及“当前业务接口契约”为准；历史验证记录不因后续实现而改写。
 
 ## 模式与边界
 
 - `pnpm dev` / `pnpm build:preview` 显式使用 mock 模式。模拟服务采用独立内存，刷新重置，不读写原型 localStorage；不执行真实 Skill、不上传到 MinIO、不建立真实 CLI 会话。
 - `pnpm dev:api` / `pnpm build` 使用 `/api/v1` HTTP 服务。模拟模块仅动态加载于 mock 模式；请求失败不回退模拟服务。HTTP 默认超时 10 秒，图片上传 60 秒，无自动重试写操作。
 - Art 用户展示使用业务用户 ID；仅模拟服务提供四角色身份预览。真实模式必须先从 `/auth/me` 获取启用且已授权的身份，身份无效时阻断入口；Phase 6 起 HTTP 启动不读取聚合快照，各业务页面独立显示加载失败，显示错误与重试。真实钉钉登录仍为 Phase 12。
-- 页面禁止直接写业务集合，调用 model 门面再由 HengxinService 选择适配器。示例文件只在 mock 模式使用。当前保留原型布局和浏览器内示例下载；正式文件上传、鉴权下载与服务端 ZIP 分别在后续阶段接入。
+- 页面禁止直接写业务集合，调用 model 门面再由 HengxinService 选择适配器。示例文件只在 mock 模式使用。真实模式已接入文件上传、逐次鉴权下载及服务端 ZIP；浏览器内示例下载只用于 mock。
 
 ## 基础约定
 
@@ -29,11 +29,11 @@ JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 
 
 ## 当前业务接口契约
 
-下表路径均以 `/api/v1` 为前缀；管理部分见 PHASE4-CONTRACT 及本文 Phase 7 补充。身份、文件、模板和 Skill 已接真实服务；Phase 8 接入任务创建、分页、详情和删除，执行来源及能力见文末补充。成品归档、返工和其他尚未实施的管理接口仍返回 501。
+下表路径均以 `/api/v1` 为前缀；管理部分见 PHASE4-CONTRACT 及本文 Phase 7 补充。开发身份、文件、模板、Skill、任务、返工和成品归档已接真实服务。`GET /workspace`、`GET /management/usage`、`GET /management/monitor`、`GET /management/users`、`PUT /management/users/:id`、`GET/PUT /management/settings` 仍返回 501；下表中的目标响应不能作为这些接口已实现的依据。真实钉钉会话属于 Phase 12，真实执行还需配置专用 Linux Worker。
 
 | 方法与路径 | 请求 | 目标成功响应 |
 |---|---|---|
-| GET /auth/me | Cookie 会话 | 200 User |
+| GET /auth/me | 当前为服务端显式开发身份；Cookie 会话待 Phase 12 | 200 User |
 | GET /workspace | 无 | 200 Workspace，启动兼容快照 |
 | GET /templates | TemplateQuery | 200 PageResult&lt;Template&gt; |
 | GET /templates/:id | 无 | 200 Template |
@@ -50,10 +50,11 @@ JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 
 | DELETE /tasks/:id | 无 | 200 DeletionReceipt |
 | GET /archives | PageQuery | 200 PageResult&lt;Archive&gt; |
 | GET /archives/:id | 无 | 200 Archive |
-| POST /tasks/:id/archives | 无 | 200 Archive；同一结果重复操作返回同条记录 |
+| POST /tasks/:id/archives | 可选 ArchiveInput；前端提交版本快照与 Idempotency-Key，见 Phase 11 补充 | 200 Archive；同一结果重复操作返回同条记录 |
 | DELETE /archives/:id | 无 | 204；对应任务图片保留 |
+| POST /files/download-zip | {fileIds: string[], name: string} | 200 application/zip；1–20 个有效图片文件 |
 
-GET /workspace 是过渡性聚合读取，不能用于生产无限量加载。前端列表已使用分页与任务详情查询。Phase 2 起，CreateTaskInput.sources 提交已受理的 fileId；Picture.url 只供预览，不能作为服务端任意远程 URL 下载入口。Phase 6 接真实上传后校验文件权限及有效性；Picture.fileId 的可选类型仅兼容历史/展示数据，不免除新提交的文件校验。首次生成/返工的 202 仅代表受理，不代表执行完成。
+GET /workspace 是保留的过渡性聚合契约，当前返回 501，真实前端不依赖它启动。前端列表已使用分页与任务详情查询。Phase 2 起，CreateTaskInput.sources 提交已受理的 fileId；Picture.url 只供预览，不能作为服务端任意远程 URL 下载入口。Phase 6 接真实上传后校验文件权限及有效性；Picture.fileId 的可选类型仅兼容历史/展示数据，不免除新提交的文件校验。首次生成/返工的 202 仅代表受理，不代表执行完成。
 
 ## 数据与状态
 
@@ -71,7 +72,7 @@ TaskState 使用排队中、执行中、待查看、部分失败、失败，保�
 
 当前模拟服务保证类型匹配、异步受理返回标识、串行返工、目标图片独立版本更新、归档快照与读写拷贝隔离；已完成 Phase 1–4 范围内的前端验证，证据见对应 PHASE*-VALIDATION.md；不据此宣称真实业务、跨 Worker 互斥或容量验收完成。
 
-上传 JPG/PNG/WebP、单文件 10 MiB、每组 20 张及图片加自然语言文字表单已确认；任务名必填、SKU 可选。删除保留期限、历史与归档细则及运行参数中仍属建议的部分按 PRD 第 11 节管理，不因模拟实现而变成已批准规则。HTTP 写操作幂等键与持久化 outbox 在后端阶段实现；当前 UI 防止重复点击，不宣称跨网络重放幂等。
+上传 JPG/PNG/WebP、单文件 10 MiB、每组 20 张及图片加自然语言文字表单已确认；任务名必填、SKU 可选。仍属建议的删除保留期限和运行参数按 PRD 第 11 节管理，不因模拟实现而变成已批准规则。任务创建、返工已接入 HTTP 幂等键与持久化 outbox，归档已接持久回执；具体范围见下文，不扩展为所有写接口或上游收费调用恰好一次的保证。归档与清理边界见 Phase 11 补充。
 
 
 ## Phase 2 契约扩展（2026-09-09）
@@ -103,9 +104,9 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 
 删除审计补充：模拟 Workspace.deletions 统一记录模板、任务、成品删除，DeletionReceipt 可带 resourceType（template/task/archive），由服务填充实际 operatorId 与删除时间。不存在的记录不重复记审计；真实 DELETE 成品/模板仍返回204，审计由后端持久化。
 
-## 会话与并发安全补充（2026-09-09，Phase 8–10 待实现）
+## 会话与并发安全补充（Phase 8–10 已接入）
 
-业务规则以 Product-Spec 第 9.1–9.2 节及 AC-004、010、015、021–025 为准；本文规定对应传输行为。当前 Phase 5 业务路由仍返回 501，以下字段与约束由后续阶段同步更新前端类型、响应校验和 OpenAPI。
+业务规则以 Product-Spec 第 9.1–9.2 节及 AC-004、010、015、021–025 为准；以下传输行为已在 Phase 8–10 接入，验证及限制见对应阶段记录，不能用 mock 串行演示替代跨进程或真实 CLI 证据。
 
 - `POST /tasks` 和 `POST /tasks/:id/rounds` 必须携带非空 `Idempotency-Key`，缺失/非法返回 422。范围由可信操作者、操作类型和目标任务（创建时无目标）共同限定，服务端保存载荷指纹与原受理回执；不能相信前端传入的身份建立范围。
 - 同范围、同键、同内容的重放返回原 202 受理回执和同一 taskId/roundId，不新建轮次/outbox，不重新启动 CLI；回执中的受理状态不替代 GET 查询的当前状态。同键异内容返回 409 `CONFLICT`；幂等读取仍须经过当前身份/授权校验。
@@ -143,3 +144,17 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 - Task新增可选executionSource（fixture/unavailable/cli），真实接口明确来源；fixture结果必须显示测试标记。TaskDetailData新增必需executionControl（canRevise/canRetry/blockedReason），前端按服务端能力控制按钮。Phase8返工HTTP尚未接入，两能力返回false并说明原因；模拟预览仍保留既有返工演示。
 - 默认不启用测试执行器，仅APP_ENV=test与ENABLE_FIXTURE_EXECUTOR=true同时满足才可生成fixture；fixture复制冻结图片为独立可读结果，不生成CLI会话或虚构usage。GENERATION_CONCURRENCY默认1，范围1–10；过期未知执行保持占用，不能自动接管再次运行。
 - HTTP前端同一次不确定提交保留请求键和输入快照；受理后的详情读取失败保留taskId并引导查询，不重新创建。轮询按运行/空闲状态3/10秒，离页停止。真实CLI和用户返工分别Phase9/10接入。
+
+## Phase 9–10 真实执行与返工接入
+
+- Phase 9 已接入专用 Linux CLI Worker、任务独立会话、执行 attempt/usage、租约及不确定状态对账；HTTP 请求不携带 CLI 认证或指定任意 sessionId。环境及实机验证见 [CODEX-EXECUTION.md](CODEX-EXECUTION.md)、[PHASE9-VALIDATION.md](PHASE9-VALIDATION.md)。Compose 默认 Worker 不具备真实执行环境。
+- `POST /tasks/:id/rounds` 已实现异步受理、跨用户互斥与幂等回执。重试携带失败轮次 `sourceRoundId` 并保持原意见和范围；服务端按实际轮次、会话及执行器状态计算 canRevise/canRetry，已取代 Phase 8 当时固定 false 的边界。
+- 返工冻结原任务素材、Skill 和会话，成功槽位追加新版本、失败槽位保留旧版本；未知响应重放原键，不创建新操作。已绑定会话不可自动替换；待核实时禁止新轮次。具体证据及草稿持久化限制见 [PHASE10-VALIDATION.md](PHASE10-VALIDATION.md)。
+
+## Phase 11 下载与归档接入
+
+- `POST /tasks/:id/archives`、成品分页/详情/删除均已接真实数据库。归档只受理当前整套成功、槽位完整且无未结束轮次的结果，冻结图片版本与文件引用；同任务同版本重复归档复用原记录，后续返工不覆盖旧归档。
+- 归档接口兼容可选请求体和请求键；正式前端传递 `ArchiveInput` 的版本快照及 `Idempotency-Key`。同一操作响应未知时保留原身份、任务、版本及请求键，重放持久回执；不能换键或换版本当作原请求重试。
+- `POST /files/download-zip` 接收 1–20 个 fileIds 与 name；按当前身份和文件状态鉴权，服务端依次读取 MinIO 并校验字节数及 SHA-256，输出 ZIP。真实前端通过该接口下载，模拟模式仍独立；浏览器保存仍使用 Blob。
+- 四角色可查看/删除他人成品，删除记录实际操作者；成品删除不删除任务图片，任务删除不破坏旧归档。自动清理默认禁用且无调度，手工清理仅按 [CLEANUP-POLICY.md](CLEANUP-POLICY.md) 的引用保护规则执行。
+- 技术验证与独立审查证据见 [PHASE11-VALIDATION.md](PHASE11-VALIDATION.md)，仍待用户验收；fixture 字节验证不代表真实业务 Skill 效果验收。

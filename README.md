@@ -1,8 +1,8 @@
 # hengxin-smart-image
 
-本仓库用于开发恒信 AI 换套图系统，已安装 Agent Harness（Codex 版）。截至 2026-09-09，正式前端 Phase 1–4 已验收；后端基础 Phase 5 已完成技术验证和两阶段审查，待用户验收；后端业务 Phase 6–14 尚未开始。开发顺序仍是先完成前端，再逐模块接入后端及联调。
+本仓库用于开发恒信 AI 换套图系统，已安装 Agent Harness（Codex 版）。截至 2026-09-10，Phase 1–10 已验收；Phase 11 技术验证与独立两阶段审查通过、待用户验收；Phase 12–14 未开始。阶段进度及后续开发顺序以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
 
-正式前端位于 `hengxin-smart-image/frontend/`，进入该目录执行 `pnpm install --frozen-lockfile`、`pnpm dev`，预览 [http://127.0.0.1:3008](http://127.0.0.1:3008)。当前使用独立内存模拟服务，刷新重置数据。后端已具备 FastAPI、数据库、对象存储、测试队列和 outbox 基础；业务接口目前返回 501，真实上传、图片生成和钉钉鉴权尚未接入。前端预览和基础队列验证不代表真实业务或并发容量已通过。
+正式前端位于 `hengxin-smart-image/frontend/`，使用 Node.js 24.18.1、pnpm 10.33.4。进入该目录执行 `pnpm install --frozen-lockfile` 后，`pnpm dev` 启动独立内存 mock，刷新重置；`pnpm dev:api` 连接真实后端。预览地址为 [http://127.0.0.1:3008](http://127.0.0.1:3008)。后端已接入开发身份、文件存储、模板与 Skill、任务执行、返工及下载归档；真实 AI 需要专用 Linux Worker。钉钉认证、其余管理接口和生产部署仍属 Phase 12–14，前端预览不代表这些能力或并发容量已通过。
 
 ## 文档入口
 
@@ -12,7 +12,8 @@
 | 当前进度和后续开发顺序 | [DEV-PLAN.md](DEV-PLAN.md) |
 | 页面规范与原型用途 | [Design-Brief.md](Design-Brief.md)、[原型说明](prototype/README.md) |
 | 前后端接口 | [API-CONTRACT.md](hengxin-smart-image/docs/API-CONTRACT.md)、[管理接口补充](hengxin-smart-image/docs/PHASE4-CONTRACT.md) |
-| 后端启动与基础验证 | [后端开发说明](hengxin-smart-image/docs/BACKEND-DEVELOPMENT.md)、[Phase 5 验证记录](hengxin-smart-image/docs/PHASE5-VALIDATION.md) |
+| 后端启动与最新阶段证据 | [后端开发说明](hengxin-smart-image/docs/BACKEND-DEVELOPMENT.md)、[Phase 11 验证记录](hengxin-smart-image/docs/PHASE11-VALIDATION.md) |
+| 真实 AI 执行环境 | [Linux Worker 说明](hengxin-smart-image/docs/CODEX-EXECUTION.md)、[Phase 9 实机验证](hengxin-smart-image/docs/PHASE9-VALIDATION.md) |
 | 后端架构和隔离调研 | [架构评估](hengxin-smart-image/docs/BACKEND-ARCHITECTURE-ASSESSMENT.md)、[Codex CLI 隔离评估](hengxin-smart-image/docs/CODEX-CLI-ISOLATION-ASSESSMENT.md) |
 
 `PHASE*-PLAN/REVIEW/VALIDATION.md` 保留当时的执行与验收证据，旧版本号不代表当前需求版本。调研文档中的推荐方案不等于已选定实现；实际完成状态以 DEV-PLAN 为准。
@@ -21,7 +22,7 @@
 
 在 Codex 中打开本仓库，先读取需求、计划和最近阶段的验证记录。例如：
 
-> 查看 Phase 5 的验收证据，并按 DEV-PLAN.md 整理 Phase 6 用户归属与真实文件存储的开发准备。
+> 查看 Phase 11 的验收证据，整理待验收内容和 Phase 12 钉钉双端认证的开发前置条件。
 
 也可在终端从仓库根目录运行 `codex`，通过 `/skills` 查看技能、`/hooks` 查看门禁。旧会话未必重新加载新配置，安装后应开启新会话。
 

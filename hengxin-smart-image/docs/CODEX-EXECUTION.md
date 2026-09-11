@@ -1,6 +1,6 @@
 # Codex 执行环境
 
-Phase9 技术验证通过，待用户验收。真实执行采用Linux原生Celery Worker，API/PG/Redis/MinIO可保持Compose运行。选择原生Worker是为了使用已部署的CLI与受控Bubblewrap，而非给通用Worker容器特权或Docker socket。
+Phase 9 已验收；当前整体进度以 [DEV-PLAN.md](../../DEV-PLAN.md) 为准，实机证据见 [Phase 9 验证记录](PHASE9-VALIDATION.md)。真实执行采用 Linux 原生 Celery Worker，API/PG/Redis/MinIO 可保持 Compose 运行。选择原生 Worker 是为了使用已部署的 CLI 与受控 Bubblewrap，而非给通用 Worker 容器特权或 Docker socket。以下已部署配置描述原验证服务器，新机器仍需单独安装和验证，拉取仓库不会复制服务器环境或认证。
 
 ## 配置
 

@@ -1,5 +1,7 @@
 # 后端架构与风险评估
 
+> 历史评估：以下保留 2026-09-09、Phase 5 时的风险判断与建议，“未完成”仅描述当时状态。当前进度见 [DEV-PLAN.md](../../DEV-PLAN.md)；Phase 9 已选定 Linux 原生 Worker 与 Bubblewrap，执行及隔离证据见 [CODEX-EXECUTION.md](CODEX-EXECUTION.md)、[PHASE9-VALIDATION.md](PHASE9-VALIDATION.md)。后续文件、任务、返工和归档实现以各阶段记录为准，不把本报告的旧缺口当作当前缺陷，也不自动认定其余风险已解决。
+
 初次评估日期：2026-09-09，依据 Product-Spec v0.14、DEV-PLAN v1.10、Phase 5 源码与官方资料。同日用户确认会话生命周期及并发安全规则，本文跟踪说明同步至 Product-Spec v0.16 / DEV-PLAN v1.12；本次文档一致性修订没有将其他研究建议改为已选方案。
 
 会话与并发安全规则已写入 Product-Spec 第 9.1–9.2 节、AC-021–025 及对应开发阶段；R3–R5 的设计缺口已有文档约束，代码和真实验收仍未完成。其他风险建议保持评估状态。Phase 5 已完成技术验证，Phase 6–14 尚未实现，不能把文档更新计为后端能力已通过。

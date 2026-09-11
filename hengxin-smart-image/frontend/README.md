@@ -21,6 +21,8 @@ pnpm build
 无需复制 `.env` 即可运行；可参考 `.env.example` 配置接口地址，不放密钥。
 模拟数据仅在内存中使用，刷新恢复初始状态，不提供持久化、真实生成或真实鉴权。
 只有显式 `--mode mock` 启用模拟，真实模式失败不回退模拟数据。
-前端 Phase 1–4 已验收；后端基础 Phase 5 技术验证通过、待用户验收，业务接口目前返回 501。用户归属与真实文件从 Phase 6 接入，真实 CLI 执行在 Phase 9、钉钉登录在 Phase 12 接入。前端验证不代表这些真实能力已完成；启动后端见 [后端开发说明](../docs/BACKEND-DEVELOPMENT.md)。
+当前阶段进度以根目录 [DEV-PLAN.md](../../DEV-PLAN.md) 为准；最新阶段证据见 [Phase 11 验证记录](../docs/PHASE11-VALIDATION.md)。真实模式已接文件、模板、任务、返工和成品接口；钉钉认证、其余管理接口和生产联调仍属 Phase 12–14。模拟预览不能作为真实 AI 生成或容量验证证据。
+
+真实联调先按 [后端开发说明](../docs/BACKEND-DEVELOPMENT.md) 启动服务，在后端本机 `.env` 设置 `ENABLE_DEV_IDENTITY=true`，再执行 `pnpm dev:api`。默认关闭开发身份时业务请求返回 401。若更改后端 API_PORT，在前端 `.env.local` 设置对应的 `VITE_API_PROXY_URL` 并重启前端。真实 AI 还需 [专用 Linux Worker](../docs/CODEX-EXECUTION.md)。
 
 保留上游 `LICENSE`。项目沿用根仓库及其 hooks，不在前端安装嵌套 Git hooks。

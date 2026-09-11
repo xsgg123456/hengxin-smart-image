@@ -1,5 +1,7 @@
 # Codex CLI 多任务并发与隔离评估
 
+> 历史研究：以下描述 Phase 9 实施前的备选方案及当时验证边界。Phase 9 最终采用 Linux 原生 Worker 与受控 Bubblewrap，并完成独立任务隔离和真实链路验证，见 [CODEX-EXECUTION.md](CODEX-EXECUTION.md)、[PHASE9-VALIDATION.md](PHASE9-VALIDATION.md)。下文“每轮独立执行容器”是早期建议，不是当前部署要求；最新阶段状态见 [DEV-PLAN.md](../../DEV-PLAN.md)。
+
 日期：2026-09-09。范围：真实业务后端接入前的方案研究。已确认需求见 [Product-Spec v0.16](../../Product-Spec.md#92-执行并发安全已确认-p0)，实施顺序见 [DEV-PLAN v1.12](../../DEV-PLAN.md#31-会话生命周期与并发实施约束)。
 
 本机已核对 Codex CLI 0.153.4 的版本与命令帮助，并查阅官方文档。当前业务后端仍未实现；下面的容器、凭据和容量方案是推荐做法，尚未完成 Linux 实机验证。本次没有启动模型生成、进行付费压测或更改运行中的服务。
