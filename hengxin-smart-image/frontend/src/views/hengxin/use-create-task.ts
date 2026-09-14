@@ -13,7 +13,7 @@ export function useCreateTask(mode: Ref<Mode>) {
   const user = useUserStore()
   const identity = () => user.isLogin && user.info.userId != null ? String(user.info.userId) : undefined
   const { submission, session, template, sources, name, sku, note } = useTaskCreationSession(identity, () => mode.value,
-    () => route.query.template, async (input, key) => {
+    () => ({ template: route.query.template, newTask: route.query.newTask }), async (input, key) => {
       const owner = identity(), service = await getService()
       if (!owner || owner !== identity()) throw new Error('登录身份已变化，请重新确认提交')
       return service.createTask(input, key)

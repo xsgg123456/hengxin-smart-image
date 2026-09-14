@@ -10,12 +10,12 @@ function createSession() {
 // 仅内存保存。可信身份由 /auth/me 的登录状态提供，失去身份时不能读回或重放。
 const sessions = new Map<string, ReturnType<typeof createSession>>()
 export function useTaskCreationSession(identity: () => string | undefined, mode: () => Mode,
-  templateQuery: () => unknown, send: HengxinService['createTask']) {
+  sessionQuery: () => unknown, send: HengxinService['createTask']) {
   const empty = createSession()
   const session = computed(() => {
     const userId = identity()
     if (!userId) return empty
-    const key = JSON.stringify([userId, mode(), typeof templateQuery() === 'string' ? templateQuery() : null])
+    const key = JSON.stringify([userId, mode(), sessionQuery()])
     if (!sessions.has(key)) sessions.set(key, createSession())
     return sessions.get(key)!
   })

@@ -75,7 +75,9 @@ watch([mode, search, sort], () => { page.value = 1 }, { flush: 'sync' })
 watch([mode, search, sort, page], load, { immediate: true })
 onBeforeUnmount(() => { request++ })
 function edit(template?: Template) { editing.value = template?.id; dialog.value = true }
-function use(template: Template) { void router.push({ path: `/image-processing/${template.mode}`, query: { template: template.id } }) }
+function use(template: Template) {
+  void router.push({ path: `/image-processing/${template.mode}`, query: { template: template.id, newTask: crypto.randomUUID() } })
+}
 function saved() { dialog.value = false; void load() }
 function formatTime(value: string) {
   const date = new Date(value)

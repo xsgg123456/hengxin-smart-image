@@ -1,6 +1,6 @@
 <template>
   <div class="hx-page">
-    <div class="hx-heading"><div><span class="hx-eyebrow">YOUR CREATIVE PIPELINE</span><h1>任务中心</h1><p>查看全员任务，从提交到成品，每一套图片的进度都在这里。</p></div><ElButton type="primary" @click="router.push('/image-processing/wallpaper')"><ArtSvgIcon icon="ri:add-line" /> 新建套图任务</ElButton></div>
+    <div class="hx-heading"><div><span class="hx-eyebrow">YOUR CREATIVE PIPELINE</span><h1>任务中心</h1><p>查看全员任务，从提交到成品，每一套图片的进度都在这里。</p></div><ElDropdown trigger="click" @command="create"><ElButton type="primary"><ArtSvgIcon icon="ri:add-line" /> 新建任务 <ArtSvgIcon icon="ri:arrow-down-s-line" /></ElButton><template #dropdown><ElDropdownMenu><ElDropdownItem v-for="(label, key) in labels" :key="key" :command="key">{{ label }}</ElDropdownItem></ElDropdownMenu></template></ElDropdown></div>
     <div class="hx-stats"><ElCard v-for="s in statCards" :key="s.label" class="art-card" shadow="never"><span>{{ s.label }}</span><strong>{{ s.count ?? '—' }}<small> {{ s.unit }}</small></strong></ElCard></div>
     <ElCard class="art-card hx-section" shadow="never">
       <div class="hx-filter">
@@ -24,8 +24,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteTask } from '@/api/tasks'
 import type { Task, Mode } from '@/types/hengxin'
@@ -33,13 +33,16 @@ import { labels } from '../model'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import TaskDetail from './TaskDetail.vue'
 import { useTaskList } from './use-task-list'
-const router = useRouter(), route = useRoute()
-const { mode, search, state, tasks, stats, page, total, pageSize, loading, error, active, load } = useTaskList()
-const detailOpen = ref(false), currentId = ref(''), deleting = ref(''), deleteError = ref('')
+const router = useRouter()
+const { mode, search, state, tasks, stats, page, total, pageSize, loading, error, active, load,
+  detailOpen, detailId: currentId, openDetail, closeDetail } = useTaskList()
+const deleting = ref(''), deleteError = ref('')
 const statCards = computed(() => [{ label: '全部任务', count: stats.value?.total, unit: '个任务' }, { label: '处理中', count: stats.value?.processing, unit: '个任务' }, { label: '等待查看', count: stats.value?.ready, unit: '个任务' }, { label: '已归档成品', count: stats.value?.archived, unit: '套成品' }])
 const columns = [{ prop: 'name', label: '任务名称', minWidth: 260, useSlot: true }, { prop: 'mode', label: '处理类型', width: 110, useSlot: true }, { prop: 'state', label: '状态', width: 110, useSlot: true }, { prop: 'progress', label: '生成进度', width: 160, useSlot: true }, { prop: 'time', label: '提交时间', minWidth: 160, useSlot: true }, { prop: 'action', label: '操作', width: 160, useSlot: true }]
-function show(task: Task) { currentId.value = task.id; detailOpen.value = true }
-watch(() => route.query.taskId ?? route.query.task, id => { if (typeof id === 'string') { currentId.value = id; detailOpen.value = true } }, { immediate: true })
+function show(task: Task) { void openDetail(task.id) }
+function create(mode: Mode) {
+  void router.push({ path: `/image-processing/${mode}`, query: { newTask: crypto.randomUUID() } })
+}
 function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
 async function remove(task: Task) {
   if (deleting.value) return
@@ -48,7 +51,7 @@ async function remove(task: Task) {
     try { await ElMessageBox.confirm(`确认删除“${task.name}”？运行中的任务将停止，已归档的图片保留。`, '删除任务', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }) } catch { return }
     await deleteTask(task.id)
     deleteError.value = ''; ElMessage.success('任务已删除')
-    if (currentId.value === task.id) detailOpen.value = false
+    if (currentId.value === task.id) await closeDetail()
     await load()
   } catch (reason) { deleteError.value = reason instanceof Error ? reason.message : '删除失败，请点击删除重试' }
   finally { deleting.value = '' }

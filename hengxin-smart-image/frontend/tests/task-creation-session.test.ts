@@ -64,6 +64,17 @@ test('已受理详情读取失败后重建保留回执；显式另建才发新PO
   } finally { next.unmount() }
 })
 
+test('显式新建会话不复用同类型旧任务回执', async () => {
+  const query = ref<unknown>({ newTask: 'first' })
+  const first = mount(() => 'new-session', async () => receipt, () => 'wallpaper', () => query.value)
+  await first.form.submission.submit({ ...input, mode: 'wallpaper', templateId: 'template-a' })
+  first.unmount()
+
+  query.value = { newTask: 'second' }
+  const next = mount(() => 'new-session', async () => receipt, () => 'wallpaper', () => query.value)
+  try { assert.equal(next.form.submission.accepted.value, undefined) } finally { next.unmount() }
+})
+
 test('换用户和入口隔离草稿与请求，旧组件不能重放别人尝试', async () => {
   const user = ref<string | undefined>('owner-a'), mode = ref<Mode>('wallpaper'), query = ref('template-a')
   let posts = 0
