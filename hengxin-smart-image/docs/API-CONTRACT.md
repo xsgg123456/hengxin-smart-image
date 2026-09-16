@@ -1,6 +1,6 @@
 # 前后端接口契约
 
-更新：2026-09-10。当前需求依据 Product-Spec v0.17；前端类型源为 `frontend/src/types/hengxin.ts`，管理类型另见 `frontend/src/types/management.ts`。本文汇总前端契约、目标 OpenAPI 及 Phase 6–11 真实接入。整体进度以 [DEV-PLAN.md](../../DEV-PLAN.md) 为准；Phase 11 技术验证与独立两阶段审查通过、待用户验收，不因本文同步而视为用户已验收。
+更新：2026-09-16。当前需求为 Product-Spec v0.22；本文保留契约演进，当前进度以 DEV-PLAN.md 为准。Phase 1–11A 已按历史范围验收；钉钉授权、用户管理及调用统计真实接口已实现并部署，监控/系统配置仍为 501。真实双端验收未完成，见 [HANDOVER.md](HANDOVER.md)。
 
 ## Phase 5 后端基础补充
 
@@ -8,7 +8,7 @@ FastAPI 在 `/openapi.json` 发布业务的目标结构（28 个方法、20 条�
 
 已实现 `/api/v1/health/live` 与 `/api/v1/health/ready`（后者依赖 PG 迁移、Redis、MinIO 授权探针；失败 503）。测试模式显式开启 `ENABLE_TEST_JOBS` 后，`POST /api/v1/internal/test-jobs` 接受 `{value,delaySeconds?}` 与必填 `Idempotency-Key`，同事务持久写入测试作业/outbox 后返回 202 `{jobId,status,result,executionCount}`；同键同内容返回同一作业，同键不同内容返回 409。`GET /api/v1/internal/test-jobs/{id}` 查询 PG 状态。该入口默认关闭且生产禁止开启，不是图片生成 API。独立 outbox 派发进程持续重派未完成作业；纯计算 Worker 通过 PG 行锁与原子提交防止重复完成，不能据此宣称外部 AI 调用恰好一次。
 
-Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续补充共同组成当前前端契约。产品权限与会话并发规则以 Product-Spec v0.17 为准；各阶段真实实现的边界见文末 Phase 6–11 补充。
+Phase 4 管理、身份及配置补充见 [PHASE4-CONTRACT.md](PHASE4-CONTRACT.md)，与本文后续补充共同组成当前前端契约。产品权限与会话并发规则以当前 Product-Spec 为准；各阶段真实实现的边界见文末 Phase 6–11 补充。
 
 本文最初由 Phase 1 建立，保留各阶段的契约演进。阶段章节中的“未接入”描述该阶段结束时的边界，后续接入以最新补充及“当前业务接口契约”为准；历史验证记录不因后续实现而改写。
 
@@ -29,11 +29,11 @@ JSON 字段 camelCase；ID 为不可解释的字符串；时间为带时区 ISO 
 
 ## 当前业务接口契约
 
-下表路径均以 `/api/v1` 为前缀；管理部分见 PHASE4-CONTRACT 及本文 Phase 7 补充。开发身份、文件、模板、Skill、任务、返工和成品归档已接真实服务。`GET /workspace`、`GET /management/usage`、`GET /management/monitor`、`GET /management/users`、`PUT /management/users/:id`、`GET/PUT /management/settings` 仍返回 501；下表中的目标响应不能作为这些接口已实现的依据。真实钉钉会话属于 Phase 12，真实执行还需配置专用 Linux Worker。
+下表路径均以 `/api/v1` 为前缀；管理部分见 PHASE4-CONTRACT 及本文 Phase 7 补充。开发身份、文件、模板、Skill、任务、返工和成品归档已接真实服务。`GET /workspace`、`GET /management/monitor`、`GET/PUT /management/settings` 仍返回 501；用户管理和调用统计已接真实服务；下表中的目标响应不能作为这些接口已实现的依据。真实钉钉会话代码已在 Phase 12 接入，双端实测尚待验收；真实执行还需专用 Linux Worker。
 
 | 方法与路径 | 请求 | 目标成功响应 |
 |---|---|---|
-| GET /auth/me | 当前为服务端显式开发身份；Cookie 会话待 Phase 12 | 200 User |
+| GET /auth/me | 服务端 Cookie 会话；显式开发身份仅限本机隔离联调 | 200 User |
 | GET /workspace | 无 | 200 Workspace，启动兼容快照 |
 | GET /templates | TemplateQuery | 200 PageResult&lt;Template&gt; |
 | GET /templates/:id | 无 | 200 Template |
@@ -157,4 +157,14 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 - 归档接口兼容可选请求体和请求键；正式前端传递 `ArchiveInput` 的版本快照及 `Idempotency-Key`。同一操作响应未知时保留原身份、任务、版本及请求键，重放持久回执；不能换键或换版本当作原请求重试。
 - `POST /files/download-zip` 接收 1–20 个 fileIds 与 name；按当前身份和文件状态鉴权，服务端依次读取 MinIO 并校验字节数及 SHA-256，输出 ZIP。真实前端通过该接口下载，模拟模式仍独立；浏览器保存仍使用 Blob。
 - 四角色可查看/删除他人成品，删除记录实际操作者；成品删除不删除任务图片，任务删除不破坏旧归档。自动清理默认禁用且无调度，手工清理仅按 [CLEANUP-POLICY.md](CLEANUP-POLICY.md) 的引用保护规则执行。
-- 技术验证与独立审查证据见 [PHASE11-VALIDATION.md](PHASE11-VALIDATION.md)，仍待用户验收；fixture 字节验证不代表真实业务 Skill 效果验收。
+- 技术验证与独立审查证据见 [PHASE11-VALIDATION.md](PHASE11-VALIDATION.md)，后续已按历史阶段范围验收；fixture 字节验证不代表真实业务 Skill 效果验收。
+
+## Phase 12/13 接入状态 · 2026-09-16
+
+- `/auth/dingtalk/config`、`/auth/dingtalk/authorize`、`/auth/dingtalk/callback`、`/auth/dingtalk/container`：真实配置与授权；网页 state 绑定浏览器并一次消费，认证失败也不能重放。
+- `/auth/me`、`/auth/logout`：服务端会话身份和注销；公网未登录返回 401。
+- `/management/users` GET、`/management/users/{user_id}` PUT：真实成员/角色管理，超管鉴权。
+- `/management/usage` GET：真实统计，按角色限制本人/全员范围。
+- `/management/monitor` GET、`/management/settings` GET/PUT、`/workspace`：仍为契约占位 501，不能记为已实现。
+
+当前真实路由在 app/main.py 中先于契约注册。上方历史章节中的实现边界不覆盖本节；详细请求/响应类型以源码及实际 OpenAPI 为准。真实双端联调和真实角色统计验收另行记录。

@@ -4,7 +4,7 @@
 
 当前文件描述 Phase 14.1 的 VPS 开发测试环境。目标主机为 Ubuntu 24.04 x86_64，主机名 `racknerd-058889d`。环境使用独立 Compose 项目 `hengxin-vps-staging`、独立数据库/Redis/MinIO 数据卷和独立运行目录，复用 VPS 上的 1Panel 但不接管 80/443。
 
-该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已开始接入 `zhitu.qhhengxin.top` 域名和 HTTPS，钉钉真实登录仍需开放平台配置后联调。
+该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，最新业务部署 d2e5076；钉钉真实双端登录待验收。
 
 ## 目录与服务
 
@@ -56,6 +56,7 @@ GENERATION_CONCURRENCY=1
 cd /opt/hengxin-smart-image/infra
 mkdir -p runtime/skills runtime/execution
 docker compose -f compose.yaml -f compose.vps.yaml build api
+docker compose -f compose.yaml -f compose.vps.yaml up -d --wait postgres redis minio
 docker compose -f compose.yaml -f compose.vps.yaml run --rm --no-deps migrate
 docker compose -f compose.yaml -f compose.vps.yaml up -d postgres redis minio api outbox web
 ```
@@ -99,14 +100,39 @@ docker compose -f compose.yaml -f compose.vps.yaml down
 ## 当前限制
 
 - 18080 仍是内部开发测试入口；公网访问统一使用 `https://zhitu.qhhengxin.top/`。
-- 开发身份用于继续联调，Phase 12.2 的钉钉真实登录仍未完成。
-- VPS 初始没有 Codex CLI、认证和业务 Skill，需要安装并验证后才能执行真实生图。
+- VPS 开发身份已关闭；张帅通讯录范围返回 50002，双端实测未完成。
+- VPS 已安装 Codex CLI、专用认证和壁纸 Skill，真实执行已触发；该次 Skill 尺寸失败不能记为业务成功。
 - 本任务只建立可回滚的开发测试环境；备份恢复、日志轮转、失败告警、三个真实 Skill 全量验收和 20/100 用户容量测试仍需后续 Phase 14 任务完成。
 
-## 2026-09-15 部署记录
+## 2026-09-15 部署记录（历史，以后续更新为准）
 
 - VPS 基础部署成功；API readiness 返回 200，公网前端入口返回 200。当前前端通过 `0.0.0.0:18080` 暴露，便于跨设备开发测试；开发测试超管身份只适用于内测。
 - 迁移已到 `0009`；原生 Worker `hx-vps-codex` 的 Celery ping 为 OK，心跳依赖 `cli/isolation/authenticationConfigured` 均为 true。
 - 壁纸 Skill `jd-main-image-wallpaper-camera-swap` 1.0.1 已通过系统上传、安装并设为默认。
 - 真实冒烟任务已完成排队、执行和结果校验链路，检测到 1 张新图后由 Skill 以 `SKILL_DIMENSION_MISMATCH` 失败；该结果与此前本地已知尺寸限制一致，不能将该 Skill 冒烟记为业务成功。
 - `zhitu.qhhengxin.top` DNS 已解析到 `107.172.161.139`；1Panel OpenResty 已配置反向代理和 Let’s Encrypt 证书，HTTP 自动跳转 HTTPS，公网首页和 API readiness 均返回 200。
+
+## 2026-09-16 更新与可回滚操作
+
+业务源码基线 `d2e5076`；API 和 Outbox 镜像 `hengxin-smart-image-backend:d2e5076`，原生 Worker 同步源码并重启，前端正式构建已覆盖部署，迁移为 `0010`。APP_IMAGE 已写入 infra/.env。服务健康、匿名 auth/me 401、配置接口 200；浏览器 state 绑定和失败防重放在线验证通过。真实双端授权和本次更新后生图未验收。
+
+此次源码归档上传部署，不假定服务器目录是 Git checkout。下次更新应先构建明确提交的产物，检查无凭据/数据文件，确认没有非终态任务，备份旧源码、前端和配置，再暂停本项目 outbox/Worker，替换源码并构建新标签镜像；依赖锁变化时还要同步原生 Worker 的 venv。不要覆盖线上 .env 或认证。
+
+在 infra/.env 中设置已构建的新 APP_IMAGE 后，执行：
+
+```bash
+cd /opt/hengxin-smart-image/infra
+docker compose -f compose.yaml -f compose.vps.yaml run --rm --no-deps migrate
+docker compose -f compose.yaml -f compose.vps.yaml up -d --no-deps api outbox
+systemctl restart hengxin-vps-codex-worker.service
+# 等待 API healthy，再重载 Nginx，避免继续连接重建前的 API 容器地址：
+docker inspect --format '{{.State.Health.Status}}' hengxin-vps-staging-api-1
+docker exec hengxin-vps-staging-web-1 nginx -s reload
+curl -fsS https://zhitu.qhhengxin.top/api/v1/health/ready
+```
+
+本次备份在 `/opt/hengxin-backups/d2e5076/`：before.tar.gz 是切换前后端源码/前端/Dockerfile，infra.env 是切换前受限配置；build.log 是构建记录。备份不包含数据库、MinIO 和 CLI 会话材料，不能据此宣称灾难恢复验证完成。
+
+本次没有新增数据库迁移，回滚时先确认无未结束任务，再停止本项目 outbox、API 和原生 Worker；恢复该备份中的源码和前端及 infra.env（权限 600），保留数据卷，重新启动 api/outbox 和 Worker，API healthy 后重载 web Nginx。旧 API 标签为 callback-fix-20260916。未来有新迁移时必须先评估数据兼容性，不能机械照搬此次回滚。
+
+执行 `down` 只是停止服务，不是版本回滚；禁止用 `down -v` 清空数据。运维权限由管理员给接手同事单独授权，不共享原开发者私钥。

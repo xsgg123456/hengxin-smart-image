@@ -1,8 +1,16 @@
 # Development Plan — 恒鑫智图
 
+## 当前交接状态 · 2026-09-16
+
+Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及退出登录已部署，真实双端业务验收未完成；13.1 调用统计已实现、测试及集成审查通过并部署，真实角色联调待验收；13.2 执行监控、13.3 系统配置审计尚未实现；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。
+
+GitHub main 与 VPS 业务代码基线为 `d2e5076`；API/Outbox 镜像 `hengxin-smart-image-backend:d2e5076`，迁移 `0010`，Worker 已重启 ready。浏览器 state 绑定与失败防重放通过线上检查。吴永杰企业成员映射通过；张帅已配置初始管理员，但实时成员读取返回 50002。
+
+接手操作与证据见 [HANDOVER.md](hengxin-smart-image/docs/HANDOVER.md)。以下带日期段落保留历史，当前状态以本节为准。
+
 ## 钉钉回调修复 · 2026-09-16
 
-真实登录日志确认用户资料接口认证失败；修正专用令牌请求头，新增 unionId 到企业 userId 的应用凭据核验，管理员匹配只使用企业成员 ID；登录页展示回调错误类别。认证/会话测试 12 项通过，前端类型检查及构建通过；吴永杰的真实企业成员映射核验通过。已发布 VPS 修复镜像 callback-fix-20260916，线上前端产物匹配、配置接口正常、匿名请求仍为 401。独立审查尚未返回最终结论，实际用户重新授权仍待验证，不标记阶段验收完成。
+真实登录日志确认用户资料接口认证失败；修正专用令牌请求头，新增 unionId 到企业 userId 的应用凭据核验，管理员匹配只使用企业成员 ID；登录页展示回调错误类别。认证/会话测试 12 项通过，前端类型检查及构建通过；吴永杰的真实企业成员映射核验通过。已发布 VPS 修复镜像 callback-fix-20260916，线上前端产物匹配、配置接口正常、匿名请求仍为 401。后续独立集成审查两阶段已通过，最新部署 d2e5076；认证相关回归 16 项通过。真实双端完整授权仍待验证，不标记阶段验收完成。
 
 ## 退出登录修复 · 2026-09-16
 
@@ -10,9 +18,9 @@
 
 ## Phase 13 管理中心开发开始 · 2026-09-15
 
-用户明确将钉钉通讯录用户搜索权限 `qyapi_addresslist_search` 后置配置。Phase 12.2 的真实双端登录仍等待该权限和两位初始管理员 userId 的解析，但不阻塞管理中心继续开发。
+用户明确将钉钉通讯录用户搜索权限 `qyapi_addresslist_search` 后置配置。此为当时前置条件；截至 2026-09-16 两位管理员 userId 已解析并配置，当前等待张帅通讯录范围和双端实测。
 
-当前先交付 **13.1 调用统计真实接口**：把 Phase 9 已采集的执行轮次、实际操作者、结果版本和 CLI usage 接入 `/management/usage`，按上海时间自然日、个人/全员权限、日期/人员/处理类型筛选返回统计与明细；用数据库测试覆盖成功、部分失败、失败、进行中、缺失 usage、重复 usage 和越权查询。接口实现及相关测试已完成，当前保留独立代码审查门禁；通过后再进入 13.2 执行监控和 13.3 系统配置审计。
+当前先交付 **13.1 调用统计真实接口**：把 Phase 9 已采集的执行轮次、实际操作者、结果版本和 CLI usage 接入 `/management/usage`，按上海时间自然日、个人/全员权限、日期/人员/处理类型筛选返回统计与明细；用数据库测试覆盖成功、部分失败、失败、进行中、缺失 usage、重复 usage 和越权查询。接口实现及相关测试已完成，已通过提交前集成审查并部署，真实角色联调待验收；后续进入 13.2 和 13.3。
 
 ## Phase 11A 用户验收完成 · 2026-09-14
 
@@ -40,14 +48,14 @@
 
 完成记录（2026-09-14）：三项已完成。资源包位于 `hengxin-smart-image/branding/恒鑫智图-品牌资源.zip`；前端类型检查通过、79/79 单测通过、最终构建通过，独立两阶段审查 PASS，日常 3008 开发服务已只读确认新品牌展示。证据见 [品牌验证](hengxin-smart-image/docs/BRAND-IDENTITY-VALIDATION.md) 与 [独立审查](hengxin-smart-image/docs/BRAND-IDENTITY-REVIEW.md)。本次未部署生产或改变既有 Phase 结论。
 
-> 版本 v1.18 · 2026-09-16。依据 Product-Spec.md v0.21、Design-Brief.md 和用户认可的现有原型。
-> 当前状态：Phase 1–11A 已验收；Phase 12.1 身份与会话地基、用户角色真实接口已实现并通过两阶段审查；Phase 12.2 钉钉双端授权开发已启动，真实联调等待 Q-008 配置，其中通讯录搜索权限由用户后置；Phase 13.1 调用统计真实接口开发中；Phase 14.1 VPS 开发测试环境已部署，真实壁纸 Skill 冒烟触发成功但因 Skill 尺寸报告失败，待后续治理。Phase11证据见 hengxin-smart-image/docs/PHASE11-VALIDATION.md；Phase11A见 hengxin-smart-image/docs/PHASE11A-CLOSEOUT-RESULTS.md。
+> 版本 v1.19 · 2026-09-16。依据 Product-Spec.md v0.22、Design-Brief.md 和用户认可的现有原型。
+> 当前状态：Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及退出登录已部署，真实双端业务验收未完成；13.1 调用统计已实现、测试及集成审查通过并部署，真实角色联调待验收；13.2 执行监控、13.3 系统配置审计尚未实现；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。
 
 ## 1. 开发方向与已有成果
 
 前端直接继承 `prototype/source/`，保留图片处理一级菜单及替换壁纸、替换商品、替换文字三个二级菜单，以及任务中心、模板库、成品库。当前页面是正式开发的视觉和交互基准。后端确定为 Python FastAPI + PostgreSQL，图片与 Skill 包存入 MinIO。四角色及钉钉双端接入详见 Product-Spec.md 第 13 节；钉钉电脑端和浏览器共用同一前端。设计与运营同权限已确认；主管查看全员任务及统计、模板免审批直接使用、全员查看/删除模板任务成品、编辑全员模板及返工/归档全员任务均已确认。
 
-下表列出正式前端的当前状态及后端待接内容；前端源码路径相对于 `hengxin-smart-image/frontend/src/`，原型路径相对于仓库根目录。各阶段的“关键文件”是交付规划，未来文件尚未创建不算缺失。
+下表保留前端承接时的状态及当时后端待接内容（历史，不作为当前待办；最新状态见顶部交接节）；前端源码路径相对于 `hengxin-smart-image/frontend/src/`，原型路径相对于仓库根目录。各阶段的“关键文件”是交付规划，未来文件尚未创建不算缺失。
 
 | 已有内容 | 当前状态 | 后端阶段需要完成 |
 |---|---|---|
@@ -163,10 +171,10 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 | Phase 8 任务与队列 | 真实异步提交、任务状态 | 7 | 已验收（用户授权继续） |
 | Phase 9 Codex 执行 | 独立会话、结果回传及调用记录 | 8 + CLI 环境 | 已验收（用户授权继续） |
 | Phase 10 返工 | 同会话整套/单张修改、版本持久化 | 8；真实执行依赖 9 | 已验收（用户授权继续 Phase 11） |
-| Phase 11 归档 | 真实下载、快照与生命周期 | 10 | 技术验证与独立两阶段审查通过，待用户验收 |
-| Phase 11A 开发机 CLI 真实联调 | 开发机真实生成、会话返工、归档及双任务并行验证 | 9–11 + 本机 CLI 认证/隔离环境 + 实际业务 Skill | 真实验收、656项后端回归与独立两阶段审查通过，待用户验收 |
-| Phase 12 钉钉与权限 | 12.1 身份会话与用户角色接口；12.2 双端认证、真实授权及业务回归 | 6–11、11A + 钉钉应用 | 12.1 审查通过，12.2 待 Q-008 |
-| Phase 13 管理接口 | 真实统计、监控、配置及页面联调 | 9、12 | 未开始 |
+| Phase 11 归档 | 真实下载、快照与生命周期 | 10 | 已按历史范围验收 |
+| Phase 11A 开发机 CLI 真实联调 | 开发机真实生成、会话返工、归档及双任务并行验证 | 9–11 + 本机 CLI 认证/隔离环境 + 实际业务 Skill | 2026-09-14 用户确认并发 2 验收通过，保留尺寸例外 |
+| Phase 12 钉钉与权限 | 12.1 身份会话与用户角色接口；12.2 双端认证、真实授权及业务回归 | 6–11、11A + 钉钉应用 | 12.1 已完成；12.2 已部署，待通讯录范围及双端验收 |
+| Phase 13 管理接口 | 真实统计、监控、配置及页面联调 | 9、12 | 13.1 已部署待真实联调；13.2/13.3 未实现 |
 | Phase 14 联调部署 | 三种真实 Skill 闭环及 Ubuntu 上线验收 | 11–13 + 真实 Skill | 14.1 VPS 已部署；真实 Skill 冒烟待治理后复验 |
 
 主线 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 11A → 12 → 13 → 14。前端完成以页面、交互和状态验收为准；真实生成、存储、服务端权限和监控仍须后端阶段逐项验收。CLI 环境未就绪时，10/11 可使用测试执行器推进，但不能标为真实业务完成。
@@ -212,7 +220,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 **关键文件**：
 - `hengxin-smart-image/frontend/src/views/hengxin/components/CreateTask.vue`、`hengxin-smart-image/frontend/src/views/hengxin/components/Templates.vue`。
-- `hengxin-smart-image/frontend/src/api/templates.ts`、`hengxin-smart-image/frontend/src/api/skills.ts`、`hengxin-smart-image/frontend/src/api/files.ts`：对接统一模拟服务与契约。
+- `hengxin-smart-image/frontend/src/api/templates.ts`、`hengxin-smart-image/frontend/src/api/skills.ts`、`hengxin-smart-image/frontend/src/api/hengxin/http.ts`：对接统一模拟服务与契约。
 
 **验收标准**：三个入口和模板操作可完整演示；文字不强制模板，类型绑定正确，重复提交有保护；素材可本地预览，模拟上传不声称已存入 MinIO。类型检查、构建及浏览器交互通过，交付可浏览页面。
 
@@ -246,7 +254,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 **关键文件**：
 - `hengxin-smart-image/frontend/src/views/hengxin/admin/usage.vue`、`hengxin-smart-image/frontend/src/views/hengxin/admin/monitor.vue`、`hengxin-smart-image/frontend/src/views/hengxin/admin/users.vue`。
 - `hengxin-smart-image/frontend/src/views/hengxin/admin/skills.vue`、`hengxin-smart-image/frontend/src/views/hengxin/admin/settings.vue`。
-- `hengxin-smart-image/frontend/src/views/auth/dingtalk-login.vue`、`hengxin-smart-image/frontend/src/api/auth.ts`、`hengxin-smart-image/frontend/src/api/management.ts`。
+- `hengxin-smart-image/frontend/src/views/auth/dingtalk-login.vue`、`hengxin-smart-image/frontend/src/api/hengxin/logout.ts`、`hengxin-smart-image/frontend/src/api/management.ts`。
 
 **验收标准**：PRD 第 5 节全部页面及状态有前端演示；四角色视图符合已确认规则；统计/健康明确模拟，usage 缺失和空闲分别表达；无后台服务也能体验完整前端。类型检查、构建、浏览器流程和视觉对照通过，交付完整预览。钉钉双端实机认证与容器兼容性在 Phase 12/14 验收。
 
@@ -280,7 +288,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 - `hengxin-smart-image/backend/app/modules/auth/dev_identity.py`：受环境限制的固定测试身份。
 - `hengxin-smart-image/backend/app/modules/files/deletions.py`：共用逻辑删除记录及操作者留痕。
 - `hengxin-smart-image/backend/app/modules/files/router.py`、`hengxin-smart-image/backend/app/storage/minio_store.py`：文件入口、所有者记录和对象存储。
-- `hengxin-smart-image/frontend/src/api/auth.ts`、`hengxin-smart-image/frontend/src/api/files.ts`、`hengxin-smart-image/frontend/src/views/hengxin/components/CreateTask.vue`：开发身份接口及真实上传。
+- `hengxin-smart-image/frontend/src/api/hengxin/logout.ts`、`hengxin-smart-image/frontend/src/api/hengxin/http.ts`、`hengxin-smart-image/frontend/src/views/hengxin/components/CreateTask.vue`：开发身份接口及真实上传。
 
 **验收标准**：损坏/超限图片拒绝，刷新和重启后素材仍在；文件及操作留存测试用户归属；不接受客户端伪造身份；生产启用开发身份时拒绝启动。通过身份注入测试基础角色规则和跨用户共享资源访问（有效用户可访问，匿名/禁用账号拒绝），前后端编译、迁移及上传下载通过。本阶段不要求钉钉配置，不将测试身份算作真实登录验收。
 
@@ -394,7 +402,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 **用户确认的本阶段例外（2026-09-11）**：暂时跳过原生输出1254×1254与模板800×800不一致的问题。后续专用联调任务明确豁免像素尺寸一致性，使用真实原生输出继续验证其他链路；不修改既有失败任务、不将未验证项目标为通过、不改变上传Skill或生产规则。下列串行闭环及Skill执行验收按此尺寸例外执行，其余要求保持不变。
 
-2026-09-11 新增，依据 PRD 第 8.3 节。技术验收和独立两阶段审查已通过：Ubuntu 24.04 WSL、CLI 0.153.4、实际壁纸 Skill 1.0.1 完成双图生成、同会话单张/整套返工、重启续接、历史归档和浏览器 ZIP；两个真实任务并行、跨目录隔离、Worker 中断待核实/恢复、重投不重跑、早期取消和超时均有证据。后端最终656项通过、前端79项与构建通过；独立环境已清理，正常开发环境保持并发1。结果见 [PHASE11A-CLOSEOUT-RESULTS.md](hengxin-smart-image/docs/PHASE11A-CLOSEOUT-RESULTS.md)，审查见 [PHASE11A-CLOSEOUT-FINAL-REVIEW.md](hengxin-smart-image/docs/PHASE11A-CLOSEOUT-FINAL-REVIEW.md)。历史网络失败记录保留于 [PHASE11A-VALIDATION.md](hengxin-smart-image/docs/PHASE11A-VALIDATION.md)。待用户验收；商品/文字 Skill 未提供仍留 Phase14。本阶段先于 Phase12，不替代生产部署验收。
+2026-09-11 新增，依据 PRD 第 8.3 节。技术验收和独立两阶段审查已通过：Ubuntu 24.04 WSL、CLI 0.153.4、实际壁纸 Skill 1.0.1 完成双图生成、同会话单张/整套返工、重启续接、历史归档和浏览器 ZIP；两个真实任务并行、跨目录隔离、Worker 中断待核实/恢复、重投不重跑、早期取消和超时均有证据。后端最终656项通过、前端79项与构建通过；独立环境已清理；该次记录的日常并发 1 后来已单独改为 2，VPS 仍为 1。结果见 [PHASE11A-CLOSEOUT-RESULTS.md](hengxin-smart-image/docs/PHASE11A-CLOSEOUT-RESULTS.md)，审查见 [PHASE11A-CLOSEOUT-FINAL-REVIEW.md](hengxin-smart-image/docs/PHASE11A-CLOSEOUT-FINAL-REVIEW.md)。历史网络失败记录保留于 [PHASE11A-VALIDATION.md](hengxin-smart-image/docs/PHASE11A-VALIDATION.md)。2026-09-14 用户已确认本阶段通过；商品/文字 Skill 验收仍留 Phase14。本阶段先于 Phase12，不替代生产部署验收。
 
 **交付内容与执行顺序**：
 
@@ -438,10 +446,10 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 - 接替 Phase 6 的开发身份来源，保留统一用户标识及资源归属接口；生产禁用开发身份，测试数据不自动绑定真实成员。回归前三类业务入口、返工、下载及归档的完整权限。
 
 **关键文件**：
-- `hengxin-smart-image/backend/app/modules/auth/router.py`、`hengxin-smart-image/backend/app/modules/auth/service.py`：会话、账号与权限。
+- `hengxin-smart-image/backend/app/modules/auth/router.py`、`hengxin-smart-image/backend/app/modules/auth/sessions.py`：会话、账号与权限。
 - `hengxin-smart-image/backend/app/modules/auth/dingtalk.py`、`hengxin-smart-image/backend/app/modules/auth/permissions.py`：授权码交换、成员映射与数据范围。
-- `hengxin-smart-image/frontend/src/auth/dingtalk.ts`、`hengxin-smart-image/frontend/src/views/auth/dingtalk-login.vue`：容器/浏览器双入口适配。
-- `hengxin-smart-image/frontend/src/api/auth.ts`、`hengxin-smart-image/frontend/src/api/files.ts`：接入真实身份并回归文件授权。
+- `hengxin-smart-image/frontend/src/api/hengxin/dingtalk.ts`、`hengxin-smart-image/frontend/src/views/auth/dingtalk-login.vue`：容器/浏览器双入口适配。
+- `hengxin-smart-image/frontend/src/api/hengxin/logout.ts`、`hengxin-smart-image/frontend/src/api/hengxin/http.ts`：接入真实身份并回归文件授权。
 
 - `hengxin-smart-image/frontend/src/views/hengxin/admin/users.vue`：账号授权管理。
 
@@ -463,7 +471,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 ## Phase 13：管理中心
 
-### 13.1 调用统计真实接口 · 实现完成，待审查
+### 13.1 调用统计真实接口 · 已审查并部署，待真实角色联调
 
 - 后端新增 `backend/app/modules/management/usage.py` 和 `backend/app/modules/management/router.py`，真实读取 `execution_attempts`、`execution_usage`、`execution_rounds`、`image_versions`、`task_records`，不再返回 501。
 - `backend/tests/test_management_usage.py` 覆盖个人/全员权限、日期和人员筛选、上海时区、成功/部分失败/进行中/超时/待核实、图片计数和缺失 usage。
@@ -491,9 +499,9 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 
 ### 当前执行任务：14.1 VPS 开发测试部署
 
-用户已授权将系统部署到既有 VPS，用于后续开发和测试。本任务已交付可回滚的独立开发测试环境：复用 VPS 现有 1Panel，不接管其 80/443；应用使用独立 Compose 项目和数据卷，前端通过独立端口访问；关闭 fixture，使用 VPS 上专用 codex 用户和真实 CLI。钉钉双端、生产 HTTPS、三个真实 Skill 全量验收和正式容量承诺仍保留在 Phase 14 后续任务。
+用户已授权将系统部署到既有 VPS，用于后续开发和测试。本任务已交付可回滚的独立开发测试环境：复用 VPS 现有 1Panel，不接管其 80/443；应用使用独立 Compose 项目和数据卷，前端通过独立端口访问；关闭 fixture，使用 VPS 上专用 codex 用户和真实 CLI。HTTPS 已接入；钉钉双端、三个真实 Skill 全量验收和正式容量承诺仍待后续验收。
 
-完成标准：VPS 主机、应用、数据库、队列、对象存储、原生 Codex Worker 和前端健康检查均有证据；开发身份只用于测试环境并在页面/文档中标识；数据卷、CLI 认证、Skill 和会话目录不进入 Git；部署失败可以停止本项目并保留现有 1Panel 服务；前端能通过 VPS 地址打开并访问真实 API。2026-09-15 已满足部署与基础健康检查；真实壁纸 Skill 冒烟任务已进入模型处理并检测到输出，随后因 `SKILL_DIMENSION_MISMATCH` 失败，不能标记真实 Skill 业务验收通过。
+完成标准：VPS 主机、应用、数据库、队列、对象存储、原生 Codex Worker 和前端健康检查均有证据；公网 VPS 关闭开发身份，本机开发身份仅用于隔离联调；数据卷、CLI 认证、Skill 和会话目录不进入 Git；部署失败可以停止本项目并保留现有 1Panel 服务；前端能通过 VPS 地址打开并访问真实 API。2026-09-15 已满足部署与基础健康检查；真实壁纸 Skill 冒烟任务已进入模型处理并检测到输出，随后因 `SKILL_DIMENSION_MISMATCH` 失败，不能标记真实 Skill 业务验收通过。
 
 **交付内容**：
 - 安装外部提供的壁纸、商品、文字 Skill 及依赖，逐类验证指定规则、真实图片回传、返工和归档全过程。

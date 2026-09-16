@@ -43,7 +43,7 @@ Redis 仅发布在 Windows `127.0.0.1:16388`，供本机 WSL 使用。WSL 的 sy
 - Linux 服务：`hengxin-local-codex.service`；执行证据在 `/home/hengxin/execution/<task>/control/<round>/`。
 - 本次测试收据：忽略跟踪的 `output/playwright/local-codex/live.json`。日志可能含业务素材信息，不提交原始日志和认证文件。
 - 批量验收使用下述独立环境，验证双图生成、单图/整套返工、同 session resume、下载和归档。
-- 并发 2、Worker 中断、取消及超时均在独立环境执行，不修改日常开发配置；任务结束恢复 1 后清理本轮环境。
+- 独立验收环境的并发/故障配置只影响本轮资源；日常开发机已单独启用并发 2，不因测试结束恢复 1。VPS 当前仍为并发 1，开发机证据不能代替 VPS 容量验收。
 - 阶段结果见 [PHASE11A-VALIDATION.md](PHASE11A-VALIDATION.md)。
 
 ## 独立真实验收入口

@@ -1,6 +1,6 @@
 # 后端本地开发
 
-更新：2026-09-10。当前阶段进度以 [DEV-PLAN.md](../../DEV-PLAN.md) 为准：Phase 1–10 已验收，Phase 11 技术验证与独立两阶段审查通过、待用户验收，Phase 12–14 未开始。后端包含 FastAPI、PostgreSQL、Redis、MinIO、Celery Worker 和 outbox；已接入开发身份、文件、模板与 Skill、任务执行、返工及下载归档。真实钉钉认证和其余管理接口仍待后续阶段。
+更新：2026-09-16。Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及退出登录已部署，真实双端业务验收未完成；13.1 调用统计已实现、测试及集成审查通过并部署，真实角色联调待验收；13.2 执行监控、13.3 系统配置审计尚未实现；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。 见 [HANDOVER.md](HANDOVER.md) 和 [DEV-PLAN.md](../../DEV-PLAN.md)。
 
 ## 启动
 
@@ -45,6 +45,6 @@ python hengxin-smart-image/infra/verify_phase8.py --build
 
 内部良性作业仅计算文本 SHA-256。测试入口默认关闭，仅在 development/test 且显式 `ENABLE_TEST_JOBS=true` 时可用；production 启用则启动失败。开发正常环境保持关闭。请求携带 `Idempotency-Key`；数据库保存 job 与 outbox 后即可返回 202，Worker 由独立进程执行。PG 结果是事实来源，Redis 不是持久任务账本；outbox 在 Worker 提交完成前持续允许重派。
 
-纯计算作业在 PG 行锁事务内执行（最长 30 秒），进程死亡回滚，重复消息最终只提交一次结果。此策略仅验证通用基础，不能套用于有外部收费副作用的 AI 作业；Phase 7 已扩展 Skill 安装处理器，Phase 9 已实现 CLI attempt、租约与不确定状态对账。当前仍返回 501 的是 `/workspace` 及尚未实施的用户管理、统计、监控、系统配置接口；具体方法见 [接口契约](API-CONTRACT.md)。
+纯计算作业在 PG 行锁事务内执行（最长 30 秒），进程死亡回滚，重复消息最终只提交一次结果。此策略仅验证通用基础，不能套用于有外部收费副作用的 AI 作业；Phase 7 已扩展 Skill 安装处理器，Phase 9 已实现 CLI attempt、租约与不确定状态对账。当前仍返回 501 的是 `/workspace`、监控和系统配置接口；用户管理和统计已接真实服务；具体方法见 [接口契约](API-CONTRACT.md)。
 
 实现参考：[Celery 幂等任务与确认](https://docs.celeryq.dev/en/main/userguide/tasks.html)、[Docker 启动依赖](https://docs.docker.com/compose/how-tos/startup-order/)、[Pydantic 字段序列化](https://docs.pydantic.dev/latest/concepts/serialization/)。测试结果、跳过和依赖警告按实际运行及对应阶段记录解释，不沿用旧阶段的固定数量作为当前结果。

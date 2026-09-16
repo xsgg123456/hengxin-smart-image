@@ -1,14 +1,15 @@
 # hengxin-smart-image
 
-本仓库用于开发前海恒鑫「恒鑫智图」京东业务生图系统，已安装 Agent Harness（Codex 版）。截至 2026-09-14，Phase 1–11A 已验收，开发机真实 Codex CLI 双任务并发 2 已通过；Phase 12.1 身份与会话地基、用户角色真实接口已实现并通过两阶段审查，Phase 12.2 等待 Q-008 钉钉配置。阶段进度及后续开发顺序以 [DEV-PLAN.md](DEV-PLAN.md) 为准。品牌素材见 [品牌资源包](hengxin-smart-image/branding/README.md)。
+本仓库用于开发前海恒鑫「恒鑫智图」。截至 2026-09-16，代码及 VPS 业务部署基线为 `d2e5076`。Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及退出登录已部署，真实双端业务验收未完成；13.1 调用统计已实现、测试及集成审查通过并部署，真实角色联调待验收；13.2 执行监控、13.3 系统配置审计尚未实现；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。 接手先读 [开发交接](hengxin-smart-image/docs/HANDOVER.md)，进度以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
 
-正式前端位于 `hengxin-smart-image/frontend/`，使用 Node.js 24.18.1、pnpm 10.33.4。进入该目录执行 `pnpm install --frozen-lockfile` 后，`pnpm dev` 启动独立内存 mock，刷新重置；`pnpm dev:api` 连接真实后端。预览地址为 [http://127.0.0.1:3008](http://127.0.0.1:3008)。后端已接入开发身份、文件存储、模板与 Skill、任务执行、返工及下载归档；真实 AI 需要专用 Linux Worker。钉钉认证、其余管理接口和生产部署仍属 Phase 12–14，前端预览不代表这些能力或并发容量已通过。
+正式前端位于 `hengxin-smart-image/frontend/`，使用 Node.js 24.18.1、pnpm 10.33.4。进入该目录执行 `pnpm install --frozen-lockfile` 后，`pnpm dev` 启动独立内存 mock，刷新重置；`pnpm dev:api` 连接真实后端。预览地址为 [http://127.0.0.1:3008](http://127.0.0.1:3008)。后端已接入开发身份、文件存储、模板与 Skill、任务执行、返工及下载归档；真实 AI 需要专用 Linux Worker。钉钉授权、用户管理和调用统计已接入；监控、系统配置及生产验收未完成，前端预览不代表真实验收。
 
 ## 文档入口
 
 | 要了解的内容 | 文档 |
 |---|---|
 | 当前需求和确认边界 | [Product-Spec.md](Product-Spec.md)；历史变更见 [CHANGELOG](Product-Spec-CHANGELOG.md) |
+| 同事接手、环境与阻塞 | [HANDOVER.md](hengxin-smart-image/docs/HANDOVER.md)、[VPS 部署](hengxin-smart-image/docs/DEPLOYMENT.md)、[钉钉配置](hengxin-smart-image/docs/DINGTALK-SETUP.md) |
 | 当前进度和后续开发顺序 | [DEV-PLAN.md](DEV-PLAN.md) |
 | 页面规范与原型用途 | [Design-Brief.md](Design-Brief.md)、[原型说明](prototype/README.md) |
 | 前后端接口 | [API-CONTRACT.md](hengxin-smart-image/docs/API-CONTRACT.md)、[管理接口补充](hengxin-smart-image/docs/PHASE4-CONTRACT.md) |
@@ -22,7 +23,7 @@
 
 在 Codex 中打开本仓库，先读取需求、计划和最近阶段的验证记录。例如：
 
-> 查看 Phase 11 的验收证据，整理待验收内容和 Phase 12 钉钉双端认证的开发前置条件。
+> 阅读 HANDOVER.md，复查张帅通讯录范围并完成 Phase 12.2 双端验收，再推进 13.2/13.3。
 
 也可在终端从仓库根目录运行 `codex`，通过 `/skills` 查看技能、`/hooks` 查看门禁。旧会话未必重新加载新配置，安装后应开启新会话。
 

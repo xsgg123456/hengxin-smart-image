@@ -1,4 +1,4 @@
-# 恒信 AI 换套图前端
+# 恒鑫智图前端
 
 正式源码继承已认可原型；原型保留在根目录 `prototype/source` 供对照。
 
@@ -21,7 +21,7 @@ pnpm build
 无需复制 `.env` 即可运行；可参考 `.env.example` 配置接口地址，不放密钥。
 模拟数据仅在内存中使用，刷新恢复初始状态，不提供持久化、真实生成或真实鉴权。
 只有显式 `--mode mock` 启用模拟，真实模式失败不回退模拟数据。
-当前阶段进度以根目录 [DEV-PLAN.md](../../DEV-PLAN.md) 为准；最新阶段证据见 [Phase 11 验证记录](../docs/PHASE11-VALIDATION.md)。真实模式已接文件、模板、任务、返工和成品接口；钉钉认证、其余管理接口和生产联调仍属 Phase 12–14。模拟预览不能作为真实 AI 生成或容量验证证据。
+当前阶段进度以根目录 [DEV-PLAN.md](../../DEV-PLAN.md) 为准；接手见 [HANDOVER.md](../docs/HANDOVER.md)，历史阶段证据见 docs 中对应报告。真实模式已接文件、模板、任务、返工和成品接口；钉钉授权、用户管理和调用统计已接入；监控/系统配置后端未实现，双端和生产验收未完成。模拟预览不能作为真实 AI 生成或容量验证证据。
 
 真实联调先按 [后端开发说明](../docs/BACKEND-DEVELOPMENT.md) 启动服务，在后端本机 `.env` 设置 `ENABLE_DEV_IDENTITY=true`，再执行 `pnpm dev:api`。默认关闭开发身份时业务请求返回 401。若更改后端 API_PORT，在前端 `.env.local` 设置对应的 `VITE_API_PROXY_URL` 并重启前端。真实 AI 还需 [专用 Linux Worker](../docs/CODEX-EXECUTION.md)。
 
