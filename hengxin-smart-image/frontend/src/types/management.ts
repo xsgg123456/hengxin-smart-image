@@ -19,7 +19,7 @@ export interface UsageReport { scope: 'personal' | 'all'; timezone: 'Asia/Shangh
 export interface MonitorTask { taskId: string; name: string; operatorName: string; state: string; sessionId: string | null; elapsedSeconds: number | null; error: string | null }
 export interface MonitorReport {
   issue?: { code: string; message: string }
-  checkedAt: string | null; state: WorkerStatus['state']; queueSize: number; runningCount: number; tasks: MonitorTask[]
+  checkedAt: string | null; state: WorkerStatus['state']; queueSize: number | null; runningCount: number | null; taskCount: number | null; tasks: MonitorTask[]
   detail: null | { workers: WorkerStatus[]; cliVersion: string | null; configured: boolean | null; lastResult: string | null; dependencies: { name: string; state: 'available' | 'unavailable' | 'unknown'; message: string }[]; freeDiskBytes: number | null }
 }
 export interface ManagedUser extends User { department: string; lastLoginAt: string | null }
@@ -28,7 +28,7 @@ export interface UserInput { id: string; role: Role | null; status: User['status
 export interface ManagedSkill extends SkillVersion { installedAt: string | null; node: string | null; updatedAt: string; error: string | null; referenced: boolean }
 export interface SettingsAudit { id: string; operatorId: string; operatorName: string; changedAt: string; version: number; fields: string[] }
 export interface DingTalkConfig { corpId: string; appId: string; callbackDomain: string; state: 'unconfigured' | 'ready' | 'error' }
-export interface ManagedSettings extends SystemConfig { dingtalk: DingTalkConfig; audit: SettingsAudit[] }
+export interface ManagedSettings extends SystemConfig { capacity: number; timeoutCapacity: number; dingtalk: DingTalkConfig; audit: SettingsAudit[] }
 export interface SettingsInput extends SystemConfig { dingtalk: Pick<DingTalkConfig, 'corpId' | 'appId' | 'callbackDomain'> }
 export interface ManagementService {
   getUsage(query: UsageQuery): Promise<UsageReport>

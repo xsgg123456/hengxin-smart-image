@@ -1,6 +1,6 @@
 from .fields import omitted
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from .business import Mode, PageQuery, Role, SkillVersion, User
 
 
@@ -117,8 +117,9 @@ class MonitorReport(BaseModel):
     issue: Issue = omitted()
     checkedAt: str | None
     state: Literal['idle', 'running', 'unavailable', 'unknown']
-    queueSize: int
-    runningCount: int
+    queueSize: int | None
+    runningCount: int | None
+    taskCount: int | None
     tasks: list[MonitorTask]
     detail: MonitorDetail | None
 
@@ -185,9 +186,15 @@ class DingTalkConfig(DingTalkInput):
 
 
 class ManagedSettings(SystemConfig):
+    capacity: int
+    timeoutCapacity: int
     dingtalk: DingTalkConfig
     audit: list[SettingsAudit]
 
 
 class SettingsInput(SystemConfig):
+    version: int = Field(ge=1, strict=True)
+    concurrency: int = Field(ge=1, le=10, strict=True)
+    timeoutSeconds: int = Field(ge=60, le=3600, strict=True)
+    maxUploadBytes: int = Field(ge=1024**2, le=10 * 1024**2, strict=True)
     dingtalk: DingTalkInput

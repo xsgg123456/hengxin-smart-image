@@ -8,6 +8,7 @@ const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinit
 const integer = (v: unknown): v is number => num(v) && Number.isInteger(v)
 const date = (v: unknown) => str(v) && Number.isFinite(Date.parse(v))
 const nullableDate = (v: unknown) => v === null || date(v)
+const nullableInteger = (v: unknown) => v === null || integer(v)
 const nullableNum = (v: unknown) => v === null || num(v)
 const list = <T>(v: unknown, guard: Guard<T>): v is T[] => Array.isArray(v) && v.every(guard)
 const choice = (v: unknown, values: string[]) => str(v) && values.includes(v)
@@ -32,14 +33,14 @@ export const skillDefaults: Guard<SystemConfig['defaultSkillIds']> = (v): v is S
   && ['wallpaper', 'product', 'text'].every(k => v[k] === null || (str(v[k]) && v[k].trim().length > 0))
 export const monitor: Guard<MonitorReport> = (v): v is MonitorReport => {
   if (obj(v) && v.issue !== undefined && (!obj(v.issue) || !str(v.issue.code) || !str(v.issue.message))) return false
-  if (!obj(v) || !nullableDate(v.checkedAt) || !choice(v.state, ['idle', 'running', 'unavailable', 'unknown']) || !integer(v.queueSize) || !integer(v.runningCount)
+  if (!obj(v) || !nullableDate(v.checkedAt) || !choice(v.state, ['idle', 'running', 'unavailable', 'unknown']) || !nullableInteger(v.queueSize) || !nullableInteger(v.runningCount) || !nullableInteger(v.taskCount)
     || !Array.isArray(v.tasks) || !v.tasks.every(t => obj(t) && ['taskId', 'name', 'operatorName', 'state'].every(k => str(t[k])) && (t.sessionId === null || str(t.sessionId)) && nullableNum(t.elapsedSeconds) && (t.error === null || str(t.error)))) return false
   const d = v.detail
   return d === null || (obj(d) && Array.isArray(d.workers) && d.workers.every(w => obj(w) && str(w.id) && date(w.checkedAt) && choice(w.state, ['idle', 'running', 'unavailable', 'unknown']) && ['queueSize', 'runningCount', 'concurrency'].every(k => integer(w[k])))
     && (d.cliVersion === null || str(d.cliVersion)) && (d.configured === null || typeof d.configured === 'boolean') && (d.lastResult === null || str(d.lastResult)) && nullableNum(d.freeDiskBytes)
     && Array.isArray(d.dependencies) && d.dependencies.every(x => obj(x) && str(x.name) && choice(x.state, ['available', 'unavailable', 'unknown']) && str(x.message)))
 }
-export const settings: Guard<ManagedSettings> = (v): v is ManagedSettings => obj(v) && integer(v.version) && v.version > 0 && integer(v.concurrency) && v.concurrency > 0 && integer(v.timeoutSeconds) && v.timeoutSeconds > 0 && integer(v.maxUploadBytes) && v.maxUploadBytes > 0
+export const settings: Guard<ManagedSettings> = (v): v is ManagedSettings => obj(v) && integer(v.version) && v.version > 0 && integer(v.capacity) && v.capacity > 0 && integer(v.concurrency) && v.concurrency > 0 && v.concurrency <= v.capacity && integer(v.timeoutSeconds) && v.timeoutSeconds > 0 && integer(v.timeoutCapacity) && v.timeoutCapacity >= 10 && v.timeoutCapacity <= 3600 && v.timeoutSeconds <= v.timeoutCapacity && integer(v.maxUploadBytes) && v.maxUploadBytes >= 1048576 && v.maxUploadBytes <= 10485760
   && obj(v.defaultSkillIds) && ['wallpaper', 'product', 'text'].every(k => v.defaultSkillIds && obj(v.defaultSkillIds) && (v.defaultSkillIds[k] === null || str(v.defaultSkillIds[k])))
   && obj(v.dingtalk) && ['corpId', 'appId', 'callbackDomain'].every(k => obj(v.dingtalk) && str(v.dingtalk[k])) && choice(v.dingtalk.state, ['unconfigured', 'ready', 'error'])
   && Array.isArray(v.audit) && v.audit.every(a => obj(a) && ['id', 'operatorId', 'operatorName'].every(k => str(a[k])) && date(a.changedAt) && integer(a.version) && Array.isArray(a.fields) && a.fields.every(str))

@@ -20,6 +20,8 @@ def available():
 
 def enqueue(session, user, task, note, target=None):
     settings = available()
+    from app.modules.management.settings import values
+    config = values(session)
     round_id, job_id = uuid4(), uuid4()
     job = Job(id=job_id, kind='generation', idempotency_key=f'generation:{round_id}',
         payload_hash='0' * 64, value=str(round_id), delay_seconds=settings.fixture_delay_seconds)
@@ -27,8 +29,8 @@ def enqueue(session, user, task, note, target=None):
     session.flush()
     round = RoundRecord(id=round_id, task_id=task.id, job_id=job_id, operator_id=user.id,
         note=note, target=target, status='queued', execution_config={
-            'version': 2, 'concurrency': settings.generation_concurrency,
-            'timeoutSeconds': settings.codex_timeout_seconds, 'automaticRetries': 0})
+            'version': 2, 'settingsVersion': config['version'], 'concurrency': config['concurrency'],
+            'timeoutSeconds': config['timeoutSeconds'], 'automaticRetries': 0})
     session.add(round)
     session.flush()
     session.add(Outbox(job_id=job_id))

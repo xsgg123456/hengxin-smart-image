@@ -128,7 +128,17 @@ def _request_json(url: str, method: str = 'GET', body: dict[str, Any] | None = N
         with urlopen(request, timeout=15) as response:
             result = json.loads(response.read().decode('utf-8'))
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
-        logger.warning('DingTalk provider request failed method=%s path=%s', method, urlsplit(url).path)
+        status = getattr(error, 'code', '')
+        detail = ''
+        if isinstance(error, HTTPError):
+            try:
+                detail = error.read().decode('utf-8', errors='replace')[:300]
+            except OSError:
+                detail = ''
+        logger.warning(
+            'DingTalk provider request failed method=%s path=%s status=%s detail=%s',
+            method, urlsplit(url).path, status, detail,
+        )
         raise DingTalkProviderError('DingTalk authorization service is unavailable') from error
     if not isinstance(result, dict):
         raise DingTalkProviderError('DingTalk returned an invalid response')
@@ -185,6 +195,56 @@ def exchange_auth_code(code: str, settings: Settings | None = None) -> DingTalkM
         union_id=union_id,
         department=_first_string(profile, 'department', 'departmentName') or '',
         corp_id=corp_id,
+    )
+
+
+def exchange_container_code(code: str, settings: Settings | None = None) -> DingTalkMember:
+    value = settings or get_settings()
+    if not is_configured(value) or not code.strip():
+        raise DingTalkProviderError('DingTalk is not configured')
+    app_token = _request_json(value.dingtalk_api_base_url.rstrip('/') + '/v1.0/oauth2/accessToken', 'POST', {
+        'appKey': value.dingtalk_client_id, 'appSecret': value.dingtalk_client_secret,
+    })
+    app_access = _first_string(app_token, 'accessToken')
+    if not app_access:
+        raise DingTalkProviderError('DingTalk did not return application token')
+    query = urlencode({'access_token': app_access})
+    mapped = _request_json(
+        'https://oapi.dingtalk.com/topapi/v2/user/getuserinfo?' + query,
+        'POST', {'code': code.strip()},
+    )
+    result = mapped.get('result')
+    if str(mapped.get('errcode')) != '0' or not isinstance(result, dict):
+        logger.warning(
+            'DingTalk getuserinfo failed errcode=%s errmsg=%s',
+            mapped.get('errcode'), mapped.get('errmsg'),
+        )
+        raise DingTalkProviderError('Enterprise member mapping failed')
+    provider_user_id = _first_string(result, 'userid')
+    union_id = _first_string(result, 'unionid')
+    if not provider_user_id:
+        raise DingTalkProviderError('DingTalk did not return userid')
+    detail = _request_json(
+        'https://oapi.dingtalk.com/topapi/v2/user/get?' + query,
+        'POST', {'userid': provider_user_id},
+    )
+    employee = detail.get('result')
+    if str(detail.get('errcode')) != '0' or not isinstance(employee, dict):
+        logger.warning(
+            'DingTalk user get failed errcode=%s errmsg=%s',
+            detail.get('errcode'), detail.get('errmsg'),
+        )
+        raise DingTalkProviderError('Enterprise member verification failed')
+    if employee.get('userid') != provider_user_id:
+        raise DingTalkEnterpriseMismatch()
+    if union_id and employee.get('unionid') not in (None, union_id):
+        raise DingTalkEnterpriseMismatch()
+    return DingTalkMember(
+        provider_user_id=provider_user_id,
+        name=_first_string(employee, 'name') or _first_string(result, 'name') or provider_user_id,
+        union_id=_first_string(employee, 'unionid') or union_id,
+        department='',
+        corp_id=value.dingtalk_corp_id,
     )
 
 

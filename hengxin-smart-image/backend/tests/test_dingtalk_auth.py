@@ -188,3 +188,52 @@ def test_browser_callback_binding_and_failed_state_replay(files_env, monkeypatch
                         headers=headers, follow_redirects=False)
     assert 'auth=denied' in replay.headers['location']
     assert calls == ['code']
+
+
+def test_container_code_uses_getuserinfo_not_oauth_user_token(monkeypatch):
+    settings = provider_settings()
+    urls = []
+
+    def request(url, method='GET', body=None, headers=None):
+        urls.append((url, method, body))
+        if url.endswith('/oauth2/accessToken'):
+            return {'accessToken': 'app-token'}
+        if 'topapi/v2/user/getuserinfo' in url:
+            assert body == {'code': 'jsapi-code'}
+            return {'errcode': 0, 'result': {
+                'userid': 'member-1', 'unionid': 'union-1', 'name': '张三',
+            }}
+        if 'topapi/v2/user/get?' in url:
+            assert body == {'userid': 'member-1'}
+            return {'errcode': 0, 'result': {
+                'userid': 'member-1', 'unionid': 'union-1', 'name': '张三',
+            }}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(dingtalk, '_request_json', request)
+    member = dingtalk.exchange_container_code('jsapi-code', settings)
+    assert (member.provider_user_id, member.name, member.union_id, member.corp_id) == (
+        'member-1', '张三', 'union-1', 'corp-1',
+    )
+    assert all('/oauth2/userAccessToken' not in url for url, *_ in urls)
+    assert all('/contact/users/me' not in url for url, *_ in urls)
+    assert any('getuserinfo' in url for url, *_ in urls)
+
+
+def test_container_login_uses_jsapi_code_exchange(files_env, monkeypatch):
+    client, _, _, _ = files_env
+    monkeypatch.setattr(dingtalk, 'get_settings', lambda: provider_settings(
+        dingtalk_admin_user_id='admin-member',
+    ))
+    calls = []
+
+    def exchange(code):
+        calls.append(code)
+        return dingtalk.DingTalkMember('admin-member', '管理员', 'union-1', '', 'corp-1')
+
+    monkeypatch.setattr(dingtalk, 'exchange_container_code', exchange)
+    response = client.post('/api/v1/auth/dingtalk/container', json={'code': 'jsapi-code'})
+    assert response.status_code == 200
+    assert response.json()['name'] == '管理员'
+    assert calls == ['jsapi-code']
+    assert any('HttpOnly' in value for value in response.headers.get_list('set-cookie'))

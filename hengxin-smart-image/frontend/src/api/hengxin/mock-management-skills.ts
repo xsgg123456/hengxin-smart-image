@@ -1,19 +1,16 @@
-import type { ManagedSkill, ManagementScenario, ManagementService, SettingsInput } from '../../types/management'
+import type { ManagedSettings, ManagedSkill, ManagementScenario, ManagementService, SettingsInput } from '../../types/management'
 import type { SkillVersion, User, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
 
-export function validateSettings(input: SettingsInput, skills: SkillVersion[]) {
-  const ranges = [[input.concurrency, 1, 10], [input.timeoutSeconds, 60, 7200], [input.maxUploadBytes, 1048576, 10485760]]
-  if (ranges.some(([v, min, max]) => !Number.isInteger(v) || v < min || v > max)) throw new ApiError('VALIDATION', '并发 1–10，超时 60–7200 秒，上传 1–10 MiB，必须为整数', 422)
+export function validateSettings(input: SettingsInput, skills: SkillVersion[], current: ManagedSettings) {
+  const ranges = [[input.concurrency, 1, current.capacity], [input.timeoutSeconds, 60, current.timeoutCapacity], [input.maxUploadBytes, 1048576, 10485760]]
+  if (ranges.some(([v, min, max]) => !Number.isInteger(v) || v < min || v > max)) throw new ApiError('VALIDATION', `并发 1–${current.capacity}，超时 60–${current.timeoutCapacity} 秒，上传 1–10 MiB，必须为整数`, 422)
   for (const mode of ['wallpaper', 'product', 'text'] as const) {
     const id = input.defaultSkillIds[mode]
     if (id !== null && !skills.some(s => s.id === id && s.mode === mode && s.status === 'available')) throw new ApiError('VALIDATION', '默认 Skill 必须为对应类型的可用版本', 422)
   }
-  if (input.dingtalk.corpId.length > 100 || input.dingtalk.appId.length > 100) throw new ApiError('VALIDATION', '企业或应用标识过长', 422)
-  if (input.dingtalk.callbackDomain) {
-    let valid = false
-    try { const url = new URL(input.dingtalk.callbackDomain); valid = url.protocol === 'https:' && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash } catch { /* invalid */ }
-    if (!valid) throw new ApiError('VALIDATION', '回调域名需为 HTTPS 域名，不含路径或凭据', 422)
+  if ((['corpId', 'appId', 'callbackDomain'] as const).some(key => input.dingtalk[key] !== current.dingtalk[key])) {
+    throw new ApiError('VALIDATION', '钉钉接入由部署环境管理，网页只读', 422)
   }
 }
 export function createSkillManagement(db: Workspace, skills: SkillVersion[], check: (admin?: boolean, operation?: string) => Promise<User>, options: { scenario?: ManagementScenario; installMs?: number }): Pick<ManagementService, 'listManagedSkills' | 'uploadSkill' | 'installSkill' | 'setSkillStatus'> {

@@ -161,7 +161,7 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 
 ## Phase 12/13 接入状态 · 2026-09-16
 
-- `/auth/dingtalk/config`、`/auth/dingtalk/authorize`、`/auth/dingtalk/callback`、`/auth/dingtalk/container`：真实配置与授权；网页 state 绑定浏览器并一次消费，认证失败也不能重放。
+- `/auth/dingtalk/config`、`/auth/dingtalk/authorize`、`/auth/dingtalk/callback`、`/auth/dingtalk/container`：真实配置与授权。网页 OAuth 走 `userAccessToken`；容器免登码走 `topapi/v2/user/getuserinfo`，不能混用。网页 state 绑定浏览器并一次消费，认证失败也不能重放。
 - `/auth/me`、`/auth/logout`：服务端会话身份和注销；公网未登录返回 401。
 - `/management/users` GET、`/management/users/{user_id}` PUT：真实成员/角色管理，超管鉴权。
 - `/management/usage` GET：真实统计，按角色限制本人/全员范围。

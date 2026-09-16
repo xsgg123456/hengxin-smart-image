@@ -19,7 +19,7 @@ def contract_app():
 def test_business_contracts_are_explicitly_unimplemented():
     client = TestClient(contract_app())
     for path in ['/workspace',
-                 '/management/users', '/management/settings', '/management/monitor']:
+                 '/management/users']:
         response = client.get('/api/v1' + path)
         assert response.status_code == 501
         assert response.json()['code'] == 'NOT_IMPLEMENTED'
@@ -35,7 +35,7 @@ def test_openapi_request_response_and_pagination():
     app.include_router(archives_router, prefix='/api/v1')
     schema = app.openapi()
     paths = schema['paths']
-    assert len(paths) == 12
+    assert len(paths) == 10
     execution = paths['/api/v1/tasks/{id}/execution']['get']['responses']['200']
     assert execution['content']['application/json']['schema']['$ref'].endswith('/ExecutionView')
     accepted = paths['/api/v1/tasks']['post']['responses']['202']

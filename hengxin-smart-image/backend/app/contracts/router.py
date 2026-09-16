@@ -22,11 +22,6 @@ def workspace():
     return pending()
 
 
-@router.get('/management/monitor', response_model=m.MonitorReport)
-def monitor():
-    return pending()
-
-
 @router.get('/management/users', response_model=b.PageResult[m.ManagedUser])
 def users(query: Annotated[m.UserQuery, Query()]):
     return pending()
@@ -34,14 +29,4 @@ def users(query: Annotated[m.UserQuery, Query()]):
 
 @router.put('/management/users/{id}', response_model=m.ManagedUser)
 def update_user(id: str, body: m.UserInput):
-    return pending()
-
-
-@router.get('/management/settings', response_model=m.ManagedSettings)
-def settings():
-    return pending()
-
-
-@router.put('/management/settings', response_model=m.ManagedSettings)
-def update_settings(body: m.SettingsInput):
     return pending()

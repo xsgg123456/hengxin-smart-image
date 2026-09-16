@@ -4,7 +4,7 @@
 
 当前文件描述 Phase 14.1 的 VPS 开发测试环境。目标主机为 Ubuntu 24.04 x86_64，主机名 `racknerd-058889d`。环境使用独立 Compose 项目 `hengxin-vps-staging`、独立数据库/Redis/MinIO 数据卷和独立运行目录，复用 VPS 上的 1Panel 但不接管 80/443。
 
-该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，最新业务部署 d2e5076；钉钉真实双端登录待验收。
+该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，后端基线仍为 d2e5076 / 迁移 0010；前端已热修钉钉 JSAPI（入口 `index-DePrnCPO.js`）。钉钉真实双端登录待验收。
 
 ## 目录与服务
 
@@ -136,3 +136,13 @@ curl -fsS https://zhitu.qhhengxin.top/api/v1/health/ready
 本次没有新增数据库迁移，回滚时先确认无未结束任务，再停止本项目 outbox、API 和原生 Worker；恢复该备份中的源码和前端及 infra.env（权限 600），保留数据卷，重新启动 api/outbox 和 Worker，API healthy 后重载 web Nginx。旧 API 标签为 callback-fix-20260916。未来有新迁移时必须先评估数据兼容性，不能机械照搬此次回滚。
 
 执行 `down` 只是停止服务，不是版本回滚；禁止用 `down -v` 清空数据。运维权限由管理员给接手同事单独授权，不共享原开发者私钥。
+
+## 2026-09-16 JSAPI 前端热修（仅 dist）
+
+钉钉 PC 容器原先走 CDN `dingtalk-jsapi/2.15.15`，该地址 404。本次只覆盖 `/opt/hengxin-smart-image/frontend/dist`，入口脚本改为 `index-DePrnCPO.js`，随包带 npm `dingtalk-jsapi` 3.2.9；未部署 13.2/13.3、未跑迁移 0011、未改 API 镜像、未开开发身份。
+
+旧前端备份：`/opt/hengxin-smart-image/frontend/backups/dist.bak-20260916-180845.tar.gz`。回滚只解该包覆盖 `frontend/dist`，不要动 `.env` 和后端。公网首页与 JS 资源已 200；普通浏览器仍走网页授权，钉钉工作台需关掉重开后再点「重新授权」。
+
+## 2026-09-16 容器免登换码热修
+
+钉钉 PC 容器 JSAPI 已能拿到免登码后，后端仍用网页 OAuth 的 `userAccessToken` 换码，钉钉拒绝后返回「钉钉认证服务暂不可用」。已改为 `topapi/v2/user/getuserinfo`。宿主机与镜像内 `dingtalk.py`/`router.py` 已更新；API 镜像备份标签 `hengxin-smart-image-backend:d2e5076-pre-container`。未跑迁移 0011，未部署 13.2/13.3。

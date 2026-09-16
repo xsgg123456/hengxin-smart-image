@@ -50,7 +50,7 @@ def test_defaults_recheck_status_after_lock(tmp_path, monkeypatch, database):
                     other.get(SkillVersionRecord, record.id).status = 'disabled'
                 assert get_version(session, record.id, lock=True).status == 'disabled'
             return
-        import app.modules.skills.router as router
+        import app.modules.management.settings as router
         original = router.get_version
 
         def disable_before_lock(session, version_id, lock=False):

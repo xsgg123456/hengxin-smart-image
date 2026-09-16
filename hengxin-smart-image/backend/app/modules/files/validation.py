@@ -32,15 +32,15 @@ def safe_name(name, extension):
     return (stem[:150] or 'image') + extension
 
 
-def validate_image(upload):
+def validate_image(upload, limit=MAX_UPLOAD_BYTES):
     with DECODE_SLOTS:
-        return _decode_image(upload)
+        return _decode_image(upload, min(limit, MAX_UPLOAD_BYTES))
 
 
-def _decode_image(upload):
-    data = upload.file.read(MAX_UPLOAD_BYTES + 1)
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, '单张图片不能超过 10 MiB')
+def _decode_image(upload, limit=MAX_UPLOAD_BYTES):
+    data = upload.file.read(limit + 1)
+    if len(data) > limit:
+        raise HTTPException(413, f'单张图片不能超过 {limit / 1024**2:g} MiB')
     if not data:
         raise HTTPException(422, '图片不能为空')
     try:

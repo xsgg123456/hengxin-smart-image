@@ -112,7 +112,7 @@ def dingtalk_container_login(
     if not dingtalk.is_configured():
         raise HTTPException(503, '钉钉认证尚未配置')
     try:
-        member = dingtalk.exchange_auth_code(body.code)
+        member = dingtalk.exchange_container_code(body.code)
         user, token = dingtalk.authenticate_member(session, member)
         session.commit()
     except dingtalk.DingTalkProviderError as error:

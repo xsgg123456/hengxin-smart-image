@@ -63,7 +63,8 @@ def claim(factory, job_id):
             return None
         occupied = session.scalar(select(func.count()).select_from(Job).where(
             Job.kind == 'generation', Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
-        if occupied >= get_settings().generation_concurrency:
+        if occupied >= min(round.execution_config.get('concurrency', get_settings().generation_concurrency),
+                           get_settings().generation_concurrency):
             return None
         token = uuid4()
         job.claim_token, job.status = token, 'running'

@@ -49,7 +49,7 @@ AppSecret/Client Secret 请在 VPS 上写入部署环境，例如 `/opt/hengxin-
 
 2026-09-16 较早一次检查时，本地 3008 连接旧开发 API，钉钉配置接口返回 404；这是当时的运行实例状态，不代表当前源码。新机器需自行核对，真实验收使用 VPS HTTPS。开发身份仅供本机联调使用。
 
-钉钉 PC 容器使用 `requestAuthCode` 获取一次性临时授权码；普通浏览器使用官方 OAuth2 授权跳转。两种入口最终都由后端验证企业成员并签发系统会话。官方 JSAPI 当前文档说明 `requestAuthCode` 的参数包含 Client ID 和 CorpId，并支持 Windows/Mac 钉钉 PC；官方 H5 免登示例采用服务端用授权码换取用户身份的链路。
+钉钉 PC 容器使用 `requestAuthCode` 获取一次性免登码，服务端用应用 access_token 调 `topapi/v2/user/getuserinfo` 换 userid；普通浏览器使用官方 OAuth2 授权跳转，服务端用 `oauth2/userAccessToken` 换用户令牌。两种授权码不能混用。两种入口最终都由后端验证企业成员并签发系统会话。前端按官方推荐打包 `dingtalk-jsapi`，不运行时加载 `g.alicdn.com` 上的历史 CDN（`2.15.15/dingtalk.open.js` 已 404）。调用参数包含 Client ID 和 CorpId。
 
 ## 验收用测试成员
 

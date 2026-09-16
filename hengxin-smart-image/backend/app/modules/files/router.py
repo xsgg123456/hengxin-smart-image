@@ -27,9 +27,11 @@ def picture(record):
 @router.post('/files', response_model=Picture, response_model_exclude_unset=True,
              openapi_extra=UPLOAD_BODY)
 async def upload(request: Request, user: SharedUser, session: Database, store=Depends(get_store)):
-    form, file = await parse_upload(request)
+    from app.modules.management.settings import values
+    limit = (await run_in_threadpool(values, session))['maxUploadBytes']
+    form, file = await parse_upload(request, limit)
     try:
-        image = await run_in_threadpool(validate_image, file)
+        image = await run_in_threadpool(validate_image, file, limit)
         record = await run_in_threadpool(save_upload, session, store, user, image)
         return picture(record)
     finally:
