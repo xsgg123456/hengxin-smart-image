@@ -8,6 +8,8 @@ from app.modules.auth.permissions import require_permission
 from .service import create_task
 from .queries import detail, list_tasks
 from .cancellations import delete_task
+from app.contracts.execution import ExecutionView
+from .observations import execution_view
 
 router = APIRouter(tags=['tasks'])
 SharedUser = Annotated[object, Depends(require_permission('shared_resources'))]
@@ -33,3 +35,8 @@ def task(id: UUID, user: SharedUser, session: Database):
 @router.delete('/tasks/{id}', response_model=b.DeletionReceipt)
 def delete(id: UUID, user: SharedUser, session: Database):
     return delete_task(session, user, id)
+
+
+@router.get('/tasks/{id}/execution', response_model=ExecutionView)
+def execution(id: UUID, user: SharedUser, session: Database, roundId: UUID | None = None):
+    return execution_view(session, id, roundId)

@@ -8,6 +8,7 @@ from app.modules.tasks import models as task_models  # noqa: F401
 from app.modules.tasks import attempts as execution_models  # noqa: F401
 from app.modules.templates import models as template_models  # noqa: F401
 from app.modules.archives import models as archive_models  # noqa: F401
+from app.modules.auth import models as auth_models  # noqa: F401
 from app.worker import cleanup_models  # noqa: F401
 
 if context.is_offline_mode():

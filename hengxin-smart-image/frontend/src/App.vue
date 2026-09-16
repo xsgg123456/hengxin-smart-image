@@ -13,7 +13,7 @@
     </template>
     <div v-else class="hx-page">
       <ElCard class="art-card hx-section">
-        <h1>恒信 AI 换套图</h1>
+        <h1>恒鑫智图</h1>
         <p v-if="bootstrap.loading" role="status">正在连接工作区…</p>
         <template v-else>
           <ElAlert :title="bootstrap.error || '工作区尚未就绪'" type="error" :closable="false" show-icon />

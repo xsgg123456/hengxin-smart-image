@@ -44,6 +44,7 @@ export interface Template {
   version: number
   ownerId: string
 }
+export interface SkillSnapshot { id?: string; name?: string; version?: string; checksum?: string }
 export interface Task {
   executionSource?: 'fixture' | 'unavailable' | 'cli'
   id: string
@@ -53,6 +54,7 @@ export interface Task {
   templateId?: string
   templateVersion?: number
   templateSnapshot?: Template
+  skillSnapshot?: SkillSnapshot
   skillVersionId: string
   ownerId: string
   sessionId: string | null

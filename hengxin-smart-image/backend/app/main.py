@@ -17,6 +17,7 @@ from app.modules.tasks.router import router as tasks_router
 from app.modules.revisions.router import router as revisions_router
 from app.modules.archives.router import router as archives_router
 from app.modules.skills.router import router as skills_router
+from app.modules.management.router import router as management_router
 
 
 @asynccontextmanager
@@ -37,6 +38,7 @@ app.include_router(files_router, prefix="/api/v1")
 app.include_router(downloads_router, prefix="/api/v1")
 app.include_router(templates_router, prefix="/api/v1")
 app.include_router(skills_router, prefix="/api/v1")
+app.include_router(management_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")
 app.include_router(revisions_router, prefix="/api/v1")
 app.include_router(archives_router, prefix="/api/v1")

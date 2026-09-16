@@ -16,8 +16,10 @@ from app.resource_models import UserRecord
 from app.storage.minio_store import get_store
 from app.worker.leases import heartbeat
 from .events import parse_events
-from .output_collector import collect_outputs, snapshot_outputs
-from .provenance import snapshot_provenance, verify_provenance
+from .output_collector import collect_outputs, snapshot_outputs, OutputCollectionError
+from .provenance import snapshot_provenance, verify_provenance, ProvenanceError
+from .observation import Observer
+from .diagnostics import failure_for, manifest_failure, cli_failure_code
 from .materials import prepare_materials
 from .process import execute
 from .workspace import prepare_workspace, sandbox_command, prompt_for
@@ -70,6 +72,7 @@ def run_generation(job_id, factory=None, store=None):
     if not token:
         return
     attempt_id, completed, spawning = None, False, False
+    observer, stage, reported = None, 'starting', None
     try:
         with heartbeat(factory, job_id, token):
             version = subprocess.run([settings.codex_binary, '--version'], capture_output=True,
@@ -98,15 +101,20 @@ def run_generation(job_id, factory=None, store=None):
                 note, timeout = round.note, round.execution_config['timeoutSeconds']
                 session.expunge(task)
                 session.expunge(round)
+            observer = Observer(factory, job_id, token, attempt_id, workspace, 0)
+            stage = 'preparing'
+            observer.phase(stage)
             # Downloads and CLI execution never hold the task row lock.
             with factory() as session:
                 manifest = prepare_materials(session, store, task, round, workspace)
+            observer.data['totalImages'] = len(manifest['targets'])
             home = workspace.home / '.codex'
             if (home / 'sessions').is_symlink():
                 raise ValueError('会话材料目录不允许符号链接')
             if previous and not any((home / 'sessions').rglob(f'*{previous}*')):
                 raise ValueError('原会话材料缺失，禁止创建替代会话')
             baseline = snapshot_outputs(home, previous) if previous else {}
+            observer.baseline = set(baseline)
             (workspace.control / 'baseline.json').write_text(json.dumps(baseline))
             provenance = snapshot_provenance(home)
             (workspace.control / 'provenance.json').write_text(json.dumps(provenance))
@@ -120,6 +128,7 @@ def run_generation(job_id, factory=None, store=None):
                             identity = session.get(ExecutionSession, task.id)
                             identity.session_id = initial.session_id
                         observed[0] = initial.session_id
+                observer.tick(observed[0])
                 return should_stop(factory, job_id, token)
             args = ['exec', '--sandbox', 'workspace-write']
             if previous:
@@ -127,19 +136,39 @@ def run_generation(job_id, factory=None, store=None):
             else:
                 args += ['--skip-git-repo-check', '--json', '-']
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
+            stage = 'starting'
+            observer.phase(stage)
+            def started(pid, boot, birth):
+                register_process(factory, attempt_id, pid, boot, birth)
+                observer.phase('generating')
             spawning = True
+            stage = 'generating'
             receipt = execute(command,
                 prompt_for(manifest, note), workspace.control, timeout,
                 monitor,
-                lambda pid, boot, birth: register_process(factory, attempt_id, pid, boot, birth))
+                started)
             completed = True
             summary = parse_events(workspace.control / 'events.jsonl', previous)
+            observer.tick(summary.session_id, force=True)
             record_completion(factory, attempt_id, summary, receipt)
             if receipt['reason'] or summary.error or not summary.turn_completed or receipt['exit_code']:
-                fail_stopped(factory, job_id, token, 'CLI 执行未完成，请检查执行记录')
+                code = receipt['reason'] or summary.error or 'cli_error'
+                if not receipt['reason']:
+                    code = cli_failure_code(workspace.control / 'stderr.log', code)
+                failure = failure_for(code, stage)
+                observer.phase('failed', failure)
+                fail_stopped(factory, job_id, token, failure['message'])
                 return
             if should_stop(factory, job_id, token):
                 fail_stopped(factory, job_id, token, '执行权已失效')
+                return
+            stage = 'validating'
+            observer.phase(stage)
+            reported = manifest_failure(workspace.work / 'manifest.json', len(manifest['targets']), round.target,
+                                        allow_windows_fallback=True)
+            if reported and len(reported['slotErrors']) == len(manifest['targets']):
+                observer.phase('failed', reported)
+                fail_stopped(factory, job_id, token, reported['message'])
                 return
             images = collect_outputs(home, summary.session_id, baseline, len(manifest['targets']),
                 manifest_path=workspace.work / 'manifest.json' if (workspace.work / 'manifest.json').exists() else None,
@@ -147,6 +176,8 @@ def run_generation(job_id, factory=None, store=None):
             successful = [image for image in images if image is not None]
             if successful:
                 verify_provenance(home, summary.session_id, provenance, successful)
+            stage = 'storing'
+            observer.phase(stage)
             outputs = []
             for image in images:
                 if image is None:
@@ -155,11 +186,24 @@ def run_generation(job_id, factory=None, store=None):
                 with factory() as session:
                     user = session.get(UserRecord, round.operator_id)
                     outputs.append(save_upload(session, store, user, image).id)
+            stage = 'publishing'
+            observer.phase(stage)
             if not publish_results(factory, job_id, token, outputs):
+                observer.phase('failed', failure_for('publication_lost', stage))
                 fail_stopped(factory, job_id, token, '执行权已失效，未发布结果')
-    except Exception:
+            else:
+                observer.phase('completed', reported)
+    except Exception as error:
+        code = (str(error) if isinstance(error, (OutputCollectionError, ProvenanceError)) else
+                'storage_failed' if stage == 'storing' else
+                'startup_failed' if not spawning else 'unexpected_error')
+        failure = failure_for(code, stage)
+        if reported:
+            failure['slotErrors'] = reported['slotErrors']
+        if observer:
+            observer.phase('failed' if completed or not spawning else 'uncertain', failure)
         if completed or not spawning:
-            fail_stopped(factory, job_id, token, '执行结果校验或存储失败，未发布图片')
+            fail_stopped(factory, job_id, token, failure['message'])
             if attempt_id and not spawning:
                 with factory.begin() as session:
                     row = session.get(ExecutionAttempt, attempt_id)

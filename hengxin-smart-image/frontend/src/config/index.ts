@@ -38,7 +38,7 @@ import { headerBarConfig } from './modules/headerBar'
 const appConfig: SystemConfig = {
   // 系统信息
   systemInfo: {
-    name: '恒信 · 智能图像' // 系统名称
+    name: '恒鑫智图' // 系统名称
   },
   // 系统主题
   systemThemeStyles: {

@@ -1,11 +1,14 @@
 import { onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { listTasks } from '@/api/tasks'
 import { taskPollDelay } from '../task-state'
-import type { Mode, Task, TaskPage, TaskQuery } from '@/types/hengxin'
+import type { Task, TaskPage } from '@/types/hengxin'
+import { useListLocation } from '../list-location'
 
 export function useTaskList() {
-  const mode = ref<Mode | 'all'>('all'), search = ref(''), state = ref<TaskQuery['state'] | 'all'>('all')
-  const tasks = ref<Task[]>([]), stats = ref<TaskPage['stats']>(), page = ref(1), total = ref(0)
+  const location = useListLocation(useRouter(), '/tasks/index', 'task')
+  const { mode, search, state, page } = location
+  const tasks = ref<Task[]>([]), stats = ref<TaskPage['stats']>(), total = ref(0)
   const loading = ref(false), error = ref(''), active = ref(true), pageSize = 12
   let request = 0, timer: ReturnType<typeof setTimeout> | undefined
   function stop() { clearTimeout(timer); request++; loading.value = false }
@@ -29,10 +32,9 @@ export function useTaskList() {
       }
     }
   }
-  watch([mode, search, state], () => { page.value = 1 }, { flush: 'sync' })
   watch([mode, search, state, page], () => { void load() }, { immediate: true })
   onActivated(() => { active.value = true; void load() })
   onDeactivated(() => { active.value = false; stop() })
   onBeforeUnmount(() => { active.value = false; stop() })
-  return { mode, search, state, tasks, stats, page, total, pageSize, loading, error, active, load }
+  return { ...location, tasks, stats, total, pageSize, loading, error, active, load }
 }

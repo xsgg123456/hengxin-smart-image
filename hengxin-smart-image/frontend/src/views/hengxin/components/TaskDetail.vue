@@ -1,5 +1,5 @@
 <template>
-  <ElDrawer v-model="open" :title="task?.name || '任务详情'" size="82%" class="hx-detail" destroy-on-close :before-close="closeDrawer">
+  <ElDrawer :model-value="open" :title="task?.name || '任务详情'" size="82%" class="hx-detail" destroy-on-close :before-close="closeDrawer">
     <div v-loading="loading">
       <ElAlert v-if="error" :title="error" type="error" show-icon :closable="false"><ElButton text @click="load()">重试加载</ElButton></ElAlert>
       <ElEmpty v-if="!task && !loading" description="任务不可用，请重试或返回任务列表" />
@@ -7,13 +7,17 @@
         <div class="hx-detail-toolbar"><div><ElTag>{{ labels[task.mode] }}</ElTag><span class="hx-muted">{{ task.id }} · {{ formatTime(task.time) }}</span></div></div>
         <div class="hx-filter"><ElButton :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
         <p class="hx-footnote">整套下载和归档使用每个位置的当前版本；历史版本选择仅用于查看和单张下载。相同版本再次归档会返回已有成品。</p>
+        <ElAlert v-if="archivedResult" :title="`已归档：${archivedResult.name}`" type="success" :closable="false" show-icon class="hx-gap"><ElButton text type="primary" :disabled="busy" @click="viewArchive">查看该成品</ElButton></ElAlert>
         <ElAlert v-if="isMockMode" title="交互演示：以下为示例图片，尚未调用真实 Skill。修改操作演示版本与状态变化。" type="info" show-icon :closable="false" />
         <ElAlert v-if="fixtureNotice(task)" :title="fixtureNotice(task)" type="warning" show-icon :closable="false" />
         <ElAlert v-if="data.executionControl.blockedReason" :title="data.executionControl.blockedReason" type="info" show-icon :closable="false" class="hx-gap" />
         <ElAlert v-if="revision.session.value.uncertain" title="上次修改的受理结果尚未确认，当前意见已保留。" type="warning" :closable="false" class="hx-gap"><ElButton :loading="submitting" @click="confirmPrevious">确认上次提交</ElButton></ElAlert>
         <ElAlert v-if="revision.session.value.accepted && !revision.session.value.settled" title="修改请求已受理，正在获取最新执行状态。" type="info" :closable="false" class="hx-gap" />
         <ElAlert v-if="actionError" :title="actionError" class="hx-gap" type="error" show-icon :closable="false" />
-        <div class="hx-gap"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null" :percentage="task.progress" :status="failed ? 'exception' : undefined" /><p v-if="task.error" class="hx-muted">{{ task.error }}</p>
+        <TaskTemplate :key="`template-${task.id}`" :task="task" />
+        <TaskSources :key="`sources-${task.id}`" :sources="task.sources" />
+        <ExecutionProgress :key="task.id" :task-id="task.id" :current-round-id="task.currentRoundId" :rounds="data.rounds" :active="visible" @detailed-failure="detailedFailure = $event" />
+        <div class="hx-gap"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null" :percentage="task.progress" :status="failed ? 'exception' : undefined" /><p v-if="task.error && !detailedFailure" class="hx-muted">{{ task.error }}</p>
           <p v-if="failed" class="hx-muted">执行未全部成功，已有成功结果和旧版本保留。重试沿用上一失败轮次的范围与意见。</p>
           <ElButton v-if="failed" type="primary" :loading="submitting" :disabled="!actions.canRetry || !lastFailed" @click="retry">重试失败范围</ElButton>
         </div>
@@ -32,6 +36,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { getService, isMockMode } from '@/api/hengxin/client'
 import { useUserStore } from '@/store/modules/user'
 import { useRevisionSession } from '../revision-session'
@@ -43,6 +48,12 @@ import { downloadSet } from '../download'
 import { useTaskDetail } from './use-task-detail'
 import { fixtureNotice, taskActions } from '../task-state'
 import ResultCard from './ResultCard.vue'
+import TaskSources from './TaskSources.vue'
+import TaskTemplate from './TaskTemplate.vue'
+import ExecutionProgress from './ExecutionProgress.vue'
+const detailedFailure = ref(false)
+const router = useRouter()
+const archivedResult = ref<{ id: string; name: string }>()
 const open = defineModel<boolean>({ default: false })
 const props = defineProps<{ taskId: string; active?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -67,10 +78,10 @@ const failed = computed(() => !!task.value && ['失败', '部分失败'].include
 const actions = computed(() => taskActions(data.value, busy.value || revision.blocked.value, error.value))
 const editable = computed(() => actions.value.canRevise)
 const lastFailed = computed(() => data.value?.rounds.find(r => r.id === task.value?.currentRoundId && ['失败', '部分失败'].includes(r.state)))
-watch([() => props.taskId, identity], () => { feedbackOpen.value = false })
+watch([() => props.taskId, identity], () => { feedbackOpen.value = false; archivedResult.value = undefined })
 watch(visible, shown => { if (!shown && !submitting.value) feedbackOpen.value = false })
 function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
-function closeDrawer(done: () => void) { if (!busy.value) { feedbackOpen.value = false; done() } }
+function closeDrawer(done: () => void) { if (!busy.value) { feedbackOpen.value = false; open.value = false; done() } }
 function closeFeedback(done: () => void) { if (!submitting.value) done() }
 function edit(slot: number | null) {
   if (!editable.value || !revision.begin()) return
@@ -103,9 +114,12 @@ async function archive() {
   if (!owner) return
   const versionIds = data.value.slots.flatMap(slot => slot.currentVersionId ? [slot.currentVersionId] : [])
   archiving.value = true; actionError.value = ''
-  try { const result = await submitArchive(owner, id, versionIds, archiveTask); if (!alive || props.taskId !== id || identity() !== owner) return; ElMessage.success(`已归档：${result.name}（相同版本会返回已有成品）`); emit('changed'); await load(true) }
+  try { const result = await submitArchive(owner, id, versionIds, archiveTask); if (!alive || props.taskId !== id || identity() !== owner) return; archivedResult.value = { id: result.id, name: result.name }; ElMessage.success(`已归档：${result.name}（相同版本会返回已有成品）`); emit('changed'); await load(true) }
   catch (reason) { if (props.taskId === id) actionError.value = reason instanceof Error ? reason.message : '归档失败，请重试' }
   finally { archiving.value = false }
+}
+function viewArchive() {
+  if (archivedResult.value && !busy.value) void router.push({ path: '/archive/index', query: { archive: archivedResult.value.id } })
 }
 async function download() {
   if (!data.value || !task.value || !complete.value || busy.value) return

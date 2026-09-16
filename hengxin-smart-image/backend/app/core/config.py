@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     dev_user_id: UUID = UUID('00000000-0000-4000-8000-000000000001')
     dev_user_name: str = '本地联调用户'
     dev_user_role: Literal['super_admin', 'design_manager', 'designer', 'operator'] = 'operator'
+    auth_session_ttl_seconds: int = Field(default=28800, ge=300, le=604800)
+    dingtalk_corp_id: str = ''
+    dingtalk_client_id: str = ''
+    dingtalk_agent_id: str = ''
+    dingtalk_client_secret: str = Field(default='', repr=False)
+    dingtalk_callback_domain: str = ''
+    dingtalk_admin_user_ids: str = ''
+    # Kept for backwards compatibility with the first single-admin deployment.
+    dingtalk_admin_user_id: str = ''
+    dingtalk_api_base_url: str = 'https://api.dingtalk.com'
     database_url: str = Field(repr=False, min_length=1)
     redis_url: str = "redis://localhost:6379/0"
     minio_endpoint: str = "localhost:9000"
@@ -59,6 +69,12 @@ class Settings(BaseSettings):
             raise ValueError("ENABLE_TEST_JOBS is forbidden in production")
         if self.app_env == 'production' and self.enable_dev_identity:
             raise ValueError('ENABLE_DEV_IDENTITY is forbidden in production')
+        dingtalk_values = (
+            self.dingtalk_corp_id, self.dingtalk_client_id, self.dingtalk_agent_id,
+            self.dingtalk_client_secret, self.dingtalk_callback_domain,
+        )
+        if any(dingtalk_values) and not all(dingtalk_values):
+            raise ValueError('DingTalk configuration must be complete')
         return self
 
 

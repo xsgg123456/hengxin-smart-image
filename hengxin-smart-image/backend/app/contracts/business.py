@@ -69,6 +69,13 @@ class Template(BaseModel):
     ownerId: str
 
 
+class SkillSnapshot(BaseModel):
+    id: str = omitted()
+    name: str = omitted()
+    version: str = omitted()
+    checksum: str = omitted()
+
+
 class ExecutionConfig(BaseModel):
     version: int
     concurrency: int
@@ -98,6 +105,7 @@ class Task(BaseModel):
     templateId: str = omitted()
     templateVersion: int = omitted()
     templateSnapshot: Template = omitted()
+    skillSnapshot: SkillSnapshot = omitted()
     skillVersionId: str
     ownerId: str
     sessionId: str | None
@@ -229,3 +237,14 @@ class Accepted(BaseModel):
     taskId: str
     roundId: str
     state: Literal['排队中']
+
+
+class DingTalkAuthConfig(BaseModel):
+    configured: bool
+    corpId: str
+    clientId: str
+    callbackPath: str
+
+
+class DingTalkCodeInput(BaseModel):
+    code: str = Field(min_length=1, max_length=4096)

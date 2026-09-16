@@ -6,6 +6,7 @@ from app.resource_models import FileRecord
 from .models import TaskRecord, TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
 from .attempts import ExecutionSession
 from app.modules.archives.models import ArchiveRecord
+from app.modules.skills.models import SkillVersionRecord
 from app.modules.revisions.service import eligibility
 
 STATE = {'queued': '排队中', 'running': '执行中', 'collecting': '执行中', 'cancelling': '执行中',
@@ -57,6 +58,21 @@ def serialize(session, task):
                 ArchiveRecord.deleted_at.is_(None)).limit(1))),
         currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots), error=current.error,
         executionSource=task.execution_source)
+    if isinstance(task.skill_snapshot, dict):
+        skill_snapshot = {}
+        for key in ('id', 'name', 'version', 'checksum'):
+            value = task.skill_snapshot.get(key)
+            if value is not None and str(value).strip():
+                skill_snapshot[key] = str(value)
+    else:
+        skill_snapshot = {}
+    skill_snapshot['id'] = str(task.skill_version_id)
+    version_record = session.get(SkillVersionRecord, task.skill_version_id)
+    if version_record:
+        skill_snapshot.setdefault('name', version_record.skill.name)
+        skill_snapshot.setdefault('version', version_record.version)
+        skill_snapshot.setdefault('checksum', version_record.checksum)
+    data['skillSnapshot'] = skill_snapshot
     if task.template_snapshot:
         snapshot = task.template_snapshot
         data.update(template=snapshot['name'], templateId=snapshot['id'],

@@ -18,15 +18,18 @@
             </div>
           </ElCard>
         </div>
-        <ElEmpty v-if="!archives.length" :description="loading ? '正在加载成品…' : error ? '成品加载失败，请重试' : '暂无匹配成品，可清除筛选或归档任务结果'"><ElButton v-if="!loading && !error" @click="router.push('/tasks/index')">前往任务中心</ElButton></ElEmpty>
+        <ElEmpty v-if="!archives.length" :description="loading ? '正在加载成品…' : error ? '成品加载失败，请重试' : '暂无匹配成品，可清除筛选或归档任务结果'"><template v-if="!loading && !error"><ElButton v-if="mode !== 'all' || search" @click="clearFilters">清除筛选</ElButton><ElButton @click="router.push('/tasks/index')">前往任务中心</ElButton></template></ElEmpty>
       </div>
       <ElPagination v-model:current-page="page" class="hx-gap" :page-size="pageSize" :total="total" layout="prev, pager, next, total" :disabled="loading || !!deleting" />
     </ElCard>
-    <ElDialog :model-value="!!previewId" :title="preview?.name || '成品详情'" width="80%" @close="close">
+    <ElDialog :model-value="detailOpen" :title="preview?.name || '成品详情'" width="80%" :before-close="closePreview">
       <div v-loading="detailLoading" :aria-busy="detailLoading">
         <ElAlert v-if="detailError" :title="detailError" type="error" :closable="false" show-icon><ElButton text type="primary" :disabled="detailLoading" @click="loadDetail">重试详情</ElButton></ElAlert>
         <template v-if="preview">
           <p class="hx-muted">归档图片 · 后续修改不会覆盖此版本</p>
+          <ElButton v-if="preview.taskId" text type="primary" :loading="sourceLoading" @click="viewSource">查看来源任务</ElButton>
+          <p v-else class="hx-muted">此成品未记录来源任务，归档图片仍可查看和下载。</p>
+          <ElAlert v-if="sourceError" :title="sourceError" type="warning" :closable="false" show-icon class="hx-gap" />
           <div class="hx-result-grid"><ElCard v-for="(p, i) in preview.images" :key="i" class="art-card" shadow="never">
             <ElImage :src="p.url" :preview-src-list="preview.images.map(x => x.url)" :initial-index="i" :alt="p.name" fit="contain" preview-teleported><template #error><span>图片加载失败，可重试详情</span></template></ElImage>
             <div class="hx-result-meta"><strong>{{ p.name }}</strong><ElTag size="small">v{{ p.version || 1 }}</ElTag></div>
@@ -44,15 +47,19 @@ import { ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listArchives, getArchive, deleteArchive } from '@/api/archives'
+import { getTask } from '@/api/tasks'
 import { isMockMode } from '@/api/hengxin/client'
-import type { Archive, Mode, Picture } from '@/types/hengxin'
+import type { Archive, Picture } from '@/types/hengxin'
 import { labels } from '../model'
 import { downloadSet, downloadPicture } from '../download'
-const router = useRouter(), mode = ref<Mode | 'all'>('all'), search = ref('')
-const archives = ref<Archive[]>([]), total = ref(0), page = ref(1), pageSize = 12
+import { useListLocation } from '../list-location'
+const router = useRouter()
+const { mode, search, page, detailId: previewId, detailOpen, openDetail, closeDetail, clearFilters } = useListLocation(router, '/archive/index', 'archive')
+const archives = ref<Archive[]>([]), total = ref(0), pageSize = 12
 const loading = ref(false), error = ref(''), deleting = ref(''), downloading = ref('')
-const previewId = ref(''), preview = ref<Archive>(), detailLoading = ref(false), detailError = ref('')
-let request = 0, detailRequest = 0
+const preview = ref<Archive>(), detailLoading = ref(false), detailError = ref('')
+const sourceLoading = ref(false), sourceError = ref('')
+let request = 0, detailRequest = 0, sourceRequest = 0
 function message(reason: unknown, fallback: string) { return reason instanceof Error ? reason.message : fallback }
 async function load() {
   const current = ++request
@@ -67,11 +74,15 @@ async function load() {
     if (current === request) error.value = message(reason, '成品加载失败，请重试')
   } finally { if (current === request) loading.value = false }
 }
-watch([mode, search], () => { page.value = 1 }, { flush: 'sync' })
 watch([mode, search, page], load, { immediate: true })
-onBeforeUnmount(() => { request++; detailRequest++ })
-function close() { previewId.value = ''; preview.value = undefined; detailRequest++ }
-function open(id: string) { previewId.value = id; preview.value = undefined; void loadDetail() }
+onBeforeUnmount(() => { request++; detailRequest++; sourceRequest++ })
+watch(previewId, () => {
+  preview.value = undefined; detailError.value = ''; detailLoading.value = false; detailRequest++
+  sourceError.value = ''; sourceLoading.value = false; sourceRequest++
+  if (previewId.value) void loadDetail()
+}, { immediate: true })
+function open(id: string) { void openDetail(id) }
+function closePreview(done: () => void) { void closeDetail(); done() }
 async function loadDetail() {
   const current = ++detailRequest, id = previewId.value
   if (!id) return
@@ -79,6 +90,18 @@ async function loadDetail() {
   try { const result = await getArchive(id); if (current === detailRequest) preview.value = result }
   catch (reason) { if (current === detailRequest) detailError.value = message(reason, '详情加载失败，请重试') }
   finally { if (current === detailRequest) detailLoading.value = false }
+}
+async function viewSource() {
+  const taskId = preview.value?.taskId, archiveId = previewId.value
+  if (!taskId || sourceLoading.value) return
+  const current = ++sourceRequest
+  sourceLoading.value = true; sourceError.value = ''
+  try {
+    await getTask(taskId)
+    if (current === sourceRequest && previewId.value === archiveId) await router.push({ path: '/tasks/index', query: { task: taskId } })
+  } catch (reason) {
+    if (current === sourceRequest) sourceError.value = `来源任务暂不可访问：${message(reason, '请稍后重试')}。归档图片仍可查看和下载。`
+  } finally { if (current === sourceRequest) sourceLoading.value = false }
 }
 async function downloadArchive(a: Archive) {
   if (downloading.value) return
@@ -101,7 +124,7 @@ async function remove(a: Archive) {
     try { await ElMessageBox.confirm(`删除“${a.name}”？对应任务结果保留。`, '删除成品', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' }) }
     catch { return }
     await deleteArchive(a.id)
-    if (previewId.value === a.id) close()
+    if (previewId.value === a.id) await closeDetail()
     ElMessage.success('成品已删除')
     await load()
   } catch (reason) { ElMessage.error(message(reason, '删除失败，请重试')) }

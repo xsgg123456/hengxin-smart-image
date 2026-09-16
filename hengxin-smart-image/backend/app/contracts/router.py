@@ -22,11 +22,6 @@ def workspace():
     return pending()
 
 
-@router.get('/management/usage', response_model=m.UsageReport)
-def usage(query: Annotated[m.UsageQuery, Query()]):
-    return pending()
-
-
 @router.get('/management/monitor', response_model=m.MonitorReport)
 def monitor():
     return pending()

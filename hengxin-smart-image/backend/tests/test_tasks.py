@@ -63,6 +63,10 @@ def test_real_result_roundtrip_frozen_and_idempotent(task_env, mode):
     detail = client.get('/api/v1/tasks/' + receipt['taskId']).json()
     assert detail['task']['state'] == '待查看', detail
     assert detail['task']['sessionId'] is None and detail['task']['executionSource'] == 'fixture'
+    assert detail['task']['skillSnapshot']['id'] == data['skillVersionId']
+    assert detail['task']['skillSnapshot']['name'].startswith('Skill-')
+    assert detail['task']['skillSnapshot']['version'] == '1.0'
+    assert detail['task']['skillSnapshot']['checksum'] == 'a' * 64
     assert not detail['executionControl']['canRetry']
     assert len(detail['slots']) == (1 if mode == 'text' else 2)
     for image in detail['task']['images']:

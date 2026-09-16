@@ -51,7 +51,8 @@ import { useWorktabStore } from '@/store/modules/worktab'
 import { fetchGetUserInfo } from '@/api/auth'
 import { ApiStatus } from '@/utils/http/status'
 import { isHttpError } from '@/utils/http/error'
-import { RouteRegistry, MenuProcessor, IframeRouteManager, RoutePermissionValidator } from '../core'
+import { RouteRegistry, MenuProcessor, IframeRouteManager } from '../core'
+import { isDeniedBusinessRoute } from '../business-route-access'
 
 // 路由注册器实例
 let routeRegistry: RouteRegistry | null = null
@@ -185,6 +186,13 @@ async function handleRouteGuard(
     return
   }
 
+  // 已知受限页面提供可见的权限说明，不落入父菜单或 404。
+  if (isDeniedBusinessRoute(to.path, useMenuStore().menuList)) {
+    closeLoading()
+    next({ name: 'Exception403', replace: true })
+    return
+  }
+
   // 5. 处理已匹配的路由
   if (to.matched.length > 0) {
     setWorktab(to)
@@ -303,39 +311,17 @@ async function handleDynamicRoutes(
       return
     }
 
-    // 8. 验证目标路径权限
-    const { homePath } = useCommon()
-    const { path: validatedPath, hasPermission } = RoutePermissionValidator.validatePath(
-      to.path,
-      menuList,
-      homePath.value || '/'
-    )
+    if (isDeniedBusinessRoute(to.path, menuList)) {
+      routeInitInProgress = false
+      closeLoading()
+      next({ name: 'Exception403', replace: true })
+      return
+    }
 
     // 初始化成功，重置进行中标记
     routeInitInProgress = false
-
-    // 9. 重新导航到目标路由
-    if (!hasPermission) {
-      // 无权限访问，跳转到首页
-      closeLoading()
-
-      // 输出警告信息
-      console.warn(`[RouteGuard] 用户无权限访问路径: ${to.path}，已跳转到首页`)
-
-      // 直接跳转到首页
-      next({
-        path: validatedPath,
-        replace: true
-      })
-    } else {
-      // 有权限，正常导航
-      next({
-        path: to.path,
-        query: to.query,
-        hash: to.hash,
-        replace: true
-      })
-    }
+    // 已知受限页面已处理；其余交给已注册路由，未知地址由 404 兜底。
+    next({ path: to.path, query: to.query, hash: to.hash, replace: true })
   } catch (error) {
     console.error('[RouteGuard] 动态路由注册失败:', error)
 

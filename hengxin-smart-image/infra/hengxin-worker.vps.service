@@ -1,0 +1,19 @@
+[Unit]
+Description=Hengxin isolated Codex worker (VPS staging)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=codex
+WorkingDirectory=/opt/hengxin-smart-image/backend
+EnvironmentFile=/etc/hengxin-smart-image/worker.env
+ExecStart=/opt/hengxin-smart-image/backend/.venv/bin/celery -A app.worker.celery_app:celery_app worker --pool=prefork --concurrency=1 --loglevel=INFO --hostname=hx-vps-codex@%H
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

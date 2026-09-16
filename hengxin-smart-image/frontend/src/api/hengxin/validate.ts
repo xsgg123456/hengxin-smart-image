@@ -1,4 +1,4 @@
-import type { Accepted, Archive, Picture, Task, Template, User, Workspace, SkillVersion, PageResult, TaskDetailData, TaskPage, ResultSlot, ResultVersion, Round, DeletionReceipt } from '../../types/hengxin'
+import type { Accepted, Archive, Picture, Task, Template, User, Workspace, SkillVersion, PageResult, TaskDetailData, TaskPage, ResultSlot, ResultVersion, Round, DeletionReceipt, SkillSnapshot } from '../../types/hengxin'
 
 type Guard<T> = (value: unknown) => value is T
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -26,6 +26,9 @@ const skill: Guard<SkillVersion> = (value): value is SkillVersion => record(valu
   && text(value.checksum) && typeof value.isDefault === 'boolean'
   && text(value.status) && ['uploaded', 'installing', 'available', 'disabled', 'failed'].includes(value.status)
 export const skillList: Guard<SkillVersion[]> = (value): value is SkillVersion[] => list(value, skill)
+const skillSnapshot: Guard<SkillSnapshot> = (value): value is SkillSnapshot => record(value)
+  && (value.id === undefined || id(value.id)) && (value.name === undefined || text(value.name))
+  && (value.version === undefined || text(value.version)) && (value.checksum === undefined || text(value.checksum))
 export const templatePage: Guard<PageResult<Template>> = (value): value is PageResult<Template> => record(value)
   && list(value.items, template) && number(value.total) && Number.isInteger(value.total) && value.total >= 0
   && number(value.page) && Number.isInteger(value.page) && value.page >= 1
@@ -34,6 +37,7 @@ const task: Guard<Task> = (value): value is Task => record(value)
   && (value.executionSource === undefined || value.executionSource === 'fixture' || value.executionSource === 'unavailable' || value.executionSource === 'cli')
   && id(value.id) && text(value.name) && mode(value.mode) && text(value.template)
   && (value.templateSnapshot === undefined || template(value.templateSnapshot))
+  && (value.skillSnapshot === undefined || skillSnapshot(value.skillSnapshot))
   && id(value.skillVersionId) && id(value.ownerId) && (value.sessionId === null || id(value.sessionId))
   && state(value.state) && (value.progress === null || (number(value.progress) && value.progress >= 0 && value.progress <= 100))
   && list(value.images, picture) && list(value.sources, picture) && list(value.feedback, text)

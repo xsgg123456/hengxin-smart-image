@@ -42,6 +42,7 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
       const task: Task = {
         id: `HX-${crypto.randomUUID()}`, name: input.name.trim(), mode: input.mode, template: template?.name ?? '无需模板',
         templateId: template?.id, templateVersion: template?.version, templateSnapshot: template ? copy(template) : undefined,
+        skillSnapshot: { id: skill.id, name: skill.name, version: skill.version, checksum: skill.checksum },
         skillVersionId: skill.id, sku: input.sku?.trim(), ownerId: user.id, sessionId: null,
         state: '排队中', progress: 0, images: [], outputCount: template?.images.length ?? input.sources.length,
         sources, feedback: input.note ? [`初始要求：${input.note}`] : [],

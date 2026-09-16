@@ -1,0 +1,15 @@
+services:
+  redis:
+    ports: ['127.0.0.1:${LOCAL_CODEX_REDIS_PORT:-16388}:6379']
+  api:
+    environment:
+      ENABLE_FIXTURE_EXECUTOR: 'false'
+      ENABLE_CODEX_EXECUTOR: 'true'
+      CODEX_BINARY: '${LOCAL_CODEX_BINARY:-/opt/hengxin-runtime/codex-0.153.4/codex}'
+      CODEX_AUTH_FILE: '${LOCAL_CODEX_AUTH_FILE:-/home/hengxin/auth/auth.json}'
+  outbox:
+    environment:
+      ENABLE_FIXTURE_EXECUTOR: 'false'
+      ENABLE_CODEX_EXECUTOR: 'true'
+      CODEX_BINARY: '${LOCAL_CODEX_BINARY:-/opt/hengxin-runtime/codex-0.153.4/codex}'
+      CODEX_AUTH_FILE: '${LOCAL_CODEX_AUTH_FILE:-/home/hengxin/auth/auth.json}'

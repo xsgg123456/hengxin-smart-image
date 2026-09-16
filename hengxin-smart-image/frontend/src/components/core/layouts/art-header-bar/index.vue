@@ -156,7 +156,8 @@
         />
 
         <!-- 用户头像、菜单 -->
-        <span class="hx-demo-badge">{{ isMockMode ? '前端预览 · 模拟数据' : '恒信工作区' }}</span><ElAvatar :size="32">{{ userStore.getUserInfo.userName?.slice(0, 1) }}</ElAvatar>
+        <span class="hx-demo-badge">{{ isMockMode ? '前端预览 · 模拟数据' : '恒鑫智图工作区' }}</span><ElAvatar :size="32">{{ userStore.getUserInfo.userName?.slice(0, 1) }}</ElAvatar>
+        <HengxinLogout />
       </div>
     </div>
 
@@ -183,7 +184,7 @@
   import { themeAnimation } from '@/utils/ui/animation'
   import { useCommon } from '@/hooks/core/useCommon'
   import { useHeaderBar } from '@/hooks/core/useHeaderBar'
-  import ArtUserMenu from './widget/ArtUserMenu.vue'
+  import HengxinLogout from './widget/HengxinLogout.vue'
 
   defineOptions({ name: 'ArtHeaderBar' })
 

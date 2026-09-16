@@ -17,6 +17,7 @@ export function createFixtures(): Workspace {
     tasks: (['wallpaper', 'product', 'text'] as const).map((mode, i) => ({
       id: `HX0908-00${i + 1}`, name: ['秋日山川 · 手机屏幕系列', '高清钢化膜 · 商品主图', '新品上市 · 文案更新'][i],
       mode, template: templates[i === 1 ? 2 : 0].name, skillVersionId: `mock-${mode}-1`,
+      skillSnapshot: { id: `mock-${mode}-1`, name: skillNames[mode], version: '1.0.0', checksum: 'mock-checksum' },
       ownerId: MOCK_USER_ID, sessionId: null, currentRoundId: `mock-round-${i}`,
       state: i === 2 ? '失败' : '待查看', progress: i === 2 ? 0 : 100,
       images: sampleImages(mode, i === 2 ? 4 : 8), sources: [], feedback: [],

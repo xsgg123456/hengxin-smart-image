@@ -1,0 +1,51 @@
+name: hengxin-vps-staging
+
+services:
+  postgres:
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-15433}:5432'
+
+  redis:
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-16388}:6379'
+
+  minio:
+    ports:
+      - '127.0.0.1:${MINIO_PORT:-15900}:9000'
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-15901}:9001'
+
+  migrate:
+    image: ${APP_IMAGE:-hengxin-smart-image-backend:vps-staging}
+
+  api:
+    image: ${APP_IMAGE:-hengxin-smart-image-backend:vps-staging}
+    ports:
+      - '127.0.0.1:${API_PORT:-18008}:8000'
+    volumes:
+      - ./runtime/skills:/var/lib/hengxin/skills
+
+  # The real Codex worker runs natively as a systemd service on the VPS.
+  # Keeping the container worker behind a profile prevents two consumers from
+  # accidentally sharing the same queue.
+  worker:
+    image: ${APP_IMAGE:-hengxin-smart-image-backend:vps-staging}
+    profiles: ['container-worker']
+    volumes:
+      - ./runtime/skills:/var/lib/hengxin/skills
+
+  outbox:
+    image: ${APP_IMAGE:-hengxin-smart-image-backend:vps-staging}
+    volumes:
+      - ./runtime/skills:/var/lib/hengxin/skills
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${WEB_BIND:-0.0.0.0}:${WEB_PORT:-18080}:80'
+    volumes:
+      - ../frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx.vps.conf:/etc/nginx/conf.d/default.conf:ro

@@ -5,6 +5,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,19 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
             '--setenv', 'CODEX_HOME', '/home/runner/.codex',
             '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'LANG', 'C.UTF-8',
             '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp']
+    proxy = os.environ.get('HENGXIN_CODEX_PROXY_URL', '')
+    if proxy:
+        parsed = urlsplit(proxy)
+        if (os.environ.get('APP_ENV') not in ('test', 'development')
+                or parsed.scheme not in ('http', 'https')
+                or parsed.hostname not in ('127.0.0.1', 'localhost', '::1')
+                or not parsed.port or parsed.username is not None or parsed.password is not None
+                or parsed.path not in ('', '/') or parsed.query or parsed.fragment
+                or any(c.isspace() for c in proxy)):
+            raise ValueError('Invalid local development proxy configuration')
+        for key, value in [('HTTP_PROXY', proxy), ('HTTPS_PROXY', proxy),
+                           ('NO_PROXY', 'localhost,127.0.0.1,::1')]:
+            argv += ['--setenv', key, value, '--setenv', key.lower(), value]
     for name in ('/usr', '/bin', '/lib', '/lib64'):
         if Path(name).exists():
             argv += ['--ro-bind', name, name]

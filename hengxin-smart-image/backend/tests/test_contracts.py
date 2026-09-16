@@ -36,6 +36,8 @@ def test_openapi_request_response_and_pagination():
     schema = app.openapi()
     paths = schema['paths']
     assert len(paths) == 12
+    execution = paths['/api/v1/tasks/{id}/execution']['get']['responses']['200']
+    assert execution['content']['application/json']['schema']['$ref'].endswith('/ExecutionView')
     accepted = paths['/api/v1/tasks']['post']['responses']['202']
     assert accepted['content']['application/json']['schema']['$ref'].endswith('/Accepted')
     assert schema['components']['schemas']['Accepted']['properties']['state']['const'] == '排队中'

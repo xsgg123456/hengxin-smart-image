@@ -1,6 +1,6 @@
 # hengxin-smart-image
 
-本仓库用于开发恒信 AI 换套图系统，已安装 Agent Harness（Codex 版）。截至 2026-09-10，Phase 1–10 已验收；Phase 11 技术验证与独立两阶段审查通过、待用户验收；Phase 12–14 未开始。阶段进度及后续开发顺序以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
+本仓库用于开发前海恒鑫「恒鑫智图」京东业务生图系统，已安装 Agent Harness（Codex 版）。截至 2026-09-14，Phase 1–11A 已验收，开发机真实 Codex CLI 双任务并发 2 已通过；Phase 12.1 身份与会话地基、用户角色真实接口已实现并通过两阶段审查，Phase 12.2 等待 Q-008 钉钉配置。阶段进度及后续开发顺序以 [DEV-PLAN.md](DEV-PLAN.md) 为准。品牌素材见 [品牌资源包](hengxin-smart-image/branding/README.md)。
 
 正式前端位于 `hengxin-smart-image/frontend/`，使用 Node.js 24.18.1、pnpm 10.33.4。进入该目录执行 `pnpm install --frozen-lockfile` 后，`pnpm dev` 启动独立内存 mock，刷新重置；`pnpm dev:api` 连接真实后端。预览地址为 [http://127.0.0.1:3008](http://127.0.0.1:3008)。后端已接入开发身份、文件存储、模板与 Skill、任务执行、返工及下载归档；真实 AI 需要专用 Linux Worker。钉钉认证、其余管理接口和生产部署仍属 Phase 12–14，前端预览不代表这些能力或并发容量已通过。
 
