@@ -35,6 +35,6 @@
 
 ## 交接边界
 
-后续 PR 应包含业务源码、迁移、测试及文档，不要加入 output 原始业务日志、.env、凭据、.codegraph 或 .cursor 临时文件。真实角色与钉钉双端联调、三类 Skill、容量与恢复验收仍按 DEV-PLAN 后续安排。
+后续接手应包含已提交的业务源码、迁移、测试及文档；不要加入 output 原始业务日志、.env、凭据。`.codegraph` 是本机索引。真实角色与钉钉双端联调、三类 Skill、容量与恢复验收仍按 DEV-PLAN 后续安排。
 
 最终独立审查：同候选 Stage 1 PASS、Stage 2 PASS。reviewer 使用自己的本地浏览器标签亲自比较 monitor/settings/usage 页面；前期浏览器连接阻断已解决，详见审查报告最新结论。

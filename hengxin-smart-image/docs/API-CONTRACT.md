@@ -165,6 +165,6 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 - `/auth/me`、`/auth/logout`：服务端会话身份和注销；公网未登录返回 401。
 - `/management/users` GET、`/management/users/{user_id}` PUT：真实成员/角色管理，超管鉴权。
 - `/management/usage` GET：真实统计，按角色限制本人/全员范围。
-- `/management/monitor` GET、`/management/settings` GET/PUT、`/workspace`：仍为契约占位 501，不能记为已实现。
+- `/management/monitor` GET、`/management/settings` GET/PUT：真实监控与版本化配置；未登录返回 401。`/workspace` 仍为契约占位 501。
 
 当前真实路由在 app/main.py 中先于契约注册。上方历史章节中的实现边界不覆盖本节；详细请求/响应类型以源码及实际 OpenAPI 为准。真实双端联调和真实角色统计验收另行记录。

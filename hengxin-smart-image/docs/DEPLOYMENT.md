@@ -4,7 +4,7 @@
 
 当前文件描述 Phase 14.1 的 VPS 开发测试环境。目标主机为 Ubuntu 24.04 x86_64，主机名 `racknerd-058889d`。环境使用独立 Compose 项目 `hengxin-vps-staging`、独立数据库/Redis/MinIO 数据卷和独立运行目录，复用 VPS 上的 1Panel 但不接管 80/443。
 
-该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，后端基线仍为 d2e5076 / 迁移 0010；前端已热修钉钉 JSAPI（入口 `index-DePrnCPO.js`）。钉钉真实双端登录待验收。
+该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，业务基线 `99ff375` / 迁移 `0011`；前端入口 `index-DePrnCPO.js`（npm `dingtalk-jsapi`）。钉钉真实双端登录待验收。
 
 ## 目录与服务
 
@@ -139,10 +139,16 @@ curl -fsS https://zhitu.qhhengxin.top/api/v1/health/ready
 
 ## 2026-09-16 JSAPI 前端热修（仅 dist）
 
-钉钉 PC 容器原先走 CDN `dingtalk-jsapi/2.15.15`，该地址 404。本次只覆盖 `/opt/hengxin-smart-image/frontend/dist`，入口脚本改为 `index-DePrnCPO.js`，随包带 npm `dingtalk-jsapi` 3.2.9；未部署 13.2/13.3、未跑迁移 0011、未改 API 镜像、未开开发身份。
+钉钉 PC 容器原先走 CDN `dingtalk-jsapi/2.15.15`，该地址 404。当时只覆盖 `frontend/dist`，入口脚本改为 `index-DePrnCPO.js`。后续 `99ff375` 已把 13.2/13.3 和迁移 0011 一并部署，本节只保留当时热修记录。
 
 旧前端备份：`/opt/hengxin-smart-image/frontend/backups/dist.bak-20260916-180845.tar.gz`。回滚只解该包覆盖 `frontend/dist`，不要动 `.env` 和后端。公网首页与 JS 资源已 200；普通浏览器仍走网页授权，钉钉工作台需关掉重开后再点「重新授权」。
 
+## 2026-09-16 提交 99ff375 部署（13.2/13.3 + 容器免登）
+
+业务源码 `99ff375`；API/Outbox 镜像 `hengxin-smart-image-backend:99ff375`，迁移 `0011`，原生 Worker 同步源码并重启。前端正式构建入口仍为 `index-DePrnCPO.js`。匿名 auth/me、monitor、settings 返回 401；钉钉配置 200。未开启开发身份。真实双端登录和真实角色联调未验收。
+
+回滚先确认无未结束任务，再停止本项目 outbox、API 和原生 Worker；恢复 `/opt/hengxin-backups/99ff375/` 中的后端源码和前端备份，镜像可退到 `container-auth-20260916` 或 `d2e5076`（d2e5076 不含容器免登换码，且迁移 0011 已执行，回退镜像前必须评估表结构，不能只换镜像当成完整回滚）。旧配置备份权限 600，保留数据卷。
+
 ## 2026-09-16 容器免登换码热修
 
-钉钉 PC 容器 JSAPI 已能拿到免登码后，后端仍用网页 OAuth 的 `userAccessToken` 换码，钉钉拒绝后返回「钉钉认证服务暂不可用」。已改为 `topapi/v2/user/getuserinfo`。宿主机与镜像内 `dingtalk.py`/`router.py` 已更新；API 镜像备份标签 `hengxin-smart-image-backend:d2e5076-pre-container`。未跑迁移 0011，未部署 13.2/13.3。
+钉钉 PC 容器 JSAPI 已能拿到免登码后，后端仍用网页 OAuth 的 `userAccessToken` 换码，钉钉拒绝后返回「钉钉认证服务暂不可用」。已改为 `topapi/v2/user/getuserinfo`。该换码随后并入 `99ff375` 镜像。API 镜像备份标签 `hengxin-smart-image-backend:container-auth-20260916`。
