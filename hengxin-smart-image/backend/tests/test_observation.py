@@ -98,7 +98,7 @@ def test_observation_is_best_effort_and_bounded(task_env, tmp_path, monkeypatch)
     for i in range(110):
         observer.event(f'模型活动 {i}')
     assert len(observer.data['events']) == 100
-    monkeypatch.setattr(observer.tail, 'read', lambda _: (_ for _ in ()).throw(OSError('secret')))
+    monkeypatch.setattr(observer.tail, 'read', lambda *args: (_ for _ in ()).throw(OSError('secret')))
     observer.tick(force=True)  # Must not interrupt the actual CLI.
 
 
@@ -135,6 +135,21 @@ def test_backfilled_diagnosis_does_not_invent_historical_events(task_env, tmp_pa
             'stage': 'failed', 'legacy': True, 'events': []}
     data = task_env[0].get('/api/v1/tasks/' + receipt['taskId'] + '/execution').json()
     assert data['legacy'] and data['events'] == [] and data['status'] == 'failed'
+
+
+@pytest.mark.parametrize('name', ['jd-main-image-wallpaper-camera-swap',
+                                'jd-main-image-wallpaper-camera-swap-it-optimized'])
+def test_prepared_skill_name_reaches_persisted_api_observation(task_env, tmp_path, name):
+    receipt, observer = observing(task_env, tmp_path)
+    # Materials set the name after Observer construction in the production runner.
+    observer.workspace.skill_name = name
+    event = {'type': 'item.completed', 'item': {'type': 'agent_message',
+             'text': f'我会使用“`${name}`”技能，先检查这5张图片。'}}
+    (observer.workspace.control / 'events.jsonl').write_text(json.dumps(event) + '\n', encoding='utf-8')
+    observer.tick(force=True)
+    data = task_env[0].get('/api/v1/tasks/' + receipt['taskId'] + '/execution').json()
+    assert data['events'][0]['message'] == f'Codex：我会使用“${name}”技能，先检查这5张图片。'
+    assert data['stage'] != 'completed'
 
 
 def test_zero_or_historical_images_do_not_claim_new_generation(task_env, tmp_path):

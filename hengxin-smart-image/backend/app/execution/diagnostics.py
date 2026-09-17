@@ -11,6 +11,12 @@ STAGES = frozenset(('queued', 'preparing', 'starting', 'generating', 'validating
 MAX_MANIFEST_BYTES = 64 * 1024
 _RETRY = '请重试；若仍失败，请联系管理员并提供诊断编号'
 _GROUPS = (
+    ('FINAL_REPLY_MISSING', '本轮最终回复未交付成品图片', '请重试本轮任务；平台不会从候选图中猜测成品',
+     'final_reply_missing'),
+    ('FINAL_OUTPUT_INCOMPLETE', '本轮最终交付图片数量不完整或对应关系不明确',
+     '请重试本轮任务并检查最终交付图片', 'invalid_final_reply final_output_count_mismatch'),
+    ('HISTORICAL_OUTPUT_FORBIDDEN', '最终回复引用了历史图片，未交付本轮新成品',
+     '请重新处理本轮图片', 'historical_output_forbidden'),
     ('SKILL_DEPLOYMENT_INVALID', '冻结 Skill 版本缺失、内容变化或隔离环境依赖不可用',
      '请联系管理员检查该版本部署；平台不会自动切换版本', 'skill_deployment_invalid'),
     ('OUTPUT_UNSAFE', '输出文件未通过安全检查', _RETRY,

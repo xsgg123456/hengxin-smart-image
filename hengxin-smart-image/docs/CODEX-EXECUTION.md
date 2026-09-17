@@ -14,7 +14,9 @@ CODEX_TIMEOUT_SECONDS=3600、QUEUE_VISIBILITY_SECONDS=4200、GENERATION_CONCURRE
 
 每任务home持久化；每轮work和不挂载给模型的control分开。外层Bubblewrap仅挂载该任务home、本轮work、固定CLI及同一发行版的codex-code-mode-host辅助程序，以及只读系统运行时；/proc为独立PID命名空间，/tmp独立，环境变量重建，不传递业务存储凭据。CLI内层仍使用workspace-write。认证为任务私有副本，不共享可写CODEX_HOME。
 
-原生图片在任务home/.codex/generated_images/<sessionId>/。开始前保存哈希快照；单张仅接受唯一新增文件，多张必须有本轮slot清单。文件解码、数量、链接、目录边界和历史完整性通过后才能上传，并再次通过PG认领凭证发布。
+2026-09-17 新执行使用 `final-reply-v1`，由不挂载给模型的 control/delivery.json 记录。完整 Skill 只读挂载到 `/work/skills/{名称}` 和任务 HOME/.agents/skills/{名称}，提示词仅描述图片及修改要求。执行结束后仅从本次 events.jsonl 最终 assistant 回复的本地图片引用收取完整成品，明确编号时按编号，否则按展示顺序对应本轮底图；单张返工可保留原任务图号。允许 Skill 合成、修复后的成品，不依赖 manifest 或原生图片哈希。只读绑定、链接拒绝、文件解码、数量、目录边界和PG认领发布仍保留，技术校验不代表视觉效果合格。
+
+原生候选仍位于任务home/.codex/generated_images/<sessionId>/，保存启动前基线供进度统计及拒绝历史文件引用。最终成品可来自本轮work（输入/当前图/Skill目录不可作为成品来源），也可来自本会话本轮新增原生图片；额外候选不造成收图失败。缺图、不明确或损坏时明确失败，不扫描目录猜图。升级前没有 delivery.json 的执行，仅在异常恢复时保留旧 manifest/原生来源协议；新任务和后续返工一律走新协议。该说明为新实现，是否上线以独立发布记录为准。
 
 进程退出后不会销毁会话。续接只接受已绑定ID，材料缺失则失败。失联/过期不重跑；本机核实精确进程身份已消失后轮换认领凭证，恢复收集完整且来源可信的本轮结果。明确失败则结束，证据不足继续待核实并保留材料；取消不发布图片，旧凭证始终不能发布。
 

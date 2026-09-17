@@ -17,7 +17,9 @@ from app.storage.minio_store import get_store
 from app.worker.leases import heartbeat
 from app.execution.process import same_process
 from app.execution.events import parse_events
-from app.execution.output_collector import collect_outputs
+from app.execution.output_collector import collect_outputs, OutputCollectionError
+from app.execution.final_delivery import collect_final_outputs
+from app.execution.diagnostics import failure_for
 from app.execution.provenance import verify_provenance
 
 
@@ -54,7 +56,7 @@ def _acquire(factory, attempt):
         return job.id, token, round.operator_id, count, identity.session_id if identity else None
 
 
-def _settle(factory, attempt_id, job_id, token, summary=None, failed=False):
+def _settle(factory, attempt_id, job_id, token, summary=None, failed=False, failure=None):
     with factory.begin() as session:
         task, round, job = locked_execution(session, job_id)
         if not job or job.claim_token != token or job.status not in ('running', 'collecting', 'cancelling', 'uncertain', 'succeeded', 'partial', 'failed'):
@@ -71,7 +73,9 @@ def _settle(factory, attempt_id, job_id, token, summary=None, failed=False):
             end(session, round, job, 'cancelled', '原执行进程已退出，取消已确认')
             attempt.status, attempt.finished_at = 'finished', utcnow()
         elif failed:
-            end(session, round, job, 'failed', '原执行进程已退出并明确报告失败')
+            end(session, round, job, 'failed', failure['message'] if failure else '原执行进程已退出并明确报告失败')
+            if failure:
+                attempt.observation = dict(attempt.observation or {}, stage='failed', failure=failure)
             attempt.status, attempt.finished_at = 'finished', utcnow()
         else:
             mark_uncertain(round, job)
@@ -112,7 +116,7 @@ def reconcile_once(factory, store=None):
         if not ownership:
             continue
         job_id, token, operator_id, expected, previous = ownership
-        summary, failed = None, False
+        summary, failed, final_delivery, failure = None, False, False, None
         try:
             with heartbeat(factory, job_id, token):
                 summary = parse_events(control / 'events.jsonl', previous)
@@ -125,13 +129,23 @@ def reconcile_once(factory, store=None):
                     continue
                 home = control.parent.parent / 'home' / '.codex'
                 baseline = json.loads((control / 'baseline.json').read_text())
-                proof = json.loads((control / 'provenance.json').read_text())
-                manifest = control.parent.parent / 'rounds' / str(attempt.round_id) / 'manifest.json'
-                images = collect_outputs(home, summary.session_id, baseline, expected,
-                    manifest if manifest.exists() else None, allow_partial=True)
-                successful = [image for image in images if image is not None]
-                if successful:
-                    verify_provenance(home, summary.session_id, proof, successful)
+                work = control.parent.parent / 'rounds' / str(attempt.round_id)
+                protocol = control / 'delivery.json'
+                if protocol.exists():
+                    if json.loads(protocol.read_text()) != {'version': 'final-reply-v1'}:
+                        raise ValueError('Unknown delivery protocol')
+                    final_delivery = True
+                    images = collect_final_outputs(work, home, control / 'events.jsonl',
+                        summary.session_id, baseline, expected)
+                else:
+                    # Executions launched before the upgrade retain their original contract.
+                    proof = json.loads((control / 'provenance.json').read_text())
+                    manifest = work / 'manifest.json'
+                    images = collect_outputs(home, summary.session_id, baseline, expected,
+                        manifest if manifest.exists() else None, allow_partial=True)
+                    successful = [image for image in images if image is not None]
+                    if successful:
+                        verify_provenance(home, summary.session_id, proof, successful)
                 outputs = []
                 for image in images:
                     if not _active(factory, job_id, token):
@@ -144,7 +158,10 @@ def reconcile_once(factory, store=None):
                         outputs.append(save_upload(session, store or get_store(), user, image).id)
                 if len(outputs) == expected:
                     publish_results(factory, job_id, token, outputs)
+        except OutputCollectionError as error:
+            if final_delivery:
+                failed, failure = True, failure_for(str(error), 'validating')
         except Exception:
             pass  # Keep evidence and exclusive uncertain state; never replay CLI.
         finally:
-            _settle(factory, attempt.id, job_id, token, summary, failed)
+            _settle(factory, attempt.id, job_id, token, summary, failed, failure)

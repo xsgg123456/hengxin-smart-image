@@ -67,3 +67,30 @@ def test_code_link_targets_controls_and_identifiers_are_removed():
 def test_message_is_bounded_and_plain_command_line_dropped():
     assert len(message('图' * 2000)) < 830
     assert message('准备好了\ncurl https://example.com\n继续生成') == 'Codex：准备好了\n\n继续生成'
+
+
+@pytest.mark.parametrize('name', ['jd-main-image-wallpaper-camera-swap',
+                                'jd-main-image-wallpaper-camera-swap-it-optimized',
+                                'jd-main-image-wallpaper-camera-swap-'])
+@pytest.mark.parametrize('style', ['{}', '${}', '`{}`', '`${}`'])
+def test_bound_skill_name_is_visible_in_prose_and_inline_code(name, style):
+    text = '我会使用“' + style.format(name) + '”技能，先检查这5张图片。'
+    event = {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': text}}
+    assert public_message(event, name) == 'Codex：' + text.replace('`', '')
+    assert name not in public_message(event)
+
+
+def test_skill_exemption_is_exact_and_never_bypasses_other_filters():
+    name = 'jd-main-image-wallpaper-camera-swap'
+    def render(text, binding=name):
+        return public_message({'type': 'item.completed',
+                               'item': {'type': 'agent_message', 'text': text}}, binding)
+    for other in [name + '-extra', 'prefix-' + name, name + '_abc', 'a' * 40]:
+        assert other not in render('使用 ' + other)
+    for text in [f'使用 /work/skills/{name}', f'查看 `{name}/SKILL.md`',
+                 f'查看 https://example.com/{name}', f'代码 ```\n{name}\n```']:
+        assert name not in (render(text) or '')
+    assert render(f'使用 {name}，token=abc') is None
+    assert render(f'使用 `{name}`，pass<b></b>word=abc') is None
+    for invalid in [None, [], '../' + name, name + ' ']:
+        assert name not in render('使用 ' + name, invalid)

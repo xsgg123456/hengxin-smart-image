@@ -204,3 +204,40 @@ def test_stale_scanned_attempt_cannot_acquire_twice(recovery):
     assert first is not None
     assert reconcile._acquire(recovery[0], scanned) is None
     assert state(recovery)[0].execution_count == 1
+
+
+def final_reply_evidence(recovery, text='![主图1](/work/final.png)'):
+    control = recovery[6]
+    work = control.parents[1] / 'rounds' / str(recovery[5])
+    work.mkdir(parents=True)
+    (work / 'final.png').write_bytes(image_bytes())
+    (control / 'delivery.json').write_text(json.dumps({'version': 'final-reply-v1'}))
+    (control / 'provenance.json').unlink()
+    (control / 'events.jsonl').write_text('\n'.join(map(json.dumps, [
+        {'type': 'thread.started', 'thread_id': 'session-a'},
+        {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': text}},
+        {'type': 'turn.completed'},
+    ])))
+
+
+def test_final_reply_recovery_publishes_repaired_file_once_without_manifest(recovery):
+    final_reply_evidence(recovery)
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    job, round, attempt, count = state(recovery)
+    assert job.status == round.status == 'succeeded' and count == 1
+    assert job.execution_count == 1 and attempt.status == 'finished'
+
+
+def test_final_reply_recovery_missing_delivery_fails_without_guessing_candidates(recovery):
+    final_reply_evidence(recovery, '处理失败，没有成品')
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    job, round, attempt, count = state(recovery)
+    assert job.status == round.status == 'failed' and count == 0
+    assert attempt.observation['failure']['code'] == 'FINAL_REPLY_MISSING'
+
+
+def test_unknown_delivery_protocol_is_not_downgraded_to_legacy(recovery):
+    (recovery[6] / 'delivery.json').write_text('{"version":"unknown"}')
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    assert state(recovery)[0].status == 'uncertain' and state(recovery)[3] == 0

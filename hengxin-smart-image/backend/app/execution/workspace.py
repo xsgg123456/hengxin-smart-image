@@ -89,8 +89,16 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
             argv += ['--ro-bind', name, name]
     argv += ['--bind', str(workspace.home), '/home/runner',
              '--bind', str(workspace.work), '/work']
-    if workspace.local_skill is not None:
-        argv += ['--ro-bind', str(workspace.local_skill), workspace.skill_path]
+    skill = workspace.local_skill or workspace.work / 'skills' / workspace.skill_name
+    if skill.is_dir():
+        # Hide previous per-task discovery state and expose only this frozen Skill.
+        agents = workspace.home / '.agents'
+        if agents.is_symlink() or (hasattr(agents, 'is_junction') and agents.is_junction()):
+            raise ValueError('Skill discovery directory cannot be a link')
+        argv += ['--ro-bind', str(skill), workspace.skill_path,
+                 '--tmpfs', '/home/runner/.agents',
+                 '--dir', '/home/runner/.agents/skills',
+                 '--ro-bind', str(skill), '/home/runner/.agents/skills/' + workspace.skill_name]
     argv += ['--ro-bind', str(binary), '/opt/codex',
              '--ro-bind', str(helper), '/opt/codex-code-mode-host',
              '--chdir', '/work', '--', '/opt/codex', *arguments]

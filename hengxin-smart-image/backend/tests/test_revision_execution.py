@@ -13,7 +13,7 @@ from app.worker import reconcile
 from files_helpers import files_env, image_bytes  # noqa: F401
 from test_tasks import task_env, job_for  # noqa: F401
 from test_execution_reconcile import recovery, state  # noqa: F401
-from test_codex_runner import real_env, frozen_request, cli  # noqa: F401
+from test_codex_runner import real_env, frozen_request, cli, repaired_image_bytes  # noqa: F401
 
 
 def test_partial_recovery_uses_real_provenance_parser_and_no_new_execution(recovery, monkeypatch):
@@ -60,8 +60,8 @@ def test_same_session_revision_has_current_image_in_new_work_directory(real_env,
     def execute(args, prompt, control, timeout, stop, start):
         calls.append(args)
         assert args[args.index('resume') + 3] == 'test-session'
-        assert 'currentPath' in prompt and '/work/current/00.png' in prompt
-        assert (control.parents[1] / 'rounds' / revised['roundId'] / 'current/00.png').read_bytes() == image_bytes()
+        assert '当前版本' in prompt and '/work/current/00.png' in prompt
+        assert (control.parents[1] / 'rounds' / revised['roundId'] / 'current/00.png').read_bytes() == repaired_image_bytes()
         start(999, 'boot', 'birth')
         (control / 'events.jsonl').write_text(json.dumps({'type': 'thread.started', 'thread_id': 'test-session'}) + '\n')
         return {'exit_code': 1, 'reason': None}

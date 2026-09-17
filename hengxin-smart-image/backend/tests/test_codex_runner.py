@@ -9,6 +9,7 @@ from zipfile import ZipFile
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 from sqlalchemy import select
 
 from app.core.config import Settings, get_settings
@@ -22,12 +23,18 @@ from files_helpers import files_env, image_bytes, ObjectStream
 from test_tasks import body, submit, job_for
 
 
+def repaired_image_bytes():
+    buffer = BytesIO()
+    Image.new('RGB', (8, 6), '#abcdef').save(buffer, format='PNG')
+    return buffer.getvalue()
+
+
 @pytest.fixture
 def real_env(files_env, monkeypatch, tmp_path):
     settings = get_settings()
     auth = tmp_path / 'auth.json'
     auth.write_text('{"test": true}')
-    for key, value in dict(enable_codex_executor=True, enable_fixture_executor=False,
+    for key, value in dict(enable_codex_executor=True, enable_fixture_executor=False, codex_version='0.153.4',
                            codex_execution_root=str(tmp_path / 'execution'),
                            codex_auth_file=str(auth)).items():
         monkeypatch.setattr(settings, key, value)
@@ -41,8 +48,8 @@ def real_env(files_env, monkeypatch, tmp_path):
     return files_env
 
 
-def frozen_request(env):
-    data = body(env)
+def frozen_request(env, data=None):
+    data = data or body(env)
     buffer = BytesIO()
     with ZipFile(buffer, 'w') as archive:
         archive.writestr('SKILL.md', '---\nname: test\ndescription: test\n---\nEdit image.')
@@ -61,10 +68,13 @@ def cli(monkeypatch, env, receipt, *, image=True, reason=None, during=None, cras
     calls = []
     def execute(argv, prompt, control, timeout, should_stop, on_start):
         calls.append((argv, timeout))
-        assert '/work/inputs/00.png' in prompt
-        manifest = json.loads(prompt.split('本轮完整图片与结果槽映射（JSON 数据）：\n')[1])
-        skill_file = manifest['skillPath'].removeprefix('/work/')
-        assert (control.parents[1] / 'rounds' / receipt['roundId'] / skill_file).exists()
+        assert argv[argv.index('--model') + 1] == 'gpt-6-astra'
+        assert argv[argv.index('-c') + 1] == 'model_reasoning_effort="high"'
+        assert '/work/targets/00.png' in prompt
+        assert prompt.startswith('使用 $') and '后台结果交付规则' not in prompt
+        work = control.parents[1] / 'rounds' / receipt['roundId']
+        assert list((work / 'skills').glob('*/SKILL.md'))
+        assert json.loads((control / 'delivery.json').read_text()) == {'version': 'final-reply-v1'}
         on_start(1234, 'test-boot', '99')
         if during:
             during()
@@ -72,10 +82,9 @@ def cli(monkeypatch, env, receipt, *, image=True, reason=None, during=None, cras
         if crash:
             raise OSError('lost CLI boundary')
         session_id = 'test-session'
-        (control / 'events.jsonl').write_text('\n'.join(json.dumps(e) for e in [
+        events = [
             {'type': 'thread.started', 'thread_id': session_id},
-            {'type': 'turn.completed', 'usage': {'input_tokens': 7, 'output_tokens': 2}},
-        ]))
+        ]
         if image:
             output = control.parents[1] / 'home' / '.codex' / 'generated_images' / session_id
             output.mkdir(parents=True)
@@ -90,6 +99,12 @@ def cli(monkeypatch, env, receipt, *, image=True, reason=None, during=None, cras
                     'result': base64.b64encode(image_bytes()).decode()}}]
             (logs / f'rollout-test-{session_id}.jsonl').write_text(''.join(
                 json.dumps({'type': 'event_msg', 'payload': value}) + '\n' for value in payloads))
+            # The delivered image is a repaired file, not the native candidate.
+            (work / 'final.png').write_bytes(repaired_image_bytes())
+            events.append({'type': 'item.completed', 'item': {'type': 'agent_message',
+                'text': '![主图1](/work/final.png)'}})
+        events.append({'type': 'turn.completed', 'usage': {'input_tokens': 7, 'output_tokens': 2}})
+        (control / 'events.jsonl').write_text('\n'.join(json.dumps(e) for e in events))
         return {'exit_code': 0 if not reason else -15, 'reason': reason}
     monkeypatch.setattr(runner, 'execute', execute)
     return calls
@@ -116,6 +131,23 @@ def test_real_admission_frozen_timeout_session_usage_and_result(real_env, monkey
     assert detail['task']['executionSource'] == 'cli'
     for result in detail['task']['images']:
         assert real_env[0].get(result['url']).status_code == 200
+
+
+def test_revision_explicitly_pins_model_and_effort(real_env, monkeypatch):
+    from test_revisions import revise
+    receipt = frozen_request(real_env)
+    cli(monkeypatch, real_env, receipt)
+    runner.run_generation(job_for(real_env[1], receipt), real_env[1], real_env[2])
+    response = revise(real_env, receipt)
+    assert response.status_code == 202, response.text
+    revision = response.json()
+    calls = cli(monkeypatch, real_env, revision, image=False)
+    runner.run_generation(job_for(real_env[1], revision), real_env[1], real_env[2])
+    assert len(calls) == 1
+    assert 'resume' in calls[0][0] and 'test-session' in calls[0][0]
+    assert calls[0][0].index('--model') > calls[0][0].index('resume')
+    assert calls[0][0][calls[0][0].index('--model') + 1] == 'gpt-6-astra'
+    assert calls[0][0][calls[0][0].index('-c') + 1] == 'model_reasoning_effort="high"'
 
 
 @pytest.mark.parametrize('outcome,expected', [('no_image', 'failed'), ('timeout', 'failed'),

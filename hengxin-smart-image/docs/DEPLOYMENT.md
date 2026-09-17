@@ -1,5 +1,13 @@
 # VPS 开发测试部署
 
+当前并发试运行：2026-09-17 Worker池、API/Worker部署容量和后台并发均已调至5，真实池5个子进程及健康检查通过，用户五任务压测待进行。覆盖配置与回退见 [五并发配置记录](CONCURRENCY-5-20260917.md)。下文历史并发1不代表当前值。
+
+最新播报补丁：`skill-name-20260917-79892f0`，完整显示本轮绑定Skill名称，模型/提示词/Skill保持不变；备份及核验见 [发布记录](SKILL-NAME-DISPLAY-DEPLOYMENT.md)。
+
+当前发布：2026-09-17 `final-reply-20260917-59d22f5`，简洁提示词与最终回复收图已上线，模型保持 Astra/high，两个业务 Skill 原样保留。发布凭据、备份与验收边界见 [最终回复收图发布记录](FINAL-REPLY-DELIVERY-DEPLOYMENT.md)。以下旧发布标识为历史背景。
+
+最新生产模型更新：`model-20260917-0bb0454`，新任务和返工固定 `gpt-6-astra / high`。备份、验证与边界见 [ASTRA-HIGH-DEPLOYMENT.md](ASTRA-HIGH-DEPLOYMENT.md)。
+
 ## 本地 Skill 来源升级 · 2026-09-17
 
 已部署 `skills-20260917-1d611e9`，迁移0012、API/Outbox/原生Worker/前端已同步，两个本地壁纸 Skill 已启用，普通版默认。实际验证、清理授权和依赖审计未通过项见 [发布记录](RELEASE-LOCAL-SKILLS-20260917.md)。原生Worker已配置 `LOCAL_SKILL_ROOT=/opt/hengxin-skills`。发布树由管理员维护且执行用户不可写；API无需挂载该目录。具体格式、检查、历史ZIP兼容和回滚限制见 [LOCAL-SKILL-RELEASES.md](LOCAL-SKILL-RELEASES.md)。下文现有VPS配置与历史ZIP安装根保留。

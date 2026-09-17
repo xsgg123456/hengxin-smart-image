@@ -26,7 +26,7 @@ class EventTail:
     def __init__(self):
         self.offset, self.pending, self.dropping = 0, b'', False
 
-    def read(self, path):
+    def read(self, path, skill_name=None):
         messages = []
         try:
             with Path(path).open('rb') as stream:
@@ -49,7 +49,7 @@ class EventTail:
                 continue
             if not isinstance(event, dict):
                 continue
-            message = public_message(event)
+            message = public_message(event, skill_name)
             if message:
                 messages.append(message)
                 continue
@@ -121,7 +121,7 @@ class Observer:
             return
         self.last_tick = time.monotonic()
         self.session_id = session_id or self.session_id
-        for message in self.tail.read(self.workspace.control / 'events.jsonl'):
+        for message in self.tail.read(self.workspace.control / 'events.jsonl', self.workspace.skill_name):
             self.event(message)
         if self.session_id:
             root = self.workspace.home / '.codex' / 'generated_images' / self.session_id

@@ -43,7 +43,7 @@ def observed_run(task_env, tmp_path, monkeypatch):
     return invoke, receipt, task_env, tmp_path
 
 
-def test_runner_preserves_skill_failure_before_extra_output_mismatch(observed_run, monkeypatch):
+def test_runner_no_longer_uses_skill_manifest_as_delivery(observed_run, monkeypatch):
     invoke, receipt, env, root = observed_run
     original = runner.prepare_materials
     def materials(session, store, task, round, ws):
@@ -52,19 +52,17 @@ def test_runner_preserves_skill_failure_before_extra_output_mismatch(observed_ru
             'error': '原生输出1254×1254，与模板800×800不符，禁止缩放修正'}]}))
         return manifest
     monkeypatch.setattr(runner, 'prepare_materials', materials)
-    monkeypatch.setattr(runner, 'collect_outputs', lambda *a, **k: pytest.fail('all-failed Skill must retain its diagnosis'))
     view = invoke()
     assert view['status'] == 'failed'
-    assert view['failure']['slotErrors'][0]['slot'] == 0
-    assert '尺寸' in view['failure']['slotErrors'][0]['message']
+    assert view['failure']['code'] == 'FINAL_REPLY_MISSING'
+    assert view['failure']['slotErrors'] == []
     assert view['failure']['stage'] == 'validating'
     assert [e['stage'] for e in view['events']][:3] == ['preparing', 'starting', 'generating']
 
 
 def test_runner_distinguishes_storage_failure_without_leaking_exception(observed_run, monkeypatch):
     invoke, _, _, _ = observed_run
-    monkeypatch.setattr(runner, 'collect_outputs', lambda *a, **k: [object()])
-    monkeypatch.setattr(runner, 'verify_provenance', lambda *a: None)
+    monkeypatch.setattr(runner, 'collect_final_outputs', lambda *a, **k: [object()])
     monkeypatch.setattr(runner, 'save_upload', lambda *a: (_ for _ in ()).throw(OSError('secret password=/private/path')))
     view = invoke()
     assert view['failure']['code'] == 'STORAGE_FAILED' and view['failure']['stage'] == 'storing'
@@ -73,10 +71,10 @@ def test_runner_distinguishes_storage_failure_without_leaking_exception(observed
 
 def test_runner_output_error_is_not_mislabeled_as_storage(observed_run, monkeypatch):
     invoke, _, _, _ = observed_run
-    monkeypatch.setattr(runner, 'collect_outputs', lambda *a, **k: (_ for _ in ()).throw(
-        OutputCollectionError('invalid_output_manifest')))
+    monkeypatch.setattr(runner, 'collect_final_outputs', lambda *a, **k: (_ for _ in ()).throw(
+        OutputCollectionError('final_output_count_mismatch')))
     view = invoke()
-    assert view['failure']['code'] == 'OUTPUT_MANIFEST_INVALID'
+    assert view['failure']['code'] == 'FINAL_OUTPUT_INCOMPLETE'
     assert view['failure']['stage'] == 'validating'
 
 

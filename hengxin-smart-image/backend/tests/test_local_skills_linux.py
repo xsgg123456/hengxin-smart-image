@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory() as temp:
     workspace = Workspace(p/'home', p/'work', p/'control', tree.path, 'demo')
     settings = get_settings()
     command = sandbox_command(workspace, settings.codex_binary, [], settings.codex_bwrap_binary)
-    script = "import pathlib,os; p=pathlib.Path('/work/skills/demo/SKILL.md'); assert p.is_file(); assert pathlib.Path('/work/skills/demo/poison.py').is_file(); assert not os.access(p,os.W_OK); assert not pathlib.Path(" + repr(str(tree.path.parent.parent / 'other')) + ").exists(); p.write_text('changed')"
+    script = "import pathlib,os; p=pathlib.Path('/work/skills/demo/SKILL.md'); discovered=pathlib.Path('/home/runner/.agents/skills/demo'); assert p.is_file(); assert (discovered/'SKILL.md').read_bytes()==p.read_bytes(); assert (discovered/'poison.py').is_file(); assert not os.access(discovered,os.W_OK); assert not os.access(p,os.W_OK); assert not pathlib.Path(" + repr(str(tree.path.parent.parent / 'other')) + ").exists(); p.write_text('changed')"
     command = command[:command.index('--')+1] + ['/usr/bin/python3','-I','-c',script]
     outcome = subprocess.run(command, capture_output=True, text=True)
     assert outcome.returncode != 0 and 'Read-only file system' in outcome.stderr, outcome.stderr

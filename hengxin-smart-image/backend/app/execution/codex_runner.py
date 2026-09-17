@@ -16,10 +16,10 @@ from app.resource_models import UserRecord
 from app.storage.minio_store import get_store
 from app.worker.leases import heartbeat
 from .events import parse_events
-from .output_collector import collect_outputs, snapshot_outputs, OutputCollectionError
-from .provenance import snapshot_provenance, verify_provenance, ProvenanceError
+from .output_collector import snapshot_outputs, OutputCollectionError
+from .final_delivery import collect_final_outputs
 from .observation import Observer
-from .diagnostics import failure_for, manifest_failure, cli_failure_code
+from .diagnostics import failure_for, cli_failure_code
 from .materials import prepare_materials, SkillDeploymentError
 from .process import execute
 from .workspace import prepare_workspace, sandbox_command, prompt_for
@@ -72,7 +72,7 @@ def run_generation(job_id, factory=None, store=None):
     if not token:
         return
     attempt_id, completed, spawning = None, False, False
-    observer, stage, reported = None, 'starting', None
+    observer, stage = None, 'starting'
     try:
         with heartbeat(factory, job_id, token):
             version = subprocess.run([settings.codex_binary, '--version'], capture_output=True,
@@ -116,8 +116,7 @@ def run_generation(job_id, factory=None, store=None):
             baseline = snapshot_outputs(home, previous) if previous else {}
             observer.baseline = set(baseline)
             (workspace.control / 'baseline.json').write_text(json.dumps(baseline))
-            provenance = snapshot_provenance(home)
-            (workspace.control / 'provenance.json').write_text(json.dumps(provenance))
+            (workspace.control / 'delivery.json').write_text(json.dumps({'version': 'final-reply-v1'}))
             observed = [previous]
             def monitor():
                 if observed[0] is None and (workspace.control / 'events.jsonl').exists():
@@ -132,9 +131,10 @@ def run_generation(job_id, factory=None, store=None):
                 return should_stop(factory, job_id, token)
             args = ['exec', '--sandbox', 'workspace-write']
             if previous:
-                args += ['resume', '--skip-git-repo-check', '--json', previous, '-']
+                args += ['resume', '--skip-git-repo-check', '--json', previous]
             else:
-                args += ['--skip-git-repo-check', '--json', '-']
+                args += ['--skip-git-repo-check', '--json']
+            args += ['--model', 'gpt-6-astra', '-c', 'model_reasoning_effort="high"', '-']
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
             stage = 'starting'
             observer.phase(stage)
@@ -164,18 +164,8 @@ def run_generation(job_id, factory=None, store=None):
                 return
             stage = 'validating'
             observer.phase(stage)
-            reported = manifest_failure(workspace.work / 'manifest.json', len(manifest['targets']), round.target,
-                                        allow_windows_fallback=True)
-            if reported and len(reported['slotErrors']) == len(manifest['targets']):
-                observer.phase('failed', reported)
-                fail_stopped(factory, job_id, token, reported['message'])
-                return
-            images = collect_outputs(home, summary.session_id, baseline, len(manifest['targets']),
-                manifest_path=workspace.work / 'manifest.json' if (workspace.work / 'manifest.json').exists() else None,
-                allow_partial=True)
-            successful = [image for image in images if image is not None]
-            if successful:
-                verify_provenance(home, summary.session_id, provenance, successful)
+            images = collect_final_outputs(workspace.work, home, workspace.control / 'events.jsonl',
+                summary.session_id, baseline, len(manifest['targets']))
             stage = 'storing'
             observer.phase(stage)
             outputs = []
@@ -192,14 +182,12 @@ def run_generation(job_id, factory=None, store=None):
                 observer.phase('failed', failure_for('publication_lost', stage))
                 fail_stopped(factory, job_id, token, '执行权已失效，未发布结果')
             else:
-                observer.phase('completed', reported)
+                observer.phase('completed')
     except Exception as error:
-        code = (str(error) if isinstance(error, (OutputCollectionError, ProvenanceError, SkillDeploymentError)) else
+        code = (str(error) if isinstance(error, (OutputCollectionError, SkillDeploymentError)) else
                 'storage_failed' if stage == 'storing' else
                 'startup_failed' if not spawning else 'unexpected_error')
         failure = failure_for(code, stage)
-        if reported:
-            failure['slotErrors'] = reported['slotErrors']
         if observer:
             observer.phase('failed' if completed or not spawning else 'uncertain', failure)
         if completed or not spawning:
