@@ -24,7 +24,8 @@ def observed_run(task_env, tmp_path, monkeypatch):
     receipt = submit(task_env).json()
     assert 'taskId' in receipt, receipt
     def materials(session, store, task, round, ws):
-        return {'targets': [{'slot': 0}], 'inputs': []}
+        return {'mode': task.mode, 'skillPath': '/work/skills/demo/SKILL.md',
+                'targets': [{'slot': 0, 'path': '/work/targets/00.png', 'taskSlot': 0}], 'inputs': []}
     monkeypatch.setattr(runner, 'prepare_materials', materials)
     monkeypatch.setattr(runner, 'sandbox_command', lambda *args: ['fake'])
     monkeypatch.setattr(runner.subprocess, 'run', lambda *a, **k:

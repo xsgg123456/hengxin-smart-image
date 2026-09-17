@@ -25,13 +25,25 @@ def skills_env(files_env, monkeypatch, tmp_path):
     monkeypatch.setenv('SKILL_INSTALL_ROOT', str(tmp_path / 'skills'))
     monkeypatch.setattr(store, 'open', lambda record: BytesIO(store.objects[record.object_key]))
     get_settings.cache_clear()
+    client.legacy_skill_environment = (factory, store)
     yield files_env
     get_settings.cache_clear()
 
 
 def upload(client, version='1.0.0', data=None):
-    return client.post('/api/v1/management/skills', data={'mode': 'text', 'version': version},
-                       files={'file': ('demo.zip', data or archive(), 'application/zip')})
+    # Seed historical packages through the retained internal service, not the retired API.
+    from fastapi import HTTPException
+    from httpx import Response
+    from app.modules.skills.service import upload_package, dto
+    from app.modules.skills.package_validator import validate_package
+    factory, store = client.legacy_skill_environment
+    raw = data or archive()
+    with factory() as session:
+        try:
+            record = upload_package(session, store, validate_package(raw, 'text', version), raw, 'text', version)
+            return Response(201, json=dto(session, record).model_dump())
+        except HTTPException as error:
+            return Response(error.status_code, json={'detail': error.detail})
 
 
 def test_upload_install_defaults_status_and_duplicates(skills_env):
@@ -70,7 +82,7 @@ def test_admin_permission(skills_env, role):
     client, factory, _, identity = skills_env
     with factory.begin() as session:
         session.get(UserRecord, identity[0]).role = role
-    assert upload(client).status_code == 403
+    assert client.post('/api/v1/management/skills').status_code == 403
     assert client.get('/api/v1/management/skills').status_code == 403
     assert client.post(f'/api/v1/management/skills/{uuid4()}/install').status_code == 403
     assert client.put(f'/api/v1/management/skills/{uuid4()}/status', json={'status': 'disabled'}).status_code == 403

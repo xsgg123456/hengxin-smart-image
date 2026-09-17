@@ -51,7 +51,8 @@ class SkillVersion(BaseModel):
     version: str
     checksum: str
     isDefault: bool
-    status: Literal['uploaded', 'installing', 'available', 'disabled', 'failed']
+    status: Literal['uploaded', 'installing', 'available', 'disabled', 'failed',
+                    'pending', 'checking', 'verified', 'invalid']
 
 
 class Template(BaseModel):

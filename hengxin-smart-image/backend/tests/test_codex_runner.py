@@ -62,7 +62,9 @@ def cli(monkeypatch, env, receipt, *, image=True, reason=None, during=None, cras
     def execute(argv, prompt, control, timeout, should_stop, on_start):
         calls.append((argv, timeout))
         assert '/work/inputs/00.png' in prompt
-        assert (control.parents[1] / 'rounds' / receipt['roundId'] / 'skill' / 'SKILL.md').exists()
+        manifest = json.loads(prompt.split('本轮完整图片与结果槽映射（JSON 数据）：\n')[1])
+        skill_file = manifest['skillPath'].removeprefix('/work/')
+        assert (control.parents[1] / 'rounds' / receipt['roundId'] / skill_file).exists()
         on_start(1234, 'test-boot', '99')
         if during:
             during()

@@ -27,7 +27,7 @@ export const usage: Guard<UsageReport> = (v): v is UsageReport => obj(v) && choi
   && Array.isArray(v.rows) && v.rows.every(r => obj(r) && date(r.date) && str(r.userId) && str(r.userName) && summary(r.summary) && list(r.details, attempt))
 export const managedUser: Guard<ManagedUser> = (v): v is ManagedUser => user(v) && obj(v) && str(v.department) && nullableDate(v.lastLoginAt)
 export const userPage: Guard<PageResult<ManagedUser>> = (v): v is PageResult<ManagedUser> => obj(v) && list(v.items, managedUser) && integer(v.total) && integer(v.page) && v.page > 0 && integer(v.pageSize) && v.pageSize > 0
-export const managedSkill: Guard<ManagedSkill> = (v): v is ManagedSkill => skillList([v]) && obj(v) && nullableDate(v.installedAt) && (v.node === null || str(v.node)) && date(v.updatedAt) && (v.error === null || str(v.error)) && typeof v.referenced === 'boolean'
+export const managedSkill: Guard<ManagedSkill> = (v): v is ManagedSkill => skillList([v]) && obj(v) && choice(v.sourceType, ['zip', 'local']) && (v.description === undefined || str(v.description)) && nullableDate(v.installedAt) && (v.node === null || str(v.node)) && date(v.updatedAt) && (v.error === null || str(v.error)) && typeof v.referenced === 'boolean'
 export const managedSkills: Guard<ManagedSkill[]> = (v): v is ManagedSkill[] => list(v, managedSkill)
 export const skillDefaults: Guard<SystemConfig['defaultSkillIds']> = (v): v is SystemConfig['defaultSkillIds'] => obj(v)
   && ['wallpaper', 'product', 'text'].every(k => v[k] === null || (str(v[k]) && v[k].trim().length > 0))

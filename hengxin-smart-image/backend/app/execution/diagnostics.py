@@ -11,6 +11,8 @@ STAGES = frozenset(('queued', 'preparing', 'starting', 'generating', 'validating
 MAX_MANIFEST_BYTES = 64 * 1024
 _RETRY = '请重试；若仍失败，请联系管理员并提供诊断编号'
 _GROUPS = (
+    ('SKILL_DEPLOYMENT_INVALID', '冻结 Skill 版本缺失、内容变化或隔离环境依赖不可用',
+     '请联系管理员检查该版本部署；平台不会自动切换版本', 'skill_deployment_invalid'),
     ('OUTPUT_UNSAFE', '输出文件未通过安全检查', _RETRY,
      'output_path_escape output_link_forbidden output_hardlink_forbidden manifest_link_forbidden'),
     ('OUTPUT_MANIFEST_INVALID', '输出清单缺失或不符合约定', '请检查 Skill 输出清单约定后重试',

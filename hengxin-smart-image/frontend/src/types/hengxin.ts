@@ -28,7 +28,7 @@ export interface SkillVersion {
   version: string
   checksum: string
   isDefault: boolean
-  status: 'uploaded' | 'installing' | 'available' | 'disabled' | 'failed'
+  status: 'pending' | 'checking' | 'verified' | 'invalid' | 'uploaded' | 'installing' | 'available' | 'disabled' | 'failed'
 }
 export interface Template {
   skillBinding?: 'module_default' | 'specific'

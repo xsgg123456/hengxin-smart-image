@@ -20,7 +20,7 @@ from .output_collector import collect_outputs, snapshot_outputs, OutputCollectio
 from .provenance import snapshot_provenance, verify_provenance, ProvenanceError
 from .observation import Observer
 from .diagnostics import failure_for, manifest_failure, cli_failure_code
-from .materials import prepare_materials
+from .materials import prepare_materials, SkillDeploymentError
 from .process import execute
 from .workspace import prepare_workspace, sandbox_command, prompt_for
 
@@ -144,7 +144,7 @@ def run_generation(job_id, factory=None, store=None):
             spawning = True
             stage = 'generating'
             receipt = execute(command,
-                prompt_for(manifest, note), workspace.control, timeout,
+                prompt_for(manifest, note, previous), workspace.control, timeout,
                 monitor,
                 started)
             completed = True
@@ -194,7 +194,7 @@ def run_generation(job_id, factory=None, store=None):
             else:
                 observer.phase('completed', reported)
     except Exception as error:
-        code = (str(error) if isinstance(error, (OutputCollectionError, ProvenanceError)) else
+        code = (str(error) if isinstance(error, (OutputCollectionError, ProvenanceError, SkillDeploymentError)) else
                 'storage_failed' if stage == 'storing' else
                 'startup_failed' if not spawning else 'unexpected_error')
         failure = failure_for(code, stage)

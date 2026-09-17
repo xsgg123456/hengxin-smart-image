@@ -1,10 +1,14 @@
 # VPS 开发测试部署
 
+## 本地 Skill 来源升级 · 2026-09-17
+
+已部署 `skills-20260917-1d611e9`，迁移0012、API/Outbox/原生Worker/前端已同步，两个本地壁纸 Skill 已启用，普通版默认。实际验证、清理授权和依赖审计未通过项见 [发布记录](RELEASE-LOCAL-SKILLS-20260917.md)。原生Worker已配置 `LOCAL_SKILL_ROOT=/opt/hengxin-skills`。发布树由管理员维护且执行用户不可写；API无需挂载该目录。具体格式、检查、历史ZIP兼容和回滚限制见 [LOCAL-SKILL-RELEASES.md](LOCAL-SKILL-RELEASES.md)。下文现有VPS配置与历史ZIP安装根保留。
+
 ## 当前范围
 
 当前文件描述 Phase 14.1 的 VPS 开发测试环境。目标主机为 Ubuntu 24.04 x86_64，主机名 `racknerd-058889d`。环境使用独立 Compose 项目 `hengxin-vps-staging`、独立数据库/Redis/MinIO 数据卷和独立运行目录，复用 VPS 上的 1Panel 但不接管 80/443。
 
-该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，业务基线 `99ff375` / 迁移 `0011`；前端入口 `index-DePrnCPO.js`（npm `dingtalk-jsapi`）。钉钉真实双端登录待验收。
+该环境关闭 fixture，使用 VPS 上 `codex` 用户运行原生 Codex Worker。当前继续作为开发测试环境，已接入域名和 HTTPS，当前发布 `skills-20260917-1d611e9` / 迁移 `0012`；前端入口 `index-Bru91n64.js`（npm `dingtalk-jsapi`）。钉钉真实双端登录待验收。
 
 ## 目录与服务
 
@@ -15,7 +19,7 @@
 - Redis：宿主机 `127.0.0.1:16388`
 - MinIO API/Console：宿主机 `127.0.0.1:15900/15901`
 - Codex Worker：`hengxin-vps-codex-worker.service`
-- Skill：`/opt/hengxin-smart-image/infra/runtime/skills`
+- 本地 Skill：`/opt/hengxin-skills`；历史 ZIP 缓存：`/opt/hengxin-smart-image/infra/runtime/skills`
 - 会话与执行材料：`/opt/hengxin-smart-image/infra/runtime/execution`
 - Codex 认证：`/home/codex/auth/auth.json`，只允许 `codex` 读取
 

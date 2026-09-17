@@ -36,19 +36,19 @@ test('统计跨日、操作者、去重、已结束分母和缺失 usage 保真'
   assert.equal(buildUsage(db, [base], admin, { to: '2026-09-08' }, []).summary.attempts, 0)
 })
 
-test('Skill 异步安装失败保留旧版，成功才可发布，设置切换同源版本', async () => {
+test('Skill 异步检查失败保留旧版，显式启用后才能设默认', async () => {
   const shared = skills()
   const api = createMockManagement(createFixtures(), shared, () => admin, { installMs: 0, scenario: 'install-error' })
-  const file = new File([new Uint8Array([80, 75, 3, 4, 0])], 'skill.zip')
-  const uploaded = await api.uploadSkill(file, 'text', '2.0.0')
-  assert.equal(uploaded.checksum.length, 64); assert.equal(uploaded.status, 'uploaded')
+  const uploaded = await api.registerSkill({name:'text',mode:'text',version:'2.0.0',description:''})
+  assert.equal(uploaded.checksum, ''); assert.equal(uploaded.status, 'pending'); assert.equal(uploaded.sourceType, 'local')
   await assert.rejects(api.setSkillStatus(uploaded.id, 'available'), { code: 'CONFLICT' })
-  assert.equal((await api.installSkill(uploaded.id)).status, 'installing')
-  assert.equal((await api.listManagedSkills()).find(s => s.id === uploaded.id)?.status, 'failed')
+  assert.equal((await api.checkSkill(uploaded.id)).status, 'checking')
+  assert.equal((await api.listManagedSkills()).find(s => s.id === uploaded.id)?.status, 'invalid')
   assert.equal(shared.find(s => s.id === 'text')?.status, 'available')
-  const ok = createMockManagement(createFixtures(), shared, () => admin, { installMs: 0 })
-  await ok.installSkill(uploaded.id)
-  assert.equal((await ok.listManagedSkills()).find(s => s.id === uploaded.id)?.status, 'available')
+  const ok = api
+  await ok.checkSkill(uploaded.id)
+  assert.equal((await ok.listManagedSkills()).find(s => s.id === uploaded.id)?.status, 'verified')
+  await ok.setSkillStatus(uploaded.id, 'available')
   const config = await ok.getSettings()
   const saved = await ok.saveSettings({ ...config, defaultSkillIds: { ...config.defaultSkillIds, text: uploaded.id } })
   assert.equal(saved.version, 2); assert.equal(shared.find(s => s.id === uploaded.id)?.isDefault, true)
@@ -75,7 +75,7 @@ test('空、未知、空闲与请求失败可复现，HTTP 拒绝畸形管理响
 })
 
 
-test('角色修改通知共享会话；非法日期和安装包拒绝且没有副作用', async () => {
+test('角色修改通知共享会话；非法日期和登记拒绝且没有副作用', async () => {
   let updated: User | null = null
   const shared = skills()
   const api = createMockManagement(createFixtures(), shared, () => admin, { onUserChanged: user => { updated = user } })
@@ -83,7 +83,7 @@ test('角色修改通知共享会话；非法日期和安装包拒绝且没有�
   assert.deepEqual(updated && (updated as User).role, 'designer')
   await assert.rejects(api.saveUser({ id: admin.id, role: 'operator', status: 'active' }), { code: 'CONFLICT' })
   await assert.rejects(api.getUsage({ from: '2026-02-30' }), { code: 'VALIDATION' })
-  await assert.rejects(api.uploadSkill(new File(['invalid'], 'bad.zip'), 'text', '3.0.0'), { code: 'VALIDATION' })
+  await assert.rejects(api.registerSkill({name:'../bad',mode:'text',version:'3.0.0',description:''}), { code: 'VALIDATION' })
   assert.equal(shared.length, 3)
 })
 
@@ -96,15 +96,15 @@ test('配置遵守并发10、超时60秒和图片10MiB边界', async () => {
   assert.equal((await api.saveSettings({ ...config, concurrency: 10, timeoutSeconds: 60, maxUploadBytes: 10485760 })).version, 2)
 })
 
-test('安装故障首次失败后可重试；统计使用实时 attempt getter', async () => {
+test('检查故障首次失败后可重试；统计使用实时 attempt getter', async () => {
   let reads = 0
   const api = createMockManagement(createFixtures(), skills(), () => admin, { installMs: 0, scenario: 'install-error', getAttempts: () => { reads++; return [] } })
   await api.getUsage({}); await api.getUsage({}); assert.equal(reads, 2)
-  const uploaded = await api.uploadSkill(new File([new Uint8Array([80, 75, 3, 4])], 'ok.zip'), 'text', '4.0.0')
-  await api.installSkill(uploaded.id)
-  assert.equal((await api.listManagedSkills()).find(s => s.id === uploaded.id)?.status, 'failed')
-  await api.installSkill(uploaded.id)
+  const uploaded = await api.registerSkill({name:'ok',mode:'text',version:'4.0.0',description:''})
+  await api.checkSkill(uploaded.id)
+  assert.equal((await api.listManagedSkills()).find(s => s.id === uploaded.id)?.status, 'invalid')
+  await api.checkSkill(uploaded.id)
   const first = (await api.listManagedSkills()).find(s => s.id === uploaded.id)!
   const second = (await api.listManagedSkills()).find(s => s.id === uploaded.id)!
-  assert.equal(first.status, 'available'); assert.equal(first.installedAt, second.installedAt)
+  assert.equal(first.status, 'verified'); assert.equal(first.installedAt, second.installedAt)
 })

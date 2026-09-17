@@ -1,3 +1,4 @@
+import { isSkillVersion } from '../../utils/skill-version'
 import type { ManagedSettings, ManagedSkill, ManagementScenario, ManagementService, SettingsInput } from '../../types/management'
 import type { SkillVersion, User, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
@@ -13,46 +14,47 @@ export function validateSettings(input: SettingsInput, skills: SkillVersion[], c
     throw new ApiError('VALIDATION', '钉钉接入由部署环境管理，网页只读', 422)
   }
 }
-export function createSkillManagement(db: Workspace, skills: SkillVersion[], check: (admin?: boolean, operation?: string) => Promise<User>, options: { scenario?: ManagementScenario; installMs?: number }): Pick<ManagementService, 'listManagedSkills' | 'uploadSkill' | 'installSkill' | 'setSkillStatus'> {
+export function createSkillManagement(db: Workspace, skills: SkillVersion[], check: (admin?: boolean, operation?: string) => Promise<User>, options: { scenario?: ManagementScenario; installMs?: number }): Pick<ManagementService, 'listManagedSkills' | 'registerSkill' | 'checkSkill' | 'removeSkill' | 'setSkillStatus'> {
   const metadata = new Map<string, Omit<ManagedSkill, keyof SkillVersion>>()
   const jobs = new Map<string, number>()
   const failedOnce = new Set<string>()
   function managed(s: SkillVersion): ManagedSkill {
-    const previous = metadata.get(s.id) ?? { installedAt: s.status === 'available' ? new Date().toISOString() : null, node: s.status === 'available' ? '模拟 Worker' : null, updatedAt: new Date().toISOString(), error: null, referenced: false }
+    const previous = metadata.get(s.id) ?? { sourceType: 'zip', installedAt: s.status === 'available' ? new Date().toISOString() : null, node: s.status === 'available' ? '模拟 Worker' : null, updatedAt: new Date().toISOString(), error: null, referenced: false }
     if (!metadata.has(s.id)) metadata.set(s.id, previous)
     return { ...previous, ...s, referenced: db.tasks.some(t => t.skillVersionId === s.id) || db.templates.some(t => t.skillVersionId === s.id) }
   }
   function get(id: string) { const skill = skills.find(s => s.id === id); if (!skill) throw new ApiError('NOT_FOUND', 'Skill 不存在', 404); return skill }
   function finish() {
     for (const [id, deadline] of jobs) if (deadline <= Date.now()) {
-      const skill = get(id); skill.status = options.scenario === 'install-error' && !failedOnce.has(id) ? 'failed' : 'available'
-      if (skill.status === 'failed') failedOnce.add(id)
-      metadata.set(id, { ...managed(skill), updatedAt: new Date().toISOString(), installedAt: skill.status === 'available' ? new Date().toISOString() : null, node: '模拟 Worker', error: skill.status === 'failed' ? '模拟依赖检查失败；旧版本保持可用' : null }); jobs.delete(id)
+      const skill = get(id); skill.status = options.scenario === 'install-error' && !failedOnce.has(id) ? 'invalid' : 'verified'
+      if (skill.status === 'invalid') failedOnce.add(id)
+      if (skill.status === 'verified' && !skill.checksum) skill.checksum = 'mock-local-content-checksum'
+      metadata.set(id, { ...managed(skill), updatedAt: new Date().toISOString(), installedAt: skill.status === 'verified' ? new Date().toISOString() : null, node: '模拟 Worker', error: skill.status === 'invalid' ? '模拟部署检查失败；旧版本保持可用' : null }); jobs.delete(id)
     }
   }
   return {
     async listManagedSkills() { await check(true); finish(); return options.scenario === 'empty' ? [] : skills.map(managed) },
-    async uploadSkill(file, mode, version) {
+    async registerSkill({ name, mode, version, description }) {
       await check(true, 'save')
-      if (!['wallpaper', 'product', 'text'].includes(mode) || !/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version) || !/\.zip$/i.test(file.name) || !file.size || file.size > 20 * 1048576) throw new ApiError('VALIDATION', '请选择非空且 ≤20 MiB 的 ZIP 包及合法语义版本', 422)
-      if (skills.some(s => s.mode === mode && s.version === version)) throw new ApiError('CONFLICT', '该类型版本已存在', 409)
-      const bytes = await file.arrayBuffer()
-      const head = new Uint8Array(bytes)
-      if (head[0] !== 0x50 || head[1] !== 0x4b || ![3, 5, 7].includes(head[2])) throw new ApiError('VALIDATION', 'ZIP 包头校验失败', 422)
-      const checksum = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), v => v.toString(16).padStart(2, '0')).join('')
-      await check(true, 'save')
-      if (skills.some(s => s.mode === mode && s.version === version)) throw new ApiError('CONFLICT', '该类型版本已存在', 409)
-      const skill: SkillVersion = { id: crypto.randomUUID(), name: file.name, mode, version, checksum, status: 'uploaded', isDefault: false }
-      skills.push(skill); return managed(skill)
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(name) || !['wallpaper', 'product', 'text'].includes(mode) || !isSkillVersion(version) || description.length > 2000) throw new ApiError('VALIDATION', '请填写合法标识、语义版本及处理类型', 422)
+      if (skills.some(s => s.name === name && s.mode === mode && s.version === version)) throw new ApiError('CONFLICT', '该 Skill 版本已存在', 409)
+      const skill: SkillVersion = { id: crypto.randomUUID(), name, mode, version, checksum: '', status: 'pending', isDefault: false }
+      metadata.set(skill.id, { sourceType: 'local', description, installedAt: null, node: null, updatedAt: new Date().toISOString(), error: null, referenced: false })
+      skills.unshift(skill); return managed(skill)
     },
-    async installSkill(id) {
+    async checkSkill(id) {
       await check(true, 'save'); finish(); const skill = get(id)
-      if (!['uploaded', 'failed'].includes(skill.status)) throw new ApiError('CONFLICT', '仅已上传或安装失败版本可安装', 409)
-      skill.status = 'installing'; jobs.set(id, Date.now() + (options.installMs ?? 1200)); return managed(skill)
+      if (managed(skill).sourceType !== 'local' || skill.status === 'checking') throw new ApiError('CONFLICT', '此版本不能检查或已有检查在途', 409)
+      skill.status = 'checking'; metadata.set(id, { ...managed(skill), error: null, updatedAt: new Date().toISOString() }); jobs.set(id, Date.now() + (options.installMs ?? 1200)); return managed(skill)
+    },
+    async removeSkill(id) {
+      await check(true, 'save'); finish(); const skill = get(id), row = managed(skill)
+      if (row.sourceType !== 'local' || row.referenced || row.isDefault || row.status === 'checking') throw new ApiError('CONFLICT', '仅可移除无引用、非默认且无检查在途的本地登记', 409)
+      skills.splice(skills.indexOf(skill), 1); metadata.delete(id)
     },
     async setSkillStatus(id, status) {
       await check(true, 'save'); finish(); const skill = get(id)
-      if (!['available', 'disabled'].includes(status) || !['available', 'disabled'].includes(skill.status)) throw new ApiError('CONFLICT', '只有安装完成的版本可启停', 409)
+      if (!['available', 'disabled'].includes(status) || !['verified', 'available', 'disabled'].includes(skill.status)) throw new ApiError('CONFLICT', '只有已验证的版本可启停', 409)
       skill.status = status; metadata.set(id, { ...managed(skill), updatedAt: new Date().toISOString() }); return managed(skill)
     }
   }

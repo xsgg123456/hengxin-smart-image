@@ -25,7 +25,8 @@ export interface MonitorReport {
 export interface ManagedUser extends User { department: string; lastLoginAt: string | null }
 export interface UserQuery extends PageQuery { status?: User['status']; role?: Role }
 export interface UserInput { id: string; role: Role | null; status: User['status'] }
-export interface ManagedSkill extends SkillVersion { installedAt: string | null; node: string | null; updatedAt: string; error: string | null; referenced: boolean }
+export interface SkillRegistration { name: string; mode: Mode; version: string; description: string }
+export interface ManagedSkill extends SkillVersion { sourceType: 'zip' | 'local'; description?: string; installedAt: string | null; node: string | null; updatedAt: string; error: string | null; referenced: boolean }
 export interface SettingsAudit { id: string; operatorId: string; operatorName: string; changedAt: string; version: number; fields: string[] }
 export interface DingTalkConfig { corpId: string; appId: string; callbackDomain: string; state: 'unconfigured' | 'ready' | 'error' }
 export interface ManagedSettings extends SystemConfig { capacity: number; timeoutCapacity: number; dingtalk: DingTalkConfig; audit: SettingsAudit[] }
@@ -38,8 +39,9 @@ export interface ManagementService {
   listManagedSkills(): Promise<ManagedSkill[]>
   getSkillDefaults(): Promise<SystemConfig['defaultSkillIds']>
   saveSkillDefaults(input: SystemConfig['defaultSkillIds']): Promise<SystemConfig['defaultSkillIds']>
-  uploadSkill(file: File, mode: Mode, version: string): Promise<ManagedSkill>
-  installSkill(id: string): Promise<ManagedSkill>
+  registerSkill(input: SkillRegistration): Promise<ManagedSkill>
+  checkSkill(id: string): Promise<ManagedSkill>
+  removeSkill(id: string): Promise<void>
   setSkillStatus(id: string, status: 'available' | 'disabled'): Promise<ManagedSkill>
   getSettings(): Promise<ManagedSettings>
   saveSettings(input: SettingsInput): Promise<ManagedSettings>

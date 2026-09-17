@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     generation_concurrency: int = Field(default=1, ge=1, le=10)
     fixture_delay_seconds: int = Field(default=3, ge=0, le=60)
     skill_install_root: str = '/var/lib/hengxin/skills'
+    local_skill_root: str = '/opt/hengxin-skills'
     worker_node_name: str = 'worker-1'
     job_lease_seconds: int = Field(default=30, ge=10, le=300)
     job_heartbeat_seconds: int = Field(default=5, ge=1, le=60)

@@ -1,6 +1,7 @@
 from .fields import omitted
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from app.core.semver import validate_semver
 from .business import Mode, PageQuery, Role, SkillVersion, User
 
 
@@ -141,6 +142,8 @@ class UserInput(BaseModel):
 
 
 class ManagedSkill(SkillVersion):
+    sourceType: Literal['zip', 'local']
+    description: str
     installedAt: str | None
     node: str | None
     updatedAt: str
@@ -150,6 +153,18 @@ class ManagedSkill(SkillVersion):
 
 class SkillStatusInput(BaseModel):
     status: Literal['available', 'disabled']
+
+
+class SkillRegisterInput(BaseModel):
+    name: str = Field(min_length=1, max_length=100, pattern=r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
+    mode: Mode
+    version: str = Field(max_length=100)
+    description: str = Field(default='', max_length=2000)
+
+    @field_validator('version')
+    @classmethod
+    def valid_version(cls, value):
+        return validate_semver(value)
 
 
 class DefaultSkillIds(BaseModel):

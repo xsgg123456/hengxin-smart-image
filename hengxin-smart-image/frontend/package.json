@@ -125,6 +125,9 @@
   },
   "packageManager": "pnpm@10.33.4",
   "pnpm": {
+    "overrides": {
+      "tar": "7.5.19"
+    },
     "ignoredBuiltDependencies": [
       "core-js"
     ],

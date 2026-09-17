@@ -1,6 +1,7 @@
 import type { ManagementService } from '../types/management'
 import { getService } from './hengxin/client'
 import { createRequest } from './hengxin/http'
+import { noContent } from './hengxin/validate'
 import * as guard from './hengxin/validate-management'
 export function createHttpManagement(baseUrl: string, fetcher: typeof fetch = fetch): ManagementService {
   const request = createRequest(baseUrl, fetcher)
@@ -13,8 +14,9 @@ export function createHttpManagement(baseUrl: string, fetcher: typeof fetch = fe
     listManagedSkills: () => request('/management/skills', guard.managedSkills),
     getSkillDefaults: () => request('/management/skills/defaults', guard.skillDefaults),
     saveSkillDefaults: input => request('/management/skills/defaults', guard.skillDefaults, 'PUT', input),
-    uploadSkill: (file, mode, version) => { const data = new FormData(); data.append('file', file); data.append('mode', mode); data.append('version', version); return request('/management/skills', guard.managedSkill, 'POST', data, 60000) },
-    installSkill: id => request(`/management/skills/${encodeURIComponent(id)}/install`, guard.managedSkill, 'POST'),
+    registerSkill: input => request('/management/skills/register', guard.managedSkill, 'POST', input),
+    checkSkill: id => request(`/management/skills/${encodeURIComponent(id)}/check`, guard.managedSkill, 'POST'),
+    removeSkill: id => request(`/management/skills/${encodeURIComponent(id)}`, noContent, 'DELETE'),
     setSkillStatus: (id, status) => request(`/management/skills/${encodeURIComponent(id)}/status`, guard.managedSkill, 'PUT', { status }),
     getSettings: () => request('/management/settings', guard.settings),
     saveSettings: input => request('/management/settings', guard.settings, 'PUT', input)
@@ -28,10 +30,11 @@ export const managementApi: ManagementService = {
   listManagedSkills: async () => (await getService()).listManagedSkills(),
   getSkillDefaults: async () => (await getService()).getSkillDefaults(),
   saveSkillDefaults: async input => (await getService()).saveSkillDefaults(input),
-  uploadSkill: async (file, mode, version) => (await getService()).uploadSkill(file, mode, version),
-  installSkill: async id => (await getService()).installSkill(id),
+  registerSkill: async input => (await getService()).registerSkill(input),
+  checkSkill: async id => (await getService()).checkSkill(id),
+  removeSkill: async id => (await getService()).removeSkill(id),
   setSkillStatus: async (id, status) => (await getService()).setSkillStatus(id, status),
   getSettings: async () => (await getService()).getSettings(),
   saveSettings: async input => (await getService()).saveSettings(input)
 }
-export const { getUsage, getMonitor, listUsers, saveUser, listManagedSkills, getSkillDefaults, saveSkillDefaults, uploadSkill, installSkill, setSkillStatus, getSettings, saveSettings } = managementApi
+export const { getUsage, getMonitor, listUsers, saveUser, listManagedSkills, getSkillDefaults, saveSkillDefaults, registerSkill, checkSkill, removeSkill, setSkillStatus, getSettings, saveSettings } = managementApi

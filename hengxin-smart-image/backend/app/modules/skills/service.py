@@ -45,6 +45,7 @@ def upload_package(session, store, package, data, mode, version):
             session.rollback()
             skill = session.scalar(select(SkillRecord).where(SkillRecord.name == package.name, SkillRecord.mode == mode))
     record = SkillVersionRecord(id=uuid4(), skill=skill, version=version, status='failed',
+        description=package.description,
         error=UPLOAD_INCOMPLETE, checksum=package.checksum, bucket=get_settings().minio_bucket,
         object_key=f'skills/{uuid4()}.zip', content_type='application/zip')
     session.add(record)
@@ -72,6 +73,8 @@ def upload_package(session, store, package, data, mode, version):
 
 
 def install(session, record):
+    if record.source_type != 'zip':
+        raise HTTPException(409, '本地版本请使用检查部署')
     if record.error == UPLOAD_INCOMPLETE:
         raise HTTPException(409, UPLOAD_INCOMPLETE)
     if record.status == 'installing':
@@ -99,6 +102,8 @@ def dto(session, record):
     default = session.scalar(select(ModuleSkillBinding.id).where(
         ModuleSkillBinding.skill_version_id == record.id)) is not None
     return ManagedSkill(id=str(record.id), name=record.skill.name, mode=record.skill.mode,
+        sourceType=record.source_type,
+        description=record.description if record.description is not None else record.skill.description,
         version=record.version, checksum=record.checksum, status=record.status, isDefault=default,
         installedAt=record.installed_at.isoformat() if record.installed_at else None,
         node=record.node, error=record.error, updatedAt=record.updated_at.isoformat(), referenced=referenced)

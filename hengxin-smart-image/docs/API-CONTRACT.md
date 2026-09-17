@@ -1,5 +1,16 @@
 # 前后端接口契约
 
+## 2026-09-17 本地 Skill 登记（本轮实现，部署状态见交接）
+
+- `POST /api/v1/management/skills/register`：JSON `{name, mode, version, description}`，name 是目录标识，description 可省略/空；返回 ManagedSkill，初始 `pending`。重复标识/类型/版本拒绝。仅超管。
+- `POST /api/v1/management/skills/{id}/check`：创建异步 Worker 检查，返回 `checking`；轮询既有管理列表，成功 `verified`（未启用），失败 `invalid`，重新检查不自动启用。检查冻结目录内容校验值，不可覆盖已验证内容。
+- `PUT /api/v1/management/skills/{id}/status`：复用显式启停；本地版本须先通过检查。
+- `DELETE /api/v1/management/skills/{id}`：204，仅无模板/任务/默认引用且无在途检查的本地登记可移除，不删除磁盘文件；冲突返回409。
+- ManagedSkill 新增 `sourceType: 'zip'|'local'` 与版本级 `description` 字符串；历史 ZIP 无版本说明时回退原 Skill 说明。原字段保留，检查前 checksum 为空字符串。状态扩展 `pending/checking/verified/invalid`，旧 ZIP 状态保留。
+- 旧 `POST /management/skills` ZIP 上传返回410；历史ZIP记录、安装及执行仍兼容。普通业务 `/skills` 仅返回可用版本；模板和任务固定版本规则不变。
+
+发布与兼容说明见 [LOCAL-SKILL-RELEASES.md](LOCAL-SKILL-RELEASES.md)。下文旧阶段上传流程为历史契约。
+
 更新：2026-09-16。当前需求为 Product-Spec v0.22；本文保留契约演进，当前进度以 DEV-PLAN.md 为准。Phase 1–11A 已按历史范围验收；钉钉授权、用户管理及调用统计真实接口已实现并部署，监控/系统配置仍为 501。真实双端验收未完成，见 [HANDOVER.md](HANDOVER.md)。
 
 ## Phase 5 后端基础补充

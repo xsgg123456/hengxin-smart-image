@@ -24,7 +24,7 @@ export const templateList: Guard<Template[]> = (value): value is Template[] => l
 const skill: Guard<SkillVersion> = (value): value is SkillVersion => record(value)
   && id(value.id) && text(value.name) && mode(value.mode) && text(value.version)
   && text(value.checksum) && typeof value.isDefault === 'boolean'
-  && text(value.status) && ['uploaded', 'installing', 'available', 'disabled', 'failed'].includes(value.status)
+  && text(value.status) && ['pending', 'checking', 'verified', 'invalid', 'uploaded', 'installing', 'available', 'disabled', 'failed'].includes(value.status)
 export const skillList: Guard<SkillVersion[]> = (value): value is SkillVersion[] => list(value, skill)
 const skillSnapshot: Guard<SkillSnapshot> = (value): value is SkillSnapshot => record(value)
   && (value.id === undefined || id(value.id)) && (value.name === undefined || text(value.name))

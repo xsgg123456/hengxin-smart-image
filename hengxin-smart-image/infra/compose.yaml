@@ -32,6 +32,8 @@ x-app: &app
     GENERATION_CONCURRENCY: ${GENERATION_CONCURRENCY:-1}
     FIXTURE_DELAY_SECONDS: ${FIXTURE_DELAY_SECONDS:-3}
     SKILL_INSTALL_ROOT: /var/lib/hengxin/skills
+    # Local releases are checked by the dedicated native Linux worker.
+    LOCAL_SKILL_ROOT: ${LOCAL_SKILL_ROOT:-/opt/hengxin-skills}
     WORKER_NODE_NAME: worker-1
     DATABASE_URL: postgresql+psycopg://hengxin:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/hengxin
     REDIS_URL: redis://redis:6379/0

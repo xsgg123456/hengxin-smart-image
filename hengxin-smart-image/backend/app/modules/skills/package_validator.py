@@ -80,6 +80,10 @@ def _read(data, mode, version):
     for path in files:
         if any('/'.join(path.split('/')[:i]) in files for i in range(1, len(path.split('/')))):
             raise ValueError('ZIP 文件与目录路径冲突')
+    return validate_files(files, mode, version, hashlib.sha256(data).hexdigest())
+
+
+def validate_files(files, mode, version, checksum):
     document = files['SKILL.md'].decode('utf-8-sig')
     match = re.match(r'\A---\s*\r?\n(.*?)\r?\n---(?:\s*\r?\n|$)', document, re.S)
     if not match or len(match.group(1)) > 65536:
@@ -99,4 +103,4 @@ def _read(data, mode, version):
         if not isinstance(values, list) or len(values) > 100 or any(not isinstance(v, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}', v) for v in values):
             raise ValueError('依赖声明无效')
     return Package(metadata['name'].strip(), metadata['description'].strip(),
-                   hashlib.sha256(data).hexdigest(), files, requires)
+                   checksum, files, requires)

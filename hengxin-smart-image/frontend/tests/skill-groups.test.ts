@@ -5,7 +5,7 @@ import type { ManagedSkill } from '../src/types/management'
 
 function skill(id: string, patch: Partial<ManagedSkill> = {}): ManagedSkill {
   return { id, name: 'wallpaper', mode: 'wallpaper', version: '1.0.0', checksum: 'sum',
-    status: 'available', isDefault: false, installedAt: null, node: null,
+    sourceType: 'zip', status: 'available', isDefault: false, installedAt: null, node: null,
     updatedAt: '2026-09-11T00:00:00Z', error: null, referenced: false, ...patch }
 }
 

@@ -1,4 +1,5 @@
 import hashlib
+import re
 from pathlib import Path
 from uuid import UUID
 from sqlalchemy import select
@@ -6,6 +7,10 @@ from app.modules.skills.models import SkillVersionRecord
 from app.modules.skills.package_validator import MAX_ZIP, validate_package
 from app.modules.tasks.models import TaskSource, ResultSlotRecord, ImageVersion
 from app.resource_models import FileRecord
+
+
+class SkillDeploymentError(ValueError):
+    pass
 
 
 def read_object(store, record, limit):
@@ -58,12 +63,25 @@ def prepare_materials(session, store, task, round, workspace):
             target['currentPath'] = '/work/current/' + name
             target['currentVersion'] = image.version
     version = session.get(SkillVersionRecord, task.skill_version_id)
+    if not version or version.version != task.skill_snapshot['version'] or version.skill.mode != task.mode:
+        raise ValueError('Skill 与任务冻结版本不一致')
+    name = version.skill.name
+    workspace.skill_name = name if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,99}', name) else f'legacy-{version.id}'
+    manifest['skillPath'] = workspace.skill_path + '/SKILL.md'
+    if version.source_type == 'local':
+        from app.worker.skill_check import validate_local
+        try:
+            tree = validate_local(version, task.skill_snapshot['checksum'])
+        except Exception as error:
+            raise SkillDeploymentError('skill_deployment_invalid') from error
+        workspace.local_skill = tree.path
+        return manifest
     raw = read_object(store, version, MAX_ZIP)
     if hashlib.sha256(raw).hexdigest() != task.skill_snapshot['checksum']:
         raise ValueError('Skill 与任务冻结版本不一致')
     package = validate_package(raw, task.mode, task.skill_snapshot['version'])
     for name, data in package.files.items():
-        destination = workspace.work / 'skill' / name
+        destination = workspace.work / 'skills' / workspace.skill_name / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
     return manifest
