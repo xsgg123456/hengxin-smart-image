@@ -1,5 +1,19 @@
 # 前后端接口契约
 
+## 2026-09-21 Skill 管理轻量化（当前实现）
+
+- `GET /api/v1/skill-catalog?mode=wallpaper`：业务可用目录，登录读权限；按稳定 Skill 身份返回，mode 可省略。
+- `GET /api/v1/management/skill-catalog`：超管查看登记项。字段为 `{id,name,description,mode,status,isDefault,error,updatedAt,referenced}`；mode 可为 null，状态为 `available/disabled/invalid/needs_type/syncing`。description 来自 SKILL.md。
+- `POST /api/v1/management/skill-catalog/sync`：超管触发 Worker 全目录同步，202 `{jobId,status}`；重复请求复用在途作业。`GET` 同路径查询 `{jobId,status,error}`，无作业为 `idle`。
+- `PUT /api/v1/management/skill-catalog/{id}/mode`：`{mode}`，为未知类型确认处理类型并触发同步；已有全局同步在途时返回409且不修改类型，待同步结束后重试。已确定类型不能改为其他类型。
+- `PUT /api/v1/management/skill-catalog/{id}/status`：`{status:'available'|'disabled'}`；手动停用跨同步保留。
+- `DELETE /api/v1/management/skill-catalog/{id}`：204，软移除登记，不删除文件或任务快照；当前模板/默认绑定或在途同步返回409。
+- `GET/PUT /api/v1/management/skill-catalog/defaults`：`{wallpaper,product,text}`，值为稳定 Skill ID 或 null。
+- 模板输入输出沿用 `skillVersionId` 字段名以兼容现有客户端，其新语义为稳定 Skill ID；服务端仍接受历史版本 ID 并解析到所属 Skill。新任务解析最近成功同步的内容；已提交任务及其修改轮次继续使用提交时的完整快照。
+- 管理页面移除手动版本登记/切换入口。历史接口和历史 ZIP/本地执行记录保留兼容，但可用性判断受新目录状态约束。
+
+操作与迁移边界见 [LIGHT-SKILLS.md](LIGHT-SKILLS.md)。下方版本登记章节保留为历史记录。
+
 ## 2026-09-17 本地 Skill 登记（本轮实现，部署状态见交接）
 
 - `POST /api/v1/management/skills/register`：JSON `{name, mode, version, description}`，name 是目录标识，description 可省略/空；返回 ManagedSkill，初始 `pending`。重复标识/类型/版本拒绝。仅超管。

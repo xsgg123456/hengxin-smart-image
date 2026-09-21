@@ -47,7 +47,8 @@ def probe_tree(tree):
         home, work, control = (root / name for name in ('home', 'work', 'control'))
         for path in (home, work, control):
             path.mkdir(mode=0o700)
-        workspace = Workspace(home, work, control, local_skill=tree.path, skill_name=tree.path.parent.name)
+        skill_name = tree.path.name if tree.flat else tree.path.parent.name
+        workspace = Workspace(home, work, control, local_skill=tree.path, skill_name=skill_name)
         command = sandbox_command(workspace, settings.codex_binary, [], settings.codex_bwrap_binary)
         command = command[:command.index('--') + 1] + [
             '/usr/bin/python3', '-I', '-c', PROBE]

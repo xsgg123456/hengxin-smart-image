@@ -48,8 +48,10 @@ def frozen_input(session, body):
             if not file or file.status != 'ready' or file.deleted_at:
                 raise HTTPException(422, '模板图片不存在或尚未上传完成')
         skill = resolve_binding(session, body.mode, template.skillVersionId)
-        if body.skillVersionId is not None and body.skillVersionId != template.skillVersionId:
-            raise HTTPException(409, 'Skill与模板冻结版本不一致')
+        if body.skillVersionId is not None:
+            selected = resolve_binding(session, body.mode, body.skillVersionId)
+            if not selected or not skill or selected.skill_id != skill.skill_id:
+                raise HTTPException(409, 'Skill与模板绑定不一致')
         snapshot = template.model_dump()
     if skill:
         from app.modules.skills.service import get_version

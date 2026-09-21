@@ -1,5 +1,7 @@
 import hashlib
+import io
 import re
+import zipfile
 from pathlib import Path
 from uuid import UUID
 from sqlalchemy import select
@@ -19,7 +21,8 @@ def read_object(store, record, limit):
         data = stream.read(limit + 1)
     finally:
         stream.close()
-        stream.release_conn()
+        if hasattr(stream, 'release_conn'):
+            stream.release_conn()
     if len(data) > limit or hashlib.sha256(data).hexdigest() != record.checksum:
         raise ValueError('冻结文件校验失败')
     return data
@@ -96,9 +99,17 @@ def prepare_materials(session, store, task, round, workspace):
     raw = read_object(store, version, MAX_ZIP)
     if hashlib.sha256(raw).hexdigest() != task.skill_snapshot['checksum']:
         raise ValueError('Skill 与任务冻结版本不一致')
-    package = validate_package(raw, task.mode, task.skill_snapshot['version'])
+    package = validate_package(raw, task.mode, None if version.catalog_snapshot else task.skill_snapshot['version'])
     for name, data in package.files.items():
         destination = workspace.work / 'skills' / workspace.skill_name / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
+    if version.catalog_snapshot:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            for entry in archive.infolist():
+                destination = workspace.work / 'skills' / workspace.skill_name / entry.filename
+                if entry.is_dir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                else:
+                    destination.chmod(0o600 | ((entry.external_attr >> 16) & 0o111))
     return manifest

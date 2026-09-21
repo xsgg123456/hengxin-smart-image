@@ -62,6 +62,9 @@ def execute_job(job_id: str):
     elif kind == 'skill_check':
         from app.worker.skill_check import run_check
         run_check(job_id, factory)
+    elif kind == 'skill_sync':
+        from app.worker.skill_sync import run_sync
+        run_sync(job_id, factory)
     elif kind is not None:
         from app.worker.leases import finish_job
         with factory.begin() as session:

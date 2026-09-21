@@ -2,8 +2,9 @@ import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTemplate, listTemplates } from '@/api/templates'
-import { listSkills } from '@/api/skills'
-import type { Mode, SkillVersion, Template } from '@/types/hengxin'
+import { listSkillCatalog } from '@/api/management'
+import type { CatalogSkill } from '@/types/management'
+import type { Mode, Template } from '@/types/hengxin'
 import { getService } from '@/api/hengxin/client'
 import { useUserStore } from '@/store/modules/user'
 import { useTaskCreationSession } from './task-creation-session'
@@ -20,7 +21,7 @@ export function useCreateTask(mode: Ref<Mode>) {
     })
   const { accepted, uncertain } = submission
   const available = ref<Template[]>([])
-  const skillVersions = ref<SkillVersion[]>([])
+  const skillVersions = ref<CatalogSkill[]>([])
   const search = ref(''), page = ref(1), total = ref(0), pageSize = 4
   const loading = ref(false), loadError = ref(''), error = ref(''), submitting = ref(false), uploadBlocked = ref(false)
   let sequence = 0, alive = true
@@ -39,7 +40,7 @@ export function useCreateTask(mode: Ref<Mode>) {
     loading.value = true; loadError.value = ''
     try {
       const [catalog, result] = await Promise.all([
-        listSkills(requestedMode), requestedMode === 'text' ? undefined : listTemplates({
+        listSkillCatalog(requestedMode), requestedMode === 'text' ? undefined : listTemplates({
           page: page.value, pageSize, search: search.value.trim(), mode: requestedMode, activeOnly: true, sort: 'updated'
         })
       ])

@@ -20,6 +20,11 @@ def add_skill(factory, mode='wallpaper', status='available'):
     return str(version.id)
 
 
+def identity_id(factory, version_id):
+    with factory() as session:
+        return str(session.get(SkillVersionRecord, UUID(version_id)).skill_id)
+
+
 def test_default_resolution_frozen_until_resave(files_env):
     client, factory, _, _ = files_env
     first_id, second_id = add_skill(factory), add_skill(factory)
@@ -27,14 +32,14 @@ def test_default_resolution_frozen_until_resave(files_env):
         session.add(ModuleSkillBinding(mode='wallpaper', skill_version_id=UUID(first_id)))
     body = payload(client)
     original = client.post('/api/v1/templates', json=body).json()
-    assert original['active'] and original['skillVersionId'] == first_id
+    assert original['active'] and original['skillVersionId'] == identity_id(factory, first_id)
     assert original['skillBinding'] == 'module_default'
     path = '/api/v1/templates/' + original['id']
     with factory.begin() as session:
         session.scalar(select(ModuleSkillBinding)).skill_version_id = UUID(second_id)
     assert client.get(path).json() == original
     updated = client.put(path, json={**body, 'expectedVersion': 1}).json()
-    assert updated['skillVersionId'] == second_id and updated['version'] == 2
+    assert updated['skillVersionId'] == identity_id(factory, second_id) and updated['version'] == 2
     assert client.get(path + '/versions').json() == [updated, original]
     with factory.begin() as session:
         session.get(SkillVersionRecord, UUID(second_id)).status = 'disabled'
@@ -55,7 +60,7 @@ def test_explicit_binding_preserved_without_fallback(files_env, status):
     result = client.post('/api/v1/templates', json=payload(client, skillVersionId=explicit_id))
     assert result.status_code == 200, result.text
     template = result.json()
-    assert template['skillVersionId'] == explicit_id
+    assert template['skillVersionId'] == identity_id(factory, explicit_id)
     assert template['skillBinding'] == 'specific'
     assert template['active'] == (status == 'available')
 
@@ -78,4 +83,20 @@ def test_disabled_template_stays_disabled_with_available_skill(files_env):
     client, factory, _, _ = files_env
     body = payload(client, skillVersionId=add_skill(factory), active=False)
     result = client.post('/api/v1/templates', json=body).json()
-    assert result['skillVersionId'] == body['skillVersionId'] and not result['active']
+    assert result['skillVersionId'] == identity_id(factory, body['skillVersionId']) and not result['active']
+
+
+def test_legacy_identity_available_version_matches_template_detail_and_filter(files_env):
+    client, factory, _, _ = files_env
+    original_id = add_skill(factory)
+    template = client.post('/api/v1/templates', json=payload(client, skillVersionId=original_id)).json()
+    with factory.begin() as session:
+        original = session.get(SkillVersionRecord, UUID(original_id))
+        original.status = 'disabled'
+        session.add(SkillVersionRecord(skill_id=original.skill_id, version='2.0.0', status='available',
+            checksum='b' * 64, bucket='test', object_key=str(uuid4())))
+        assert original.skill.catalog_status is None
+    detail = client.get('/api/v1/templates/' + template['id']).json()
+    listing = client.get('/api/v1/templates?activeOnly=true').json()
+    assert detail['active'] is True
+    assert listing['total'] == 1 and listing['items'] == [detail]

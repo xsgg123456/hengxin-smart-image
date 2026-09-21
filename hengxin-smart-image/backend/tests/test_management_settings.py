@@ -10,7 +10,7 @@ from app.modules.tasks.claims import claim
 from app.resource_models import UserRecord
 from files_helpers import files_env
 from test_tasks import task_env, body, submit, job_for
-from test_templates_skills import add_skill
+from test_templates_skills import add_skill, identity_id
 
 URL = '/api/v1/management/settings'
 
@@ -89,7 +89,7 @@ def test_defaults_share_version_and_invalid_save_is_atomic(files_env):
     assert client.put('/api/v1/management/skills/defaults', json=defaults).status_code == 200
     assert client.put(URL, json=stale).status_code == 409
     current = payload(client)
-    assert current['defaultSkillIds'] == defaults
+    assert current['defaultSkillIds'] == {**defaults, 'text': identity_id(factory, skill_id)}
     bad = {**current, 'timeoutSeconds': 120,
            'defaultSkillIds': {**defaults, 'wallpaper': skill_id}}
     assert client.put(URL, json=bad).status_code == 422

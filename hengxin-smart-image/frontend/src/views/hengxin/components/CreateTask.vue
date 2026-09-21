@@ -34,7 +34,7 @@
           <div v-if="template?.images[0] || sources[0]" class="hx-summary-art"><img :src="template?.images[0]?.url || sources[0]?.url" :alt="template ? '模板参考图' : '输入素材预览'" /><span>{{ template ? '模板参考图' : '输入素材预览' }}</span></div>
           <ElEmpty v-else description="添加素材后预览" :image-size="75" />
           <dl><div><dt>处理类型</dt><dd>{{ labels[mode] }}</dd></div><div><dt>已选模板</dt><dd>{{ mode === 'text' ? '无需模板' : template ? `${template.name} · v${template.version}` : '尚未选择' }}</dd></div><div><dt>替换素材</dt><dd>{{ sources.length }} 张</dd></div><div><dt>预计输出</dt><dd>{{ mode === 'text' ? sources.length : template?.images.length || 0 }} 张</dd></div></dl>
-          <div class="hx-skill-note"><ArtSvgIcon icon="ri:sparkling-2-line" /><div><strong>{{ loading ? '加载 Skill…' : skill?.name || '暂无可用 Skill' }}</strong><small>{{ skill ? `v${skill.version}${isMockMode ? ' · 模拟绑定' : ''}` : '请联系超级管理员配置可用版本' }}</small></div></div>
+          <div class="hx-skill-note"><ArtSvgIcon icon="ri:sparkling-2-line" /><div><strong>{{ loading ? '加载 Skill…' : skill?.name || '暂无可用 Skill' }}</strong><small>{{ skill ? (isMockMode ? '模拟绑定' : '使用最近同步成功的内容') : '请联系超级管理员配置可用 Skill' }}</small></div></div>
           <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon class="hx-gap" />
           <ElAlert v-if="accepted" :title="`任务已受理：${accepted.taskId}`" type="success" :closable="false" class="hx-gap"><ElButton text @click="viewAccepted">查看已受理任务</ElButton><ElButton text @click="startNew">另建任务</ElButton></ElAlert>
           <ElAlert v-else-if="uncertain" title="上次提交结果尚未确认；输入已保留，请确认原请求以避免重复任务。" type="warning" :closable="false" class="hx-gap"><ElButton text :loading="submitting" @click="submit(true)">确认上次提交</ElButton></ElAlert>

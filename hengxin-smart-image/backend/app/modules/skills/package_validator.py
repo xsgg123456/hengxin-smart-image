@@ -26,7 +26,7 @@ class Package:
 
 
 def validate_package(data: bytes, mode: str, version: str) -> Package:
-    if mode not in MODES or not re.fullmatch(r'\d+\.\d+\.\d+(?:-[\w.-]+)?', version) or len(version) > 100:
+    if mode not in MODES or (version is not None and (not re.fullmatch(r'\d+\.\d+\.\d+(?:-[\w.-]+)?', version) or len(version) > 100)):
         raise ValueError('类型或语义版本无效')
     if not data or len(data) > MAX_ZIP:
         raise ValueError('ZIP 包必须非空且不超过 20 MiB')
@@ -94,7 +94,7 @@ def validate_files(files, mode, version, checksum):
     if len(metadata['name']) > 200 or len(metadata['description']) > 10000:
         raise ValueError('Skill 元数据过长')
     manifest = json.loads(files.get('hengxin-skill.json', b'{}'))
-    if not isinstance(manifest, dict) or manifest.get('mode', mode) != mode or manifest.get('version', version) != version:
+    if not isinstance(manifest, dict) or manifest.get('mode', mode) != mode or (version is not None and manifest.get('version', version) != version):
         raise ValueError('包声明类型或版本不匹配')
     requires = manifest.get('requires', {})
     if not isinstance(requires, dict) or set(requires) - {'executables', 'pythonModules'}:

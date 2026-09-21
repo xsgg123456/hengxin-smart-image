@@ -28,9 +28,8 @@ def values(session):
 
 
 def defaults(session):
-    rows = session.scalars(select(ModuleSkillBinding)).all()
-    return {mode: next((str(r.skill_version_id) if r.skill_version_id else None
-                       for r in rows if r.mode == mode), None) for mode in MODES}
+    from app.modules.skills.catalog_service import defaults as catalog_defaults
+    return catalog_defaults(session)
 
 
 def dingtalk_config():

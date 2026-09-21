@@ -12,11 +12,10 @@
       <div class="hx-binding-item">
         <span class="hx-binding-label">Skill</span>
         <strong class="hx-binding-name">{{ skillName || "未记录" }}</strong>
-        <ElTag type="info">{{ skillVersionLabel }}</ElTag>
       </div>
     </div>
     <p class="hx-footnote">
-      以上名称和版本来自任务提交时的绑定快照，后续模板或 Skill
+      以上绑定来自任务提交时的快照，后续模板或 Skill
       更新不影响此任务。
     </p>
     <ElCollapse v-model="technicalDetailsOpen" class="hx-binding-details">
@@ -24,7 +23,7 @@
         <template #title>技术详情</template>
         <dl class="hx-technical-details" aria-label="任务绑定技术详情">
           <div>
-            <dt>Skill 版本 ID</dt>
+            <dt>Skill 快照 ID</dt>
             <dd>
               <span
                 class="hx-truncated-value"
@@ -39,7 +38,7 @@
                 text
                 type="primary"
                 size="small"
-                @click="copyValue(skillId, 'Skill 版本 ID')"
+                @click="copyValue(skillId, 'Skill 快照 ID')"
               >
                 复制
               </ElButton>
@@ -109,18 +108,12 @@ const templateVersionLabel = computed(() =>
   templateVersion.value === null ? "版本未记录" : `v${templateVersion.value}`,
 );
 const skillName = computed(() => props.task.skillSnapshot?.name?.trim() || "");
-const skillVersion = computed(
-  () => props.task.skillSnapshot?.version?.trim() || "",
-);
 const skillId = computed(
   () =>
     props.task.skillSnapshot?.id?.trim() || props.task.skillVersionId.trim(),
 );
 const skillChecksum = computed(
   () => props.task.skillSnapshot?.checksum?.trim() || "",
-);
-const skillVersionLabel = computed(() =>
-  skillVersion.value ? `v${skillVersion.value}` : "版本未记录",
 );
 const shortSkillId = computed(() => shorten(skillId.value, 8, 5));
 const shortSkillChecksum = computed(() => shorten(skillChecksum.value, 12, 8));

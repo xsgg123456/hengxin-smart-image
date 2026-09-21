@@ -1,5 +1,6 @@
 """Validate an administrator-owned immutable publication without running its code."""
 import hashlib
+import json
 import os
 import stat
 from dataclasses import dataclass
@@ -15,6 +16,11 @@ class LocalTree:
     checksum: str
     requires: dict
     files: dict[str, str]
+    content: dict[str, bytes] | None = None
+    description: str = ''
+    mode: str | None = None
+    flat: bool = False
+    permissions: dict[str, int] | None = None
 
 
 def protected(path, metadata):
@@ -32,12 +38,12 @@ def tree_hash(entries):
     return digest.hexdigest()
 
 
-def inspect_tree(root, name, mode, version, expected=''):
-    SkillRegisterInput(name=name, mode=mode, version=version)
+def inspect_tree(root, name, mode, version, expected='', *, flat=False):
+    SkillRegisterInput(name=name, mode=mode or 'text', version=version or '0.0.0')
     root = Path(root)
     if not root.is_absolute():
         raise ValueError('Skill 发布根目录必须为绝对路径')
-    directory = root / name / version
+    directory = root / name if flat else root / name / version
     try:
         # Protect all ancestors against replacement, including above the configured root.
         for path in reversed((directory, *directory.parents)):
@@ -45,7 +51,7 @@ def inspect_tree(root, name, mode, version, expected=''):
             if not stat.S_ISDIR(info.st_mode) or path.is_symlink():
                 raise ValueError('Skill 发布目录不允许链接或非目录路径')
             protected(path, info)
-        files, entries, count, total = {}, {}, 0, 0
+        files, entries, permissions, count, total = {}, {}, {}, 0, 0
         pending = [directory]
         while pending:
             parent = pending.pop()
@@ -55,6 +61,7 @@ def inspect_tree(root, name, mode, version, expected=''):
                     raise ValueError('Skill 文件树条目超过 1000')
                 info = path.lstat()
                 relative = path.relative_to(directory).as_posix()
+                permissions[relative] = stat.S_IMODE(info.st_mode)
                 if path.is_symlink() or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
                     raise ValueError('Skill 不允许链接或特殊文件')
                 protected(path, info)
@@ -68,7 +75,7 @@ def inspect_tree(root, name, mode, version, expected=''):
                 if info.st_size > MAX_ZIP or total > MAX_TOTAL:
                     raise ValueError('Skill 文件大小超过限制')
                 # Never follow a file replaced by a link during inspection.
-                descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+                descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
                 with os.fdopen(descriptor, 'rb') as stream:
                     before = os.fstat(stream.fileno())
                     if (before.st_dev, before.st_ino) != (info.st_dev, info.st_ino):
@@ -82,12 +89,21 @@ def inspect_tree(root, name, mode, version, expected=''):
         if 'SKILL.md' not in files:
             raise ValueError('Skill 尚未部署：缺少 SKILL.md')
         checksum = tree_hash(entries)
+        if flat:
+            checksum = hashlib.sha256((checksum + tree_hash({k: str(v) for k, v in permissions.items()})).encode()).hexdigest()
         if expected and checksum != expected:
             raise ValueError('Skill 内容已变化，请恢复原内容或登记新版本')
-        package = validate_files(files, mode, version, checksum)
+        manifest = json.loads(files.get('hengxin-skill.json', b'{}'))
+        if not isinstance(manifest, dict):
+            raise ValueError('Skill 清单无效')
+        declared = manifest.get('mode')
+        if declared is not None and declared not in ('wallpaper', 'product', 'text'):
+            raise ValueError('Skill 清单处理类型无效')
+        actual_mode = mode or declared
+        package = validate_files(files, actual_mode, None if flat else version, checksum)
         if package.name != name:
             raise ValueError('SKILL.md 名称与登记标识不匹配')
-        return LocalTree(directory, checksum, package.requires, entries)
+        return LocalTree(directory, checksum, package.requires, entries, files, package.description, actual_mode, flat, permissions)
     except FileNotFoundError:
         raise ValueError('Skill 尚未部署或文件已缺失') from None
     except PermissionError:

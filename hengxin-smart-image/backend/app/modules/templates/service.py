@@ -26,9 +26,11 @@ def find_template(session, template_id, *, lock=False):
 
 
 def serialize(session, version):
+    from app.modules.skills.catalog_service import current, state
     images = session.scalars(select(TemplateImageRecord).where(
         TemplateImageRecord.template_version_id == version.id).order_by(TemplateImageRecord.slot)).all()
     skill = session.get(SkillVersionRecord, version.skill_version_id) if version.skill_version_id else None
+    available = bool(skill and state(session, skill.skill) == 'available')
     created_at = version.created_at
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=timezone.utc)
@@ -36,9 +38,9 @@ def serialize(session, version):
         id=str(version.template_id), name=version.name, mode=version.mode,
         images=[Picture(name=item.name, fileId=str(item.file_id),
                         url=f'/api/v1/files/{item.file_id}/content') for item in images],
-        skill=version.skill_name, skillVersionId=str(version.skill_version_id) if version.skill_version_id else None,
+        skill=version.skill_name, skillVersionId=str(skill.skill_id) if skill else None,
         skillBinding=version.skill_binding, notes=version.notes,
-        updatedAt=created_at.isoformat(), active=bool(version.enabled and skill and skill.status == 'available'),
+        updatedAt=created_at.isoformat(), active=bool(version.enabled and available),
         version=version.version, ownerId=str(version.owner_id),
     )
 
@@ -59,8 +61,17 @@ def list_templates(session, query):
     if query.search:
         statement = statement.where(version.name.icontains(query.search, autoescape=True))
     if query.activeOnly:
-        statement = statement.join(SkillVersionRecord, SkillVersionRecord.id == version.skill_version_id).where(
-            version.enabled.is_(True), SkillVersionRecord.status == 'available')
+        from app.modules.skills.models import SkillRecord
+        from sqlalchemy import or_
+        from sqlalchemy.orm import aliased
+        available_version = aliased(SkillVersionRecord)
+        identity_available = select(available_version.id).where(
+            available_version.skill_id == SkillRecord.id, available_version.status == 'available').exists()
+        statement = statement.join(SkillVersionRecord, SkillVersionRecord.id == version.skill_version_id).join(
+            SkillRecord, SkillRecord.id == SkillVersionRecord.skill_id).where(
+            version.enabled.is_(True), SkillRecord.removed.is_(False),
+            or_(SkillRecord.catalog_status == 'available', and_(SkillRecord.catalog_status.is_(None),
+                 identity_available)))
     total = session.scalar(select(func.count()).select_from(statement.subquery()))
     count = select(func.count()).where(TemplateImageRecord.template_version_id == version.id).scalar_subquery()
     order = {'name': version.name.asc(), 'images': count.desc()}.get(query.sort, version.created_at.desc())
@@ -93,14 +104,15 @@ def validate_files(session, body):
 def save_template(session, user, body, template_id=None):
     authorize(user)
     files = validate_files(session, body)
-    skill = resolve_binding(session, body.mode, body.skillVersionId)
+    # Task creation locks the template before its Skill; edits use the same order.
+    record = find_template(session, template_id, lock=True) if template_id is not None else None
+    skill = resolve_binding(session, body.mode, body.skillVersionId, allow_unavailable=True)
     now = utcnow()
     if template_id is None:
         record = TemplateRecord(owner_id=user.id, version=1, created_at=now, updated_at=now)
         session.add(record)
         session.flush()
     else:
-        record = find_template(session, template_id)
         if body.expectedVersion is None or body.expectedVersion < 1:
             raise HTTPException(422, '编辑模板必须提供当前版本号')
         changed = session.execute(update(TemplateRecord).where(

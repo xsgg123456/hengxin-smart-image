@@ -31,7 +31,23 @@ export interface SettingsAudit { id: string; operatorId: string; operatorName: s
 export interface DingTalkConfig { corpId: string; appId: string; callbackDomain: string; state: 'unconfigured' | 'ready' | 'error' }
 export interface ManagedSettings extends SystemConfig { capacity: number; timeoutCapacity: number; dingtalk: DingTalkConfig; audit: SettingsAudit[] }
 export interface SettingsInput extends SystemConfig { dingtalk: Pick<DingTalkConfig, 'corpId' | 'appId' | 'callbackDomain'> }
+export interface CatalogSkill {
+  id: string; name: string; description: string; mode: Mode | null
+  status: 'available' | 'disabled' | 'invalid' | 'needs_type' | 'syncing'
+  isDefault: boolean; error: string | null; updatedAt: string; referenced: boolean
+}
+export interface SkillSync { jobId: string | null; status: 'idle' | 'queued' | 'running' | 'succeeded' | 'failed'; error: string | null }
+export interface SkillSyncAccepted { jobId: string; status: 'queued' | 'running' }
 export interface ManagementService {
+  listSkillCatalog(mode?: Mode): Promise<CatalogSkill[]>
+  listManagedCatalog(): Promise<CatalogSkill[]>
+  syncSkillCatalog(): Promise<SkillSyncAccepted>
+  getSkillSync(): Promise<SkillSync>
+  setCatalogMode(id: string, mode: Mode): Promise<CatalogSkill>
+  setCatalogStatus(id: string, status: 'available' | 'disabled'): Promise<CatalogSkill>
+  removeCatalogSkill(id: string): Promise<void>
+  getCatalogDefaults(): Promise<SystemConfig['defaultSkillIds']>
+  saveCatalogDefaults(input: SystemConfig['defaultSkillIds']): Promise<SystemConfig['defaultSkillIds']>
   getUsage(query: UsageQuery): Promise<UsageReport>
   getMonitor(): Promise<MonitorReport>
   listUsers(query: UserQuery): Promise<PageResult<ManagedUser>>

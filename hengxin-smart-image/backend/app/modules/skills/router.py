@@ -26,7 +26,10 @@ def catalog(user: Reader, session: Database, mode: Mode | None = None):
     query = select(SkillVersionRecord).join(SkillRecord).where(SkillVersionRecord.status == 'available')
     if mode:
         query = query.where(SkillRecord.mode == mode)
-    return [dto(session, record) for record in session.scalars(query.order_by(SkillVersionRecord.created_at.desc())).all()]
+    from app.modules.skills.catalog_service import state, current
+    return [dto(session, record) for record in session.scalars(query.order_by(SkillVersionRecord.created_at.desc())).all()
+            if state(session, record.skill) == 'available' and
+            (not record.skill.catalog_status or current(session, record.skill).id == record.id)]
 
 
 @router.get('/management/skills', response_model=list[ManagedSkill])
@@ -64,7 +67,8 @@ def defaults(user: Admin, session: Database):
 @router.put('/management/skills/defaults', response_model=DefaultSkillIds)
 def save_defaults(payload: DefaultSkillIds, user: Admin, session: Database):
     from app.modules.management.settings import save_defaults as save_versioned_defaults
-    return save_versioned_defaults(session, user, payload)
+    save_versioned_defaults(session, user, payload)
+    return defaults(user, session)
 
 
 @router.post('/management/skills/{version_id}/install', response_model=ManagedSkill)
@@ -75,6 +79,8 @@ def start_install(version_id: UUID, user: Admin, session: Database):
 @router.put('/management/skills/{version_id}/status', response_model=ManagedSkill)
 def status(version_id: UUID, payload: SkillStatusInput, user: Admin, session: Database):
     record = get_version(session, version_id, lock=True)
+    if record.skill.catalog_status or record.skill.removed:
+        raise HTTPException(409, '请通过 Skill 目录管理启停')
     allowed = ('verified', 'available', 'disabled') if record.source_type == 'local' else ('available', 'disabled')
     if record.status not in allowed or not record.installed_path or not record.checksum:
         raise HTTPException(409, '只有检查或安装完成的版本可启停')

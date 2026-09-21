@@ -10,17 +10,36 @@ from app.modules.skills.models import ModuleSkillBinding, SkillRecord, SkillVers
 
 UPLOAD_INCOMPLETE = '包上传未完成，请重新上传相同版本包'
 
-def resolve_binding(session, mode, explicit_id):
+def resolve_binding(session, mode, explicit_id, *, allow_unavailable=False):
+    from app.modules.skills.catalog_service import current, state
     if explicit_id is not None:
         try:
-            record = session.get(SkillVersionRecord, UUID(str(explicit_id)))
+            identity = session.scalar(select(SkillRecord).where(SkillRecord.id == UUID(str(explicit_id)))
+                .with_for_update().execution_options(populate_existing=True))
+            record = current(session, identity) if identity else session.get(SkillVersionRecord, UUID(str(explicit_id)))
+            if identity and record is None and allow_unavailable:
+                record = session.scalar(select(SkillVersionRecord).where(SkillVersionRecord.skill_id == identity.id)
+                    .order_by(SkillVersionRecord.created_at.desc()).limit(1))
         except ValueError:
             record = None
         if not record or record.skill.mode != mode:
             raise HTTPException(422, 'Skill 版本不存在或类型不匹配')
+        if not identity:
+            session.scalar(select(SkillRecord).where(SkillRecord.id == record.skill_id)
+                .with_for_update().execution_options(populate_existing=True))
+        if record.skill.catalog_status or identity:
+            if state(session, record.skill) != 'available' and not allow_unavailable:
+                raise HTTPException(422, 'Skill 当前不可用，请先同步或启用')
+            record = current(session, record.skill) or record
+        if record.skill.removed:
+            raise HTTPException(422, 'Skill 已移除登记')
         return record
     binding = session.scalar(select(ModuleSkillBinding).where(ModuleSkillBinding.mode == mode))
     record = session.get(SkillVersionRecord, binding.skill_version_id) if binding and binding.skill_version_id else None
+    if record:
+        session.scalar(select(SkillRecord).where(SkillRecord.id == record.skill_id)
+            .with_for_update().execution_options(populate_existing=True))
+        record = current(session, record.skill) if state(session, record.skill) == 'available' else None
     return record if record and record.status == 'available' and record.skill.mode == mode else None
 
 

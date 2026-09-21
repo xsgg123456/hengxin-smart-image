@@ -21,6 +21,8 @@ def register(session, user, payload):
     try:
         skill = session.scalar(select(SkillRecord).where(
             SkillRecord.name == payload.name, SkillRecord.mode == payload.mode))
+        if skill and (skill.catalog_status or skill.removed):
+            raise HTTPException(409, '该 Skill 已由目录管理，请使用同步')
         if skill is None:
             skill = SkillRecord(name=payload.name, mode=payload.mode, description=payload.description)
             session.add(skill)
@@ -40,6 +42,8 @@ def register(session, user, payload):
 
 def check(session, user, version_id):
     record = get_version(session, version_id, lock=True)
+    if record.skill.catalog_status or record.skill.removed:
+        raise HTTPException(409, '请通过 Skill 目录同步')
     if record.source_type != 'local':
         raise HTTPException(409, '历史 ZIP 版本请使用安装流程')
     if record.status == 'checking':
@@ -57,6 +61,8 @@ def check(session, user, version_id):
 
 def remove(session, user, version_id):
     record = get_version(session, version_id, lock=True)
+    if record.skill.catalog_status or record.skill.removed:
+        raise HTTPException(409, '请通过 Skill 目录移除登记')
     if record.source_type != 'local':
         raise HTTPException(409, '历史 ZIP 版本不支持移除登记')
     view = dto(session, record)

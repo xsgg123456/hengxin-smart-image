@@ -1,3 +1,4 @@
+import { createMockSkillCatalog } from './mock-skill-catalog'
 import type { ManagementScenario, ManagementService, ManagedSettings, ManagedSkill, ManagedUser, UsageAttempt } from '../../types/management'
 import type { SkillVersion, SystemConfig, Task, User, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
@@ -29,8 +30,11 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
     defaultSkillIds: { wallpaper: skills.find(s => s.mode === 'wallpaper' && s.isDefault)?.id ?? null, product: skills.find(s => s.mode === 'product' && s.isDefault)?.id ?? null, text: skills.find(s => s.mode === 'text' && s.isDefault)?.id ?? null },
     dingtalk: { corpId: '', appId: '', callbackDomain: '', state: 'unconfigured' }, audit: [] }
   const skillService = createSkillManagement(db, skills, check, options)
-  return {
+  const service: ManagementService = {
     ...skillService,
+    ...createMockSkillCatalog(db, skills, check, options),
+    getCatalogDefaults: () => service.getSkillDefaults(),
+    saveCatalogDefaults: input => service.saveSkillDefaults(input),
     async getSkillDefaults() { await check(true); return copy(settings.defaultSkillIds) },
     async saveSkillDefaults(input) {
       const user = await check(true, 'save')
@@ -97,4 +101,5 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
       return copy(settings)
     }
   }
+  return service
 }

@@ -11,17 +11,18 @@
       </ElFormItem>
       <ElFormItem label="处理 Skill">
         <ElSelect v-model="skillId" clearable placeholder="使用模块默认 Skill" :loading="skillsLoading" :disabled="busy || skillsLoading" @change="changeSkill">
-          <ElOption v-if="unavailableBinding" :value="skillId" :label="`${originalSkill || skillId}（原绑定版本不可用）`" disabled />
-          <ElOption v-for="skill in availableSkills" :key="skill.id" :value="skill.id" :label="`${skill.name} · v${skill.version}${skill.isDefault ? '（默认）' : ''}`" />
+          <ElOption v-if="unavailableBinding" :value="skillId" :label="`${originalSkill || skillId}（原绑定 Skill不可用）`" disabled />
+          <ElOption v-for="skill in availableSkills" :key="skill.id" :value="skill.id" :label="`${skill.name}${skill.isDefault ? '（默认）' : ''}`" />
         </ElSelect>
         <p v-if="skillsError" class="hx-muted">{{ skillsError }} <ElButton text type="primary" :disabled="busy || skillsLoading" @click="loadSkills">重试加载 Skill</ElButton></p>
-        <p v-else-if="unavailableBinding" class="hx-muted">原专用版本不可用，可保留绑定存草稿；选择可用版本或清空后使用模块默认。</p>
-        <p v-else-if="!skillId" class="hx-muted">{{ effectiveSkill ? `保存时使用模块默认：${effectiveSkill.name} · v${effectiveSkill.version}` : '模块暂无可用默认 Skill，可先保存草稿。' }}</p>
+        <p v-else-if="unavailableBinding" class="hx-muted">原专用 Skill不可用，可保留绑定存草稿；选择可用 Skill或清空后使用模块默认。</p>
+        <p v-else-if="!skillId" class="hx-muted">{{ effectiveSkill ? `模块默认：${effectiveSkill.name}` : '模块暂无可用默认 Skill，可先保存草稿。' }}</p>
+        <p v-if="effectiveSkill?.description" class="hx-muted" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ effectiveSkill.description }}</p>
       </ElFormItem>
       <ElFormItem label="模板图片" required><ImageUpload v-if="!loading" v-model="pictures" :mode="formMode" :disabled="saving" label="模板图片" sortable :example-count="4" example-label="使用示例套图" @blocked="uploadBlocked = $event" /></ElFormItem>
       <ElFormItem label="备注"><ElInput v-model="notes" type="textarea" :rows="2" maxlength="1000" show-word-limit placeholder="可选，补充这套模板的使用说明" /></ElFormItem>
       <ElFormItem label="模板状态"><ElSwitch v-model="enabled" active-text="可使用" inactive-text="停用 / 草稿" :disabled="busy || !validSkill" /></ElFormItem>
-      <p class="hx-muted">保存时固定实际 Skill 版本和图片顺序；缺少可用 Skill 时保存为草稿。</p>
+      <p class="hx-muted">模板绑定 Skill，后续任务使用该 Skill 最近同步成功的内容；缺少可用 Skill 时保存为草稿。</p>
     </ElForm>
     <ElAlert v-if="saveError" :title="saveError" type="error" :closable="false" show-icon />
     <template #footer>
@@ -34,9 +35,10 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getTemplate, saveTemplate } from '@/api/templates'
-import { listSkills } from '@/api/skills'
+import { listSkillCatalog } from '@/api/management'
+import type { CatalogSkill } from '@/types/management'
 import { isMockMode } from '@/api/hengxin/client'
-import type { Mode, Picture, SkillVersion } from '@/types/hengxin'
+import type { Mode, Picture } from '@/types/hengxin'
 import ImageUpload from './ImageUpload.vue'
 
 const props = defineProps<{ templateId?: string }>()
@@ -45,7 +47,7 @@ const visible = ref(true), loading = ref(false), saving = ref(false), skillsLoad
 const loadError = ref(''), saveError = ref(''), skillsError = ref(''), uploadBlocked = ref(false)
 const name = ref(''), formMode = ref<Mode>('wallpaper'), skillId = ref(''), originalSkill = ref(''), notes = ref('')
 const pictures = ref<Picture[]>([]), enabled = ref(true), version = ref<number>()
-const skillVersions = ref<SkillVersion[]>([])
+const skillVersions = ref<CatalogSkill[]>([])
 const busy = computed(() => loading.value || saving.value)
 const availableSkills = computed(() => skillVersions.value.filter(skill => skill.mode === formMode.value && skill.status === 'available'))
 const effectiveSkill = computed(() => availableSkills.value.find(skill => skillId.value ? skill.id === skillId.value : skill.isDefault))
@@ -60,7 +62,7 @@ function changeSkill() { enabled.value = validSkill.value }
 async function loadSkills() {
   skillsLoading.value = true
   skillsError.value = ''
-  try { const result = await listSkills(); if (alive) skillVersions.value = result }
+  try { const result = await listSkillCatalog(); if (alive) skillVersions.value = result }
   catch (reason) { if (alive) { skillVersions.value = []; skillsError.value = errorMessage(reason, 'Skill 加载失败，请重试') } }
   finally { if (alive) skillsLoading.value = false }
 }
