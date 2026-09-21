@@ -4,7 +4,7 @@
 
 用户已授权提交Git并部署生产：先提交已批准快照，再白名单打包/审计；确认无在途任务并备份，升级0014、切换API/Outbox/原生Worker和前端；验证文件哈希、服务健康、目录接口和真实页面。保留历史Skill树、模型及五并发，不自动提交付费生图；失败回退应用并保留已产生新快照所需迁移字段。
 
-本机实现与验证完成：取消人工Skill版本管理，新增目录同步与用途描述，稳定身份绑定及任务完整快照。前端119项、类型和正式构建通过；后端全套801项、最终相关51项及Linux真实隔离通过。独立审查发现的同步竞争、模板锁顺序和遗留筛选差异均已修复复核。见 [验证记录](hengxin-smart-image/docs/LIGHT-SKILLS-VALIDATION.md) 和 [审查报告](hengxin-smart-image/docs/LIGHT-SKILLS-REVIEW.md)。尚未提交或部署生产，后续发布需升级0014并保留历史local发布树。
+本机实现与验证完成：取消人工Skill版本管理，新增目录同步与用途描述，稳定身份绑定及任务完整快照。前端119项、类型和正式构建通过；后端全套801项、最终相关51项及Linux真实隔离通过。独立审查发现的同步竞争、模板锁顺序和遗留筛选差异均已修复复核。见 [验证记录](hengxin-smart-image/docs/LIGHT-SKILLS-VALIDATION.md) 和 [审查报告](hengxin-smart-image/docs/LIGHT-SKILLS-REVIEW.md)。已提交f02b1e0并部署`light-skills-20260921-f02b1e0`，0014迁移、哈希/健康及真实页面同步验证通过，历史local发布树保留；见 [发布记录](hengxin-smart-image/docs/LIGHT-SKILLS-DEPLOYMENT.md)。
 
 1. 后端目录与同步：扩展skills模型/契约/API、Worker同步作业及迁移；固定根目录扫描name/description、识别或选择类型、自动校验/启用、保留停用、异常与移除。验收鉴权、重复同步、缺失目录/损坏元数据、文件安全和旧登记兼容。
 2. 执行快照与绑定：复用现有内部快照记录，新增任务按稳定Skill身份取当前成功内容，模板/默认跟随身份；已提交任务与返工冻结完整文件。验收不同字节更新、旧任务继续旧内容、存储失败不发布、历史ZIP/目录和移除引用保护。
