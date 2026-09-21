@@ -8,16 +8,16 @@
     </ElSelect>
     <p v-if="picture && picture.id !== slot.currentVersionId" class="hx-footnote">正在查看历史版本，不改变当前结果。</p>
     <p v-if="slot.error" class="hx-muted">{{ slot.error }}{{ slot.currentVersionId ? '；旧结果已保留。' : '' }}</p>
-    <div class="hx-row"><ElButton text type="primary" :disabled="!editable" @click="$emit('edit', slot.slot)">修改这张</ElButton><ElButton text :disabled="!picture || downloading" :loading="downloading" @click="download">{{ isMockMode ? '下载示例' : '下载图片' }}</ElButton></div>
+    <div class="hx-row"><ElButton text type="primary" :disabled="!editable" @click="$emit('edit', slot.slot, picture)">修改这张</ElButton><ElButton text :disabled="!picture || downloading" :loading="downloading" @click="download">{{ isMockMode ? '下载示例' : '下载图片' }}</ElButton></div>
   </ElCard>
 </template>
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { ResultSlot, TaskState } from '@/types/hengxin'
+import type { ResultSlot, ResultVersion, TaskState } from '@/types/hengxin'
 import { isMockMode } from '@/api/hengxin/client'
 import { downloadPicture } from '../download'
 const props = defineProps<{ slot: ResultSlot; state: TaskState; editable: boolean }>()
-defineEmits<{ edit: [slot: number] }>()
+defineEmits<{ edit: [slot: number, version: ResultVersion | undefined] }>()
 const selected = ref(''), downloading = ref(false)
 watch(() => props.slot, (slot, previous) => {
   if (!slot.versions.some(v => v.id === selected.value) || selected.value === previous?.currentVersionId) selected.value = slot.currentVersionId || slot.versions[0]?.id || ''

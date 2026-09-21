@@ -37,6 +37,10 @@ class RoundRecord(Timestamps, Base):
     target: Mapped[int | None] = mapped_column(Integer)
     note: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default='queued')
+    base_version_id: Mapped[UUID | None] = mapped_column(ForeignKey(
+        'image_versions.id', name='fk_execution_rounds_base_version_id', use_alter=True))
+    annotation_file_id: Mapped[UUID | None] = mapped_column(ForeignKey(
+        'files.id', name='fk_execution_rounds_annotation_file_id'))
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     execution_config: Mapped[dict] = mapped_column(JSON)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

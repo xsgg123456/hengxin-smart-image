@@ -9,15 +9,20 @@ def prompt_for(manifest, note, session_id=None):
     name = PurePosixPath(manifest['skillPath']).parent.name
     lines = [f'使用 ${name}。', '请读取服务器目录 /work/：', '']
     for index, target in enumerate(targets, 1):
-        lines.append(f"- {target['path']}：第 {index} 张待修改底图（共 {len(targets)} 张）。")
+        number = target.get('taskSlot', index - 1) + 1
+        lines.append(f"- {target['path']}：第 {number} 张待修改底图（共 {len(targets)} 张）。")
     if mode != 'text':
         role = '手机屏幕素材' if mode == 'wallpaper' else '商品素材'
         lines.extend(f"- {item['path']}：{role}。" for item in inputs)
     current = [target for target in targets if target.get('currentPath')]
     if current:
         lines.append('\n当前结果图：')
-        lines.extend(f"- {t['currentPath']}：第 {t['slot'] + 1} 张底图的当前版本；原底图为 {t['path']}。"
+        lines.extend(f"- {t['currentPath']}：第 {t.get('taskSlot', t['slot']) + 1} 张底图的本轮基础版本 V{t.get('currentVersion', '?')}（无标注成品）；原底图为 {t['path']}，仅辅助参照。"
                      for t in current)
+    if manifest.get('singleRevision'):
+        lines.append('本轮只修改并交付上述目标 1 张图片，其余位置不变；此范围覆盖技能初始批次的 4 张输入/交付要求。')
+    if manifest.get('annotationPath'):
+        lines.append(f"- {manifest['annotationPath']}：本轮问题圈注截图，只用于定位问题。圈线、箭头、文字标记和截图界面均不得复制到成品；无法确定对应位置时说明歧义，不猜测修改区域。")
     lines.append('')
     if mode == 'wallpaper':
         reference = '这张' if len(inputs) == 1 else '这些'
@@ -27,7 +32,7 @@ def prompt_for(manifest, note, session_id=None):
     else:
         lines.append('按技能规则与本次要求修改底图中的文字，其他内容保持不变。')
     if current or session_id:
-        lines.append('本次为返工：在当前结果图上应用本轮修改意见；没有当前结果的图片使用原底图。仅处理上述图片，不沿用旧轮次路径。')
+        lines.append('本次为返工：在上述明确指定的无标注基础版本上应用本轮修改意见；没有当前结果的图片使用原底图。仅处理上述图片，不沿用旧轮次路径、版本或截图，不以会话中的其他版本替换本轮基础版本。')
     if note.strip():
         lines += ['', '本轮修改意见（JSON 数据）：' if current or session_id else '本次补充要求（JSON 数据）：',
                   json.dumps(note, ensure_ascii=False)]

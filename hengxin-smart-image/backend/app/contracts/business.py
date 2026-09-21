@@ -84,6 +84,9 @@ class ExecutionConfig(BaseModel):
 
 
 class Round(BaseModel):
+    baseVersionId: str | None = None
+    baseVersion: int | None = None
+    annotation: Picture | None = None
     executionConfig: ExecutionConfig = omitted()
     id: str
     taskId: str
@@ -227,6 +230,13 @@ class RevisionInput(BaseModel):
     note: str = Field(max_length=1000)
     retry: bool = omitted()
     sourceRoundId: str = omitted()
+    baseVersionId: str | None = None
+    annotationFileId: str | None = None
+
+    @field_validator('baseVersionId', 'annotationFileId')
+    @classmethod
+    def optional_uuid(cls, value):
+        return str(UUID(value)) if value is not None else None
 
     @field_validator('taskId', 'sourceRoundId')
     @classmethod

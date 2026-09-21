@@ -92,7 +92,7 @@ def test_storage_failure_has_durable_retry(pg_tasks):
     assert cleanup_pending_object(factory, store, result.receipt_id, POLICY).status == 'missing'
 
 
-@pytest.mark.parametrize('kind', ['source', 'template', 'version', 'archive'])
+@pytest.mark.parametrize('kind', ['source', 'template', 'version', 'archive', 'annotation'])
 def test_all_references_protect_even_deleted_parents(pg_tasks, tmp_path, kind):
     factory, user, _, _ = pg_tasks
     task_id, round_id, _ = task_setup(pg_tasks, tmp_path)
@@ -100,6 +100,8 @@ def test_all_references_protect_even_deleted_parents(pg_tasks, tmp_path, kind):
     with factory.begin() as session:
         if kind == 'source':
             session.add(TaskSource(task_id=task_id, file_id=file_id, slot=19, name='source'))
+        elif kind == 'annotation':
+            session.get(RoundRecord, round_id).annotation_file_id = file_id
         elif kind == 'template':
             template = TemplateRecord(owner_id=user.id, deleted_at=OLD)
             session.add(template)

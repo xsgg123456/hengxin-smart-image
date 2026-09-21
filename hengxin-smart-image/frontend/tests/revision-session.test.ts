@@ -1,11 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRenderer, defineComponent, h, ref } from 'vue'
+import { createRenderer, defineComponent, h, ref, toRaw } from 'vue'
 import { useRevisionSession } from '../src/views/hengxin/revision-session'
 import { ApiError, createHttpService } from '../src/api/hengxin/http'
-import type { Accepted, HengxinService, RevisionInput, TaskDetailData } from '../src/types/hengxin'
+import type { Accepted, HengxinService, ResultVersion, RevisionInput, TaskDetailData } from '../src/types/hengxin'
 const receipt: Accepted = { taskId: 'a', roundId: 'r2', state: '排队中' }
 const input: RevisionInput = { taskId: 'a', target: 1, note: '原意见' }
+const v1: ResultVersion = { id: 'v1', version: 1, roundId: 'r1', createdAt: '', name: '成品', url: '/v1.png' }
 const renderer = createRenderer<object, object>({
   createElement: () => ({}), createText: () => ({}), createComment: () => ({}), insert() {}, remove() {},
   setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {}
@@ -104,4 +105,35 @@ test('网络丢响应后目标切换不换键，重试来源轮次也被冻结',
   await assert.rejects(form.submit({ ...input, target: null }), /先确认上次提交/)
   await form.resolvePrevious()
   assert.deepEqual(bodies, [retry, retry]); assert.equal(keys[0], keys[1]); assert.equal(form.note.value, '整套草稿')
+})
+
+test('所见版本的底图和截图草稿隔离，切换身份与任务不泄漏', () => {
+  const owner = ref<string | undefined>('version-owner'), task = ref('a')
+  const form = useRevisionSession(() => owner.value, () => task.value, async () => receipt)
+  form.target.value = 0; form.base.value = v1; form.note.value = '修V1镜头'
+  const uploaded = [{ fileId: 'mark1', name: '圈注', url: '/mark.png' }]
+  form.annotations.value = uploaded
+  // 上传组件靠发布数组的引用识别父组件回传，复制会误触重置并清掉上传状态。
+  assert.equal(toRaw(form.annotations.value), uploaded)
+  form.base.value = { ...v1, id: 'v2', version: 2 }; assert.equal(form.note.value, ''); assert.deepEqual(form.annotations.value, [])
+  form.note.value = '修V2'; form.base.value = v1
+  assert.equal(form.note.value, '修V1镜头'); assert.equal(form.annotations.value[0].fileId, 'mark1')
+  task.value = 'b'; assert.equal(form.base.value, null); assert.deepEqual(form.annotations.value, [])
+  task.value = 'a'; owner.value = 'other'; assert.equal(form.base.value, null)
+  owner.value = 'version-owner'; assert.equal(form.base.value?.id, 'v1')
+})
+
+test('响应丢失后的重放冻结基础版本和圈注文件，不随弹窗编辑改变', async () => {
+  const sent: RevisionInput[] = []
+  const form = useRevisionSession(() => 'image-replay-owner', () => 'a', async body => {
+    sent.push(body)
+    if (sent.length === 1) throw new ApiError('NETWORK', '断网')
+    return receipt
+  })
+  const original = { ...input, baseVersionId: 'v1', annotationFileId: 'mark1' }
+  await assert.rejects(form.submit(original))
+  original.baseVersionId = 'v2'; original.annotationFileId = 'mark2'
+  await assert.rejects(form.submit(original), /先确认上次提交/)
+  await form.resolvePrevious()
+  assert.equal(sent[1].baseVersionId, 'v1'); assert.equal(sent[1].annotationFileId, 'mark1')
 })

@@ -17,6 +17,7 @@ interface UploadOptions {
   mode: Mode
   disabled?: boolean
   exampleCount?: number
+  maxCount?: number
 }
 
 export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
@@ -27,7 +28,8 @@ export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
   const entries = ref<UploadEntry[]>([])
   const error = ref('')
   const examplesLoading = ref(false)
-  const blocked = computed(() => examplesLoading.value || entries.value.some(e => e.state !== 'ready'))
+  const blocked = computed(() => examplesLoading.value || entries.value.some(e => e.state !== 'ready')
+    || (props.maxCount === 1 && !!error.value))
   const pictures = () => entries.value.flatMap(e => e.picture ? [e.picture] : [])
   const release = (entry: UploadEntry) => {
     if (entry.localUrl) URL.revokeObjectURL(entry.localUrl)
@@ -87,12 +89,14 @@ export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
   }
   async function add(file: File) {
     if (props.disabled || examplesLoading.value) return
-    const reason = entries.value.length >= MAX_IMAGES ? '每组最多 20 张，请移除图片后再添加'
+    const maximum = props.maxCount ?? MAX_IMAGES
+    const reason = maximum !== 1 && entries.value.length >= maximum ? `每组最多 ${maximum} 张，请移除图片后再添加`
       : !file.size ? '文件为空，请选择有内容的图片'
         : file.size > MAX_IMAGE_BYTES ? '单张图片不能超过 10 MiB'
           : !IMAGE_MIME_TYPES.includes(file.type)
             ? '仅支持 JPG、PNG、WebP 图片' : ''
     if (reason) { error.value = `${file.name}：${reason}`; return }
+    if (maximum === 1) { reset([]); publish() }
     const id = ++sequence
     const url = URL.createObjectURL(file)
     entries.value.push({ id, name: file.name, url, localUrl: url, file, state: 'checking', error: '' })

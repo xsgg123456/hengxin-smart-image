@@ -108,8 +108,13 @@ def accept_round(session, user, task_id, body, key):
     if body.target is not None and session.scalar(select(ResultSlotRecord.id).where(
             ResultSlotRecord.task_id == task.id, ResultSlotRecord.slot == body.target)) is None:
         raise HTTPException(422, '返工目标图片不存在')
+    from .revision_inputs import freeze_revision
+    base_id, annotation_id, frozen = freeze_revision(session, user, task, body, current)
     try:
         round = enqueue(session, user, task, body.note, body.target)
+        round.base_version_id, round.annotation_file_id = base_id, annotation_id
+        if frozen:
+            round.execution_config = {**round.execution_config, 'singleInputFrozen': True}
         session.add(TaskRequest(user_id=user.id, operation='round', target=target, key=key,
                                body_hash=digest, task_id=task.id, round_id=round.id))
         session.commit()

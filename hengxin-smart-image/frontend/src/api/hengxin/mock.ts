@@ -17,7 +17,8 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
   let executionConfig = { version: 1, concurrency: 1, timeoutSeconds: 600 }
   const wait = async () => { await new Promise<void>(resolve => setTimeout(resolve, options.delayMs ?? 120)); if (user.status !== 'active' || !user.role) { if (typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:unauthorized')); throw new ApiError('UNAUTHORIZED', '账号未授权或已禁用', 401) } }
   const catalog = createMockCatalog(db, wait, options.scenario ?? 'default', () => user.id, () => uploadLimit)
-  const tasks = createMockTasks(db, wait, options.scenario ?? 'default', options.stepMs, () => user.id, () => executionConfig)
+  const tasks = createMockTasks(db, wait, options.scenario ?? 'default', options.stepMs, () => user.id, () => executionConfig,
+    fileId => catalog.resolvePictures([{ fileId, name: '', url: '' }])[0])
   const management = createMockManagement(db, catalog.skills, () => user, { scenario: options.managementScenario, wait, getAttempts: tasks.getUsageAttempts, getHistoricalTasks: tasks.getHistoricalTasks, onSettingsChanged: config => { uploadLimit = config.maxUploadBytes; executionConfig = { version: config.version, concurrency: config.concurrency, timeoutSeconds: config.timeoutSeconds } }, onUserChanged: updated => { if (updated.id === user.id) { user = copy(updated); if (typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:identity-changed')) } } })
   return {
     async getUser() { return copy(user) },

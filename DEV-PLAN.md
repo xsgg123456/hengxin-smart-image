@@ -1,5 +1,18 @@
 # Development Plan — 恒鑫智图
 
+## 单张返工：所见版本与圈注截图 · 2026-09-21
+
+生产发布已获用户授权：核对批准快照与无在途任务，白名单打包并审计，备份数据库/应用/配置，升级0013并切换API、Worker和前端；核对安装哈希、健康、五并发及线上入口。不自动发起付费生成；失败时恢复应用并保留兼容的新增可空字段，避免覆盖上线后业务数据。
+
+依据 REQ-005、AC-007A/B；先完成本机实现与验证，后按用户授权发布。复用既有 Vue/Element Plus、文件上传、异步轮次和同会话执行，不新增依赖。已发布 `single-revision-20260921-84d1bee`，0013迁移、哈希/健康及线上弹窗核验通过，见 [发布记录](hengxin-smart-image/docs/SINGLE-REVISION-DEPLOYMENT.md)。
+
+1. 后端输入与快照：扩展 `backend/app/contracts/business.py`、`modules/tasks/` 和迁移0013，保存 `baseVersionId`、`annotationFileId`；单张校验版本所属任务/槽位与文件权限，整套不接收单张附件。失败重试沿用冻结输入，结果仍追加版本。验收历史版本选择、非法跨槽/跨任务、附件授权、重放与重试测试。
+2. Worker材料：调整 `backend/app/execution/materials.py`、`prompts.py`，用指定成品作为修改基础、圈注作为定位参考，保留原模板及素材辅助参照；明确仅交付目标1张及忽略截图标记，不修改已发布Skill。验收单张原编号、历史版本映射、附件与返工提示词、整套和旧轮次兼容。
+3. 前端交互：调整 `frontend/src/views/hengxin/components/ResultCard.vue`、`TaskDetail.vue`、返工会话状态、上传组件及契约/mock；点击时冻结显示版本，弹窗展示版本及预览，可选1张问题截图，支持预览/移除/替换，错误与上传中阻止提交，身份/任务切换隔离草稿，执行记录显示基础版本与截图。验收V1/V2选择、文字无图、带图、失败重试、提交不确定与其他槽位保持不变。
+4. 交付验证：前后端相关及全套测试、类型检查/构建、独立浏览器交互与两阶段代码审查；记录已测与未测边界，不用mock宣称真实收费换图通过。
+
+本机实现与验证完成：前端114通过及类型/构建通过；后端PostgreSQL隔离环境785通过/105条件跳过，0013迁移与圈注引用保护通过；浏览器验证历史V1返工产生V3、上传错误拦截及截图替换。证据见 [验证记录](hengxin-smart-image/docs/SINGLE-REVISION-VALIDATION.md)，独立审查见 [审查记录](hengxin-smart-image/docs/SINGLE-REVISION-REVIEW.md)。后续已部署生产，尚未发起真实付费模型任务。
+
 ## 生产配置：五并发试运行 · 2026-09-17
 
 用户授权并发调至5。无在途任务后同步Worker池、部署容量和后台版本化配置，验证实际池大小及接口有效值，保留备份；用户随后提交五任务压测。见 [配置记录](hengxin-smart-image/docs/CONCURRENCY-5-20260917.md)。

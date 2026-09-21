@@ -38,7 +38,7 @@ def prepare_materials(session, store, task, round, workspace):
         directory.mkdir()
         for index, item in enumerate(items):
             file = session.get(FileRecord, UUID(item['fileId']))
-            if not file or file.status != 'ready':
+            if not file or file.status != 'ready' or file.deleted_at:
                 raise ValueError('冻结图片不可用')
             data = read_object(store, file, 10 * 1024 * 1024)
             name = f'{index:02d}' + {'image/png': '.png', 'image/jpeg': '.jpg',
@@ -52,8 +52,12 @@ def prepare_materials(session, store, task, round, workspace):
         target['taskSlot'] = task_slot
         slot = session.scalar(select(ResultSlotRecord).where(
             ResultSlotRecord.task_id == task.id, ResultSlotRecord.slot == task_slot))
-        if slot and slot.current_version_id:
-            image = session.get(ImageVersion, slot.current_version_id)
+        frozen = round.target is not None and round.execution_config.get('singleInputFrozen')
+        version_id = round.base_version_id if frozen else (slot.current_version_id if slot else None)
+        if version_id:
+            image = session.get(ImageVersion, version_id)
+            if not image or not slot or image.slot_id != slot.id:
+                raise ValueError('冻结基础版本与目标图片不一致')
             file = session.get(FileRecord, image.file_id)
             if not file or file.status != 'ready' or file.deleted_at:
                 raise ValueError('当前结果图片不可用')
@@ -62,6 +66,19 @@ def prepare_materials(session, store, task, round, workspace):
             (current_dir / name).write_bytes(data)
             target['currentPath'] = '/work/current/' + name
             target['currentVersion'] = image.version
+            if frozen:
+                target['baseVersionId'] = str(image.id)
+    if round.target is not None:
+        manifest['singleRevision'] = True
+    if round.annotation_file_id:
+        file = session.get(FileRecord, round.annotation_file_id)
+        if not file or file.status != 'ready' or file.deleted_at:
+            raise ValueError('冻结圈注截图不可用')
+        directory = workspace.work / 'annotation'
+        directory.mkdir()
+        name = 'reference' + {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[file.content_type]
+        (directory / name).write_bytes(read_object(store, file, 10 * 1024 * 1024))
+        manifest['annotationPath'] = '/work/annotation/' + name
     version = session.get(SkillVersionRecord, task.skill_version_id)
     if not version or version.version != task.skill_snapshot['version'] or version.skill.mode != task.mode:
         raise ValueError('Skill 与任务冻结版本不一致')

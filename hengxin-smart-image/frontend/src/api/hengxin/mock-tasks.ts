@@ -4,7 +4,7 @@ import { MOCK_USER_ID, sampleImages } from './fixtures'
 import type { MockScenario } from './mock-catalog'
 import type { UsageAttempt } from '../../types/management'
 
-export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, stepMs = 700, operatorId: () => string = () => MOCK_USER_ID, getConfig = () => ({ version: 1, concurrency: 1, timeoutSeconds: 600 })) {
+export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, stepMs = 700, operatorId: () => string = () => MOCK_USER_ID, getConfig = () => ({ version: 1, concurrency: 1, timeoutSeconds: 600 }), getAnnotation?: (fileId: string) => Picture) {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const stamp = () => new Date().toISOString()
   const id = () => crypto.randomUUID()
@@ -42,13 +42,13 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     task.archived = db.archives.some(a => a.taskId === task.id && JSON.stringify(a.imageVersionIds) === JSON.stringify(ids))
   }
   db.tasks.forEach(initialize)
-  function run(task: Task, target: number | null, note: string, initial = false): Accepted {
+  function run(task: Task, target: number | null, note: string, initial = false, revision: Pick<Round, 'baseVersionId' | 'baseVersion' | 'annotation'> = {}): Accepted {
     if (active.has(task.id)) throw new ApiError('CONFLICT', '任务正在处理中，请稍后再试', 409)
     if (!slots.has(task.id)) initialize(task)
     const targets = slots.get(task.id)!.filter(s => target === null || s.slot === target)
     const failure = !scenarioUsed && ((scenario === 'execution-error' && initial) || (scenario === 'revision-error' && !initial) || scenario === 'partial-result')
     if (failure) scenarioUsed = true
-    const round: Round = { id: id(), taskId: task.id, operatorId: operatorId(), target, note, executionConfig: copy(getConfig()),
+    const round: Round = { ...copy(revision), id: id(), taskId: task.id, operatorId: operatorId(), target, note, executionConfig: copy(getConfig()),
       state: '排队中', createdAt: stamp(), startedAt: null, finishedAt: null, error: null }
     rounds.get(task.id)!.unshift(round)
     task.currentRoundId = round.id; task.state = '排队中'; task.progress = 0; task.error = null
@@ -125,17 +125,31 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
       const task = find(input.taskId)
       if (active.has(task.id)) throw new ApiError('CONFLICT', '任务正在处理中，请稍后再试', 409)
       let target = input.target, note = input.note.trim()
+      let revision: Pick<Round, 'baseVersionId' | 'baseVersion' | 'annotation'> = {}
       if (input.retry) {
         if (!['失败', '部分失败'].includes(task.state)) throw new ApiError('CONFLICT', '当前任务无需重试', 409)
         const previous = rounds.get(task.id)![0]
         if (input.sourceRoundId && input.sourceRoundId !== previous?.id) throw new ApiError('CONFLICT', '失败轮次已变化，请刷新后重试', 409)
         target = previous?.target ?? null; note = previous?.note ?? '重试初始生成'
+        if ((input.baseVersionId !== undefined && input.baseVersionId !== (previous.baseVersionId ?? null))
+          || (input.annotationFileId !== undefined && input.annotationFileId !== (previous.annotation?.fileId ?? null))) throw new ApiError('CONFLICT', '重试必须沿用原轮次图片和截图', 409)
+        revision = { baseVersionId: previous.baseVersionId, baseVersion: previous.baseVersion, annotation: previous.annotation }
       } else {
         if (task.state !== '待查看') throw new ApiError('CONFLICT', '请先重试失败轮次，再提交新的修改意见', 409)
         if (!note || note.length > 1000) throw new ApiError('VALIDATION', '请填写 1–1000 字修改意见', 422)
       }
       if (target !== null && (!Number.isInteger(target) || target < 0 || target >= (task.outputCount ?? 0))) throw new ApiError('VALIDATION', '目标图片不存在', 422)
-      const receipt = run(task, target, note)
+      if (!input.retry) {
+        if (target === null && (input.baseVersionId || input.annotationFileId)) throw new ApiError('VALIDATION', '整套修改不接受单张版本和截图', 422)
+        const slot = target === null ? undefined : slots.get(task.id)![target]
+        const baseId = input.baseVersionId === undefined ? slot?.currentVersionId : input.baseVersionId
+        if (slot?.currentVersionId && !baseId) throw new ApiError('VALIDATION', '已有结果时必须指定所见基础版本', 422)
+        const base = slot?.versions.find(v => v.id === baseId)
+        if (baseId && !base) throw new ApiError('VALIDATION', '基础版本不属于该图片', 422)
+        revision = { baseVersionId: base?.id ?? null, baseVersion: base?.version ?? null,
+          annotation: input.annotationFileId ? getAnnotation?.(input.annotationFileId) ?? null : null }
+      }
+      const receipt = run(task, target, note, false, revision)
       revisionReceipts.set(key, { fingerprint, receipt })
       return receipt
     },

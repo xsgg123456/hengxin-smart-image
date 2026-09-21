@@ -179,3 +179,11 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 - `/management/monitor` GET、`/management/settings` GET/PUT：真实监控与版本化配置；未登录返回 401。`/workspace` 仍为契约占位 501。
 
 当前真实路由在 app/main.py 中先于契约注册。上方历史章节中的实现边界不覆盖本节；详细请求/响应类型以源码及实际 OpenAPI 为准。真实双端联调和真实角色统计验收另行记录。
+
+## 单张所见版本与圈注 · 2026-09-21
+
+- `POST /tasks/:id/rounds` 增加可选 `baseVersionId: UUID|null`、`annotationFileId: UUID|null`。单张前端总是传递点击时显示的版本ID；旧调用省略版本时冻结当前结果，无结果时允许null。有结果却显式传null、跨任务/槽位版本均拒绝。整套修改不能指定这两个单张材料。
+- 圈注最多1张，使用既有上传接口，要求当前操作者上传、ready、未删除，JPG/PNG/WebP且不超过10MiB或后台更严格限制。圈注仅作问题定位，不成为成品内容；不传截图仍可文字返工。
+- Round增加 `baseVersionId`、`baseVersion`、`annotation`（Picture或null），历史记录展示基础版本和圈注。数据库迁移0013新增可空引用；历史轮次保持兼容。
+- 重试按 `sourceRoundId` 沿用已冻结版本、圈注、意见与范围；可省略新字段，显式改变拒绝409。幂等重放保持原输入与键，兼容旧客户端请求。圈注引用进入清理保护。
+- Worker继续原任务会话，基础为指定版本无标记原图，模板/素材辅助参考，圈注单独提供；仅输出目标槽位1张。成功追加该槽位最大版本号+1并设为当前，旧版本与其他槽位保留。

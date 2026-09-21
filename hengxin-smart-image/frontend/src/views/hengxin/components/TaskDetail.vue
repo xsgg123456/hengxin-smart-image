@@ -6,7 +6,7 @@
       <template v-if="task && data">
         <div class="hx-detail-toolbar"><div><ElTag>{{ labels[task.mode] }}</ElTag><span class="hx-muted">{{ task.id }} · {{ formatTime(task.time) }}</span></div></div>
         <div class="hx-filter"><ElButton :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
-        <p class="hx-footnote">整套下载和归档使用每个位置的当前版本；历史版本选择仅用于查看和单张下载。相同版本再次归档会返回已有成品。</p>
+        <p class="hx-footnote">单张修改以正在查看的版本为基础；整套修改、下载和归档使用各位置当前版本。相同版本再次归档会返回已有成品。</p>
         <ElAlert v-if="archivedResult" :title="`已归档：${archivedResult.name}`" type="success" :closable="false" show-icon class="hx-gap"><ElButton text type="primary" :disabled="busy" @click="viewArchive">查看该成品</ElButton></ElAlert>
         <ElAlert v-if="isMockMode" title="交互演示：以下为示例图片，尚未调用真实 Skill。修改操作演示版本与状态变化。" type="info" show-icon :closable="false" />
         <ElAlert v-if="fixtureNotice(task)" :title="fixtureNotice(task)" type="warning" show-icon :closable="false" />
@@ -22,15 +22,24 @@
           <ElButton v-if="failed" type="primary" :loading="submitting" :disabled="!actions.canRetry || !lastFailed" @click="retry">重试失败范围</ElButton>
         </div>
         <div class="hx-result-grid"><ResultCard v-for="slot in data.slots" :key="`${task.id}-${slot.slot}`" :slot="slot" :state="task.state" :editable="editable" @edit="edit" /></div>
-        <ElCollapse class="hx-gap"><ElCollapseItem :title="`执行与修改记录（${data.rounds.length}）`"><ElEmpty v-if="!data.rounds.length" description="暂无轮次记录" :image-size="60" /><div v-for="round in data.rounds" :key="round.id" class="hx-log"><strong>{{ round.target === null ? '整套' : `第 ${round.target + 1} 张` }} · {{ round.state }}</strong><p>{{ round.note || '首次生成' }}</p><small>{{ formatTime(round.createdAt) }} · {{ round.operatorId }}</small><p v-if="round.error">{{ round.error }}</p></div></ElCollapseItem></ElCollapse>
+        <ElCollapse class="hx-gap"><ElCollapseItem :title="`执行与修改记录（${data.rounds.length}）`"><ElEmpty v-if="!data.rounds.length" description="暂无轮次记录" :image-size="60" /><div v-for="round in data.rounds" :key="round.id" class="hx-log"><strong>{{ round.target === null ? '整套' : `第 ${round.target + 1} 张` }} · {{ round.state }}</strong><p v-if="round.baseVersion">基于 V{{ round.baseVersion }} 修改</p><p>{{ round.note || '首次生成' }}</p><ElImage v-if="round.annotation" :src="round.annotation.url" :alt="`问题截图：${round.annotation.name}`" :preview-src-list="[round.annotation.url]" fit="contain" preview-teleported style="width: 80px; height: 80px" /><small>{{ formatTime(round.createdAt) }} · {{ round.operatorId }}</small><p v-if="round.error">{{ round.error }}</p></div></ElCollapseItem></ElCollapse>
       </template>
     </div>
   </ElDrawer>
-  <ElDialog v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" width="520px" append-to-body :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
-    <p class="hx-muted">{{ target === null ? '本轮意见应用于整套图片。' : '仅重新生成这个位置的图片，其余图片保留。' }}</p><ElInput v-model="feedback" :disabled="submitting" type="textarea" :rows="5" placeholder="填写本轮修改意见" maxlength="1000" show-word-limit />
+  <ElDialog v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" width="560px" top="6vh" append-to-body destroy-on-close :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
+    <div class="revision-fields">
+    <p class="hx-muted">{{ target === null ? '本轮意见应用于整套图片。' : '仅修改这个位置的图片，其余图片保留。' }}</p>
+    <template v-if="target !== null">
+      <div class="revision-base"><ElImage v-if="base" :src="base.url" :alt="`修改基础 V${base.version}`" :preview-src-list="[base.url]" fit="contain" preview-teleported /><strong>{{ base ? `本次基于 V${base.version} 修改` : '尚无成品，本次基于原底图修改' }}</strong></div>
+      <p id="revision-annotation-label">问题截图（可选，1 张）</p>
+      <ImageUpload v-if="feedbackOpen && task" :key="`${identity()}-${task.id}-${revision.draftKey.value}`" v-model="annotations" :mode="task.mode" :disabled="submitting || revision.session.value.uncertain" :max-count="1" sortable hide-examples :button-label="annotations.length ? '替换问题截图' : '上传问题截图'" aria-labelledby="revision-annotation-label" @blocked="annotationBlocked = $event" />
+      <p class="hx-footnote">可上传圈出问题的截图。圈线、箭头仅用于定位，不会作为成品内容。</p>
+    </template>
+    <label for="revision-note">修改意见</label><ElInput id="revision-note" v-model="feedback" :disabled="submitting" type="textarea" :rows="4" :placeholder="target === null ? '例如：整套图片的屏幕亮度调高，其他内容保持不变' : '例如：请将截图红圈中的镜头向右调整，其余内容保持不变'" maxlength="1000" show-word-limit />
     <ElAlert v-if="actionError" :title="actionError" type="error" :closable="false" />
     <ElButton v-if="revision.session.value.uncertain" :loading="submitting" @click="confirmPrevious">确认上次提交（保留当前意见）</ElButton>
-    <template #footer><ElButton :disabled="submitting" @click="feedbackOpen = false">取消</ElButton><ElButton type="primary" :disabled="!feedback.trim() || feedback.trim().length > 1000 || !editable" :loading="submitting" @click="applyFeedback">提交修改</ElButton></template>
+    </div>
+    <template #footer><ElButton :disabled="submitting" @click="feedbackOpen = false">取消</ElButton><ElButton type="primary" :disabled="!feedback.trim() || feedback.trim().length > 1000 || !editable || (target !== null && annotationBlocked)" :loading="submitting" @click="applyFeedback">提交修改</ElButton></template>
   </ElDialog>
 </template>
 <script setup lang="ts">
@@ -42,12 +51,13 @@ import { useUserStore } from '@/store/modules/user'
 import { useRevisionSession } from '../revision-session'
 import { archiveTask } from '@/api/archives'
 import { submitArchive } from '../archive-requests'
-import type { RevisionInput } from '@/types/hengxin'
+import type { ResultVersion, RevisionInput } from '@/types/hengxin'
 import { labels } from '../model'
 import { downloadSet } from '../download'
 import { useTaskDetail } from './use-task-detail'
 import { fixtureNotice, taskActions } from '../task-state'
 import ResultCard from './ResultCard.vue'
+import ImageUpload from './ImageUpload.vue'
 import TaskSources from './TaskSources.vue'
 import TaskTemplate from './TaskTemplate.vue'
 import ExecutionProgress from './ExecutionProgress.vue'
@@ -66,7 +76,8 @@ const revision = useRevisionSession(identity, () => props.taskId, async (input, 
   if (!owner || owner !== identity()) throw new Error('登录身份已变化，请重新确认提交')
   return service.revise(input, key)
 })
-const { target, note: feedback } = revision
+const { target, base, annotations, note: feedback } = revision
+const annotationBlocked = ref(false)
 const feedbackOpen = ref(false), archiving = ref(false), downloading = ref(false)
 const actionError = computed({ get: () => revision.session.value.error, set: value => { revision.session.value.error = value } })
 const submitting = computed(() => revision.session.value.pending)
@@ -83,9 +94,9 @@ watch(visible, shown => { if (!shown && !submitting.value) feedbackOpen.value = 
 function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
 function closeDrawer(done: () => void) { if (!busy.value) { feedbackOpen.value = false; open.value = false; done() } }
 function closeFeedback(done: () => void) { if (!submitting.value) done() }
-function edit(slot: number | null) {
+function edit(slot: number | null, version?: ResultVersion) {
   if (!editable.value || !revision.begin()) return
-  target.value = slot; feedbackOpen.value = true
+  target.value = slot; base.value = version ?? null; annotationBlocked.value = false; feedbackOpen.value = true
 }
 async function revise(input?: RevisionInput) {
   if (input && (input.retry ? !actions.value.canRetry : !actions.value.canRevise)) return
@@ -100,8 +111,9 @@ async function revise(input?: RevisionInput) {
 }
 function confirmPrevious() { if (!submitting.value) void revise() }
 function applyFeedback() {
-  if (!feedback.value.trim() || feedback.value.trim().length > 1000 || !task.value) return
-  void revise({ taskId: task.value.id, target: target.value, note: feedback.value.trim() })
+  if (!feedback.value.trim() || feedback.value.trim().length > 1000 || !task.value || (target.value !== null && annotationBlocked.value)) return
+  void revise({ taskId: task.value.id, target: target.value, note: feedback.value.trim(),
+    ...(target.value !== null ? { baseVersionId: base.value?.id ?? null, annotationFileId: annotations.value[0]?.fileId ?? null } : {}) })
 }
 function retry() {
   if (!task.value || !lastFailed.value || !actions.value.canRetry || !revision.begin()) return
@@ -128,3 +140,9 @@ async function download() {
   try { await downloadSet(pictures, task.value.name) } finally { downloading.value = false }
 }
 </script>
+<style scoped>
+.revision-fields { max-height: 66vh; overflow-y: auto; padding-right: 8px; }
+.revision-base { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.revision-base .el-image { width: 72px; height: 72px; flex-shrink: 0; }
+.revision-fields label { display: block; margin: 12px 0 8px; }
+</style>

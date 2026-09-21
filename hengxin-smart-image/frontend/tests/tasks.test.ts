@@ -6,6 +6,38 @@ import { sampleImages } from '../src/api/hengxin/fixtures'
 import type { HengxinService } from '../src/types/hengxin'
 
 const input = { mode: 'wallpaper' as const, name: '状态验收', templateId: 't1', sources: sampleImages('wallpaper', 1), note: '保留边框', sku: 'SKU-P3' }
+
+test('历史V1带圈注返工追加V3，保留V2和其他图片，记录基础与截图', async t => {
+  const service = createMockService({ delayMs: 0, stepMs: 3 }); t.after(() => service.dispose())
+  const before = await service.getTask('HX0908-001'), id = before.task.id
+  const first = before.slots[0].versions[0]
+  await service.revise({ taskId: id, target: 0, note: '先生成V2', baseVersionId: first.id })
+  const v2 = await settled(service, id)
+  const mark = await service.uploadFile(new File(['fixture'], '圈注.png', { type: 'image/png' }))
+  await service.revise({ taskId: id, target: 0, note: '基于V1修正红圈', baseVersionId: first.id, annotationFileId: mark.fileId })
+  const v3 = await settled(service, id)
+  assert.deepEqual(v3.slots[0].versions.map(v => v.version), [1, 2, 3])
+  assert.deepEqual(v3.slots[0].versions.slice(0, 2), v2.slots[0].versions)
+  assert.deepEqual(v3.slots.slice(1), v2.slots.slice(1))
+  assert.equal(v3.rounds[0].baseVersionId, first.id); assert.equal(v3.rounds[0].baseVersion, 1)
+  assert.equal(v3.rounds[0].annotation?.fileId, mark.fileId)
+  await assert.rejects(service.revise({ taskId: id, target: 0, note: '已有结果却未选基础', baseVersionId: null }), { status: 422 })
+  await assert.rejects(service.revise({ taskId: id, target: 1, note: '错误位置', baseVersionId: first.id }), { status: 422 })
+  await assert.rejects(service.revise({ taskId: id, target: null, note: '错误整套', annotationFileId: mark.fileId }), { status: 422 })
+})
+
+test('带圈注失败重试复用原基础和截图，替换截图的重试被拒绝', async t => {
+  const service = createMockService({ delayMs: 0, stepMs: 3, scenario: 'revision-error' }); t.after(() => service.dispose())
+  const before = await service.getTask('HX0908-001'), id = before.task.id
+  const mark = await service.uploadFile(new File(['fixture'], '圈注.png', { type: 'image/png' }))
+  await service.revise({ taskId: id, target: 0, note: '只修红圈', baseVersionId: before.slots[0].currentVersionId, annotationFileId: mark.fileId })
+  const failed = await settled(service, id), previous = failed.rounds[0]
+  await assert.rejects(service.revise({ taskId: id, target: 0, note: previous.note, retry: true, sourceRoundId: previous.id, annotationFileId: null }), { status: 409 })
+  await service.revise({ taskId: id, target: 0, note: previous.note, retry: true, sourceRoundId: previous.id })
+  const done = await settled(service, id)
+  assert.equal(done.rounds[0].baseVersionId, previous.baseVersionId)
+  assert.deepEqual(done.rounds[0].annotation, previous.annotation)
+})
 async function settled(service: HengxinService, id: string) {
   for (let attempt = 0; attempt < 100; attempt++) {
     const detail = await service.getTask(id)

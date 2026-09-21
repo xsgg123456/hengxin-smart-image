@@ -8,7 +8,13 @@ from app.contracts.business import Accepted
 
 
 def fingerprint(body):
-    return hashlib.sha256(json.dumps(body.model_dump(), sort_keys=True, ensure_ascii=False,
+    data = body.model_dump()
+    # Preserve legacy request hashes and distinguish an omitted base (freeze current)
+    # from explicit null (no successful result). Other established fields stay unchanged.
+    for name in ('baseVersionId', 'annotationFileId'):
+        if name not in body.model_fields_set:
+            data.pop(name, None)
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False,
         separators=(',', ':')).encode()).hexdigest()
 
 

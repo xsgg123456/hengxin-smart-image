@@ -71,6 +71,9 @@ export interface Task {
   error?: string | null
 }
 export interface Round {
+  baseVersionId?: string | null
+  baseVersion?: number | null
+  annotation?: Picture | null
   executionConfig?: { version: number; concurrency: number; timeoutSeconds: number }
   id: string
   taskId: string
@@ -160,7 +163,7 @@ export interface CreateTaskInput {
   sources: Picture[]
   note: string
 }
-export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean; sourceRoundId?: string }
+export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean; sourceRoundId?: string; baseVersionId?: string | null; annotationFileId?: string | null }
 export interface HengxinService extends ManagementService {
   getUser(): Promise<User>
   getWorkspace(): Promise<Workspace>

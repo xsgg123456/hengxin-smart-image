@@ -1,9 +1,10 @@
 import { computed, reactive } from 'vue'
 import { ApiError } from '../../api/hengxin/http'
-import type { Accepted, HengxinService, RevisionInput, TaskDetailData } from '../../types/hengxin'
+import type { Accepted, HengxinService, Picture, ResultVersion, RevisionInput, TaskDetailData } from '../../types/hengxin'
 
 function createSession() {
   return reactive({ drafts: {} as Record<string, string>, target: null as number | null,
+    base: null as ResultVersion | null, annotations: {} as Record<string, Picture[]>,
     pending: false, uncertain: false, error: '', settled: false,
     accepted: undefined as Accepted | undefined,
     attempt: undefined as { input: RevisionInput; key: string } | undefined })
@@ -21,8 +22,12 @@ export function useRevisionSession(identity: () => string | undefined, taskId: (
     return sessions.get(key)!
   })
   const target = computed({ get: () => session.value.target, set: value => { session.value.target = value } })
-  const note = computed({ get: () => session.value.drafts[String(target.value)] ?? '',
-    set: value => { session.value.drafts[String(target.value)] = value } })
+  const base = computed({ get: () => session.value.base, set: value => { session.value.base = value ? { ...value } : null } })
+  const draftKey = computed(() => JSON.stringify([target.value, target.value === null ? null : base.value?.id ?? null]))
+  const note = computed({ get: () => session.value.drafts[draftKey.value] ?? '',
+    set: value => { session.value.drafts[draftKey.value] = value } })
+  const annotations = computed({ get: () => session.value.annotations[draftKey.value] ?? [],
+    set: value => { session.value.annotations[draftKey.value] = value } })
   const blocked = computed(() => session.value.pending || session.value.uncertain || (!!session.value.accepted && !session.value.settled))
   function observe(detail: TaskDetailData) {
     const current = session.value
@@ -67,5 +72,5 @@ export function useRevisionSession(identity: () => string | undefined, taskId: (
     if (!session.value.attempt) throw new Error('没有待确认的提交')
     return submit(session.value.attempt.input)
   }
-  return { session, target, note, blocked, observe, begin, submit, resolvePrevious }
+  return { session, target, base, annotations, draftKey, note, blocked, observe, begin, submit, resolvePrevious }
 }

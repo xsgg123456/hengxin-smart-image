@@ -38,7 +38,7 @@ def test_rework_keeps_current_image_original_target_and_local_slot_zero():
     prompt = prompt_for(data, '镜头向左移动一点', 'existing-session')
     assert '本次为返工' in prompt and '本轮修改意见' in prompt
     assert '/work/current/00.webp' in prompt and '/work/targets/00.jpg' in prompt
-    assert '第 1 张底图的当前版本' in prompt and 'taskSlot' not in prompt
+    assert '第 4 张底图的本轮基础版本 V2' in prompt and 'taskSlot' not in prompt
     assert '"镜头向左移动一点"' in prompt
 
 

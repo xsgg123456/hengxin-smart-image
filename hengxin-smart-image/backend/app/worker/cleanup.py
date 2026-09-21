@@ -70,7 +70,7 @@ def cleanup_file(factory, store, file_id, policy=CleanupPolicy()):
         with factory.begin() as session:
             if session.get_bind().dialect.name != 'postgresql':
                 return CleanupResult('unsupported_database')
-            _lock_tables(session, (*references, FileRecord))
+            _lock_tables(session, (*references, RoundRecord, FileRecord))
             record = session.scalar(select(FileRecord).where(FileRecord.id == UUID(str(file_id)))
                                     .with_for_update(nowait=True))
             if record is None:
@@ -78,7 +78,8 @@ def cleanup_file(factory, store, file_id, policy=CleanupPolicy()):
             if record.status not in ('staging', 'failed') or not _older(record.updated_at, policy.file_cutoff):
                 return CleanupResult('protected')
             if any(session.scalar(select(model.id).where(model.file_id == record.id).limit(1))
-                   for model in references):
+                   for model in references) or session.scalar(select(RoundRecord.id).where(
+                       RoundRecord.annotation_file_id == record.id).limit(1)):
                 return CleanupResult('referenced')
             receipt = CleanupObject(bucket=record.bucket, object_key=record.object_key)
             session.add(receipt)

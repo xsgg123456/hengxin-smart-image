@@ -98,6 +98,9 @@ def detail(session, task_id):
     can_revise, can_retry, reason = eligibility(session, task, current, rounds)
     return b.TaskDetailData(task=serialize(session, task), slots=result_slots, rounds=[b.Round(
         id=str(r.id), taskId=str(task.id), operatorId=str(r.operator_id), target=r.target,
+        baseVersionId=str(r.base_version_id) if r.base_version_id else None,
+        baseVersion=session.get(ImageVersion, r.base_version_id).version if r.base_version_id else None,
+        annotation=picture(session.get(FileRecord, r.annotation_file_id)) if r.annotation_file_id else None,
         note=r.note, state=STATE[r.status], createdAt=stamp(r.created_at), startedAt=stamp(r.started_at),
         finishedAt=stamp(r.finished_at), error=r.error) for r in rounds],
         executionControl=b.ExecutionControl(canRevise=can_revise, canRetry=can_retry, blockedReason=reason))
