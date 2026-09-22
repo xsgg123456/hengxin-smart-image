@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class CreateTask(BaseModel):
@@ -21,3 +21,21 @@ class CreateTask(BaseModel):
 class ResolveTask(BaseModel):
     model_config = ConfigDict(extra='forbid')
     confirmedStopped: bool
+
+
+class ReviseItem(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    baseVersion: int = Field(ge=1)
+    text: str = Field(default='', max_length=4000)
+    annotationFileId: UUID | None = None
+
+    @model_validator(mode='after')
+    def nonempty(self):
+        if not self.text and not self.annotationFileId:
+            raise ValueError('请填写修改意见或上传标注图')
+        return self
+
+
+class RestoreVersion(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    version: int = Field(ge=1)

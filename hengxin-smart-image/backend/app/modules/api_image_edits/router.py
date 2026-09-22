@@ -12,11 +12,11 @@ from app.modules.files.multipart import UPLOAD_BODY, parse_upload
 from app.modules.files.streaming import OwnedStreamResponse
 from app.modules.files.validation import validate_image
 from app.storage.minio_store import get_store
-from . import control, files, service
+from . import control, files, service, versions, zip_download
 from .config import get_api_settings
 from .models import ApiChannel
 from .presentation import list_tasks, task_view
-from .schemas import CreateTask, ResolveTask
+from .schemas import CreateTask, ResolveTask, ReviseItem, RestoreVersion
 
 router = APIRouter(prefix='/api-image-edits', tags=['api-image-edits'])
 User = Annotated[object, Depends(require_permission('shared_resources'))]
@@ -109,3 +109,23 @@ def resolve(task_id: UUID, data: ResolveTask, user: Admin, session: Database):
 def resume(user: Admin, session: Database):
     control.resume(session, user)
     return {'resumed': True}
+
+
+@router.post('/tasks/{task_id}/items/{item_id}/revise', status_code=202)
+def revise_item(task_id: UUID, item_id: UUID, data: ReviseItem, user: User, session: Database, key: Key):
+    return {'taskId': str(versions.revise(session, user, task_id, item_id, data, key))}
+
+
+@router.post('/tasks/{task_id}/items/{item_id}/retry', status_code=202)
+def retry_item(task_id: UUID, item_id: UUID, user: User, session: Database, key: Key):
+    return {'taskId': str(versions.retry_item(session, user, task_id, item_id, key))}
+
+
+@router.post('/tasks/{task_id}/items/{item_id}/restore')
+def restore_item(task_id: UUID, item_id: UUID, data: RestoreVersion, user: User, session: Database, key: Key):
+    return {'taskId': str(versions.restore(session, user, task_id, item_id, data, key))}
+
+
+@router.get('/tasks/{task_id}/zip')
+def download_zip(task_id: UUID, user: User, session: Database, store=Depends(get_store)):
+    return zip_download.download(session, store, task_id)

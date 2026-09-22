@@ -12,7 +12,7 @@ def test_worker_boundary_never_logs_private_exception_or_replays(monkeypatch, ca
         calls.append(args)
         raise RuntimeError('SQL params: https://cdn3.dmiapi.com/image?token=private-image-token')
 
-    monkeypatch.setattr('app.modules.api_image_edits.execution.execute_next', failure)
+    monkeypatch.setattr('app.modules.api_image_edits.execution.execute_batch', failure)
     with caplog.at_level(logging.ERROR):
         execute.run()
     assert len(calls) == 1

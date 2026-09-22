@@ -36,13 +36,13 @@ def due(factory):
 
 def test_order_single_claim_success_and_message_replay(files_env):
     web, factory, store, _ = files_env
-    task_id, payload = create(web)
+    task_id, payload = create(web, 1)
     client = Client()
     first = claim(factory)
     assert first and claim(factory) is None
     # Expiry models process loss; it must block all further work, not resend.
     with factory.begin() as session:
-        session.get(ApiChannel, 1).lease_until = utcnow() - timedelta(seconds=1)
+        session.get(ApiItem, first[0]).lease_until = utcnow() - timedelta(seconds=1)
     assert claim(factory) is None
     assert claim(factory) is None
     assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'uncertain'
@@ -80,7 +80,7 @@ def test_missing_key_pauses_before_counting_network_attempt(files_env):
 
 def test_three_backoffs_then_continue_and_idempotent_manual_retry(files_env):
     web, factory, store, _ = files_env
-    task_id, _ = create(web)
+    task_id, _ = create(web, 1)
     client = Client([RelayError('retryable', 'HTTP_429', 'safe')] * 4)
     for index in range(4):
         assert execute_next(factory, store, client)
@@ -89,17 +89,15 @@ def test_three_backoffs_then_continue_and_idempotent_manual_retry(files_env):
         if index < 3:
             assert execute_next(factory, store, client) is False
             due(factory)
-    assert execute_next(factory, store, client)
     task = web.get(ROOT + '/tasks/' + task_id).json()
-    successful_result = task['items'][1]['result']
-    assert task['status'] == 'partial_failed' and task['metrics']['requestCount'] == 5
+    assert task['status'] == 'failed' and task['metrics']['requestCount'] == 4
     headers = {'Idempotency-Key': 'retry-one'}
     assert web.post(ROOT + '/tasks/' + task_id + '/retry', headers=headers).status_code == 202
     assert web.post(ROOT + '/tasks/' + task_id + '/retry', headers=headers).status_code == 202
     assert execute_next(factory, store, client)
-    assert len(client.calls) == 6
+    assert len(client.calls) == 5
     task = web.get(ROOT + '/tasks/' + task_id).json()
-    assert task['status'] == 'succeeded' and task['items'][1]['result'] == successful_result
+    assert task['status'] == 'succeeded'
 
 
 def test_download_and_storage_retries_never_regenerate(files_env):
@@ -125,8 +123,13 @@ def test_download_and_storage_retries_never_regenerate(files_env):
 def test_uncertain_admin_resolution_fences_late_worker(files_env):
     web, factory, store, identity = files_env
     task_id, _ = create(web, 1)
-    client = Client([RelayError('uncertain', 'READ_TIMEOUT', 'safe')])
-    assert execute_next(factory, store, client)
+    claimed = claim(factory)
+    from app.modules.api_image_edits.claims import start_attempt
+    assert start_attempt(factory, claimed[0], claimed[1])
+    with factory.begin() as session:
+        session.get(ApiItem, claimed[0]).lease_until = utcnow() - timedelta(seconds=1)
+    assert claim(factory) is None
+    client = Client()
     assert execute_next(factory, store, client) is False
     url = ROOT + '/tasks/' + task_id
     assert web.delete(url).status_code == 409
@@ -177,7 +180,7 @@ def test_collection_exhaustion_manual_retry_retains_receipt(files_env):
     assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'succeeded'
 
 
-def test_invalid_result_and_permanent_failure_continue(files_env):
+def test_invalid_result_and_api_rejection_continue_siblings(files_env):
     web, factory, store, _ = files_env
     task_id, _ = create(web, 3)
     client = Client([RelayError('permanent', 'INVALID_REQUEST', 'safe'),
@@ -185,9 +188,12 @@ def test_invalid_result_and_permanent_failure_continue(files_env):
     for _ in range(3):
         assert execute_next(factory, store, client)
     task = web.get(ROOT + '/tasks/' + task_id).json()
-    assert task['status'] == 'partial_failed'
-    assert [i['state'] for i in task['items']] == ['failed', 'failed', 'succeeded']
+    assert task['status'] == 'running'
+    assert [i['state'] for i in task['items']] == ['retry_wait', 'failed', 'succeeded']
     assert len(client.calls) == 3
+    due(factory)
+    assert execute_next(factory, store, client)
+    assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'partial_failed'
 
 
 def test_outbox_publish_failure_is_recoverable_and_duplicates_safe(files_env):

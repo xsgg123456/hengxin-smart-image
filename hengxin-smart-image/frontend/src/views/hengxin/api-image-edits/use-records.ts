@@ -22,8 +22,8 @@ export function useRecords() {
   const error = ref(''), detailError = ref(''), actionError = ref(''), busy = ref(false)
   const retryPending = computed(() => { void actionError.value; void selected.value; return !!savedRetry(retryId(selectedId.value)) })
   let alive = true, listSerial = 0, detailSerial = 0, timer: ReturnType<typeof setTimeout> | undefined, debounce: ReturnType<typeof setTimeout> | undefined
-  async function load() {
-    const serial = ++listSerial; loading.value = true
+  async function load(silent = false) {
+    const serial = ++listSerial; if (!silent) loading.value = true
     try {
       const result = await apiImages.list({ page: page.value, pageSize: 20, search: search.value, status: filter.value })
       if (!alive || serial !== listSerial) return
@@ -32,16 +32,16 @@ export function useRecords() {
     } catch (e) { if (alive && serial === listSerial) error.value = errorText(e) }
     finally { if (alive && serial === listSerial) loading.value = false }
   }
-  async function loadDetail() {
+  async function loadDetail(silent = false) {
     const id = selectedId.value, serial = ++detailSerial
     if (!id) { selected.value = undefined; detailError.value = ''; detailLoading.value = false; return }
-    detailLoading.value = true
+    if (!silent) detailLoading.value = true
     try { const task = await apiImages.task(id); if (alive && serial === detailSerial) { selected.value = task; detailError.value = '' } }
-    catch (e) { if (alive && serial === detailSerial) { detailError.value = errorText(e); selected.value = undefined } }
+    catch (e) { if (alive && serial === detailSerial) { detailError.value = errorText(e) } }
     finally { if (alive && serial === detailSerial) detailLoading.value = false }
   }
-  async function refresh() { await Promise.all([load(), loadDetail()]) }
-  async function poll() { await refresh(); if (alive) timer = setTimeout(poll, 3000) }
+  async function refresh(silent = false) { await Promise.all([load(silent), loadDetail(silent)]) }
+  async function poll() { await refresh(true); if (alive) timer = setTimeout(poll, 3000) }
   watch([page, filter], () => { void load() })
   watch(filter, () => { page.value = 1 })
   watch(search, () => { clearTimeout(debounce); debounce = setTimeout(() => { if (page.value !== 1) page.value = 1; else void load() }, 300) })
@@ -59,7 +59,7 @@ export function useRecords() {
       catch (e) { if (uncertainResponse(e)) entry.uncertain = true; else if (!entry.uncertain) saveRetry(retryId(id)); throw new Error(`${errorText(e)}${retryKeys.has(retryId(id)) ? '。结果尚未确认，请再次确认原重试请求。' : ''}`) }
     })
   }
-  void poll()
+  void refresh().then(() => { if (alive) timer = setTimeout(poll, 3000) })
   onBeforeUnmount(() => { alive = false; clearTimeout(timer); clearTimeout(debounce) })
   return { tasks, total, page, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry }
 }

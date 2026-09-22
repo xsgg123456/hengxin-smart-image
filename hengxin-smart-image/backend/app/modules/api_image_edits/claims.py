@@ -6,12 +6,12 @@ from sqlalchemy import select
 from app.models import utcnow
 from .config import get_api_settings
 from .models import ApiAttempt, ApiItem, ApiTask
-from .state import ACTIVE, aware, channel, event, refresh_task, release
+from .state import ACTIVE, aware, channel, event, refresh_task, release, release_item
 
 
-def mark_uncertain(session, gate, item):
+def mark_uncertain(session, item):
     item.state, item.error = 'uncertain', '请求状态不确定，需管理员确认旧调用停止'
-    gate.token = None  # Fence a worker that returns after its durable lease expired.
+    release_item(item)
     task = session.get(ApiTask, item.task_id)
     for attempt in session.scalars(select(ApiAttempt).where(ApiAttempt.item_id == item.id,
                                                           ApiAttempt.state == 'running')):
@@ -21,63 +21,82 @@ def mark_uncertain(session, gate, item):
     refresh_task(session, task)
 
 
+def adopt_legacy(session, gate):
+    """Preserve a pre-upgrade reservation rather than replay an in-flight request."""
+    if gate.item_id:
+        item = session.get(ApiItem, gate.item_id)
+        if item and not item.lease_token:
+            item.lease_token, item.lease_until = gate.token, gate.lease_until
+        release(gate)
+
+
 def claim(factory):
     settings = get_api_settings()
     if not settings.enabled:
         return None
     with factory.begin() as session:
         gate = channel(session)
+        adopt_legacy(session, gate)
         now = utcnow()
-        item = session.get(ApiItem, gate.item_id) if gate.item_id else None
-        if item:
-            if item.state == 'uncertain':
-                return None
-            if item.state == 'running':
-                if aware(gate.lease_until) <= now:
-                    mark_uncertain(session, gate, item)
-                return None
-            if gate.token and aware(gate.lease_until) > now:
-                return None
-            if item.state not in ACTIVE:
-                release(gate)
-                item = None
-        if gate.paused:
+        # Only admission holds the DB lock; each image owns its network-call lease.
+        pending = session.scalars(select(ApiItem).join(ApiTask).where(
+            ApiTask.deleted_at.is_(None), ApiItem.state.in_(ACTIVE))
+            .order_by(ApiTask.created_at, ApiTask.id, ApiItem.position)).all()
+        if not pending:
             return None
-        if item is None:
-            item = session.scalar(select(ApiItem).join(ApiTask).where(
-                ApiTask.deleted_at.is_(None), ApiItem.state.in_(ACTIVE))
-                .order_by(ApiTask.created_at, ApiTask.id, ApiItem.position).limit(1))
-        if item is None or item.state == 'uncertain':
+        for item in pending:
+            if item.state == 'running' and (not item.lease_until or aware(item.lease_until) <= now):
+                mark_uncertain(session, item)
+        if gate.paused or any(item.state == 'uncertain' for item in pending):
             return None
-        if item.next_attempt_at and aware(item.next_attempt_at) > now:
+        leased = [item for item in pending if item.lease_token and item.lease_until
+                  and aware(item.lease_until) > now]
+        if len(leased) >= 10:
             return None
-        gate.item_id, gate.token = item.id, uuid4()
-        gate.lease_until = now + timedelta(seconds=settings.lease_seconds)
-        item.state = 'collecting' if item.result_url or item.result_bytes else 'running'
-        item.next_attempt_at = None
-        task = session.get(ApiTask, item.task_id)
-        task.state, task.started_at = 'running', task.started_at or now
-        event(task, f'第 {item.position} 张开始处理')
-        return item.id, gate.token, item.state
+        # A new revision of an older task must not start an additional batch
+        # beside the task currently owning the shared upstream capacity.
+        current = leased[0] if leased else pending[0]
+        task = session.get(ApiTask, current.task_id)
+        active = [item for item in pending if item.task_id == task.id]
+        # A new edit on an earlier completed image cannot interrupt a later
+        # batch already in flight, or cause ten calls from each batch to overlap.
+        batch = (current.position - 1) // 10
+        for item in active:
+            if (item.position - 1) // 10 != batch:
+                continue
+            if item.lease_token and item.lease_until and aware(item.lease_until) > now:
+                continue
+            if item.next_attempt_at and aware(item.next_attempt_at) > now:
+                continue
+            item.lease_token = uuid4()
+            item.lease_until = now + timedelta(seconds=settings.lease_seconds)
+            item.state = 'collecting' if item.result_url or item.result_bytes else 'running'
+            item.next_attempt_at = None
+            task.state, task.started_at = 'running', task.started_at or now
+            event(task, f'第 {item.position} 张开始处理')
+            return item.id, item.lease_token, item.state
+        return None
 
 
 def owned(session, item_id, token):
     gate = channel(session)
-    if gate.item_id != item_id or gate.token != token:
+    item = session.get(ApiItem, item_id)
+    if not item or item.lease_token != token or not item.lease_until:
         return None, None
-    return gate, session.get(ApiItem, item_id)
+    if aware(item.lease_until) <= utcnow():
+        if item.state == 'running':
+            mark_uncertain(session, item)
+        return None, None
+    return gate, item
 
 
 def start_attempt(factory, item_id, token):
     with factory.begin() as session:
-        gate, item = owned(session, item_id, token)
+        _, item = owned(session, item_id, token)
         if not item or item.state != 'running':
             return False
-        if aware(gate.lease_until) <= utcnow():
-            mark_uncertain(session, gate, item)
-            return False
         task = session.get(ApiTask, item.task_id)
-        if session.scalar(select(ApiAttempt.id).where(ApiAttempt.item_id == item.id).limit(1)):
+        if item.cycle_retries > 0:
             item.retries += 1
-        session.add(ApiAttempt(item_id=item.id, operator_id=task.operator_id))
+        session.add(ApiAttempt(item_id=item.id, operator_id=item.revision_operator_id or task.owner_id))
         return True

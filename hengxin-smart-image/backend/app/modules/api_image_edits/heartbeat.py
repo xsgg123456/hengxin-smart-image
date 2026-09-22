@@ -13,9 +13,9 @@ def renew(factory, item_id, token):
         gate, item = owned(session, item_id, token)
         if not item or item.state not in {'running', 'collecting'}:
             return False
-        if aware(gate.lease_until) <= utcnow():
+        if aware(item.lease_until) <= utcnow():
             return False
-        gate.lease_until = utcnow() + timedelta(seconds=get_api_settings().lease_seconds)
+        item.lease_until = utcnow() + timedelta(seconds=get_api_settings().lease_seconds)
         return True
 
 

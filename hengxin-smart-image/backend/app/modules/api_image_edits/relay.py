@@ -85,8 +85,8 @@ class RelayClient:
             raise RelayError('channel', 'API_KEY_MISSING', 'API 换图密钥尚未配置')
         if parameters is not None and parameters != PARAMETERS:
             raise RelayError('permanent', 'INVALID_PARAMETERS', '任务模型参数不符合固定配置')
-        if any(mime not in ('image/jpeg', 'image/png', 'image/webp')
-               for mime in (original_mime, material_mime)):
+        if (original_mime not in ('image/jpeg', 'image/png', 'image/webp') or
+                (material_bytes is not None and material_mime not in ('image/jpeg', 'image/png', 'image/webp'))):
             raise RelayError('permanent', 'INVALID_INPUT', '输入图片格式不受支持')
 
     def generate(self, original_bytes, original_mime, material_bytes, material_mime, prompt,
@@ -95,6 +95,8 @@ class RelayClient:
         config = self.settings
         images = []
         for data, mime in ((original_bytes, original_mime), (material_bytes, material_mime)):
+            if data is None:
+                continue
             images.append({'image_url': f'data:{mime};base64,' + base64.b64encode(data).decode('ascii')})
         body = json.dumps({**PARAMETERS, 'prompt': prompt, 'images': images}, ensure_ascii=False).encode()
         response = None

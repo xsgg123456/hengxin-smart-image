@@ -18,15 +18,15 @@
       </div>
       <aside class="hx-summary">
         <ElCard class="art-card hx-summary-card" shadow="never">
-          <div class="hx-section-title"><h2>本次换图</h2><ElTag round>串行处理</ElTag></div>
+          <div class="hx-section-title"><h2>本次换图</h2><ElTag round>每批最多 10 张并行</ElTag></div>
           <div v-if="material" class="hx-summary-art"><PicturePreview :picture="material" title="共用素材" /><span>共用替换素材</span></div>
           <ElEmpty v-else description="添加图片后预览素材" :image-size="75" />
           <dl><div><dt>待修改原图</dt><dd>{{ originalCount }} 张</dd></div><div><dt>共用素材</dt><dd>{{ material ? '1 张' : '尚未添加' }}</dd></div><div><dt>预计输出</dt><dd>{{ originalCount }} 张</dd></div><div><dt>输出规格</dt><dd>1024 × 1024</dd></div></dl>
           <div class="hx-skill-note"><ArtSvgIcon icon="ri:refresh-line" /><div><strong>失败自动重试，最多 3 次</strong><small>等待 1 秒、2 秒、4 秒后依次重试</small></div></div>
           <p v-if="preview.pendingUploads" class="hx-footnote">正在读取图片，请稍候…</p>
           <p v-else-if="!valid" class="hx-footnote">请添加至少 1 张原图和 1 张素材，并填写任务名称与提示词。</p>
-          <ElButton type="primary" size="large" class="hx-full hx-gap" :disabled="!valid" @click="submit">开始处理，共 {{ originalCount }} 张 <ArtSvgIcon icon="ri:arrow-right-line" /></ElButton>
-          <p class="hx-footnote">逐张处理，结果按原图顺序展示。</p>
+          <ElButton type="primary" size="large" class="hx-full hx-gap" :disabled="!valid" :loading="submitting" @click="submit">开始处理，共 {{ originalCount }} 张 <ArtSvgIcon icon="ri:arrow-right-line" /></ElButton>
+          <p class="hx-footnote">预计 {{ Math.ceil(originalCount / 10) }} 批，当前批完成后开始下一批，结果按原图顺序展示。</p>
         </ElCard>
         <ElCard class="art-card hx-summary-card hx-gap" shadow="never"><div class="hx-section-title"><h2>演示场景</h2><ElTag type="info" size="small">仅预览</ElTag></div><ElSelect v-model="preview.scenario" aria-label="演示场景" class="hx-full"><ElOption label="重试后成功" value="retry" /><ElOption label="全部顺利完成" value="success" /><ElOption label="重试耗尽 · 部分失败" value="partial" /></ElSelect><p class="hx-footnote">选择提交后要体验的状态。图片均为示例，页面刷新后重置。</p></ElCard>
       </aside>
@@ -34,15 +34,23 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { preview, fillExample, submitPreview } from './preview-state'
 import ImageSequence from './ImageSequence.vue'
 import PreviewNotice from './PreviewNotice.vue'
 import PicturePreview from '../components/PicturePreview.vue'
 const router = useRouter()
+const submitting = ref(false)
 const material = computed(() => preview.images.at(-1))
 const originalCount = computed(() => Math.max(0, preview.images.length - 1))
 const valid = computed(() => !preview.pendingUploads && originalCount.value > 0 && !!preview.name.trim() && !!preview.prompt.trim())
-function submit() { const id = submitPreview(); void router.push({ path: '/api-image-edits/records', query: { task: id } }) }
+async function submit() {
+  if (submitting.value || !valid.value) return
+  submitting.value = true
+  try { const id = submitPreview(); await router.push({ path: '/api-image-edits/records', query: { task: id } }) }
+  catch (error) { ElMessage.error(error instanceof Error ? error.message : '提交失败，请重试') }
+  finally { submitting.value = false }
+}
 </script>

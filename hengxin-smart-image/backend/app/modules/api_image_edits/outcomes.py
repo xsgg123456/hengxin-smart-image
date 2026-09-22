@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.models import utcnow
 from .claims import owned
 from .models import ApiAttempt, ApiTask
-from .state import event, refresh_task, release
+from .state import event, refresh_task, release_item
 
 
 def finish_attempt(session, item, state, error=None):
@@ -24,17 +24,15 @@ def failure(factory, item_id, token, kind, code, retry_after=None):
         # Codes originate exclusively from our adapter, never upstream exception text.
         item.error = code
         finish_attempt(session, item, kind, code)
-        if kind == 'uncertain':
-            item.state, gate.token = 'uncertain', None
-        elif kind == 'retryable' and item.cycle_retries < 3:
-            delay = max(2 ** item.cycle_retries, min(retry_after or 0, 300))
+        if kind in {'retryable', 'uncertain'} and item.cycle_retries < 3:
+            delay = 2 ** item.cycle_retries
             item.cycle_retries += 1
             item.state = 'retry_wait'
             item.next_attempt_at = utcnow() + timedelta(seconds=delay)
-            gate.token = gate.lease_until = None
+            release_item(item)
         else:
             item.state = 'failed'
-            release(gate)
+            release_item(item)
             if kind == 'channel':
                 gate.paused, gate.reason = True, code
         event(task, f'第 {item.position} 张：{code}')
@@ -61,10 +59,10 @@ def collection_failure(factory, item_id, token, permanent=False):
         task = session.get(ApiTask, item.task_id)
         if permanent or item.collection_retries >= 3:
             item.state = 'failed'
-            release(gate)
+            release_item(item)
         else:
             item.next_attempt_at = utcnow() + timedelta(seconds=2 ** item.collection_retries)
             item.collection_retries += 1
-            gate.token = gate.lease_until = None
+            release_item(item)
         event(task, f'第 {item.position} 张：{item.error}')
         refresh_task(session, task)

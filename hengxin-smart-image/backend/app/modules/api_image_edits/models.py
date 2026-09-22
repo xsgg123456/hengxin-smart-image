@@ -50,6 +50,14 @@ class ApiItem(Timestamps, Base):
     task_id: Mapped[UUID] = mapped_column(ForeignKey('api_image_tasks.id'), index=True)
     source_id: Mapped[UUID] = mapped_column(ForeignKey('api_image_files.id'))
     result_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
+    lease_token: Mapped[UUID | None] = mapped_column(Uuid)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_version: Mapped[int | None] = mapped_column(Integer)
+    revision_base_version: Mapped[int | None] = mapped_column(Integer)
+    revision_source_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
+    revision_annotation_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
+    revision_text: Mapped[str | None] = mapped_column(Text)
+    revision_operator_id: Mapped[UUID | None] = mapped_column(ForeignKey('users.id'))
     position: Mapped[int] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(20), default='queued')
     retries: Mapped[int] = mapped_column(Integer, default=0)
@@ -100,3 +108,16 @@ class ApiChannel(Timestamps, Base):
     item_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_items.id'))
     token: Mapped[UUID | None] = mapped_column(Uuid)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ApiVersion(Timestamps, Base):
+    __tablename__ = 'api_image_versions'
+    __table_args__ = (UniqueConstraint('item_id', 'number'),)
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    item_id: Mapped[UUID] = mapped_column(ForeignKey('api_image_items.id'), index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    file_id: Mapped[UUID] = mapped_column(ForeignKey('api_image_files.id'))
+    operator_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    text: Mapped[str] = mapped_column(Text, default='')
+    annotation_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
+    base_version: Mapped[int | None] = mapped_column(Integer)

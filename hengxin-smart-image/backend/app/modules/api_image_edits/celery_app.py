@@ -18,8 +18,8 @@ def execute():
     try:
         from app.db.session import session_factory
         from app.storage.minio_store import get_store
-        from .execution import execute_next
-        execute_next(session_factory(), get_store())
+        from .execution import execute_batch
+        execute_batch(session_factory(), get_store())
     except Exception:
         # SQL/transport exceptions may embed private receipt URLs or image bytes.
         # Leave the durable lease intact: outbox recovery must decide whether the

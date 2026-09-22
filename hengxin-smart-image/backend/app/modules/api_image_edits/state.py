@@ -50,3 +50,7 @@ def refresh_task(session, task):
 
 def release(gate):
     gate.item_id = gate.token = gate.lease_until = None
+
+
+def release_item(item):
+    item.lease_token = item.lease_until = None

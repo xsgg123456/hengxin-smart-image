@@ -39,6 +39,15 @@ def test_fixed_payload_two_images_one_request_no_transport_retry():
     assert 'test-only-key' not in repr(result)
 
 
+def test_text_only_revision_sends_only_current_result_without_extra_prompt():
+    pool = Mock(); pool.request.return_value = response()
+    RelayClient(config(), pool).generate(b'current-result', 'image/png', None, None, '修正边缘', PARAMETERS)
+    body = json.loads(pool.request.call_args.kwargs['body'])
+    assert body['prompt'] == '修正边缘'
+    assert len(body['images']) == 1
+    assert base64.b64decode(body['images'][0]['image_url'].split(',')[1]) == b'current-result'
+
+
 @pytest.mark.parametrize(('status', 'kind'), [(429, 'retryable'), (503, 'retryable'),
     (401, 'channel'), (402, 'channel'), (403, 'channel'), (400, 'permanent'), (408, 'uncertain')])
 def test_http_error_categories_are_sanitized(status, kind):

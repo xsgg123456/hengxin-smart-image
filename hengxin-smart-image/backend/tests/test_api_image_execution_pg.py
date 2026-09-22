@@ -51,7 +51,7 @@ def pg_api():
         file = save_upload(session, store, user, image)
         payload = CreateTask(name='并发测试', prompt='p', originalFileIds=[file.id], materialFileId=file.id)
     try:
-        yield factory, user, payload
+        yield factory, user, payload, store
     finally:
         engine.dispose()
         with admin.begin() as connection:
@@ -60,7 +60,7 @@ def pg_api():
 
 
 def test_postgres_concurrent_submit_and_single_global_claim(pg_api):
-    factory, user, data = pg_api
+    factory, user, data, _ = pg_api
     barrier = Barrier(4)
     def create_same(_):
         barrier.wait()
@@ -81,18 +81,18 @@ def test_postgres_concurrent_submit_and_single_global_claim(pg_api):
 
 
 def test_postgres_expired_claim_fences_late_results(pg_api):
-    factory, user, data = pg_api
+    factory, user, data, _ = pg_api
     with factory() as session:
         submit(session, user, data, 'one')
         submit(session, user, data, 'two')
     item_id, token, _ = claim(factory)
     assert start_attempt(factory, item_id, token)
     with factory.begin() as session:
-        session.get(ApiChannel, 1).lease_until = utcnow() - timedelta(seconds=1)
+        session.get(ApiItem, item_id).lease_until = utcnow() - timedelta(seconds=1)
     assert claim(factory) is None
     assert not save_response(factory, item_id, token, RelayResult(image_bytes=image_bytes()))
     assert claim(factory) is None
     with factory() as session:
         item = session.get(ApiItem, item_id)
         assert item.state == 'uncertain' and item.result_bytes is None
-        assert session.get(ApiChannel, 1).item_id == item_id
+        assert item.lease_token is None

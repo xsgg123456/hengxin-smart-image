@@ -1,8 +1,9 @@
 from sqlalchemy import String, cast, func, or_, select
 
 from app.models import utcnow
+from app.resource_models import UserRecord
 from .files import picture
-from .models import ApiAttempt, ApiFile, ApiItem, ApiTask
+from .models import ApiAttempt, ApiFile, ApiItem, ApiTask, ApiVersion
 from .state import aware
 
 
@@ -17,9 +18,33 @@ def task_view(session, task):
                             - aware(task.created_at)).total_seconds())
     def pic(file_id):
         return picture(session.get(ApiFile, file_id)) if file_id else None
+    def operator(user_id):
+        user = session.get(UserRecord, user_id)
+        return user.name if user else '未知用户'
+    def version_view(version):
+        return {'number': version.number, 'picture': pic(version.file_id),
+                'created': aware(version.created_at).isoformat(), 'operator': operator(version.operator_id),
+                'text': version.text, 'annotation': pic(version.annotation_id),
+                'baseVersion': version.base_version}
+    def item_versions(item):
+        rows = session.scalars(select(ApiVersion).where(ApiVersion.item_id == item.id)
+                                .order_by(ApiVersion.number)).all()
+        if rows:
+            return [version_view(row) for row in rows]
+        if item.result_id:
+            return [{'number': 1, 'picture': pic(item.result_id),
+                     'created': aware(item.updated_at).isoformat(), 'operator': operator(task.owner_id),
+                     'text': task.prompt, 'annotation': None, 'baseVersion': None}]
+        return []
+    unfinished = [i for i in items if i.state not in {'succeeded', 'failed'}]
+    batch_total = (len(items) + 9) // 10
+    batch_current = ((unfinished[0].position - 1) // 10 + 1) if unfinished else batch_total
     elapsed = (aware(task.completed_at or utcnow()) - aware(task.created_at)).total_seconds()
     return {'id': str(task.id), 'name': task.name, 'prompt': task.prompt,
             'created': aware(task.created_at).isoformat(), 'status': task.state,
+            'operator': operator(task.owner_id),
+            'batch': {'current': batch_current, 'total': batch_total,
+                      'running': sum(i.state in {'running', 'collecting'} for i in items)},
             'material': pic(task.material_id), 'events': task.events, 'error': task.error,
             'metrics': {'requestCount': len(attempts), 'retryCount': sum(i.retries for i in items),
                         'elapsedSeconds': max(0, elapsed), 'queueSeconds': queue_seconds,
@@ -28,9 +53,16 @@ def task_view(session, task):
                         'firstPassSuccessCount': sum(i.state == 'succeeded' and i.retries == 0 for i in items),
                         'cost': None},
             'items': [{'id': str(i.id), 'position': i.position, 'source': pic(i.source_id),
-                       'state': i.state, 'retries': i.retries, 'error': i.error,
+                       'state': i.state, 'retries': i.cycle_retries, 'error': i.error,
                        'nextAttemptAt': aware(i.next_attempt_at).isoformat() if i.next_attempt_at else None,
-                       'result': pic(i.result_id)} for i in items]}
+                       'result': pic(i.result_id), 'currentVersion': i.current_version or (1 if i.result_id else None),
+                       'versions': item_versions(i),
+                       'revision': ({'state': i.state, 'text': i.revision_text or '',
+                                     'annotation': pic(i.revision_annotation_id),
+                                     'operator': operator(i.revision_operator_id),
+                                     'baseVersion': i.revision_base_version,
+                                     'retries': i.cycle_retries, 'error': i.error}
+                                    if i.revision_base_version is not None else None)} for i in items]}
 
 
 def list_tasks(session, page, size, search, status):

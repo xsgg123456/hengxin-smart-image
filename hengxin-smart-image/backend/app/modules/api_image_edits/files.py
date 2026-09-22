@@ -6,7 +6,7 @@ from sqlalchemy import or_, select
 
 from app.core.config import get_settings
 from app.models import utcnow
-from .models import ApiFile, ApiItem, ApiTask
+from .models import ApiFile, ApiItem, ApiTask, ApiVersion
 
 
 def picture(record):
@@ -49,9 +49,13 @@ def save_upload(session, store, user, image):
 def delete_file(session, file_id, user):
     record = find_file(session, file_id, lock=True)
     item = session.scalar(select(ApiItem.id).where(or_(ApiItem.source_id == file_id,
-                                                       ApiItem.result_id == file_id)).limit(1))
+                                                       ApiItem.result_id == file_id,
+                                                       ApiItem.revision_source_id == file_id,
+                                                       ApiItem.revision_annotation_id == file_id)).limit(1))
     task = session.scalar(select(ApiTask.id).where(ApiTask.material_id == file_id).limit(1))
-    if item or task:
+    version = session.scalar(select(ApiVersion.id).where(or_(ApiVersion.file_id == file_id,
+                                                              ApiVersion.annotation_id == file_id)).limit(1))
+    if item or task or version:
         raise HTTPException(409, '图片仍被任务引用')
     record.deleted_at, record.deleted_by = utcnow(), user.id
     session.commit()

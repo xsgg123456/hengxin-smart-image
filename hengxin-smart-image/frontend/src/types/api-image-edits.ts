@@ -1,9 +1,13 @@
 export type ApiTaskState = 'queued' | 'running' | 'succeeded' | 'partial_failed' | 'failed' | 'uncertain'
 export type ApiItemState = 'queued' | 'running' | 'retry_wait' | 'collecting' | 'succeeded' | 'failed' | 'uncertain'
 export interface ApiPicture { fileId: string; name: string; url: string }
-export interface ApiItem { id: string; position: number; source: ApiPicture; state: ApiItemState; retries: number; nextAttemptAt: string | null; result: ApiPicture | null; error: string | null }
+export interface ApiVersion { number: number; picture: ApiPicture; created: string; operator: string; text: string; annotation: ApiPicture | null; baseVersion: number | null }
+export interface ApiRevision { state: ApiItemState; text: string; annotation: ApiPicture | null; operator: string; baseVersion: number; retries: number; error: string | null }
+export interface ApiRevisionInput { baseVersion: number; text: string; annotationFileId?: string | null }
+export interface ApiItem { currentVersion: number | null; versions: ApiVersion[]; revision: ApiRevision | null; id: string; position: number; source: ApiPicture; state: ApiItemState; retries: number; nextAttemptAt: string | null; result: ApiPicture | null; error: string | null }
 export interface ApiTask {
   id: string; name: string; prompt: string; created: string; status: ApiTaskState
+  operator: string; batch: { current: number; total: number; running: number }
   material: ApiPicture; items: ApiItem[]; events: string[]; error: string | null
   metrics: { requestCount: number; retryCount: number; elapsedSeconds: number | null; queueSeconds?: number | null; generationSeconds?: number | null }
 }
