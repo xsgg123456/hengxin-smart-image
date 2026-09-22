@@ -21,6 +21,7 @@ from app.modules.skills.catalog_router import router as catalog_router
 from app.modules.management.router import router as management_router
 from app.modules.management.settings_router import router as settings_router
 from app.modules.management.monitor_router import router as monitor_router
+from app.modules.api_image_edits.router import router as api_image_router
 
 
 @asynccontextmanager
@@ -49,3 +50,4 @@ app.include_router(tasks_router, prefix="/api/v1")
 app.include_router(revisions_router, prefix="/api/v1")
 app.include_router(archives_router, prefix="/api/v1")
 app.include_router(contracts_router, prefix="/api/v1")
+app.include_router(api_image_router, prefix="/api/v1")

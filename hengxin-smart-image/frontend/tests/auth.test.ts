@@ -18,3 +18,7 @@ test('登录回跳仅允许业务站内路径，拒绝外域、反斜杠、登�
   assert.equal(safeReturnPath('/management/usage?date=2026-09-09'), '/management/usage?date=2026-09-09')
   assert.equal(safeReturnPath('/tasks/index'), '/tasks/index')
 })
+test('API 换套图登录返回仅放行两个页面，并保留详情查询', () => {
+  for (const value of ['/api-image-edits/create', '/api-image-edits/records?task=api-task']) assert.equal(safeReturnPath(value), value)
+  for (const value of ['/api-image-edits', '/api-image-edits/admin', '/api-image-edits/records/evil', '/api-image-edits/../management/users']) assert.equal(safeReturnPath(value), '/image-processing/wallpaper')
+})

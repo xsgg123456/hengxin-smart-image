@@ -1,0 +1,33 @@
+# Dedicated, disposable test resources. Never uses the daily CLI application's volumes.
+name: hx-api-image-test
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: hx_api_image_test
+      POSTGRES_USER: api_image_test
+      POSTGRES_PASSWORD: api-image-local-test-only
+    ports: ['127.0.0.1:55439:5432']
+    tmpfs: ['/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U api_image_test -d hx_api_image_test']
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  redis:
+    image: redis:8.8-alpine
+    ports: ['127.0.0.1:16389:6379']
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  minio:
+    image: itpc-minio:14cea493d9a3
+    command: ['server', '/data']
+    environment:
+      MINIO_ROOT_USER: api-image-test
+      MINIO_ROOT_PASSWORD: api-image-local-test-only
+    ports: ['127.0.0.1:59009:9000']
+    tmpfs: ['/data']

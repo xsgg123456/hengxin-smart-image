@@ -1,7 +1,7 @@
 <template>
   <ElAlert v-if="storageError" :title="storageError" type="error" :closable="false" show-icon />
-  <ElAlert v-if="isMockMode && !route.path.startsWith('/management/')" :title="isDemoMode ? '框架 Demo · 生成返回示例图片，操作保存在本机浏览器，刷新后保留。' : '前端模拟预览 · 数据仅本次页面有效，刷新后重置。'" type="warning" :closable="false" show-icon />
-  <div v-if="isMockMode && !route.path.startsWith('/management/')" class="hx-filter hx-gap">
+  <ElAlert v-if="isMockMode && !route.path.startsWith('/management/') && !route.path.startsWith('/api-image-edits/')" :title="isDemoMode ? '框架 Demo · 生成返回示例图片，操作保存在本机浏览器，刷新后保留。' : '前端模拟预览 · 数据仅本次页面有效，刷新后重置。'" type="warning" :closable="false" show-icon />
+  <div v-if="isMockMode && !route.path.startsWith('/management/') && !route.path.startsWith('/api-image-edits/')" class="hx-filter hx-gap">
     <ElSelect :model-value="role" aria-label="预览角色" style="width: 170px" @change="changeRole"><ElOption v-for="item in previewRoles" :key="item.value" :value="item.value" :label="item.label" /></ElSelect>
     <ElSelect :model-value="scenario" aria-label="模拟场景" style="width: 180px" @change="changeScenario">
       <ElOption v-for="item in scenarios" :key="item.value" :value="item.value" :label="item.label" />

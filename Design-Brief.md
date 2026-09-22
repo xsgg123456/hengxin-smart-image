@@ -1,5 +1,9 @@
 # 恒鑫智图 · 设计规范与原型说明
 
+## 2026-09-22 · API 换套图预览
+
+沿用当前前端侧栏、页头、页签、蓝色主题、hx-page / hx-create-grid、art-card、现有图片查看器及 Element Plus 表格/抽屉。独立 API 换套图菜单下为新建换图和换图记录；输入图片明确标注原图序号与末张共用素材。演示控制与模拟结果明确标记。具体范围见 [API 交互预览计划](docs/API-IMAGE-PREVIEW-PLAN.md)。
+
 ## 品牌标识定稿方向 · 2026-09-14
 
 用户已确认采用「恒鑫智图」概念方案。所属公司「前海恒鑫」，用途副标题「京东业务生图」。已确认概念稿归档于 `hengxin-smart-image/branding/approved-concept.png`，矢量资源和用法见同目录 README.md。

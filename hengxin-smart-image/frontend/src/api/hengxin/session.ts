@@ -24,6 +24,6 @@ export function getPreviewUser(search = globalThis.location?.search ?? ''): User
 export function safeReturnPath(value: unknown): string {
   if (typeof value !== 'string' || !value.startsWith('/') || /[\\\r\n]/.test(value) || value.startsWith('//')) return '/image-processing/wallpaper'
   const path = value.split(/[?#]/)[0]
-  return /^\/(image-processing\/(wallpaper|product|text)|(?:tasks|templates|archive)\/index|management\/(usage|monitor|users|skills|settings))$/.test(path)
+  return /^\/(image-processing\/(wallpaper|product|text)|(?:tasks|templates|archive)\/index|api-image-edits\/(create|records)|management\/(usage|monitor|users|skills|settings))$/.test(path)
     ? value : '/image-processing/wallpaper'
 }

@@ -15,6 +15,13 @@ export const routeModules: AppRouteRecord[] = [{
     name: `Hx${path}Page`, path, component: `/hengxin/${path}`,
     meta: { title, icon, keepAlive: false, fixedTab: path === 'wallpaper' }
   }))
+}, {
+  name: 'HxApiImageEdits', path: '/api-image-edits', component: '/index/index',
+  meta: { title: 'API 换套图', icon: 'ri:exchange-2-line' },
+  children: [
+    { name: 'HxApiImageCreate', path: 'create', component: '/hengxin/api-image-edits/create', meta: { title: '新建换图', icon: 'ri:image-add-line', keepAlive: false } },
+    { name: 'HxApiImageRecords', path: 'records', component: '/hengxin/api-image-edits/records', meta: { title: '换图记录', icon: 'ri:history-line', keepAlive: false } }
+  ]
 }, ...pages.map(([path, title, icon]) => ({
   name: `Hx${path}Page`, path: `/${path}/index`, component: `/hengxin/${path}`,
   meta: { title, icon, keepAlive: false, fixedTab: path === 'wallpaper' }
