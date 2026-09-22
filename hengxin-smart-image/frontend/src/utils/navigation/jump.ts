@@ -18,6 +18,13 @@ import { AppRouteRecord } from '@/types/router'
 import { router } from '@/router'
 import { isNavigableMenuItem } from './route'
 
+// 图片处理菜单代表“新建”，不能返回上一次已受理的创建会话。
+const pushMenuPath = (path: string) => router.push(
+  /^\/image-processing\/(wallpaper|product|text)$/.test(path)
+    ? { path, query: { newTask: crypto.randomUUID() } }
+    : path
+)
+
 // 打开外部链接
 export const openExternalLink = (link: string) => {
   window.open(link, '_blank')
@@ -38,7 +45,7 @@ export const handleMenuJump = (item: AppRouteRecord, jumpToFirst: boolean = fals
 
   // 如果不需要跳转到第一个子菜单，或者没有子菜单，直接跳转当前路径
   if (!jumpToFirst || !item.children?.length) {
-    return router.push(item.path)
+    return pushMenuPath(item.path)
   }
 
   // 递归查找第一个可导航的叶子节点菜单
@@ -55,7 +62,7 @@ export const handleMenuJump = (item: AppRouteRecord, jumpToFirst: boolean = fals
 
   // 如果子菜单都不可见，则回退到父级页面自身。
   if (!firstChild) {
-    return router.push(item.path)
+    return pushMenuPath(item.path)
   }
 
   // 如果第一个子菜单是外部链接则打开新窗口
@@ -64,5 +71,5 @@ export const handleMenuJump = (item: AppRouteRecord, jumpToFirst: boolean = fals
   }
 
   // 跳转到子菜单路径
-  router.push(firstChild.path)
+  return pushMenuPath(firstChild.path)
 }
