@@ -16,4 +16,24 @@
 
 ## 当前状态
 
-生产预检主机racknerd-058889d，HTTP API ui-20260922-a215301，独立换图Worker/Outbox api-image-20260922-57ce288；CLI原生Worker active，磁盘可用65GiB。具体部署结果在完成后补录。
+生产预检主机racknerd-058889d，原HTTP API ui-20260922-a215301，原独立换图Worker/Outbox api-image-20260922-57ce288；CLI原生Worker active，磁盘可用65GiB。
+
+## 发布结果
+
+- 2026-09-22 18:41（北京时间）完成部署，生产URL https://zhitu.qhhengxin.top/ 。发布 api-opt-20260922-27d41a2，代码提交27d41a228ea932c4f74e2be83d1ba10fb7e224d8，前端0.2.2。
+- 受控代码快照d3590c3b44e08e9b62f547c445d508765409f99bdadfda86d9cfa592bc1b8b8b；独立增量审查两阶段PASS，详见根目录docs/API-IMAGE-OPTIMIZATION-RELEASE-REVIEW.md。
+- 白名单发布包591文件、4,785,634字节，SHA256 5c63f5e399122608e4a9dc7aa84e0c0b142edf6255674acd7d0995cda7c4193b。前端构建35.19秒。排除演示图片、数据库、凭据、缓存及开发路径。
+- API、独立API Worker、API Outbox均运行hengxin-smart-image-backend:api-opt-20260922-27d41a2。每个容器146个后端文件、线上438个前端文件与发布清单哈希完全匹配。
+- 数据库0016，历史成功20张已回填20条V1记录；成功20、失败1、待核实1与上线前一致。历史待核实请求仍会阻止换图队列继续派发，需要管理员核实原请求后通过现有恢复操作处理；发布未自动重放或修改此请求状态。
+- 原CLI Worker PID与CLI Outbox容器ID不变，原Skill目录、环境配置及CLI发布清单保持原状。
+- /与/api/v1/health/ready均200，PostgreSQL/Redis/MinIO ready；匿名访问换图列表、通道状态及auth/me均401。API Worker ping成功，仅消费api_image_edits队列；Celery进程concurrency=1，批内10图并发由已审ThreadPoolExecutor实现。
+- 真实浏览器加载生产登录页成功，无pageerror、无HTTP5xx。没有可用真实登录态，本次未冒充会话，也没有在生产发起收费生图。完整业务链路依据正式开发阶段的真实HTTP+模拟上游验证，详见IMPLEMENTATION-VALIDATION。
+- pnpm audit：critical 0，既有high 62、moderate 39、low 5；本次未更改依赖锁文件，不宣称全部漏洞已清零。
+
+## 备份与证据
+
+服务器发布目录/opt/hengxin-releases/api-opt-20260922-27d41a2，新增api-override.yaml覆盖4个API相关服务。后续Compose操作应沿用此overlay；APP_IMAGE仍对应CLI原配置，不能裸运行Compose重建API。
+
+备份/opt/hengxin-backups/api-opt-20260922-27d41a2，包含database.dump、可读目录清单、前端与受限配置归档、旧镜像及CLI进程标识；目录0700。pg_restore --list成功读取18,218字节目录。回退保留0016数据并暂停API换图通道。
+
+本地证据output/api-optimization-release/：package-audit.json、release.json、build.log、pnpm-audit.json、verify.log、browser-evidence.json与production-login.png。服务器deploy.log最终为DEPLOY_COMPLETE。
