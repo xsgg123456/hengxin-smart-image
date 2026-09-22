@@ -3,7 +3,7 @@
 
 ## 2026-09-22 · API 换套图正式优化开发
 
-本机正式实现已完成：Linux后端924项通过（64项条件跳过）、前端153项通过、类型/构建/真实HTTP隔离联调及独立两阶段审查通过。生产尚未发布，详见 [验证记录](docs/API-IMAGE-OPTIMIZATION-IMPLEMENTATION-VALIDATION.md)。
+本机正式实现已完成：Linux后端924项通过（64项条件跳过）、前端153项通过、类型/构建/真实HTTP隔离联调及独立两阶段审查通过。已部署生产（api-opt-20260922-27d41a2），详见 [验证记录](docs/API-IMAGE-OPTIMIZATION-IMPLEMENTATION-VALIDATION.md)。
 
 用户确认按六项范围开始正式开发，承接已审前端预览。数据迁移、接口与Worker、真实前端及验证以 [正式实现计划](docs/API-IMAGE-OPTIMIZATION-IMPLEMENTATION.md) 为准。本轮包含10张分批并行、失败重试、页面整改、ZIP、单图修改及图片历史版本。
 
@@ -764,3 +764,7 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 ## 2026-09-22 · 合并现网模块后的 UI 优化发布
 
 用户授权先提交、再部署真实环境、最后推送。保留现网 API 换套图模块和0015数据库；发布当前共享前端及任务列表 scope/ownerName 后端兼容改动。正式前端版本0.2.1；API从合并后的完整代码构建，只更新API服务，CLI/API生图worker及outbox保持原实例与配置。上线前备份前端及API部署配置，保留旧镜像；不执行迁移，不创建收费生成任务。按发布记录验收文件哈希、服务健康、鉴权和匿名浏览器入口。
+
+## 2026-09-22 · 已有结果收取阻塞修复
+
+待核实状态只阻止新的生成调用，不能阻断已有结果的下载保存。复现、修复、测试与生产验证按 [修复计划](docs/API-IMAGE-COLLECTION-FIX.md) 执行。

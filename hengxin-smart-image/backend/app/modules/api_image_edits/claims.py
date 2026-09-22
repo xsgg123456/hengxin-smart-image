@@ -47,7 +47,7 @@ def claim(factory):
         for item in pending:
             if item.state == 'running' and (not item.lease_until or aware(item.lease_until) <= now):
                 mark_uncertain(session, item)
-        if gate.paused or any(item.state == 'uncertain' for item in pending):
+        if gate.paused:
             return None
         leased = [item for item in pending if item.lease_token and item.lease_until
                   and aware(item.lease_until) > now]
@@ -55,14 +55,18 @@ def claim(factory):
             return None
         # A new revision of an older task must not start an additional batch
         # beside the task currently owning the shared upstream capacity.
+        blocked = any(item.state == 'uncertain' for item in pending)
         current = leased[0] if leased else pending[0]
-        task = session.get(ApiTask, current.task_id)
-        active = [item for item in pending if item.task_id == task.id]
+        active = ([item for item in pending if item.state == 'collecting'
+                   and (item.result_url or item.result_bytes)] if blocked else
+                  [item for item in pending if item.task_id == current.task_id])
         # A new edit on an earlier completed image cannot interrupt a later
         # batch already in flight, or cause ten calls from each batch to overlap.
         batch = (current.position - 1) // 10
         for item in active:
-            if (item.position - 1) // 10 != batch:
+            # Collecting an already returned result cannot generate a duplicate.
+            # Uncertainty blocks generation, but must not strand safe downloads.
+            if not blocked and (item.position - 1) // 10 != batch:
                 continue
             if item.lease_token and item.lease_until and aware(item.lease_until) > now:
                 continue
@@ -72,7 +76,9 @@ def claim(factory):
             item.lease_until = now + timedelta(seconds=settings.lease_seconds)
             item.state = 'collecting' if item.result_url or item.result_bytes else 'running'
             item.next_attempt_at = None
-            task.state, task.started_at = 'running', task.started_at or now
+            task = session.get(ApiTask, item.task_id)
+            task.started_at = task.started_at or now
+            refresh_task(session, task)
             event(task, f'第 {item.position} 张开始处理')
             return item.id, item.lease_token, item.state
         return None
