@@ -22,7 +22,7 @@
       <div class="result-grid hx-gap">
         <ElCard v-for="item in task.items" :key="item.id" class="art-card" shadow="never">
           <div class="hx-row"><strong>原图 {{ item.position }}</strong><ElTag :type="item.state === 'succeeded' ? 'success' : ['failed', 'uncertain'].includes(item.state) ? 'danger' : item.state === 'retry_wait' ? 'warning' : 'info'" size="small">{{ itemLabels[item.state] }}</ElTag></div>
-          <div class="result-picture hx-gap"><PicturePreview v-if="item.result" :picture="item.result" :pictures="results" :index="results.findIndex(p => p.fileId === item.result?.fileId)" title="换图结果" /><div v-else class="result-placeholder"><ArtSvgIcon :icon="['failed', 'uncertain'].includes(item.state) ? 'ri:error-warning-line' : item.state === 'retry_wait' ? 'ri:refresh-line' : 'ri:image-line'" /><strong>{{ itemLabels[item.state] }}</strong><span>{{ item.state === 'retry_wait' ? '等待下一次尝试' : '结果将在这里显示' }}</span></div></div>
+          <div class="result-picture hx-gap"><ApiResultPicture :item="item" :results="results" /></div>
           <p v-if="item.nextAttemptAt" class="hx-footnote">下次尝试：{{ friendlyTime(item.nextAttemptAt) }}</p><p v-if="item.error" class="item-error">{{ item.error }}</p>
           <div class="result-footer"><span>{{ item.result ? `当前 V${item.currentVersion} · 点击放大` : item.source.name }}</span><ElButton v-if="item.result" text type="primary" :loading="downloading === item.result.fileId" :disabled="!!downloading" @click="download(item.result)">下载图片</ElButton></div>
           <p v-if="item.revision" class="hx-footnote">修改：{{ itemLabels[item.revision.state] }} · {{ item.revision.operator }} · 基于 V{{ item.revision.baseVersion }}<span v-if="item.state !== 'succeeded'"> · 旧结果保留</span></p>
@@ -47,6 +47,7 @@ import { computed, ref, watch } from 'vue'
 import { apiImages, errorText } from '@/api/api-image-edits'
 import { taskLabels, itemLabels, isTaskActive, type ApiPicture, type ApiTask, type ApiItem } from '@/types/api-image-edits'
 import PicturePreview from '../components/PicturePreview.vue'
+import ApiResultPicture from './ApiResultPicture.vue'
 import RealRevisionDialog from './RealRevisionDialog.vue'
 import RealVersionDialog from './RealVersionDialog.vue'
 import { useUserStore } from '@/store/modules/user'
