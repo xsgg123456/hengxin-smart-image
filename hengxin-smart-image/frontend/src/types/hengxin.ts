@@ -46,6 +46,7 @@ export interface Template {
 }
 export interface SkillSnapshot { id?: string; name?: string; version?: string; checksum?: string }
 export interface Task {
+  ownerName?: string
   executionSource?: 'fixture' | 'unavailable' | 'cli'
   id: string
   name: string
@@ -136,7 +137,7 @@ export interface Accepted { taskId: string; roundId: string; state: '排队中' 
 /** 过渡期工作区快照；Phase 2–4 逐页拆分页接口，不用作永久全量接口。 */
 export interface Workspace { templates: Template[]; tasks: Task[]; archives: Archive[]; deletions?: DeletionReceipt[] }
 export interface DeletionReceipt { id: string; operatorId: string; deletedAt: string; resourceType?: 'task' | 'archive' | 'template' }
-export interface TaskQuery extends PageQuery { state?: TaskState | 'processing' | 'error' }
+export interface TaskQuery extends PageQuery { state?: TaskState | 'processing' | 'error'; scope?: 'all' | 'mine' }
 export interface TaskPage extends PageResult<Task> { stats: { total: number; processing: number; ready: number; archived: number } }
 export interface ResultVersion extends Picture { id: string; version: number; roundId: string; createdAt: string }
 export interface ResultSlot { slot: number; versions: ResultVersion[]; currentVersionId: string | null; error: string | null }

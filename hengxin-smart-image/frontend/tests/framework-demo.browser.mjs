@@ -35,7 +35,7 @@ const snapshot = () => page.evaluate(async () => {
 try {
   await go('/image-processing/wallpaper')
   await screenshot('01-wallpaper-1440')
-  await page.locator('.hx-selected-template .hx-picture').click()
+  await page.locator('.hx-template-filmstrip .hx-picture').first().click()
   await page.keyboard.press('ArrowRight')
   await page.getByText('极简光影 · 手机屏幕套图 · 2 / 8', { exact: false }).waitFor()
   await screenshot('02-image-viewer')

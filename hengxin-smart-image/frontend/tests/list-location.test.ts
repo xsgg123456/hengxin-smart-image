@@ -3,6 +3,18 @@ import assert from 'node:assert/strict'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { useListLocation } from '../src/views/hengxin/list-location'
 
+test('我的任务范围写入URL、重置分页，关闭详情和刷新仍保留', async () => {
+  const router = await setup('/tasks/index?page=3&task=A')
+  const location = useListLocation(router, '/tasks/index', 'task')
+  await changed(router, () => { location.scope.value = 'mine' })
+  assert.equal(location.page.value, 1)
+  await location.closeDetail()
+  const refreshed = await setup(router.currentRoute.value.fullPath)
+  assert.equal(useListLocation(refreshed, '/tasks/index', 'task').scope.value, 'mine')
+  await location.clearFilters()
+  assert.equal(location.scope.value, 'all')
+})
+
 async function setup(url: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/tasks/index', component: {} }, { path: '/archive/index', component: {} },

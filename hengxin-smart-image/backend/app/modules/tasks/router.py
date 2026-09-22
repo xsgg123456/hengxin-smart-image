@@ -24,7 +24,7 @@ def create(body: b.CreateTaskInput, user: SharedUser, session: Database,
 
 @router.get('/tasks', response_model=b.TaskPage)
 def tasks(query: Annotated[b.TaskQuery, Query()], user: SharedUser, session: Database):
-    return list_tasks(session, query)
+    return list_tasks(session, query, user)
 
 
 @router.get('/tasks/{id}', response_model=b.TaskDetailData)

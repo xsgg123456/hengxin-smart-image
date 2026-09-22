@@ -7,7 +7,7 @@ import { useListLocation } from '../list-location'
 
 export function useTaskList() {
   const location = useListLocation(useRouter(), '/tasks/index', 'task')
-  const { mode, search, state, page } = location
+  const { mode, search, state, scope, page } = location
   const tasks = ref<Task[]>([]), stats = ref<TaskPage['stats']>(), total = ref(0)
   const loading = ref(false), error = ref(''), active = ref(true), pageSize = 12
   let request = 0, timer: ReturnType<typeof setTimeout> | undefined
@@ -18,7 +18,7 @@ export function useTaskList() {
     const current = ++request
     loading.value = !quiet
     try {
-      const result = await listTasks({ page: page.value, pageSize, search: search.value.trim(), mode: mode.value === 'all' ? undefined : mode.value, state: state.value === 'all' ? undefined : state.value })
+      const result = await listTasks({ page: page.value, pageSize, scope: scope.value, search: search.value.trim(), mode: mode.value === 'all' ? undefined : mode.value, state: state.value === 'all' ? undefined : state.value })
       if (current !== request) return
       const lastPage = Math.max(1, Math.ceil(result.total / pageSize))
       if (page.value > lastPage) { page.value = lastPage; return }
@@ -32,7 +32,7 @@ export function useTaskList() {
       }
     }
   }
-  watch([mode, search, state, page], () => { void load() }, { immediate: true })
+  watch([mode, search, state, scope, page], () => { void load() }, { immediate: true })
   onActivated(() => { active.value = true; void load() })
   onDeactivated(() => { active.value = false; stop() })
   onBeforeUnmount(() => { active.value = false; stop() })

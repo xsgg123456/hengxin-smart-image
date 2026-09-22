@@ -13,7 +13,7 @@
       {{ exampleLabel || '使用示例素材' }}
     </ElButton>
     <p v-if="!compact" class="hx-footnote">{{ isDemoMode ? 'Demo 图片保存在本机浏览器；示例按钮会替换当前选择。' : isMockMode ? `模拟接收，仅本次页面有效。${hideExamples ? '' : '示例按钮将替换当前图片。'}` : '图片上传后保存在服务器；移除仅取消当前选择。' }}
-      <template v-if="sortable">JPG / PNG / WebP · 单张不超过 10 MiB · 每组最多 20 张</template>
+      <template v-if="sortable">JPG / PNG / WebP · 单张不超过 10 MiB · 每组最多 {{ maxCount ?? 20 }} 张</template>
     </p>
     <div v-if="compact" class="compact-toolbar"><span>已添加 {{ entries.length }} 张</span><span>点击图片放大 · 拖入可继续添加</span></div>
     <input ref="compactInput" hidden type="file" :multiple="maxCount !== 1" accept="image/png,image/jpeg,image/webp" :disabled="disabled || examplesLoading" @change="pickFiles" />

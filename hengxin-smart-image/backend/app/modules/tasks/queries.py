@@ -2,7 +2,7 @@ from datetime import timezone
 from fastapi import HTTPException
 from sqlalchemy import select, func, or_, and_, cast, String
 from app.contracts import business as b
-from app.resource_models import FileRecord
+from app.resource_models import FileRecord, UserRecord
 from .models import TaskRecord, TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
 from .attempts import ExecutionSession
 from app.modules.archives.models import ArchiveRecord
@@ -33,6 +33,7 @@ def find_task(session, task_id):
 
 
 def serialize(session, task):
+    owner = session.get(UserRecord, task.owner_id)
     rounds = session.scalars(select(RoundRecord).where(RoundRecord.task_id == task.id)
                             .order_by(RoundRecord.created_at)).all()
     current = next(r for r in rounds if r.id == task.current_round_id)
@@ -58,6 +59,8 @@ def serialize(session, task):
                 ArchiveRecord.deleted_at.is_(None)).limit(1))),
         currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots), error=current.error,
         executionSource=task.execution_source)
+    if owner:
+        data['ownerName'] = owner.name
     if isinstance(task.skill_snapshot, dict):
         skill_snapshot = {}
         for key in ('id', 'name', 'version', 'checksum'):
@@ -106,9 +109,13 @@ def detail(session, task_id):
         executionControl=b.ExecutionControl(canRevise=can_revise, canRetry=can_retry, blockedReason=reason))
 
 
-def list_tasks(session, query):
+def list_tasks(session, query, user=None):
     statement = select(TaskRecord).join(RoundRecord, RoundRecord.id == TaskRecord.current_round_id).where(
         TaskRecord.deleted_at.is_(None))
+    if query.scope == 'mine':
+        if user is None:
+            raise HTTPException(401, '请登录后查看我的任务')
+        statement = statement.where(TaskRecord.owner_id == user.id)
     def count(extra=None):
         selected = statement.where(extra) if extra is not None else statement
         return session.scalar(select(func.count()).select_from(selected.subquery()))

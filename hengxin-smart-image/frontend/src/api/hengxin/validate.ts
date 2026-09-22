@@ -34,6 +34,7 @@ export const templatePage: Guard<PageResult<Template>> = (value): value is PageR
   && number(value.page) && Number.isInteger(value.page) && value.page >= 1
   && number(value.pageSize) && Number.isInteger(value.pageSize) && value.pageSize >= 1
 const task: Guard<Task> = (value): value is Task => record(value)
+  && (value.ownerName === undefined || text(value.ownerName))
   && (value.executionSource === undefined || value.executionSource === 'fixture' || value.executionSource === 'unavailable' || value.executionSource === 'cli')
   && id(value.id) && text(value.name) && mode(value.mode) && text(value.template)
   && (value.templateSnapshot === undefined || template(value.templateSnapshot))

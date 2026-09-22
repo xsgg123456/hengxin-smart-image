@@ -28,6 +28,11 @@ export function createMockService(options: { demo?: boolean; snapshot?: DemoStat
     async getUser() { return copy(user) },
     async getWorkspace() { await wait(); return copy(db) },
     ...catalog.service, ...tasks.service, ...management,
+    async listTasks(query) {
+      const result = await tasks.service.listTasks(query)
+      return { ...result, items: result.items.map(task => ({ ...task,
+        ownerName: task.ownerId === user.id ? user.name : extra.users?.find(owner => owner.id === task.ownerId)?.name ?? task.ownerName })) }
+    },
     async createTask(input, idempotencyKey = crypto.randomUUID()) {
       await wait()
       const key = `${user.id}:${idempotencyKey}`, fingerprint = JSON.stringify(input)
@@ -48,7 +53,7 @@ export function createMockService(options: { demo?: boolean; snapshot?: DemoStat
         id: `HX-${crypto.randomUUID()}`, name: input.name.trim(), mode: input.mode, template: template?.name ?? '无需模板',
         templateId: template?.id, templateVersion: template?.version, templateSnapshot: template ? copy(template) : undefined,
         skillSnapshot: { id: skill.id, name: skill.name, version: skill.version, checksum: skill.checksum },
-        skillVersionId: skill.id, sku: input.sku?.trim(), ownerId: user.id, sessionId: null,
+        skillVersionId: skill.id, sku: input.sku?.trim(), ownerId: user.id, ownerName: user.name, sessionId: null,
         state: '排队中', progress: 0, images: [], outputCount: template?.images.length ?? input.sources.length,
         sources, feedback: input.note ? [`初始要求：${input.note}`] : [],
         time: new Date().toISOString(), archived: false, currentRoundId: ''

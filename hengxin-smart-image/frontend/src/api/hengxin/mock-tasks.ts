@@ -100,13 +100,14 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     async listTasks(query) {
       await wait()
       const search = query.search?.trim().toLocaleLowerCase() ?? ''
-      const items = db.tasks.filter(task => (!query.mode || task.mode === query.mode)
+      const scoped = db.tasks.filter(task => query.scope !== 'mine' || task.ownerId === operatorId())
+      const items = scoped.filter(task => (!query.mode || task.mode === query.mode)
         && (!query.state || (query.state === 'processing' ? ['排队中', '执行中'].includes(task.state)
           : query.state === 'error' ? ['失败', '部分失败'].includes(task.state) : task.state === query.state))
         && `${task.name} ${task.id} ${task.sku ?? ''}`.toLocaleLowerCase().includes(search))
         .sort((a, b) => b.time.localeCompare(a.time) || a.id.localeCompare(b.id))
-      return { ...paginate(items, query), stats: { total: db.tasks.length, processing: db.tasks.filter(t => active.has(t.id)).length,
-        ready: db.tasks.filter(t => t.state === '待查看').length, archived: db.archives.length } }
+      return { ...paginate(items, query), stats: { total: scoped.length, processing: scoped.filter(t => active.has(t.id)).length,
+        ready: scoped.filter(t => t.state === '待查看').length, archived: scoped.filter(t => t.archived).length } }
     },
     async getTask(taskId) {
       await wait()

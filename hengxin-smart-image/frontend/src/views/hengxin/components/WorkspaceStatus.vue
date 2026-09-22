@@ -1,12 +1,14 @@
 <template>
   <ElAlert v-if="storageError" :title="storageError" type="error" :closable="false" show-icon />
-  <ElAlert v-if="isMockMode && !route.path.startsWith('/management/') && !route.path.startsWith('/api-image-edits/')" :title="isDemoMode ? '框架 Demo · 生成返回示例图片，操作保存在本机浏览器，刷新后保留。' : '前端模拟预览 · 数据仅本次页面有效，刷新后重置。'" type="warning" :closable="false" show-icon />
+  <details v-if="isMockMode && !route.path.startsWith('/management/') && !route.path.startsWith('/api-image-edits/')" class="hx-demo-tools">
+    <summary>模拟预览 · 示例图片 <span>展开调试工具</span></summary>
   <div v-if="isMockMode && !route.path.startsWith('/management/') && !route.path.startsWith('/api-image-edits/')" class="hx-filter hx-gap">
     <ElSelect :model-value="role" aria-label="预览角色" style="width: 170px" @change="changeRole"><ElOption v-for="item in previewRoles" :key="item.value" :value="item.value" :label="item.label" /></ElSelect>
     <ElSelect :model-value="scenario" aria-label="模拟场景" style="width: 180px" @change="changeScenario">
       <ElOption v-for="item in scenarios" :key="item.value" :value="item.value" :label="item.label" />
     </ElSelect><span class="hx-muted">{{ isDemoMode ? '角色共用数据；每个场景独立保存。失败场景首次失败，重试恢复。' : '切换场景会刷新并重置模拟数据。' }}</span><DemoReset v-if="isDemoMode" />
   </div>
+  </details>
   <div v-if="connection.error" class="hx-gap" role="alert">
     <ElAlert :title="connection.error" type="error" :closable="false" show-icon />
     <ElButton class="hx-gap" :loading="connection.loading" @click="retry">重新加载</ElButton>
@@ -42,3 +44,10 @@ function changeScenario(value: string) {
 }
 async function retry() { try { await refreshWorkspace() } catch { /* 保留错误提示 */ } }
 </script>
+
+<style scoped>
+.hx-demo-tools { margin-bottom:8px; border:1px solid var(--default-border); border-radius:6px; font-size:12px; color:var(--art-gray-600); }
+.hx-demo-tools summary { cursor:pointer; padding:7px 12px; }
+.hx-demo-tools summary span { margin-left:12px; color:var(--el-color-primary); }
+.hx-demo-tools .hx-filter { padding:0 12px; margin:8px 0 12px; gap:12px; }
+</style>

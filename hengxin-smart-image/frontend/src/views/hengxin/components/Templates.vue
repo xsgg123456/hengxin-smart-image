@@ -1,7 +1,7 @@
 <template>
-  <div class="hx-page">
+  <div class="hx-page hx-library-page">
     <div class="hx-heading">
-      <div><span class="hx-eyebrow">YOUR TEMPLATE COLLECTION</span><h1>模板库</h1><p>把成熟的商品设计，沉淀为下一次创作的起点。</p></div>
+      <div><h1>模板库</h1><p>把成熟的商品设计，沉淀为下一次创作的起点。</p></div>
       <ElButton type="primary" :disabled="!!deleting" @click="edit()"><ArtSvgIcon icon="ri:add-line" /> 新建模板</ElButton>
     </div>
     <ElCard class="art-card hx-section" shadow="never">
@@ -24,7 +24,7 @@
             <PictureMosaic :pictures="t.images" :title="t.name" />
             <div class="hx-library-info">
               <div class="hx-row"><ElTag size="small" effect="plain">{{ labels[t.mode] }}</ElTag><ElTag size="small" :type="t.active && t.skillVersionId ? 'success' : 'info'">{{ t.active && t.skillVersionId ? '可使用' : '草稿 / 停用' }}</ElTag></div>
-              <h3>{{ t.name }}</h3><p>{{ t.images.length }} 张模板图 <span>·</span> {{ t.skill || '尚未绑定 Skill' }}</p>
+              <h3 :title="t.name">{{ t.name }}</h3><p :title="t.skill || '尚未绑定 Skill'">{{ t.images.length }} 张模板图 <span>·</span> {{ t.skill || '尚未绑定 Skill' }}</p>
               <p>版本 v{{ t.version }} <span>·</span> {{ formatTime(t.updatedAt) }}</p>
               <div class="hx-row"><ElButton :disabled="loading || !!deleting || !t.active || !t.skillVersionId" type="primary" plain @click="use(t)">使用模板</ElButton><ElButton text :disabled="loading || !!deleting" @click="edit(t)">配置模板</ElButton></div>
               <div class="hx-gap"><ElButton text :disabled="loading || !!deleting" @click="historyId = t.id">历史版本</ElButton><ElButton text type="danger" :loading="deleting === t.id" :disabled="loading || !!deleting" @click="remove(t)">删除模板</ElButton></div>
@@ -98,3 +98,5 @@ async function remove(template: Template) {
   finally { deleting.value = '' }
 }
 </script>
+
+<style scoped src="../library-layout.css"></style>

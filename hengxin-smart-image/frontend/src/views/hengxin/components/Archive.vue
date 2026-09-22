@@ -1,6 +1,6 @@
 <template>
-  <div class="hx-page">
-    <div class="hx-heading"><div><span class="hx-eyebrow">FINISHED & COLLECTED</span><h1>成品库</h1><p>满意的作品，值得好好保存。随时查找、预览与下载。</p></div><ElTag effect="plain" size="large">{{ total }} 套匹配成品</ElTag></div>
+  <div class="hx-page hx-library-page">
+    <div class="hx-heading"><div><h1>成品库</h1><p>满意的作品，值得好好保存。随时查找、预览与下载。</p></div><ElTag effect="plain" size="large">{{ total }} 套匹配成品</ElTag></div>
     <ElCard class="art-card hx-section" shadow="never">
       <div class="hx-filter">
         <ElRadioGroup v-model="mode" aria-label="成品类型"><ElRadioButton value="all">全部成品</ElRadioButton><ElRadioButton v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</ElRadioButton></ElRadioGroup>
@@ -12,7 +12,7 @@
           <ElCard v-for="a in archives" :key="a.id" class="art-card hx-library-card" shadow="never">
             <PictureMosaic :pictures="a.images" :title="a.name" />
             <div class="hx-library-info">
-              <ElTag size="small" type="success">已归档</ElTag><h3>{{ a.name }}</h3><p>{{ labels[a.mode] }} · {{ a.images.length }} 张图片</p><p>{{ formatTime(a.time) }}</p>
+              <ElTag size="small" type="success">已归档</ElTag><h3 :title="a.name">{{ a.name }}</h3><p>{{ labels[a.mode] }} · {{ a.images.length }} 张图片</p><p>{{ formatTime(a.time) }}</p>
               <div class="hx-row"><ElButton type="primary" plain :disabled="loading || !!deleting" @click="open(a.id)">查看成品</ElButton><ElButton text :disabled="loading || !!deleting || !!downloading || !a.images.length" :loading="downloading === a.id" @click="downloadArchive(a)">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton></div>
               <div class="hx-gap"><ElButton text type="danger" :disabled="loading || !!deleting || !!downloading" :loading="deleting === a.id" @click="remove(a)">删除成品</ElButton></div>
             </div>
@@ -133,3 +133,5 @@ async function remove(a: Archive) {
   finally { deleting.value = '' }
 }
 </script>
+
+<style scoped src="../library-layout.css"></style>

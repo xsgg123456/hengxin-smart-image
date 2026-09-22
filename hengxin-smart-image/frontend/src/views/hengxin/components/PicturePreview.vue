@@ -19,7 +19,7 @@ const attempt = ref(0), image = ref<ImageInstance>()
 </script>
 <style scoped>
 .hx-picture { display:block; width:100%; height:100%; background:var(--art-gray-100); border-radius:8px; cursor:zoom-in; }
-.hx-picture:focus-visible { outline:3px solid var(--el-color-primary); outline-offset:2px; }
+.hx-picture:has(:focus-visible) { outline:3px solid var(--el-color-primary); outline-offset:2px; }
 .hx-picture-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--art-gray-600); font-size:12px; }
 .hx-viewer-caption { color:white; text-align:center; font-size:14px; line-height:1.6; overflow-wrap:anywhere; max-width:70vw; }
 .hx-viewer-caption small { display:block; color:#d5d9e2; font-size:12px; }

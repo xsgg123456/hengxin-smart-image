@@ -21,6 +21,10 @@ export function useListLocation(router: Router, path: string, detailKey: 'task' 
     get: () => scalar(query.value.search),
     set: value => { void update({ search: value || undefined, page: undefined }) }
   })
+  const scope = computed<'all' | 'mine'>({
+    get: () => query.value.scope === 'mine' ? 'mine' : 'all',
+    set: value => { void update({ scope: value === 'mine' ? 'mine' : undefined, page: undefined }) }
+  })
   const state = computed<TaskQuery['state'] | 'all'>({
     get: () => states.includes(scalar(query.value.state)) ? scalar(query.value.state) as TaskQuery['state'] : 'all',
     set: value => { void update({ state: value === 'all' ? undefined : value, page: undefined }) }
@@ -36,6 +40,6 @@ export function useListLocation(router: Router, path: string, detailKey: 'task' 
   function openDetail(id: string) { return update({ [detailKey]: id, ...(detailKey === 'task' ? { taskId: undefined } : {}) }, false) }
   function closeDetail() { return update({ [detailKey]: undefined, ...(detailKey === 'task' ? { taskId: undefined } : {}) }, false) }
   const detailOpen = computed({ get: () => !!detailId.value, set: value => { if (!value && detailId.value) void closeDetail() } })
-  function clearFilters() { return update({ mode: undefined, search: undefined, state: undefined, page: undefined }) }
-  return { mode, search, state, page, detailId, detailOpen, openDetail, closeDetail, clearFilters }
+  function clearFilters() { return update({ mode: undefined, search: undefined, state: undefined, scope: undefined, page: undefined }) }
+  return { mode, search, state, scope, page, detailId, detailOpen, openDetail, closeDetail, clearFilters }
 }

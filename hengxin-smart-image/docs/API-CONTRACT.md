@@ -118,7 +118,7 @@ Phase 2 历史引用：Task 可携带 templateSnapshot（完整 Template，含�
 
 沿用 Spec REQ-004/005/006 建议默认方案，仍仅前端模拟与真实 HTTP 适配，不代表后端落地。
 
-- `GET /tasks` 接收 TaskQuery（PageQuery + state?: TaskState|'processing'|'error'），按时间倒序及 ID 稳定排序；返回 TaskPage（PageResult<Task> + stats: {total,processing,ready,archived}，统计为全工作区）。支持名称、编号、SKU 搜索及类型筛选。
+- `GET /tasks` 接收 TaskQuery（PageQuery + state?: TaskState|'processing'|'error' + scope?: 'all'|'mine'），按时间倒序及 ID 稳定排序；返回 TaskPage（PageResult<Task> + stats: {total,processing,ready,archived}，统计按 scope 范围，独立于状态/名称/类型筛选）。scope 默认 all；mine 由服务端以已认证用户身份过滤，过滤先于分页与统计，不接受客户端 ownerId 作为当前身份。支持名称、编号、SKU 搜索及类型筛选。Task 可选 ownerName 返回创建人名称，旧响应缺失时可显示 ownerId；全员资源访问权限不变。
 - `GET /tasks/:id` 返回 TaskDetailData：{task,slots:ResultSlot[],rounds:Round[]}。ResultSlot={slot:number,versions:ResultVersion[],currentVersionId:string|null,error:string|null}；ResultVersion=Picture + {id,version:number,roundId,createdAt}。只有成功结果进入版本列表，槽位顺序固定。Task 增加可选 outputCount/error，images 只含当前已成功的图，不能用该数组下标作为返工目标，返工必须用 slot。
 - `POST /tasks/:id/rounds` 使用 RevisionInput，新增 retry?:boolean；正常修改要求非空意见、同一任务串行。重试只允许失败/部分失败任务；重试上一失败范围，保留原轮次意见。服务从任务冻结 Skill、模板和素材取得执行上下文，不接受前端自行切换。成功后目标槽新增版本，失败不更改旧 currentVersionId。首次生成在完成前不预填输出图片。
 - `DELETE /tasks/:id` 返回 DeletionReceipt={id,operatorId,deletedAt}，模拟服务记入 Workspace 可选 deletions。删除运行任务在本阶段取消模拟计时，任务详情返回404，已归档图片与版本引用保留。后端阶段实现真实执行取消/引用计数。

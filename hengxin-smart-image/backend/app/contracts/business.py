@@ -101,6 +101,7 @@ class Round(BaseModel):
 
 
 class Task(BaseModel):
+    ownerName: str = omitted()
     executionSource: Literal['fixture', 'unavailable', 'cli'] = omitted()
     id: str
     name: str
@@ -199,6 +200,7 @@ class TemplateQuery(PageQuery):
 
 
 class TaskQuery(PageQuery):
+    scope: Literal['all', 'mine'] = 'all'
     state: Literal['排队中', '执行中', '待查看', '部分失败', '失败', 'processing', 'error'] = omitted()
 
 

@@ -15,8 +15,9 @@
         <ElAlert v-if="revision.session.value.uncertain" title="上次修改的受理结果尚未确认，当前意见已保留。" type="warning" :closable="false" class="hx-gap"><ElButton :loading="submitting" @click="confirmPrevious">确认上次提交</ElButton></ElAlert>
         <ElAlert v-if="revision.session.value.accepted && !revision.session.value.settled" title="修改请求已受理，正在获取最新执行状态。" type="info" :closable="false" class="hx-gap" />
         <ElAlert v-if="actionError" :title="actionError" class="hx-gap" type="error" show-icon :closable="false" />
-        <div class="hx-gap"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null" :percentage="task.progress" :status="failed ? 'exception' : undefined" /><p v-if="task.error" class="hx-muted">{{ task.error }}</p>
-          <p v-if="failed" class="hx-muted">执行未全部成功，已有成功结果和旧版本保留。重试沿用上一失败轮次的范围与意见。</p>
+        <div class="hx-gap" role="status"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null && !failed" :percentage="task.progress" />
+          <template v-if="failed"><p class="task-outcome"><strong>{{ outcome?.summary || '本轮未全部成功，正在同步结果明细' }}</strong></p><p class="hx-muted">{{ outcome?.retry || '已有结果保留，重试沿用上一失败轮次的范围与意见。' }}</p><p v-if="task.error" class="hx-muted">失败原因：{{ task.error }}</p></template>
+          <p v-else-if="task.error" class="hx-muted">{{ task.error }}</p>
           <ElButton v-if="failed" type="primary" :loading="submitting" :disabled="!actions.canRetry || !lastFailed" @click="retry">重试失败范围</ElButton>
         </div>
         <div class="hx-result-grid"><ResultCard v-for="slot in data.slots" :key="`${task.id}-${slot.slot}`" :slot="slot" :group="currentPictures" :state="task.state" :editable="editable" @edit="edit" /></div>
@@ -30,18 +31,20 @@
       </template>
     </div>
   </ElDrawer>
-  <ElDialog v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" width="560px" top="6vh" append-to-body destroy-on-close :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
-    <div class="revision-fields">
+  <ElDialog v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" :width="target === null ? 'min(560px, calc(100vw - 32px))' : 'min(980px, calc(100vw - 32px))'" top="6vh" append-to-body destroy-on-close :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
+    <div class="revision-fields" :class="{ 'revision-comparison': target !== null }">
+    <div v-if="target !== null" class="revision-base"><strong>{{ base ? `本次基于 V${base.version} 修改` : '尚无成品，本次基于原底图修改' }}</strong><PicturePreview v-if="base" :picture="base" :title="`本次修改基础 V${base.version}`" /><ElEmpty v-else description="暂无生成结果，可参考任务中的原底图说明问题" :image-size="90" /><span v-if="base" class="hx-footnote">点击原图放大查看，关闭预览后可继续填写意见。</span></div>
+    <div class="revision-editor">
     <p class="hx-muted">{{ target === null ? '本轮意见应用于整套图片。' : '仅修改这个位置的图片，其余图片保留。' }}</p>
+    <label for="revision-note">修改意见</label><ElInput id="revision-note" v-model="feedback" :disabled="submitting" type="textarea" :rows="6" :placeholder="target === null ? '例如：整套图片的屏幕亮度调高，其他内容保持不变' : '例如：请将截图红圈中的镜头向右调整，其余内容保持不变'" maxlength="1000" show-word-limit />
     <template v-if="target !== null">
-      <div class="revision-base"><ElImage v-if="base" :src="base.url" :alt="`修改基础 V${base.version}`" :preview-src-list="[base.url]" fit="contain" preview-teleported /><strong>{{ base ? `本次基于 V${base.version} 修改` : '尚无成品，本次基于原底图修改' }}</strong></div>
-      <p id="revision-annotation-label">问题截图（可选，1 张）</p>
-      <ImageUpload v-if="feedbackOpen && task" :key="`${identity()}-${task.id}-${revision.draftKey.value}`" v-model="annotations" :mode="task.mode" :disabled="submitting || revision.session.value.uncertain" :max-count="1" sortable hide-examples :button-label="annotations.length ? '替换问题截图' : '上传问题截图'" aria-labelledby="revision-annotation-label" @blocked="annotationBlocked = $event" />
+      <p id="revision-annotation-label">问题截图（可选，{{ annotationMaxCount }} 张）</p>
+      <ImageUpload v-if="feedbackOpen && task" :key="`${identity()}-${task.id}-${revision.draftKey.value}`" v-model="annotations" :mode="task.mode" :disabled="submitting || revision.session.value.uncertain" :max-count="annotationMaxCount" sortable hide-examples :button-label="annotations.length ? '替换问题截图' : '上传问题截图'" aria-labelledby="revision-annotation-label" @blocked="annotationBlocked = $event" />
       <p class="hx-footnote">可上传圈出问题的截图。圈线、箭头仅用于定位，不会作为成品内容。</p>
     </template>
-    <label for="revision-note">修改意见</label><ElInput id="revision-note" v-model="feedback" :disabled="submitting" type="textarea" :rows="4" :placeholder="target === null ? '例如：整套图片的屏幕亮度调高，其他内容保持不变' : '例如：请将截图红圈中的镜头向右调整，其余内容保持不变'" maxlength="1000" show-word-limit />
     <ElAlert v-if="actionError" :title="actionError" type="error" :closable="false" />
     <ElButton v-if="revision.session.value.uncertain" :loading="submitting" @click="confirmPrevious">确认上次提交（保留当前意见）</ElButton>
+    </div>
     </div>
     <template #footer><ElButton :disabled="submitting" @click="feedbackOpen = false">取消</ElButton><ElButton type="primary" :disabled="!feedback.trim() || feedback.trim().length > 1000 || !editable || (target !== null && annotationBlocked)" :loading="submitting" @click="applyFeedback">提交修改</ElButton></template>
   </ElDialog>
@@ -60,8 +63,10 @@ import { labels } from '../model'
 import { downloadSet } from '../download'
 import { useTaskDetail } from './use-task-detail'
 import { fixtureNotice, taskActions } from '../task-state'
+import { taskOutcome } from '../task-outcome'
 import ResultCard from './ResultCard.vue'
 import ImageUpload from './ImageUpload.vue'
+import PicturePreview from './PicturePreview.vue'
 import TaskSources from './TaskSources.vue'
 import TaskTemplate from './TaskTemplate.vue'
 import ExecutionProgress from './ExecutionProgress.vue'
@@ -82,6 +87,7 @@ const revision = useRevisionSession(identity, () => props.taskId, async (input, 
 })
 const { target, base, annotations, note: feedback } = revision
 const annotationBlocked = ref(false)
+const annotationMaxCount = 1
 const feedbackOpen = ref(false), archiving = ref(false), downloading = ref(false)
 const actionError = computed({ get: () => revision.session.value.error, set: value => { revision.session.value.error = value } })
 const submitting = computed(() => revision.session.value.pending)
@@ -90,6 +96,7 @@ onBeforeUnmount(() => { alive = false })
 watch(data, value => { if (value) revision.observe(value) })
 const busy = computed(() => submitting.value || archiving.value || downloading.value)
 const failed = computed(() => !!task.value && ['失败', '部分失败'].includes(task.value.state))
+const outcome = computed(() => data.value ? taskOutcome(data.value) : undefined)
 const actions = computed(() => taskActions(data.value, busy.value || revision.blocked.value, error.value))
 const editable = computed(() => actions.value.canRevise)
 const lastFailed = computed(() => data.value?.rounds.find(r => r.id === task.value?.currentRoundId && ['失败', '部分失败'].includes(r.state)))
@@ -149,10 +156,15 @@ async function download() {
 </script>
 <style scoped>
 .revision-fields { max-height: 66vh; overflow-y: auto; padding-right: 8px; }
+.revision-comparison { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:24px; }
+.revision-editor { min-width:0; }
+.revision-editor>p:first-child { margin-top:0; }
+.revision-editor #revision-annotation-label { margin:20px 0 8px; }
 .hx-detail-loading { padding: 8px 0 24px; }
 .hx-detail-loading strong, .hx-detail-loading span { display:block; }
 .hx-detail-loading span { margin:6px 0 18px; color:var(--art-gray-600); font-size:12px; }
-.revision-base { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.revision-base .el-image { width: 72px; height: 72px; flex-shrink: 0; }
+.revision-base { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.revision-base>.hx-picture { width:100%; height: min(46vh, 420px); flex-shrink:0; }
 .revision-fields label { display: block; margin: 12px 0 8px; }
+@media (max-width:700px) { .revision-comparison { grid-template-columns:minmax(0, 1fr); gap:16px; } .revision-base>.hx-picture { height:240px; } }
 </style>

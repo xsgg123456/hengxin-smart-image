@@ -22,7 +22,7 @@ export function useCreateTask(mode: Ref<Mode>) {
   const { accepted, uncertain } = submission
   const available = ref<Template[]>([])
   const skillVersions = ref<CatalogSkill[]>([])
-  const search = ref(''), page = ref(1), total = ref(0), pageSize = 4
+  const search = ref(''), page = ref(1), total = ref(0), pageSize = 6
   const loading = ref(false), loadError = ref(''), error = ref(''), submitting = ref(false), uploadBlocked = ref(false)
   const autoName = ref<string>()
   let sequence = 0, alive = true
