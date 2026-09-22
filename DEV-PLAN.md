@@ -720,3 +720,5 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 本轮替代上段仅预览范围，按 [独立 API 实施计划](docs/API-IMAGE-IMPLEMENTATION.md) 四个有序步骤实施：独立数据和接口、串行执行与故障恢复、真实前端接入、隔离集成和独立审查。关键文件/接口契约/错误规则/验收见该计划，既有Phase完成度不变。不得把单次API成功当平台或隔离已验收；不得改CLI业务链路或自动部署推送。
 
 开发验收已完成，待用户确认：真实双图调用/持久化/下载通过，CLI业务数据未写入；串行、重试和不确定结果保护已测试。完整后端851项通过（112跳过）、前端137项通过，最后边界修复后API核心45项通过，类型检查/两模式构建通过；独立最终审查Stage1/Stage2 PASS。详见 [验证记录](docs/API-IMAGE-IMPLEMENTATION-VALIDATION.md) 和 [最终审查](docs/API-IMAGE-FINAL-REVIEW.md)。尚未部署、提交或推送，生产配置按运行说明另行处理。
+
+后续用户已确认并授权提交部署：功能提交57ce288，生产发布api-image-20260922-57ce288完成，迁移0015、独立API服务及前端0.2.0通过线上健康/哈希/鉴权/登录入口核验；原CLI进程与配置保持。详见 [发布记录](hengxin-smart-image/docs/API-IMAGE-RELEASE-20260922.md)。登录后生产收费生图不在本次已验证范围。
