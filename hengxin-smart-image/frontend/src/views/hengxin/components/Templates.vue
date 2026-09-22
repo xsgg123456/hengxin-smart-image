@@ -21,7 +21,7 @@
       <div v-loading="loading" :aria-busy="loading">
         <div class="hx-library-grid">
           <ElCard v-for="t in templates" :key="t.id" class="art-card hx-library-card" shadow="never">
-            <div class="hx-library-mosaic"><img v-for="(p, i) in t.images.slice(0, 4)" :key="i" :src="p.url" :alt="p.name" loading="lazy" /></div>
+            <PictureMosaic :pictures="t.images" :title="t.name" />
             <div class="hx-library-info">
               <div class="hx-row"><ElTag size="small" effect="plain">{{ labels[t.mode] }}</ElTag><ElTag size="small" :type="t.active && t.skillVersionId ? 'success' : 'info'">{{ t.active && t.skillVersionId ? '可使用' : '草稿 / 停用' }}</ElTag></div>
               <h3>{{ t.name }}</h3><p>{{ t.images.length }} 张模板图 <span>·</span> {{ t.skill || '尚未绑定 Skill' }}</p>
@@ -40,6 +40,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import PictureMosaic from './PictureMosaic.vue'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'

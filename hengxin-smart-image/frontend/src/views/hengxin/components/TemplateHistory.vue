@@ -11,7 +11,7 @@
           <p v-if="item.notes">{{ item.notes }}</p>
           <ElTable :data="item.images" :max-height="360">
             <ElTableColumn type="index" label="顺序" width="60" />
-            <ElTableColumn label="图片" width="110"><template #default="{ row }"><ElImage :src="row.url" :alt="row.name" fit="contain" style="width:80px;height:80px" :preview-src-list="item.images.map(p => p.url)" preview-teleported /></template></ElTableColumn>
+            <ElTableColumn label="图片" width="110"><template #default="{ row, $index }"><PicturePreview :picture="row" :pictures="item.images" :index="$index" :title="`${item.name} · v${item.version}`" style="width:80px;height:80px" /></template></ElTableColumn>
             <ElTableColumn prop="name" label="文件名称" />
           </ElTable>
         </ElCollapseItem>
@@ -21,6 +21,7 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import PicturePreview from './PicturePreview.vue'
 import { onBeforeUnmount, ref } from 'vue'
 import { getTemplateVersions } from '@/api/templates'
 import type { Template } from '@/types/hengxin'

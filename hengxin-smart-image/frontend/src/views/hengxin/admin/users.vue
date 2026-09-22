@@ -1,8 +1,9 @@
 <template>
   <div class="hx-page">
     <div class="hx-heading"><div><span class="hx-eyebrow">MEMBER ACCESS</span><h1>用户与角色</h1><p>为企业成员分配业务角色；新成员保持待授权，不自动获得访问权限。</p></div></div><AdminPreview />
-    <ElCard class="art-card hx-section">
-      <div class="hx-filter"><ElInput v-model="search" class="hx-search" clearable placeholder="搜索姓名或部门" aria-label="搜索成员" /><ElSelect v-model="status" clearable placeholder="全部状态" style="width: 160px" aria-label="成员状态"><ElOption v-for="(label,key) in statuses" :key="key" :label="label" :value="key" /></ElSelect><ElButton :loading="loading" @click="load">刷新成员</ElButton></div>
+    <ElCard class="art-card hx-section hx-admin-table-card">
+      <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">MEMBERS</span><h2>成员目录</h2><p>只给已授权成员开放业务入口，变更会在下一次请求重新校验。</p></div><ElTag type="info" effect="plain">{{ loading && !data ? '正在读取…' : `${data?.total || 0} 位成员` }}</ElTag></div>
+      <div class="hx-filter"><ElInput v-model="search" class="hx-search" clearable placeholder="搜索姓名或部门" aria-label="搜索成员" :disabled="loading && !data" /><ElSelect v-model="status" clearable placeholder="全部状态" style="width: 160px" aria-label="成员状态" :disabled="loading && !data"><ElOption v-for="(label,key) in statuses" :key="key" :label="label" :value="key" /></ElSelect><ElButton :loading="loading" @click="load">刷新成员</ElButton></div>
       <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text @click="load">重试加载</ElButton></ElAlert>
       <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roles[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString('zh-CN') : '尚未登录' }}</template><template #action="{ row }"><ElButton text type="primary" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
       <ElPagination v-model:current-page="page" class="hx-gap" :page-size="12" :total="data?.total || 0" layout="prev,pager,next,total" :disabled="loading" />

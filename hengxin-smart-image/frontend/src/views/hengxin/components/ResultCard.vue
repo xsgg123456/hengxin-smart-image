@@ -1,6 +1,7 @@
 <template>
-  <ElCard shadow="never" class="art-card">
-    <ElImage v-if="picture" :src="picture.url" :alt="picture.name" :preview-src-list="[picture.url]" fit="contain" preview-teleported><template #error><ElEmpty description="图片加载失败，可重试下载" :image-size="50" /></template></ElImage>
+    <ElCard shadow="never" class="art-card">
+    <PicturePreview v-if="picture" :picture="picture" :pictures="gallery" :index="gallery.findIndex(p => p.id === picture?.id)" :title="picture.id === slot.currentVersionId ? '当前整套结果' : `第 ${slot.slot + 1} 张 · 版本历史`" />
+    <GenerationPlaceholder v-else-if="state === '排队中' || state === '执行中'" :running="state === '执行中'" :index="slot.slot" />
     <ElEmpty v-else :description="slot.error ? '此位置生成失败' : `第 ${slot.slot + 1} 张 · ${state}`" :image-size="70" />
     <div class="hx-result-meta"><strong>第 {{ slot.slot + 1 }} 张{{ picture ? ` · ${picture.name}` : '' }}</strong></div>
     <ElSelect v-if="slot.versions.length" v-model="selected" aria-label="查看图片版本" class="hx-full">
@@ -12,17 +13,20 @@
   </ElCard>
 </template>
 <script setup lang="ts">
+import PicturePreview from './PicturePreview.vue'
+import GenerationPlaceholder from './GenerationPlaceholder.vue'
 import { computed, ref, watch } from 'vue'
 import type { ResultSlot, ResultVersion, TaskState } from '@/types/hengxin'
 import { isMockMode } from '@/api/hengxin/client'
 import { downloadPicture } from '../download'
-const props = defineProps<{ slot: ResultSlot; state: TaskState; editable: boolean }>()
+const props = defineProps<{ slot: ResultSlot; state: TaskState; editable: boolean; group?: ResultVersion[] }>()
 defineEmits<{ edit: [slot: number, version: ResultVersion | undefined] }>()
 const selected = ref(''), downloading = ref(false)
 watch(() => props.slot, (slot, previous) => {
   if (!slot.versions.some(v => v.id === selected.value) || selected.value === previous?.currentVersionId) selected.value = slot.currentVersionId || slot.versions[0]?.id || ''
 }, { immediate: true })
 const picture = computed(() => props.slot.versions.find(v => v.id === selected.value))
+const gallery = computed(() => picture.value?.id === props.slot.currentVersionId && props.group?.length ? props.group : props.slot.versions)
 async function download() {
   if (!picture.value || downloading.value) return
   downloading.value = true

@@ -18,6 +18,16 @@
       以上绑定来自任务提交时的快照，后续模板或 Skill
       更新不影响此任务。
     </p>
+    <section v-if="templatePictures.length" class="hx-template-pictures" aria-label="模板参考图">
+      <h3>模板参考图 · {{ templatePictures.length }} 张</h3>
+      <p class="hx-footnote">任务提交时的模板图片，点击放大后可左右切换。</p>
+      <div class="hx-template-picture-grid">
+        <figure v-for="(picture, index) in templatePictures" :key="`${index}-${picture.fileId || picture.url}`">
+          <PicturePreview :picture="picture" :pictures="templatePictures" :index="index" title="模板参考图" />
+          <figcaption :title="picture.name">{{ index + 1 }} · {{ picture.name }}</figcaption>
+        </figure>
+      </div>
+    </section>
     <ElCollapse v-model="technicalDetailsOpen" class="hx-binding-details">
       <ElCollapseItem name="technical">
         <template #title>技术详情</template>
@@ -80,8 +90,10 @@ import { computed, ref } from "vue";
 import { ElMessage } from "element-plus";
 
 import type { Task } from "@/types/hengxin";
+import PicturePreview from './PicturePreview.vue';
 
 const props = defineProps<{ task: Task }>();
+const templatePictures = computed(() => props.task.templateSnapshot?.images ?? []);
 const technicalDetailsOpen = ref<string[]>([]);
 
 const templateName = computed(() => {
@@ -135,6 +147,12 @@ async function copyValue(value: string, label: string) {
 </script>
 
 <style scoped>
+.hx-template-pictures { margin-top:16px; }
+.hx-template-pictures h3 { margin:0; font-size:14px; }
+.hx-template-picture-grid { display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; }
+.hx-template-picture-grid figure { width:104px; max-width:100%; min-width:0; margin:0; }
+.hx-template-picture-grid .hx-picture { height:104px; }
+.hx-template-picture-grid figcaption { margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--art-gray-600); }
 .hx-task-template {
   min-width: 0;
 }

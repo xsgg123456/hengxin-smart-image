@@ -1,12 +1,15 @@
 {
   "name": "hengxin-smart-image-frontend",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "engines": {
     "node": "24.18.1",
     "pnpm": "10.33.4"
   },
   "scripts": {
+    "dev:demo": "vite --mode demo --port 3010",
+    "build:demo": "vue-tsc --noEmit && vite build --mode demo --outDir dist-demo",
+    "serve:demo": "vite preview --outDir dist-demo --host 127.0.0.1 --port 3010 --strictPort",
     "dev": "vite --mode mock --port 3008",
     "build": "vue-tsc --noEmit && vite build",
     "serve": "vite preview --host 127.0.0.1 --port 3008 --strictPort",

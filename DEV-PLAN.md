@@ -142,9 +142,9 @@ GitHub 当前业务分支 `codex/management-monitor-settings` 与 VPS 业务代�
 
 ## 1. 开发方向与已有成果
 
-前端直接继承 `prototype/source/`，保留图片处理一级菜单及替换壁纸、替换商品、替换文字三个二级菜单，以及任务中心、模板库、成品库。当前页面是正式开发的视觉和交互基准。后端确定为 Python FastAPI + PostgreSQL，图片与 Skill 包存入 MinIO。四角色及钉钉双端接入详见 Product-Spec.md 第 13 节；钉钉电脑端和浏览器共用同一前端。设计与运营同权限已确认；主管查看全员任务及统计、模板免审批直接使用、全员查看/删除模板任务成品、编辑全员模板及返工/归档全员任务均已确认。
+前端已将认可的页面、组件和导航承接到 `hengxin-smart-image/frontend/`，保留图片处理一级菜单及替换壁纸、替换商品、替换文字三个二级菜单，以及任务中心、模板库、成品库。当前正式前端是视觉和交互基准。后端确定为 Python FastAPI + PostgreSQL，图片与 Skill 包存入 MinIO。四角色及钉钉双端接入详见 Product-Spec.md 第 13 节；钉钉电脑端和浏览器共用同一前端。设计与运营同权限已确认；主管查看全员任务及统计、模板免审批直接使用、全员查看/删除模板任务成品、编辑全员模板及返工/归档全员任务均已确认。
 
-下表保留前端承接时的状态及当时后端待接内容（历史，不作为当前待办；最新状态见顶部交接节）；前端源码路径相对于 `hengxin-smart-image/frontend/src/`，原型路径相对于仓库根目录。各阶段的“关键文件”是交付规划，未来文件尚未创建不算缺失。
+下表保留前端承接时的状态及当时后端待接内容（历史，不作为当前待办；最新状态见顶部交接节）；前端源码路径相对于 `hengxin-smart-image/frontend/src/`。各阶段的“关键文件”是交付规划，未来文件尚未创建不算缺失。
 
 | 已有内容 | 当前状态 | 后端阶段需要完成 |
 |---|---|---|
@@ -154,9 +154,9 @@ GitHub 当前业务分支 `codex/management-monitor-settings` 与 VPS 业务代�
 | `views/hengxin/model.ts`、`api/hengxin/` | 已分离内存 mock 与 HTTP 适配，不再使用原型 localStorage 业务库 | 后端按契约接入；生产继续禁止回退模拟数据 |
 | `views/auth/dingtalk-login.vue` 及管理页面 | 登录状态、四角色视图和管理交互已完成前端验证 | Phase 6 建可信开发身份，Phase 12/13 接真实认证、授权和管理接口 |
 | `views/hengxin/download.ts` | 示例图片和 ZIP 下载已完成前端验证 | 授权文件下载与服务端 ZIP |
-| `prototype/html/` | 保留只读视觉对照 | 不编辑压缩产物，不把其当源码 |
+| `docs/FRAMEWORK-DEMO-README.md` | 框架 Demo 的运行与验收说明 | 仅记录 Demo 边界，正式源码在 frontend |
 
-前端阶段已将原型源码承接到 `hengxin-smart-image/frontend/`；Phase 5 已建立 `hengxin-smart-image/backend/` 和 `hengxin-smart-image/infra/`；整个工程沿用当前根 Git 仓库。复制时排除 node_modules、dist、缓存、演示资料，重新按锁文件安装依赖。原型 node_modules 是指向参考项目的 junction，不能当普通目录递归复制。原型保持可供对照，正式前端成为唯一业务维护源。
+前端阶段已将原型源码承接到 `hengxin-smart-image/frontend/`；Phase 5 已建立 `hengxin-smart-image/backend/` 和 `hengxin-smart-image/infra/`；整个工程沿用当前根 Git 仓库。复制时排除 node_modules、dist、缓存、演示资料，重新按锁文件安装依赖。旧原型目录已清理，正式前端成为唯一业务维护源。
 
 ## 2. 本机 Docker 检查及复用方案
 
@@ -174,7 +174,7 @@ GitHub 当前业务分支 `codex/management-monitor-settings` 与 VPS 业务代�
 
 默认采用独立 Compose 项目 `hengxin-smart-image`，复用已缓存的镜像版本和配置模式；不复用其他业务的数据卷、库表、账号或 bucket。理由是各项目可独立启停、迁移和备份。若后续指定共用实例，则创建专用数据库、账号和私有 bucket 后连接，不混用业务数据。
 
-本地计划端口：前端 3008、API 8008、PG 55433、MinIO 59002/59003；仅为分配方案，启动前检查占用。Redis 仅内部网络可见。3007 原型和 3006 参考项目继续用于对照。
+本地计划端口：前端 3008、API 8008、PG 55433、MinIO 59002/59003；仅为分配方案，启动前检查占用。Redis 仅内部网络可见。框架 Demo 使用 3010，启动前检查占用。
 
 ## 3. 技术栈和执行架构
 
@@ -289,7 +289,7 @@ Worker 下载本轮输入与固定 Skill 版本到隔离目录，启动 CLI，�
 - `hengxin-smart-image/frontend/src/api/hengxin/mock.ts`、`hengxin-smart-image/frontend/src/views/hengxin/model.ts`：集中模拟适配与旧模拟层迁移。
 - `hengxin-smart-image/docs/API-CONTRACT.md`：接口字段、状态及错误约定，后端阶段按此实现并核对 OpenAPI。
 
-**验收标准**：不启动后端即可运行前端；页面布局与认可原型一致，组件保留；干净安装、类型检查、生产构建通过；模拟模式明确可识别，真实模式断连显示错误。交付首个前端预览地址，原型仍可对照。
+**验收标准**：不启动后端即可运行前端；页面布局与认可视觉基准一致，组件保留；干净安装、类型检查、生产构建通过；模拟模式明确可识别，真实模式断连显示错误。交付首个前端预览地址，后续以正式前端回归。
 
 Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶段审查均 PASS，见 `PHASE1-REVIEW.md`。前端预览 `http://127.0.0.1:3008/`。继承依赖审计风险列为上线前整改，本阶段不作可发布声明。
 
@@ -363,7 +363,7 @@ Phase 1 验证记录：`hengxin-smart-image/docs/PHASE1-VALIDATION.md`；两阶�
 - `hengxin-smart-image/backend/app/worker/celery_app.py`、`hengxin-smart-image/backend/app/worker/outbox.py`：通用队列与可靠派发基础。
 - `hengxin-smart-image/infra/compose.yaml`、`hengxin-smart-image/docs/API-CONTRACT.md`：服务组合与错误/分页/幂等契约。
 
-**验收标准**：干净依赖安装、前端构建、后端启动及健康检查通过；已有前端页面无回归；3007 原型仍可访问，其他项目卷不被挂载。通用测试作业完成持久派发、Worker 执行及重复投递保护；本阶段不把演示生成算作正式能力。
+**验收标准**：干净依赖安装、前端构建、后端启动及健康检查通过；已有前端页面无回归；框架 Demo 可独立运行，其他项目卷不被挂载。通用测试作业完成持久派发、Worker 执行及重复投递保护；本阶段不把演示生成算作正式能力。
 
 ## Phase 6：文件存储与用户归属基础
 
@@ -676,3 +676,30 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 - [Skill 结构](https://learn.chatgpt.com/docs/build-skills)：目录包含 SKILL.md 及可选脚本、参考资料；包存储与发布不代表已经具备图片处理能力。
 
 钉钉官方资料与接入前置配置统一记录在 Product-Spec.md 第 13 节；双端登录在业务闭环后的 Phase 12 验收，Phase 14 上线前完成双端回归；企业配置不阻塞 Phase 1–11。
+
+
+## 2026-09-21 · 独立 Demo 扩展计划（仅本地）
+
+用户要求将图片优化原型拓展到 Demo + 假数据级别。范围、拆分、边界和验收以 [框架 Demo 计划](docs/FRAMEWORK-DEMO-PLAN.md) 为准。沿用当前品牌和正式前端，新增持久化假数据、模板维护、三类模拟任务、版本返工、归档与管理演示。正式工程和既有阶段验收不因本次 Demo 交付改变。
+
+
+## 2026-09-21 · 用户确认基于现有框架迁移 Demo
+
+用户确认采用现有 Vue 3、Element Plus、Art Design Pro 框架内的独立Demo模式，复用真实布局和业务组件，假数据隔离于生产API。此决定替代上一版独立HTML作为后续交互评审实现方式；旧原型已清理。范围及验收见 [框架Demo计划](docs/FRAMEWORK-DEMO-PLAN.md)。不改变生产业务接口和既有阶段验收结论。
+## 2026-09-22 生图等待动效
+
+1. 新增 Vue 生成占位组件，复用现有主题颜色，仅在无结果且任务活动时渲染；排队和执行反馈不同，不伪造进度。
+2. 校验等待、生成、失败、已有结果、减少动态偏好与离屏暂停；类型检查、前端测试、构建与专项审查。
+## 2026-09-22 紧凑上传区
+
+调整 ImageUpload 非排序模式的空态/有图布局，复用上传校验与图片预览；检查追加、全删、失败、折叠及窄屏，回归模板排序和单张截图入口。类型、测试、构建、浏览器及限定范围独立审查后交付预览。
+
+## 2026-09-22 · 正式前端 UI 发布
+
+用户批准当前 Vue 前端 UI 迭代，授权文档同步、过程产物清理、提交、真实 VPS 部署与推送。共享组件改进同时用于真实 API 与本地 Demo；本节替代前述 Demo 阶段的“仅本地”发布范围，Demo 服务本身仍限本机 3010。
+
+1. 核对正式源码、需求与设计，清理旧原型和无须交付的临时产物，保留必要验证证据；完成标准为无失效维护入口、无敏感发布文件。
+2. 完成类型检查、单测、正式及 Demo 构建、浏览器回归和独立两阶段审查；完成标准为当前代码快照对应批准凭据与验证记录。
+3. 用 `pnpm build` 的默认 production 模式构建正式前端并连接真实 API，按白名单发布与备份回退流程仅更新前端，保留已发布后端、Worker、0014 数据库及业务数据；核验哈希、健康与真实页面后记录实际发布编号，再推送提交。
+
+此处为已授权发布计划，不宣称本轮已上线；三类真实 Skill、付费生成效果、完整双端及容量/恢复验收仍需各自证据。

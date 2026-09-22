@@ -89,6 +89,22 @@ test('编辑器按capacity校验、排除响应字段并保留钉钉原值及默
   } finally { state.scope.stop() }
 })
 
+test('未修改配置时不提交、不生成新版本，并明确提示无需保存', async () => {
+  let writes = 0
+  const state = setup(async input => { writes++; return { ...config(), ...input, version: 2, dingtalk: config().dingtalk } })
+  try {
+    assert.equal(state.dirty.value, false)
+    assert.equal(await state.save(), false)
+    assert.equal(writes, 0)
+    assert.equal(state.saveError.value, '配置没有变化，无需保存')
+    state.form.value!.concurrency = 2
+    assert.equal(state.dirty.value, true)
+    assert.equal(await state.save(), true)
+    assert.equal(writes, 1)
+    assert.equal(state.dirty.value, false)
+  } finally { state.scope.stop() }
+})
+
 test('409只重读、不自动重提，新版本及容量回填后要求用户核对', async () => {
   let writes = 0
   const state = setup(async () => { writes++; throw new ApiError('CONFLICT', '冲突', 409) },
@@ -113,6 +129,7 @@ test('默认Skill页修改增加版本和审计，旧配置保存409后读取同
   try {
     state.data.value = original
     await api.saveSkillDefaults({ ...original.defaultSkillIds, text: 'text-v1' })
+    state.form.value!.defaultSkillIds.text = 'text-v1'
     assert.equal(await state.save(), false)
     assert.equal(state.form.value!.version, original.version + 1)
     assert.equal(state.form.value!.defaultSkillIds.text, 'text-v1')
@@ -128,6 +145,7 @@ test('409重读失败清除旧表单并阻止再次保存，普通失败保留�
   const state = setup(async () => { writes++; throw new ApiError('CONFLICT', '冲突', 409) },
     async () => { throw new Error('断网') })
   try {
+    state.form.value!.concurrency = 2
     await state.save()
     assert.equal(state.form.value, undefined)
     assert.equal(state.data.value, undefined)
@@ -154,6 +172,7 @@ test('加载中、加载错误及重复点击不提交', async () => {
     state.loading.value = false; state.error.value = '读取失败'
     assert.equal(await state.save(), false)
     state.error.value = ''
+    state.form.value!.concurrency = 2
     const first = state.save()
     assert.equal(await state.save(), false)
     assert.equal(writes, 1)
@@ -202,6 +221,7 @@ test('动态超时600边界；特殊部署10..59可读取但禁止保存', async
     assert.match(state.saveError.value, /60–600/)
     assert.throws(() => validateSettings({ ...settingsInput(current), timeoutSeconds: 601 }, [], current), { code: 'VALIDATION' })
     state.form.value!.timeoutSeconds = 600
+    state.form.value!.concurrency = 2
     assert.equal(await state.save(), true)
     assert.equal(writes, 1)
     assert.equal('timeoutCapacity' in settingsInput(current), false)

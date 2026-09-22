@@ -2,26 +2,28 @@
   <div class="hx-page">
     <div class="hx-heading"><div><span class="hx-eyebrow">EXECUTION INSIGHTS</span><h1>调用统计</h1><p>{{ report?.scope === 'all' ? '全员' : '个人' }}执行记录 · 按上海时间自然日统计，不等同模型内部请求数。</p></div></div>
     <AdminPreview />
-    <ElCard class="art-card hx-section">
-      <div class="hx-filter">
-        <ElDatePicker v-model="dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" aria-label="统计日期范围" style="max-width: 340px" />
-        <ElSelect v-if="allUsers" v-model="userId" clearable placeholder="全部人员" aria-label="统计人员" style="width: 180px"><ElOption v-for="user in report?.users || []" :key="user.id" :value="user.id" :label="user.name" /></ElSelect>
-        <ElSelect v-model="mode" clearable placeholder="全部类型" aria-label="统计类型" style="width: 150px"><ElOption v-for="(label,key) in labels" :key="key" :value="key" :label="label" /></ElSelect>
+    <ElCard class="art-card hx-section hx-admin-query-card">
+      <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">FILTERS</span><h2>统计范围</h2><p>按日期、处理类型和实际操作者查看执行记录。</p></div><ElTag type="info" effect="plain">上海时间 · 自然日</ElTag></div>
+      <div class="hx-admin-query-row">
+        <ElDatePicker v-model="dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" aria-label="统计日期范围（开始日期至结束日期）" :disabled="loading && !report" style="max-width: 340px" />
+        <ElSelect v-if="allUsers" v-model="userId" clearable placeholder="全部人员" aria-label="统计人员" :disabled="loading && !report" style="width: 180px"><ElOption v-for="user in report?.users || []" :key="user.id" :value="user.id" :label="user.name" /></ElSelect>
+        <ElSelect v-model="mode" clearable placeholder="全部类型" aria-label="统计类型" :disabled="loading && !report" style="width: 150px"><ElOption v-for="(label,key) in labels" :key="key" :value="key" :label="label" /></ElSelect>
         <ElButton type="primary" :loading="loading" @click="load">查询统计</ElButton>
       </div>
+      <p v-if="loading && !report" class="hx-muted" role="status">正在读取统计数据…</p>
       <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text @click="load">重试加载</ElButton></ElAlert>
       <template v-if="report">
-        <div class="hx-stats"><ElCard v-for="card in cards" :key="card.label" class="art-card"><span>{{ card.label }}</span><strong>{{ card.value }}</strong></ElCard></div>
-        <p class="hx-muted">首次 {{ report.summary.initial }} / 单张返工 {{ report.summary.single }} / 整套返工 {{ report.summary.whole }}；成功 {{ report.summary.success }} / 部分失败 {{ report.summary.partial }} / 失败 {{ report.summary.failed }} / 超时 {{ report.summary.timeout }} / 进行中 {{ report.summary.running }}。</p>
-        <p class="hx-muted">平均排队 {{ seconds(report.summary.averageQueueSeconds) }} · 平均执行 {{ seconds(report.summary.averageDurationSeconds) }} · 输入 Token {{ report.summary.inputTokens ?? '未提供' }} · 输出 Token {{ report.summary.outputTokens ?? '未提供' }}</p>
+        <div class="hx-admin-kpis"><ElCard v-for="(card, index) in cards" :key="card.label" class="art-card hx-admin-kpi" :class="`hx-admin-kpi-${index}`"><div><span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ index === 0 ? '已创建任务' : index === 1 ? '含首次生成与返工' : index === 2 ? '仅统计已结束执行' : '成功版本总数' }}</small></div><ArtSvgIcon :icon="['ri:task-line','ri:flashlight-line','ri:pie-chart-line','ri:image-line'][index]" /></ElCard></div>
+        <div class="hx-admin-summary"><div><span class="hx-admin-kicker">EXECUTION MIX</span><strong>执行构成</strong></div><p>首次 {{ report.summary.initial }} · 单张返工 {{ report.summary.single }} · 整套返工 {{ report.summary.whole }} · 成功 {{ report.summary.success }} · 部分失败 {{ report.summary.partial }} · 失败 {{ report.summary.failed }} · 超时 {{ report.summary.timeout }} · 进行中 {{ report.summary.running }}</p><small>平均排队 {{ seconds(report.summary.averageQueueSeconds) }} · 平均执行 {{ seconds(report.summary.averageDurationSeconds) }} · Token {{ report.summary.inputTokens ?? '未提供' }} / {{ report.summary.outputTokens ?? '未提供' }}</small></div>
         <p class="hx-footnote">成功率 = 成功 / 已结束执行，部分失败计入分母；未结束不计入。成功产出包含返工新版本。缺失 usage 不视为零，不估算费用或额度。</p>
-        <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="report.rows" :loading="loading" :columns="columns" :show-pagination="false" empty-text="此范围暂无执行记录">
+        <div class="hx-admin-table-head"><div><span class="hx-admin-kicker">DAILY BREAKDOWN</span><strong>每日执行明细</strong></div><span class="hx-muted">共 {{ report.rows.length }} 条汇总记录</span></div>
+        <ArtTable class="hx-admin-table" height="auto" empty-height="340px" :show-table-header="false" :data="report.rows" :loading="loading" :columns="columns" :show-pagination="false" empty-text="此范围暂无执行记录">
           <template #attempts="{ row }">{{ row.summary.attempts }}</template><template #outputs="{ row }">{{ row.summary.outputImages }}</template>
           <template #action="{ row }"><ElButton text type="primary" @click="selected = row; detailOpen = true">展开明细</ElButton></template>
         </ArtTable>
       </template>
     </ElCard>
-    <ElDrawer v-model="detailOpen" title="调用明细" size="82%" destroy-on-close><template v-if="selected"><p>{{ selected.date }} · {{ selected.userName }} · 按实际操作者归属</p><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="selected.details" :columns="detailColumns" :show-pagination="false" empty-text="暂无执行明细">
+    <ElDrawer v-model="detailOpen" title="调用明细" size="82%" destroy-on-close><template v-if="selected"><div class="hx-drawer-intro"><span class="hx-admin-kicker">{{ selected.date }}</span><strong>{{ selected.userName }}</strong><p>按实际操作者归属 · 共 {{ selected.details.length }} 条执行记录</p></div><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="selected.details" :columns="detailColumns" :show-pagination="false" empty-text="暂无执行明细">
       <template #taskName="{ row }"><ElButton text type="primary" @click="openTask(row.taskId)">{{ row.taskName }}</ElButton></template>
       <template #kind="{ row }">{{ kinds[row.kind as keyof typeof kinds] }}</template><template #state="{ row }">{{ states[row.state as keyof typeof states] }}</template>
       <template #usage="{ row }">{{ row.usage ? `${row.usage.inputTokens} / ${row.usage.outputTokens}` : '未提供' }}</template>

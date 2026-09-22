@@ -10,7 +10,7 @@
       <div v-loading="loading" :aria-busy="loading">
         <div class="hx-library-grid">
           <ElCard v-for="a in archives" :key="a.id" class="art-card hx-library-card" shadow="never">
-            <div class="hx-library-mosaic"><img v-for="(p, i) in a.images.slice(0, 4)" :key="i" :src="p.url" :alt="p.name" loading="lazy" /></div>
+            <PictureMosaic :pictures="a.images" :title="a.name" />
             <div class="hx-library-info">
               <ElTag size="small" type="success">已归档</ElTag><h3>{{ a.name }}</h3><p>{{ labels[a.mode] }} · {{ a.images.length }} 张图片</p><p>{{ formatTime(a.time) }}</p>
               <div class="hx-row"><ElButton type="primary" plain :disabled="loading || !!deleting" @click="open(a.id)">查看成品</ElButton><ElButton text :disabled="loading || !!deleting || !!downloading || !a.images.length" :loading="downloading === a.id" @click="downloadArchive(a)">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton></div>
@@ -31,7 +31,7 @@
           <p v-else class="hx-muted">此成品未记录来源任务，归档图片仍可查看和下载。</p>
           <ElAlert v-if="sourceError" :title="sourceError" type="warning" :closable="false" show-icon class="hx-gap" />
           <div class="hx-result-grid"><ElCard v-for="(p, i) in preview.images" :key="i" class="art-card" shadow="never">
-            <ElImage :src="p.url" :preview-src-list="preview.images.map(x => x.url)" :initial-index="i" :alt="p.name" fit="contain" preview-teleported><template #error><span>图片加载失败，可重试详情</span></template></ElImage>
+            <PicturePreview :picture="p" :pictures="preview.images" :index="i" title="归档快照" />
             <div class="hx-result-meta"><strong>{{ p.name }}</strong><ElTag size="small">v{{ p.version || 1 }}</ElTag></div>
             <ElButton text type="primary" :disabled="!!downloading" :loading="downloading === `${preview.id}:${i}`" @click="downloadOne(p, `${preview.id}:${i}`)">{{ isMockMode ? '下载示例' : '下载图片' }}</ElButton>
           </ElCard></div>
@@ -43,6 +43,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import PicturePreview from './PicturePreview.vue'
+import PictureMosaic from './PictureMosaic.vue'
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'

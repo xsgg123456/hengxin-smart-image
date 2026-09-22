@@ -1,11 +1,12 @@
 import { createMockSkillCatalog } from './mock-skill-catalog'
+import type { DemoState } from './demo-state'
 import type { ManagementScenario, ManagementService, ManagedSettings, ManagedSkill, ManagedUser, UsageAttempt } from '../../types/management'
 import type { SkillVersion, SystemConfig, Task, User, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
 import { buildUsage, mockAttempts } from './mock-management-usage'
 import { createSkillManagement, validateSettings } from './mock-management-skills'
 
-export function createMockManagement(db: Workspace, skills: SkillVersion[], getUser: () => User | Promise<User>, options: { scenario?: ManagementScenario; wait?: () => Promise<void>; installMs?: number; attempts?: UsageAttempt[]; getAttempts?: () => UsageAttempt[]; getHistoricalTasks?: () => Task[]; onSettingsChanged?: (config: SystemConfig) => void; onUserChanged?: (user: User) => void } = {}): ManagementService {
+export function createMockManagement(db: Workspace, skills: SkillVersion[], getUser: () => User | Promise<User>, options: { snapshot?: DemoState; capture?: (state: Partial<DemoState>) => void; scenario?: ManagementScenario; wait?: () => Promise<void>; installMs?: number; attempts?: UsageAttempt[]; getAttempts?: () => UsageAttempt[]; getHistoricalTasks?: () => Task[]; onSettingsChanged?: (config: SystemConfig) => void; onUserChanged?: (user: User) => void } = {}): ManagementService & { snapshot: () => Partial<DemoState> } {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const scenario = options.scenario ?? 'default'
   const failures = new Set<string>()
@@ -19,18 +20,22 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
     if (scenario === `${operation}-error` && !failures.has(operation)) { failures.add(operation); throw new ApiError('SIMULATED_FAILURE', '模拟请求失败，请重试', 503) }
     return user
   }
-  const users: ManagedUser[] = [
+  const users: ManagedUser[] = options.snapshot?.users ? copy(options.snapshot.users) : [
     { id: 'mock-operator', name: '模拟运营', role: 'operator', status: 'active', department: '运营部', lastLoginAt: new Date().toISOString() },
     { id: 'mock-design-manager', name: '模拟主管', role: 'design_manager', status: 'active', department: '设计部', lastLoginAt: null },
     { id: 'mock-designer', name: '模拟设计', role: 'designer', status: 'active', department: '设计部', lastLoginAt: null },
     { id: 'mock-super-admin', name: '模拟超管', role: 'super_admin', status: 'active', department: '管理部', lastLoginAt: null },
     { id: 'mock-pending', name: '新成员', role: null, status: 'pending', department: '运营部', lastLoginAt: null }
   ]
-  let settings: ManagedSettings = { version: 1, capacity: 10, timeoutCapacity: 3600, concurrency: 1, timeoutSeconds: 600, maxUploadBytes: 10 * 1024 * 1024,
+  let settings: ManagedSettings = options.snapshot?.settings ? copy(options.snapshot.settings) : { version: 1, capacity: 10, timeoutCapacity: 3600, concurrency: 1, timeoutSeconds: 600, maxUploadBytes: 10 * 1024 * 1024,
     defaultSkillIds: { wallpaper: skills.find(s => s.mode === 'wallpaper' && s.isDefault)?.id ?? null, product: skills.find(s => s.mode === 'product' && s.isDefault)?.id ?? null, text: skills.find(s => s.mode === 'text' && s.isDefault)?.id ?? null },
     dingtalk: { corpId: '', appId: '', callbackDomain: '', state: 'unconfigured' }, audit: [] }
-  const skillService = createSkillManagement(db, skills, check, options)
-  const service: ManagementService = {
+  options.snapshot?.users?.forEach(user => assignments.set(user.id, { role: user.role, status: user.status }))
+  options.onSettingsChanged?.(copy(settings))
+  const capture = () => options.capture?.({ users: copy(users), settings: copy(settings) })
+  capture()
+  const skillService = createSkillManagement(db, skills, check, { ...options, capture: state => options.capture?.(state) })
+  const service: ManagementService & { snapshot: () => Partial<DemoState> } = {
     ...skillService,
     ...createMockSkillCatalog(db, skills, check, options),
     getCatalogDefaults: () => service.getSkillDefaults(),
@@ -47,7 +52,7 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
       settings.version++
       settings.audit.unshift({ id: crypto.randomUUID(), operatorId: user.id, operatorName: user.name, changedAt: new Date().toISOString(), version: settings.version, fields: ['defaultSkillIds'] })
       skills.forEach(s => { s.isDefault = input[s.mode] === s.id })
-      options.onSettingsChanged?.(copy(settings))
+      options.onSettingsChanged?.(copy(settings)); capture()
       return copy(input)
     },
     async getUsage(query) {
@@ -87,7 +92,7 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
       if (!['pending', 'active', 'disabled'].includes(input.status) || (input.role !== null && !['super_admin', 'design_manager', 'designer', 'operator'].includes(input.role)) || (input.status === 'active' && !input.role) || (input.status === 'pending' && input.role)) throw new ApiError('VALIDATION', '角色与账号状态不匹配', 422)
       if ((input.id === current.id || (user.role === 'super_admin' && user.status === 'active' && users.filter(u => u.role === 'super_admin' && u.status === 'active').length === 1)) && (input.role !== 'super_admin' || input.status !== 'active')) throw new ApiError('CONFLICT', '不能停用或降权当前/最后一位超级管理员', 409)
       assignments.set(user.id, { role: input.role, status: input.status })
-      Object.assign(user, { role: input.role, status: input.status }); options.onUserChanged?.(copy(user)); return copy(user)
+      Object.assign(user, { role: input.role, status: input.status }); options.onUserChanged?.(copy(user)); capture(); return copy(user)
     },
     async getSettings() { await check(true); return copy(settings) },
     async saveSettings(input) {
@@ -97,7 +102,7 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
       const fields = (['concurrency', 'timeoutSeconds', 'maxUploadBytes', 'defaultSkillIds', 'dingtalk'] as const).filter(key => JSON.stringify(input[key]) !== JSON.stringify(key === 'dingtalk' ? { corpId: settings.dingtalk.corpId, appId: settings.dingtalk.appId, callbackDomain: settings.dingtalk.callbackDomain } : settings[key]))
       settings = { ...copy(input), capacity: settings.capacity, timeoutCapacity: settings.timeoutCapacity, version: settings.version + 1, dingtalk: { ...settings.dingtalk }, audit: [{ id: crypto.randomUUID(), operatorId: user.id, operatorName: user.name, changedAt: new Date().toISOString(), version: settings.version + 1, fields }, ...settings.audit] }
       skills.forEach(s => { s.isDefault = settings.defaultSkillIds[s.mode] === s.id })
-      options.onSettingsChanged?.(copy(settings))
+      options.onSettingsChanged?.(copy(settings)); capture()
       return copy(settings)
     }
   }

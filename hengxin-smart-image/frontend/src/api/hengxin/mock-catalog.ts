@@ -1,3 +1,4 @@
+import type { DemoState } from './demo-state'
 import type { HengxinService, Mode, Picture, SkillVersion, Template, TemplateInput, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
 import { MOCK_USER_ID, sampleImages, skillNames } from './fixtures'
@@ -5,20 +6,20 @@ import { IMAGE_MIME_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from './limits'
 
 export type MockScenario = 'default' | 'empty' | 'no-skills' | 'upload-error' | 'save-error' | 'submit-error' | 'list-error'
   | 'execution-error' | 'partial-result' | 'revision-error' | 'archive-error'
-export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, operatorId: () => string = () => MOCK_USER_ID, maxUploadBytes: () => number = () => MAX_IMAGE_BYTES) {
+export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, operatorId: () => string = () => MOCK_USER_ID, maxUploadBytes: () => number = () => MAX_IMAGE_BYTES, demo?: { state?: DemoState; pictures: typeof sampleImages }) {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-  const files = new Map<string, Picture>()
+  const files = new Map<string, Picture>(demo?.state?.files)
   const objectUrls: string[] = []
-  const consumed = new Set<string>()
-  const skills: SkillVersion[] = scenario === 'no-skills' ? [] : (['wallpaper', 'product', 'text'] as const).map(mode => ({
+  const consumed = new Set<string>(demo?.state?.catalogConsumed)
+  const skills: SkillVersion[] = demo?.state?.skills ? copy(demo.state.skills) : scenario === 'no-skills' ? [] : (['wallpaper', 'product', 'text'] as const).map(mode => ({
     id: `mock-${mode}-1`, name: skillNames[mode], mode, version: '1.0.0',
     checksum: 'mock-checksum', isDefault: true, status: 'available'
   }))
   for (const mode of ['wallpaper', 'product', 'text'] as const) {
-    sampleImages(mode, 4).forEach(picture => files.set(picture.fileId!, picture))
+    (demo?.pictures ?? sampleImages)(mode, 4).forEach(picture => files.set(picture.fileId!, picture))
   }
   if (scenario === 'no-skills') db.templates.forEach(template => { template.active = false })
-  const history = new Map<string, Template[]>(db.templates.map(t => [t.id, [copy(t)]]))
+  const history = new Map<string, Template[]>(demo?.state?.templateHistory ?? db.templates.map(t => [t.id, [copy(t)]]))
   function fail(operation: string) {
     if (scenario === `${operation}-error` && !consumed.has(operation)) {
       consumed.add(operation)
@@ -64,8 +65,11 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       await wait(); fail('upload')
       const limit = Math.min(MAX_IMAGE_BYTES, maxUploadBytes())
       if (!IMAGE_MIME_TYPES.includes(file.type) || !file.size || file.size > limit) throw new ApiError('VALIDATION', `仅接收非空且不超过 ${limit / 1048576} MiB 的 JPG、PNG、WebP`, 422)
-      const url = URL.createObjectURL(file)
-      objectUrls.push(url)
+      const url = demo ? await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new ApiError('READ_ERROR', '本地图片读取失败', 422)); reader.readAsDataURL(file)
+      }) : URL.createObjectURL(file)
+      if (demo) { const image = new Image(); image.src = url; try { await image.decode() } catch { throw new ApiError('VALIDATION', '图片内容无法读取，请重新选择', 422) } }
+      else objectUrls.push(url)
       const picture = { fileId: `mock-file-${crypto.randomUUID()}`, name: file.name, url }
       files.set(picture.fileId, picture)
       return copy(picture)
@@ -100,5 +104,5 @@ export function createMockCatalog(db: Workspace, wait: () => Promise<void>, scen
       db.templates = db.templates.filter(t => t.id !== id)
     }
   }
-  return { skills, service, resolvePictures, resolveSkill, fail, dispose() { objectUrls.forEach(url => URL.revokeObjectURL(url)) } }
+  return { snapshot: () => ({ files: [...files], templateHistory: [...history], skills: copy(skills), catalogConsumed: [...consumed] }), skills, service, resolvePictures, resolveSkill, fail, dispose() { objectUrls.forEach(url => URL.revokeObjectURL(url)) } }
 }

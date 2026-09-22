@@ -18,6 +18,7 @@
         <template v-else>
           <ElAlert :title="bootstrap.error || '工作区尚未就绪'" type="error" :closable="false" show-icon />
           <ElButton class="hx-gap" type="primary" @click="retryBootstrap.run">重新连接</ElButton>
+          <DemoReset v-if="isDemoMode" class="hx-gap" />
         </template>
       </ElCard>
     </div>
@@ -27,6 +28,8 @@
 <script setup lang="ts">
   import { RouterView } from 'vue-router'
   import DingtalkLogin from './views/auth/dingtalk-login.vue'
+  import DemoReset from './views/hengxin/components/DemoReset.vue'
+  import { isDemoMode } from './api/hengxin/client'
   import { useUserStore } from './store/modules/user'
   import { bootstrap, retryBootstrap } from './api/hengxin/bootstrap'
   import zh from 'element-plus/es/locale/lang/zh-cn'

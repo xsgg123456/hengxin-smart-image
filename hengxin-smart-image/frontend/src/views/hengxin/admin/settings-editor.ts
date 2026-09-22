@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { ApiError } from '../../../api/hengxin/http'
 import type { ManagedSettings, SettingsInput } from '../../../types/management'
 
@@ -23,16 +23,29 @@ export function useSettingsEditor(
 ) {
   const form = ref<SettingsInput>(), uploadMiB = ref<number | undefined>(10)
   const saving = ref(false), saveError = ref('')
+  const baseline = ref('')
+  const editableSnapshot = (draft: SettingsInput | undefined, upload: number | undefined) => JSON.stringify({
+    concurrency: draft?.concurrency,
+    timeoutSeconds: draft?.timeoutSeconds,
+    maxUploadBytes: upload == null ? undefined : upload * 1024 ** 2,
+    defaultSkillIds: draft?.defaultSkillIds
+  })
   watch(query.data, value => {
     form.value = value ? settingsInput(value) : undefined
     uploadMiB.value = value ? value.maxUploadBytes / 1024 ** 2 : undefined
+    baseline.value = editableSnapshot(form.value, uploadMiB.value)
   }, { immediate: true, flush: 'sync' })
+  const dirty = computed(() => !!form.value && editableSnapshot(form.value, uploadMiB.value) !== baseline.value)
 
   async function save(): Promise<boolean> {
     const current = query.data.value, draft = form.value
     if (!current || !draft || saving.value || query.loading.value || query.error.value) return false
     if (current.timeoutCapacity < 60) {
       saveError.value = '部署超时上限低于60秒，请先调整部署配置'
+      return false
+    }
+    if (!dirty.value) {
+      saveError.value = '配置没有变化，无需保存'
       return false
     }
     saveError.value = ''
@@ -68,5 +81,5 @@ export function useSettingsEditor(
       saving.value = false
     }
   }
-  return { form, uploadMiB, saving, saveError, save }
+  return { form, uploadMiB, saving, saveError, dirty, save }
 }

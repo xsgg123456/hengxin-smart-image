@@ -1,6 +1,6 @@
 # hengxin-smart-image
 
-本仓库用于开发前海恒鑫「恒鑫智图」。截至 2026-09-16，代码及 VPS 业务部署基线为 `99ff375`（分支 `codex/management-monitor-settings`），迁移 `0011`。Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及钉钉容器免登修复已部署，真实双端业务验收未完成；13.1–13.3 管理统计/监控/配置已部署，真实角色联调待验收；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。 接手先读 [开发交接](hengxin-smart-image/docs/HANDOVER.md)，进度以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
+本仓库用于开发前海恒鑫「恒鑫智图」。截至 2026-09-21，最近已验证的 VPS 业务发布为 `light-skills-20260921-f02b1e0`，迁移 `0014`，见 [发布记录](hengxin-smart-image/docs/LIGHT-SKILLS-DEPLOYMENT.md)。2026-09-22 前端 UI 迭代已获用户批准发布，部署结果须以本轮发布记录为准。Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及钉钉容器免登修复已部署，真实双端业务验收未完成；13.1–13.3 管理统计/监控/配置已部署，真实角色联调待验收；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。 接手先读 [开发交接](hengxin-smart-image/docs/HANDOVER.md)，进度以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
 
 正式前端位于 `hengxin-smart-image/frontend/`，使用 Node.js 24.18.1、pnpm 10.33.4。进入该目录执行 `pnpm install --frozen-lockfile` 后，`pnpm dev` 启动独立内存 mock，刷新重置；`pnpm dev:api` 连接真实后端。预览地址为 [http://127.0.0.1:3008](http://127.0.0.1:3008)。后端已接入开发身份、文件存储、模板与 Skill、任务执行、返工及下载归档；真实 AI 需要专用 Linux Worker。钉钉授权、用户管理、调用统计、执行监控和系统配置已接入开发测试环境；真实双端登录、真实角色联调和生产验收未完成，前端预览不代表真实验收。
 
@@ -11,7 +11,7 @@
 | 当前需求和确认边界 | [Product-Spec.md](Product-Spec.md)；历史变更见 [CHANGELOG](Product-Spec-CHANGELOG.md) |
 | 同事接手、环境与阻塞 | [HANDOVER.md](hengxin-smart-image/docs/HANDOVER.md)、[VPS 部署](hengxin-smart-image/docs/DEPLOYMENT.md)、[钉钉配置](hengxin-smart-image/docs/DINGTALK-SETUP.md) |
 | 当前进度和后续开发顺序 | [DEV-PLAN.md](DEV-PLAN.md) |
-| 页面规范与原型用途 | [Design-Brief.md](Design-Brief.md)、[原型说明](prototype/README.md) |
+| 页面规范与原型用途 | [Design-Brief.md](Design-Brief.md)、[框架 Demo 说明](docs/FRAMEWORK-DEMO-README.md) |
 | 前后端接口 | [API-CONTRACT.md](hengxin-smart-image/docs/API-CONTRACT.md)、[管理接口补充](hengxin-smart-image/docs/PHASE4-CONTRACT.md) |
 | 后端启动与最新阶段证据 | [后端开发说明](hengxin-smart-image/docs/BACKEND-DEVELOPMENT.md)、[Phase 11 验证记录](hengxin-smart-image/docs/PHASE11-VALIDATION.md) |
 | 真实 AI 执行环境 | [Linux Worker 说明](hengxin-smart-image/docs/CODEX-EXECUTION.md)、[Phase 9 实机验证](hengxin-smart-image/docs/PHASE9-VALIDATION.md) |

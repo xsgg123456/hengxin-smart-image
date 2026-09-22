@@ -1,18 +1,20 @@
+import type { DemoState } from './demo-state'
 import type { Accepted, HengxinService, PageQuery, Picture, ResultSlot, ResultVersion, Round, Task, Workspace } from '../../types/hengxin'
 import { ApiError } from './http'
 import { MOCK_USER_ID, sampleImages } from './fixtures'
 import type { MockScenario } from './mock-catalog'
 import type { UsageAttempt } from '../../types/management'
 
-export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, stepMs = 700, operatorId: () => string = () => MOCK_USER_ID, getConfig = () => ({ version: 1, concurrency: 1, timeoutSeconds: 600 }), getAnnotation?: (fileId: string) => Picture) {
+export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenario: MockScenario, stepMs = 700, operatorId: () => string = () => MOCK_USER_ID, getConfig = () => ({ version: 1, concurrency: 1, timeoutSeconds: 600 }), getAnnotation?: (fileId: string) => Picture, demo?: { state?: DemoState; pictures: typeof sampleImages; changed?: () => void }) {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const stamp = () => new Date().toISOString()
   const id = () => crypto.randomUUID()
   const active = new Map<string, ReturnType<typeof setInterval>>()
-  const slots = new Map<string, ResultSlot[]>(), rounds = new Map<string, Round[]>()
-  const history = new Map<string, Task>()
-  const revisionReceipts = new Map<string, { fingerprint: string; receipt: Accepted }>()
-  let scenarioUsed = false, archiveFailureUsed = false
+  const slots = new Map<string, ResultSlot[]>(demo?.state?.slots), rounds = new Map<string, Round[]>(demo?.state?.rounds)
+  const history = new Map<string, Task>(demo?.state?.taskHistory)
+  const revisionReceipts = new Map<string, { fingerprint: string; receipt: Accepted }>(demo?.state?.revisions)
+  let scenarioUsed = demo?.state?.scenarioUsed ?? false, archiveFailureUsed = demo?.state?.archiveFailureUsed ?? false
+  const failures = new Map<string, boolean>(demo?.state?.failures)
   function find(taskId: string) {
     const task = db.tasks.find(t => t.id === taskId)
     if (!task) throw new ApiError('NOT_FOUND', '任务已删除或不存在', 404)
@@ -41,7 +43,7 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     const ids = current(task.id).map(p => p.id)
     task.archived = db.archives.some(a => a.taskId === task.id && JSON.stringify(a.imageVersionIds) === JSON.stringify(ids))
   }
-  db.tasks.forEach(initialize)
+  db.tasks.forEach(task => { if (slots.has(task.id)) { history.set(task.id, task); sync(task) } else initialize(task) })
   function run(task: Task, target: number | null, note: string, initial = false, revision: Pick<Round, 'baseVersionId' | 'baseVersion' | 'annotation'> = {}): Accepted {
     if (active.has(task.id)) throw new ApiError('CONFLICT', '任务正在处理中，请稍后再试', 409)
     if (!slots.has(task.id)) initialize(task)
@@ -53,20 +55,25 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
     rounds.get(task.id)!.unshift(round)
     task.currentRoundId = round.id; task.state = '排队中'; task.progress = 0; task.error = null
     if (note) task.feedback.unshift(`${round.createdAt} · ${target === null ? '整套' : `第 ${target + 1} 张`}：${note}`)
+    failures.set(round.id, failure)
+    startTimer(task, round, targets, failure)
+    return { taskId: task.id, roundId: round.id, state: '排队中' }
+  }
+  function startTimer(task: Task, round: Round, targets: ResultSlot[], failure: boolean) {
     const timer = setInterval(() => {
       if (!round.startedAt && [...active.keys()].filter(key => rounds.get(key)?.[0].state === '执行中').length >= round.executionConfig!.concurrency) return
       round.startedAt ??= stamp(); round.state = task.state = '执行中'
       if (Date.now() - Date.parse(round.startedAt) >= round.executionConfig!.timeoutSeconds * 1000) {
-        clearInterval(timer); active.delete(task.id); task.state = round.state = '失败'; task.error = round.error = '模拟执行超时，已有结果保留'; round.finishedAt = stamp(); return
+        clearInterval(timer); active.delete(task.id); task.state = round.state = '失败'; task.error = round.error = '模拟执行超时，已有结果保留'; round.finishedAt = stamp(); demo?.changed?.(); return
       }
       task.progress = (task.progress ?? 0) + 25
-      if (task.progress < 100) return
+      if (task.progress < 100) { demo?.changed?.(); return }
       clearInterval(timer); active.delete(task.id)
       targets.forEach((slot, index) => {
         if (failure && (scenario !== 'partial-result' || index === targets.length - 1)) {
           slot.error = '模拟生成失败，旧结果已保留'; return
         }
-        const picture: Picture = sampleImages(task.mode, (task.outputCount ?? 1))[slot.slot]
+        const picture: Picture = (demo?.pictures ?? sampleImages)(task.mode, (task.outputCount ?? 1))[slot.slot]
         const version: ResultVersion = { ...picture, id: id(), version: Math.max(0, ...slot.versions.map(v => v.version)) + 1, roundId: round.id, createdAt: stamp() }
         slot.versions.push(version); slot.currentVersionId = version.id; slot.error = null
       })
@@ -75,10 +82,15 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
       task.state = failed ? (failed === allSlots.length || (failure && scenario !== 'partial-result') ? '失败' : '部分失败') : '待查看'
       task.error = failed ? '部分或全部图片执行失败；成功版本及既有结果保留，可重试失败轮次' : null
       round.state = task.state; round.error = task.error; round.finishedAt = stamp()
-      sync(task)
+      sync(task); demo?.changed?.()
     }, stepMs)
     active.set(task.id, timer)
-    return { taskId: task.id, roundId: round.id, state: '排队中' }
+  }
+  for (const task of db.tasks) {
+    const round = rounds.get(task.id)?.find(item => item.id === task.currentRoundId)
+    if (round && !round.finishedAt && ['排队中', '执行中'].includes(task.state)) {
+      startTimer(task, round, slots.get(task.id)!.filter(slot => round.target === null || slot.slot === round.target), failures.get(round.id) ?? false)
+    }
   }
   function paginate<T>(items: T[], query: PageQuery) {
     if (!Number.isInteger(query.page) || query.page < 1 || !Number.isInteger(query.pageSize) || query.pageSize < 1 || query.pageSize > 100) throw new ApiError('VALIDATION', '分页参数无效', 422)
@@ -201,5 +213,5 @@ export function createMockTasks(db: Workspace, wait: () => Promise<void>, scenar
         durationSeconds: ended ? Math.max(0, (Date.parse(round.finishedAt!) - Date.parse(round.startedAt!)) / 1000) : null, usage: null }
     }))
   }
-  return { service, run, getUsageAttempts, getHistoricalTasks: () => [...history.values()], dispose() { active.forEach(clearInterval); active.clear() } }
+  return { snapshot: () => ({ slots: [...slots], rounds: [...rounds], taskHistory: [...history], revisions: [...revisionReceipts], failures: [...failures], scenarioUsed, archiveFailureUsed }), service, run, getUsageAttempts, getHistoricalTasks: () => [...history.values()], dispose() { active.forEach(clearInterval); active.clear() } }
 }

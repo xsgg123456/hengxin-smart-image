@@ -1,25 +1,29 @@
 import type { Accepted, HengxinService, Task, User, Workspace } from '../../types/hengxin'
+import type { DemoState } from './demo-state'
 import { createMockCatalog, type MockScenario } from './mock-catalog'
 import { createMockTasks } from './mock-tasks'
 import { ApiError } from './http'
-import { createFixtures } from './fixtures'
+import { createFixtures, demoImages, sampleImages } from './fixtures'
 import { createMockManagement } from './mock-management'
 import { getPreviewUser } from './session'
 import type { ManagementScenario } from '../../types/management'
 
 /** 独立内存模拟，不读写原型 localStorage，不代表后台持久化。 */
-export function createMockService(options: { empty?: boolean; delayMs?: number; stepMs?: number; scenario?: MockScenario; managementScenario?: ManagementScenario; user?: User } = {}): HengxinService {
-  const db: Workspace = (options.empty || options.scenario === 'empty') ? { templates: [], tasks: [], archives: [] } : createFixtures()
+export function createMockService(options: { demo?: boolean; snapshot?: DemoState; changed?: () => void; empty?: boolean; delayMs?: number; stepMs?: number; installMs?: number; scenario?: MockScenario; managementScenario?: ManagementScenario; user?: User } = {}): HengxinService & { snapshot: () => DemoState } {
+  const db: Workspace = options.snapshot ? structuredClone(options.snapshot.workspace) : (options.empty || options.scenario === 'empty') ? { templates: [], tasks: [], archives: [] } : createFixtures(options.demo ? demoImages : sampleImages)
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   let user = copy(options.user ?? getPreviewUser())
+  const storedUser = options.snapshot?.users?.find(u => u.id === user.id)
+  if (storedUser) user = copy(storedUser)
+  let extra: Partial<DemoState> = options.snapshot ? copy(options.snapshot) : {}
   let uploadLimit = 10 * 1048576
-  const submissions = new Map<string, { fingerprint: string; accepted: Accepted }>()
+  const submissions = new Map<string, { fingerprint: string; accepted: Accepted }>(options.snapshot?.submissions)
   let executionConfig = { version: 1, concurrency: 1, timeoutSeconds: 600 }
   const wait = async () => { await new Promise<void>(resolve => setTimeout(resolve, options.delayMs ?? 120)); if (user.status !== 'active' || !user.role) { if (typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:unauthorized')); throw new ApiError('UNAUTHORIZED', '账号未授权或已禁用', 401) } }
-  const catalog = createMockCatalog(db, wait, options.scenario ?? 'default', () => user.id, () => uploadLimit)
+  const catalog = createMockCatalog(db, wait, options.scenario ?? 'default', () => user.id, () => uploadLimit, options.demo ? { state: options.snapshot, pictures: demoImages } : undefined)
   const tasks = createMockTasks(db, wait, options.scenario ?? 'default', options.stepMs, () => user.id, () => executionConfig,
-    fileId => catalog.resolvePictures([{ fileId, name: '', url: '' }])[0])
-  const management = createMockManagement(db, catalog.skills, () => user, { scenario: options.managementScenario, wait, getAttempts: tasks.getUsageAttempts, getHistoricalTasks: tasks.getHistoricalTasks, onSettingsChanged: config => { uploadLimit = config.maxUploadBytes; executionConfig = { version: config.version, concurrency: config.concurrency, timeoutSeconds: config.timeoutSeconds } }, onUserChanged: updated => { if (updated.id === user.id) { user = copy(updated); if (typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:identity-changed')) } } })
+    fileId => catalog.resolvePictures([{ fileId, name: '', url: '' }])[0], options.demo ? { state: options.snapshot, pictures: demoImages, changed: options.changed } : undefined)
+  const management = createMockManagement(db, catalog.skills, () => user, { snapshot: options.snapshot, capture: state => { extra = { ...extra, ...copy(state) } }, scenario: options.managementScenario, wait, installMs: options.installMs, getAttempts: tasks.getUsageAttempts, getHistoricalTasks: tasks.getHistoricalTasks, onSettingsChanged: config => { uploadLimit = config.maxUploadBytes; executionConfig = { version: config.version, concurrency: config.concurrency, timeoutSeconds: config.timeoutSeconds } }, onUserChanged: updated => { if (updated.id === user.id) { user = copy(updated); if (typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:identity-changed')) } } })
   return {
     async getUser() { return copy(user) },
     async getWorkspace() { await wait(); return copy(db) },
@@ -54,6 +58,7 @@ export function createMockService(options: { empty?: boolean; delayMs?: number; 
       submissions.set(key, { fingerprint, accepted })
       return copy(accepted)
     },
-    dispose() { tasks.dispose(); catalog.dispose() }
+    dispose() { tasks.dispose(); catalog.dispose() },
+    snapshot: () => copy({ ...extra, ...catalog.snapshot(), ...management.snapshot(), ...tasks.snapshot(), schema: 1, workspace: db, submissions: [...submissions] })
   }
 }

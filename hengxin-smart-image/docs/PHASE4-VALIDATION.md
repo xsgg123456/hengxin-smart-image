@@ -28,7 +28,7 @@
 
 ## 视觉与边界
 
-本机 output/playwright 中保留 phase4-usage-1280.png、phase4-monitor-1280.png、phase4-users-1280.png、phase4-skills-1280.png、phase4-settings-1280.png、phase4-neighbor-tasks.png、phase4-monitor-timeout.png、phase4-login-container.png、phase4-login-expired-real.png。管理页复用 Art 标题、卡片、表格和按钮，未修改原 prototype/source。
+本机 output/playwright 中保留 phase4-usage-1280.png、phase4-monitor-1280.png、phase4-users-1280.png、phase4-skills-1280.png、phase4-settings-1280.png、phase4-neighbor-tasks.png、phase4-monitor-timeout.png、phase4-login-container.png、phase4-login-expired-real.png。管理页复用 Art 标题、卡片、表格和按钮，未修改正式前端之外的历史素材；旧原型目录已清理。
 
 没有新增运行时依赖。真实模式不会使用 URL 角色或故障参数获得模拟身份；只展示登录入口与接口状态，实际 SDK、企业账号映射、Cookie/state 验证、双端兼容在 Phase 12/14 进行。模拟 ZIP 只验证上传与生命周期，不执行包，不能当作真实 Skill 安装验证。
 

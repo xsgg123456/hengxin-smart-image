@@ -5,21 +5,16 @@
     <ElEmpty v-if="!sources.length" description="此任务未保留提交素材" :image-size="40" />
     <div v-else class="hx-source-grid" role="region" aria-label="原提交素材列表" tabindex="0">
       <figure v-for="(source, index) in sources" :key="`${source.fileId ?? index}-${source.url}`" class="hx-source-item">
-        <ElImage :src="source.url" :alt="source.name" :preview-src-list="previewUrls"
-          :initial-index="index" fit="contain" preview-teleported>
-          <template #placeholder><span class="hx-source-placeholder" role="status">加载中…</span></template>
-          <template #error><span class="hx-source-placeholder">素材加载失败</span></template>
-        </ElImage>
+        <PicturePreview :picture="source" :pictures="sources" :index="index" title="原提交素材" />
         <figcaption :title="source.name">{{ source.name }}</figcaption>
       </figure>
     </div>
   </ElCard>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue'
+import PicturePreview from './PicturePreview.vue'
 import type { Picture } from '@/types/hengxin'
-const props = defineProps<{ sources: readonly Picture[] }>()
-const previewUrls = computed(() => props.sources.map(source => source.url))
+defineProps<{ sources: readonly Picture[] }>()
 </script>
 <style scoped>
 .hx-task-sources { min-width: 0; }

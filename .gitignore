@@ -14,6 +14,7 @@ node_modules/
 .next/
 dist/
 dist-preview/
+dist-demo/
 output/
 output/playwright/
 .playwright-cli/

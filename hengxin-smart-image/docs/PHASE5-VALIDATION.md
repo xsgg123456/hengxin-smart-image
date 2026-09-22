@@ -37,6 +37,6 @@ PHASE5 INTEGRATION PASS
 - `npx --yes pnpm@10.33.4 build`：最终代码版本再次执行，exit 0，vue-tsc 零错误，Vite `built in 31.99s`；既有分包提示保留，无前端业务改动。
 - 独立 Playwright 会话 `hx-phase5`：`scripts/phase3/create-flow.js` PASS，三入口创建/SKU 检索/壁纸商品 8 张文字 2 张/整套返工，pageerror=0。
 - `scripts/phase3/version-flow.js` PASS，单图失败保留旧结果/重试原位置/其余 7 槽不变/历史版本查看下载/ZIP/归档幂等/删除确认/旧新归档保留，pageerror=0。
-- 原型 `http://127.0.0.1:3007` HTTP 200，正式前端预览 3008 可访问。独立浏览器会话收尾关闭。
+- 框架 Demo `http://127.0.0.1:3010` 与正式前端预览 3008 均可访问。独立浏览器会话收尾关闭。
 
 独立 fresh code-reviewer 最终结论：Stage 1 PASS、Stage 2 PASS，见 PHASE5-REVIEW.md。旧三项契约差异均复核关闭，独立 HTTP/OpenAPI/安全扫描与两页视觉抽查通过；浏览器标签已关闭。Phase 5 开发与技术验证完成，待用户验收后进入 Phase 6。

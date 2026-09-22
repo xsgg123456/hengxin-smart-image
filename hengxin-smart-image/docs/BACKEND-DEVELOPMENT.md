@@ -15,7 +15,7 @@ Invoke-RestMethod http://127.0.0.1:8008/api/v1/health/ready
 Invoke-RestMethod http://127.0.0.1:8008/api/v1/auth/me
 ```
 
-API：`http://127.0.0.1:8008`，OpenAPI 文档 `/docs`，存活 `/api/v1/health/live`，依赖就绪 `/api/v1/health/ready`。PG 默认端口 55433；原开发机 Windows 曾将 55433–55532 列为保留范围，改用经检查的 55431，新机器需自行检查占用和系统保留范围。MinIO API 59002、控制台 59003；Redis 不向宿主发布端口。所有发布端口只监听本机。可在 `.env` 覆盖端口，不结束未知进程；修改 API_PORT 后同步上述 URL 和前端代理。原型 3007 与前端 3008 保持独立。
+API：`http://127.0.0.1:8008`，OpenAPI 文档 `/docs`，存活 `/api/v1/health/live`，依赖就绪 `/api/v1/health/ready`。PG 默认端口 55433；原开发机 Windows 曾将 55433–55532 列为保留范围，改用经检查的 55431，新机器需自行检查占用和系统保留范围。MinIO API 59002、控制台 59003；Redis 不向宿主发布端口。所有发布端口只监听本机。可在 `.env` 覆盖端口，不结束未知进程；修改 API_PORT 后同步上述 URL 和前端代理。框架 Demo 使用 3010，正式 mock 预览使用 3008。
 
 基础镜像及构建工具镜像固定 digest，应用镜像由仓库源码构建。Compose 项目 `hengxin-smart-image` 创建自己的 `postgres_data`、`redis_data`、`minio_data`、`skill_data` 四个卷，未指定 external 卷，未挂载宿主目录或 Docker socket。`migrate` 在 PG healthy 后执行 Alembic，成功退出 0 后启动 API/Worker/outbox；它不是常驻服务。常规停止用 `docker compose ... stop`，不要对有数据的开发环境运行 `down --volumes`。更换数据库密码不能自动修改已有数据库用户密码。
 

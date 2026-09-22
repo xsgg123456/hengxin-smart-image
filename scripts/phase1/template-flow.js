@@ -20,7 +20,7 @@ async (page) => {
   await page.waitForTimeout(1800);
   await page.screenshot({ path: 'output/playwright/frontend-wallpaper.png', fullPage: true });
   if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error('页面横向溢出');
-  await page.goto('http://127.0.0.1:3007/#/image-processing/wallpaper');
+  await page.goto('http://127.0.0.1:3010/?role=super_admin#/image-processing/wallpaper');
   await page.getByRole('heading', { name: '替换壁纸', exact: true }).waitFor();
   await page.waitForTimeout(1800);
   await page.screenshot({ path: 'output/playwright/prototype-wallpaper.png', fullPage: true });

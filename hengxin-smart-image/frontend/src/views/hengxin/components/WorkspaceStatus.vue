@@ -1,10 +1,11 @@
 <template>
-  <ElAlert v-if="isMockMode && !route.path.startsWith('/management/')" title="前端模拟预览 · 生成返回示例图片，数据仅在本次页面打开期间保留，刷新后重置。" type="warning" :closable="false" show-icon />
+  <ElAlert v-if="storageError" :title="storageError" type="error" :closable="false" show-icon />
+  <ElAlert v-if="isMockMode && !route.path.startsWith('/management/')" :title="isDemoMode ? '框架 Demo · 生成返回示例图片，操作保存在本机浏览器，刷新后保留。' : '前端模拟预览 · 数据仅本次页面有效，刷新后重置。'" type="warning" :closable="false" show-icon />
   <div v-if="isMockMode && !route.path.startsWith('/management/')" class="hx-filter hx-gap">
     <ElSelect :model-value="role" aria-label="预览角色" style="width: 170px" @change="changeRole"><ElOption v-for="item in previewRoles" :key="item.value" :value="item.value" :label="item.label" /></ElSelect>
     <ElSelect :model-value="scenario" aria-label="模拟场景" style="width: 180px" @change="changeScenario">
       <ElOption v-for="item in scenarios" :key="item.value" :value="item.value" :label="item.label" />
-    </ElSelect><span class="hx-muted">切换场景会刷新页面并重置模拟数据；失败场景首次失败，重试恢复。</span>
+    </ElSelect><span class="hx-muted">{{ isDemoMode ? '角色共用数据；每个场景独立保存。失败场景首次失败，重试恢复。' : '切换场景会刷新并重置模拟数据。' }}</span><DemoReset v-if="isDemoMode" />
   </div>
   <div v-if="connection.error" class="hx-gap" role="alert">
     <ElAlert :title="connection.error" type="error" :closable="false" show-icon />
@@ -12,7 +13,13 @@
   </div>
 </template>
 <script setup lang="ts">
-import { isMockMode } from '../../../api/hengxin/client'
+import { isMockMode, isDemoMode } from '../../../api/hengxin/client'
+import DemoReset from './DemoReset.vue'
+import { ref, onBeforeUnmount } from 'vue'
+const storageError = ref('')
+const onStorageError = (event: Event) => { storageError.value = (event as CustomEvent<string>).detail }
+window.addEventListener('hengxin:demo-storage-error', onStorageError)
+onBeforeUnmount(() => window.removeEventListener('hengxin:demo-storage-error', onStorageError))
 import { previewRoles } from '../../../api/hengxin/session'
 import { useRoute } from 'vue-router'
 const route = useRoute()

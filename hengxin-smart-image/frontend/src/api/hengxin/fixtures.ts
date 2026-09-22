@@ -4,13 +4,13 @@ export const skillNames: Record<Mode, string> = { wallpaper: '壁纸替换 Skill
 export const sampleImages = (mode: Mode, count = 8): Picture[] => Array.from({ length: count }, (_, i) => ({
   name: `主图 ${String(i + 1).padStart(2, '0')}`, url: `/samples/${mode}-${i % 4}.svg`, fileId: `sample-${mode}-${i % 4}`, version: 1
 }))
-export function createFixtures(): Workspace {
+export function createFixtures(pictures = sampleImages): Workspace {
   const templates = [
     { id: 't1', name: '极简光影 · 手机屏幕套图', mode: 'wallpaper' as const, count: 8 },
     { id: 't2', name: '暮色山川 · 质感展示', mode: 'wallpaper' as const, count: 6 },
     { id: 't3', name: '原色轻透 · 钢化膜系列', mode: 'product' as const, count: 8 },
     { id: 't4', name: '桌面好物 · 产品展示', mode: 'product' as const, count: 4 }
-  ].map(t => ({ id: t.id, name: t.name, mode: t.mode, images: sampleImages(t.mode, t.count),
+  ].map(t => ({ id: t.id, name: t.name, mode: t.mode, images: pictures(t.mode, t.count),
     skill: skillNames[t.mode], skillVersionId: `mock-${t.mode}-1`, notes: '', updatedAt: '2026-09-09T02:00:00.000Z', active: true, version: 1, ownerId: MOCK_USER_ID }))
   return {
     templates,
@@ -20,10 +20,15 @@ export function createFixtures(): Workspace {
       skillSnapshot: { id: `mock-${mode}-1`, name: skillNames[mode], version: '1.0.0', checksum: 'mock-checksum' },
       ownerId: MOCK_USER_ID, sessionId: null, currentRoundId: `mock-round-${i}`,
       state: i === 2 ? '失败' : '待查看', progress: i === 2 ? 0 : 100,
-      images: sampleImages(mode, i === 2 ? 4 : 8), sources: [], feedback: [],
+      images: pictures(mode, i === 2 ? 4 : 8), sources: [], feedback: [],
       time: '2026-09-09T02:32:00.000Z', archived: false
     })),
     archives: [{ id: 'a0', name: '初秋上新 · 屏幕展示套图', mode: 'wallpaper',
-      images: sampleImages('wallpaper'), time: '2026-09-07T08:24:00.000Z', ownerId: MOCK_USER_ID, imageVersionIds: [] }]
+      images: pictures('wallpaper'), time: '2026-09-07T08:24:00.000Z', ownerId: MOCK_USER_ID, imageVersionIds: [] }]
   }
 }
+
+/** Only the explicitly selected Demo mode uses these local, reviewed sample photos. */
+export const demoImages = (mode: Mode, count = 4): Picture[] => Array.from({ length: count }, (_, i) => ({
+  name: `示例主图 ${String(i + 1).padStart(2, '0')}.jpg`, url: `/demo-images/sample-${i % 4 + 1}.jpg`, fileId: `sample-${mode}-${i % 4}`, version: 1
+}))

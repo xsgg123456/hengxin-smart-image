@@ -35,7 +35,7 @@ npx --yes --package @playwright/cli playwright-cli -s=hx-phase1 run-code --filen
 npx --yes --package @playwright/cli playwright-cli -s=hx-phase1 run-code --filename scripts/phase1/accepted-flow.js --raw
 ```
 
-模板脚本会只读打开原型3007作视觉对照。截图输出到根目录 `output/playwright/`。accepted-flow 需要该目录下 1×1 PNG 测试素材 pixel.png，见脚本目录 README。截图已人工查看：frontend-wallpaper.png、prototype-wallpaper.png、api-disconnected.png。API 503/500 故障测试有预期网络错误，页面异常监听为 0。
+模板脚本会只读打开框架 Demo 3010 作视觉对照。截图输出到根目录 `output/playwright/`。accepted-flow 需要该目录下 1×1 PNG 测试素材 pixel.png，见脚本目录 README。截图已人工查看：frontend-wallpaper.png、framework-demo-wallpaper.png、api-disconnected.png。API 503/500 故障测试有预期网络错误，页面异常监听为 0。
 
 模拟预览构建 `npx --yes pnpm@10.33.4 build:preview`：built in 30.44s。生产 JS 扫描模拟身份与种子任务标识：0 命中。最终复审报告已确认 Stage 1/2 均 PASS。
 

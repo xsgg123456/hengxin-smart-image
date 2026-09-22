@@ -2,6 +2,7 @@
   <ElDrawer :model-value="open" :title="task?.name || '任务详情'" size="82%" class="hx-detail" destroy-on-close :before-close="closeDrawer">
     <div v-loading="loading">
       <ElAlert v-if="error" :title="error" type="error" show-icon :closable="false"><ElButton text @click="load()">重试加载</ElButton></ElAlert>
+      <div v-if="loading && !task" class="hx-detail-loading" role="status" aria-live="polite"><strong>正在读取任务详情…</strong><span>正在同步任务状态、结果和可用操作</span><ElSkeleton :rows="6" animated /></div>
       <ElEmpty v-if="!task && !loading" description="任务不可用，请重试或返回任务列表" />
       <template v-if="task && data">
         <div class="hx-detail-toolbar"><div><ElTag>{{ labels[task.mode] }}</ElTag><span class="hx-muted">{{ task.id }} · {{ formatTime(task.time) }}</span></div></div>
@@ -14,14 +15,17 @@
         <ElAlert v-if="revision.session.value.uncertain" title="上次修改的受理结果尚未确认，当前意见已保留。" type="warning" :closable="false" class="hx-gap"><ElButton :loading="submitting" @click="confirmPrevious">确认上次提交</ElButton></ElAlert>
         <ElAlert v-if="revision.session.value.accepted && !revision.session.value.settled" title="修改请求已受理，正在获取最新执行状态。" type="info" :closable="false" class="hx-gap" />
         <ElAlert v-if="actionError" :title="actionError" class="hx-gap" type="error" show-icon :closable="false" />
-        <TaskTemplate :key="`template-${task.id}`" :task="task" />
-        <TaskSources :key="`sources-${task.id}`" :sources="task.sources" />
-        <ExecutionProgress :key="task.id" :task-id="task.id" :current-round-id="task.currentRoundId" :rounds="data.rounds" :active="visible" @detailed-failure="detailedFailure = $event" />
-        <div class="hx-gap"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null" :percentage="task.progress" :status="failed ? 'exception' : undefined" /><p v-if="task.error && !detailedFailure" class="hx-muted">{{ task.error }}</p>
+        <div class="hx-gap"><ElTag :type="failed ? 'danger' : 'info'">{{ task.state }}</ElTag><ElProgress v-if="task.progress !== null" :percentage="task.progress" :status="failed ? 'exception' : undefined" /><p v-if="task.error" class="hx-muted">{{ task.error }}</p>
           <p v-if="failed" class="hx-muted">执行未全部成功，已有成功结果和旧版本保留。重试沿用上一失败轮次的范围与意见。</p>
           <ElButton v-if="failed" type="primary" :loading="submitting" :disabled="!actions.canRetry || !lastFailed" @click="retry">重试失败范围</ElButton>
         </div>
-        <div class="hx-result-grid"><ResultCard v-for="slot in data.slots" :key="`${task.id}-${slot.slot}`" :slot="slot" :state="task.state" :editable="editable" @edit="edit" /></div>
+        <div class="hx-result-grid"><ResultCard v-for="slot in data.slots" :key="`${task.id}-${slot.slot}`" :slot="slot" :group="currentPictures" :state="task.state" :editable="editable" @edit="edit" /></div>
+        <ElCollapse class="hx-gap"><ElCollapseItem title="原素材与模板信息" name="input">
+          <TaskTemplate :key="`template-${task.id}`" :task="task" />
+          <TaskSources :key="`sources-${task.id}`" :sources="task.sources" />
+        </ElCollapseItem><ElCollapseItem title="执行进度与诊断" name="execution">
+          <ExecutionProgress :key="task.id" :task-id="task.id" :current-round-id="task.currentRoundId" :rounds="data.rounds" :active="visible" />
+        </ElCollapseItem></ElCollapse>
         <ElCollapse class="hx-gap"><ElCollapseItem :title="`执行与修改记录（${data.rounds.length}）`"><ElEmpty v-if="!data.rounds.length" description="暂无轮次记录" :image-size="60" /><div v-for="round in data.rounds" :key="round.id" class="hx-log"><strong>{{ round.target === null ? '整套' : `第 ${round.target + 1} 张` }} · {{ round.state }}</strong><p v-if="round.baseVersion">基于 V{{ round.baseVersion }} 修改</p><p>{{ round.note || '首次生成' }}</p><ElImage v-if="round.annotation" :src="round.annotation.url" :alt="`问题截图：${round.annotation.name}`" :preview-src-list="[round.annotation.url]" fit="contain" preview-teleported style="width: 80px; height: 80px" /><small>{{ formatTime(round.createdAt) }} · {{ round.operatorId }}</small><p v-if="round.error">{{ round.error }}</p></div></ElCollapseItem></ElCollapse>
       </template>
     </div>
@@ -51,7 +55,7 @@ import { useUserStore } from '@/store/modules/user'
 import { useRevisionSession } from '../revision-session'
 import { archiveTask } from '@/api/archives'
 import { submitArchive } from '../archive-requests'
-import type { ResultVersion, RevisionInput } from '@/types/hengxin'
+import type { ResultVersion, RevisionInput, Task } from '@/types/hengxin'
 import { labels } from '../model'
 import { downloadSet } from '../download'
 import { useTaskDetail } from './use-task-detail'
@@ -61,14 +65,14 @@ import ImageUpload from './ImageUpload.vue'
 import TaskSources from './TaskSources.vue'
 import TaskTemplate from './TaskTemplate.vue'
 import ExecutionProgress from './ExecutionProgress.vue'
-const detailedFailure = ref(false)
 const router = useRouter()
 const archivedResult = ref<{ id: string; name: string }>()
 const open = defineModel<boolean>({ default: false })
 const props = defineProps<{ taskId: string; active?: boolean }>()
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: [update?: { taskId: string; state: Task['state']; progress: number | null; currentRoundId: string }] }>()
 const visible = computed(() => open.value && props.active !== false)
 const { data, task, complete, loading, error, load } = useTaskDetail(toRef(props, 'taskId'), visible)
+const currentPictures = computed(() => data.value?.slots.flatMap(slot => slot.versions.filter(v => v.id === slot.currentVersionId)) ?? [])
 const user = useUserStore()
 const identity = () => user.isLogin && user.info.userId != null ? String(user.info.userId) : undefined
 const revision = useRevisionSession(identity, () => props.taskId, async (input, key) => {
@@ -104,8 +108,11 @@ async function revise(input?: RevisionInput) {
   try {
     const accepted = await (input ? revision.submit(input) : revision.resolvePrevious())
     if (!alive || props.taskId !== id || identity() !== owner) return
-    if (task.value?.id === id) { task.value.state = accepted.state; task.value.progress = null; task.value.currentRoundId = accepted.roundId }
-    feedbackOpen.value = false; ElMessage.success('修改请求已受理，正在排队'); emit('changed')
+    if (task.value?.id === id) {
+      task.value.state = accepted.state; task.value.progress = null; task.value.currentRoundId = accepted.roundId
+    }
+    feedbackOpen.value = false; ElMessage.success('修改请求已受理，正在排队')
+    emit('changed', task.value?.id === id ? { taskId: id, state: task.value.state, progress: task.value.progress, currentRoundId: task.value.currentRoundId } : undefined)
     await load(true)
   } catch { /* 提交错误保留在原身份、原任务；详情错误由 load 单独显示。 */ }
 }
@@ -142,6 +149,9 @@ async function download() {
 </script>
 <style scoped>
 .revision-fields { max-height: 66vh; overflow-y: auto; padding-right: 8px; }
+.hx-detail-loading { padding: 8px 0 24px; }
+.hx-detail-loading strong, .hx-detail-loading span { display:block; }
+.hx-detail-loading span { margin:6px 0 18px; color:var(--art-gray-600); font-size:12px; }
 .revision-base { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .revision-base .el-image { width: 72px; height: 72px; flex-shrink: 0; }
 .revision-fields label { display: block; margin: 12px 0 8px; }
