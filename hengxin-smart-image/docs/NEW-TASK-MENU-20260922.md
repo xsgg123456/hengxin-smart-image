@@ -15,4 +15,8 @@
 
 ## 发布
 
-独立审查及实际发布结果完成后补录。
+- 两阶段审查通过，候选 `d76d3b64ce52c3cecfcc573ce84c66f373361e585e913b50587e074d19c4ea0d`；报告见 [菜单修复审查](../../docs/reviews/NEW-TASK-MENU-20260922.md)。
+- 源码提交 `b086a49`；发布 `ui-20260922-b086a49`，仅前端更新。包399文件、4,464,250字节，SHA256 `155b2a4be4a09f93ab4a1db5cbea84c863f845819c908409be4901c410980d7d`。
+- 服务器部署退出0，日志 `DEPLOY_COMPLETE`，399文件全部校验匹配；备份 `/opt/hengxin-backups/ui-20260922-b086a49/frontend-before.tar.gz`，日志 `/opt/hengxin-releases/ui-20260922-b086a49/deploy.log`。
+- 公网首页与构建SHA256一致：`ae06034e28ccdc79748b04f3e020d7a1cc6e2c737ceee88e43dbad733d99bd99`。健康检查全部up，真实登录页正常，无脚本或资源错误，查询参数不能开启Demo或管理员身份。
+- 菜单业务交互通过本机隔离Demo验证；线上未自动登录或发起收费任务。回滚方式沿用 [前端发布回滚](UI-RELEASE-20260922.md#前端回滚)，使用本轮备份恢复上一前端版本，保留后端与业务数据。

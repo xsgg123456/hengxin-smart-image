@@ -1,5 +1,7 @@
 # hengxin-smart-image
 
+最新前端热修：`ui-20260922-b086a49`，图片处理菜单每次进入新任务表单，历史任务统一在任务中心查看。验证及回滚见 [菜单修复发布记录](hengxin-smart-image/docs/NEW-TASK-MENU-20260922.md)。下方UI整批发布仍为此次热修的基础版本。
+
 本仓库用于开发前海恒鑫「恒鑫智图」。截至 2026-09-21，最近已验证的 VPS 业务发布为 `light-skills-20260921-f02b1e0`，迁移 `0014`，见 [发布记录](hengxin-smart-image/docs/LIGHT-SKILLS-DEPLOYMENT.md)。2026-09-22 前端 UI 已部署为 `ui-20260922-c837abf`，见 [UI 发布记录](hengxin-smart-image/docs/UI-RELEASE-20260922.md)；后端与数据库保持该基线。Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及钉钉容器免登修复已部署，真实双端业务验收未完成；13.1–13.3 管理统计/监控/配置已部署，真实角色联调待验收；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。 接手先读 [开发交接](hengxin-smart-image/docs/HANDOVER.md)，进度以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
 
 正式前端位于 `hengxin-smart-image/frontend/`，使用 Node.js 24.18.1、pnpm 10.33.4。进入该目录执行 `pnpm install --frozen-lockfile` 后，`pnpm dev` 启动独立内存 mock，刷新重置；`pnpm dev:api` 连接真实后端。预览地址为 [http://127.0.0.1:3008](http://127.0.0.1:3008)。后端已接入开发身份、文件存储、模板与 Skill、任务执行、返工及下载归档；真实 AI 需要专用 Linux Worker。钉钉授权、用户管理、调用统计、执行监控和系统配置已接入开发测试环境；真实双端登录、真实角色联调和生产验收未完成，前端预览不代表真实验收。
