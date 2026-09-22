@@ -25,4 +25,15 @@
 
 ## 发布状态
 
-待审查、提交和发布；此条不表示已经上线。
+- 功能提交 `c837abf9babc8f86aa54921a733435df3c716263`；发布 `ui-20260922-c837abf`，前端0.1.0。
+- 两阶段审查通过并登记候选 `dee68f6e5d7755c4d1e28434647c289e37e18d1398c1dedf9e1384ad8dd1428c`，见 [完整审查](../../docs/reviews/UI-RELEASE-20260922.md)。
+- 发布包399文件、4,463,294字节，SHA256 `cf29c3f3ea7b472e3afe3aac65edf84b322d628fa30bd94636893f1592b4beef`。
+- 部署日志 `/opt/hengxin-releases/ui-20260922-c837abf/deploy.log` 记录 `DEPLOY_COMPLETE`；随后独立核对服务器399文件全部匹配。前端发布清单位于应用目录 `FRONTEND_RELEASE.json`，后端原 `RELEASE.json` 保持不变。
+- 备份 `/opt/hengxin-backups/ui-20260922-c837abf/frontend-before.tar.gz`。已打开页面所需旧哈希资源保留，数据库及生图Worker未重启或改动。
+- 公网首页与本地构建SHA256均为 `9261e24319fe1bf0f287adabf6bee45d0265a2e59d0819c5644c09954877e955`；公开健康检查PG/Redis/MinIO全部up，匿名auth/me返回401。
+- 隔离浏览器访问真实HTTPS站点，登录页正常渲染，无脚本异常或资源错误；带`role=super_admin&scenario=default`仍要求真实登录，无Demo控制。未以此声称登录后真实生图闭环通过。
+- 当前内置浏览器读取线上标签超时，未取得本次登录后页面验收证据。完整业务交互证据来自本机隔离Demo，真实账号下的视觉验收仍需用户检查；没有绕过认证或创建付费生图任务。
+
+## 前端回滚
+
+备份仅包含本轮前端，不包含数据库。将备份中的旧资源恢复到既有 `frontend/dist`，保留新旧哈希文件，最后原子替换旧 `index.html`（如存在`index.html.gz`同步恢复）；有旧前端manifest时一并恢复。不要重命名宿主机bind mount根目录，不操作数据库或Worker。恢复后验证公网首页哈希和API健康。本轮完成了备份与回滚脚本静态核对，未做线上故障注入演练。

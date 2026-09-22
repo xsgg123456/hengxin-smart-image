@@ -33,5 +33,6 @@
 - `pnpm typecheck`；`pnpm test`（包含快照恢复测试；测试数量及结果以本轮验证记录为准，早期106项不是当前总数）。
 - `tests/framework-demo.browser.mjs`：完整UI闭环、所有页面、两种桌面宽度、图片加载与截图、真实API请求检查。
 - `tests/framework-demo-faults.browser.mjs`：慢图、坏图重试、多标签页、写入失败与重置。
-- 浏览器脚本使用独立 context，不接触用户浏览器数据；通过 `PLAYWRIGHT_MODULE` 指向可用 Playwright 模块URL、`DEMO_URL`指定演示服务、`CDP_URL`指定本机浏览器连接。
-- 验证证据及逐页截图在 `output/framework-demo-2026-09-21/`；最终审核报告以该目录的 review.md 为准。
+- 浏览器脚本使用独立 context，不接触用户浏览器数据；通过 `PLAYWRIGHT_MODULE` 指向可用 Playwright 模块URL、`DEMO_URL`指定演示服务。默认启动独立无头浏览器，可用`BROWSER_EXECUTABLE`指定安装路径，或显式`CDP_URL`连接测试浏览器。
+- `tests/compact-upload.browser.mjs` 验证紧凑上传、拖入、预览、移除和多图折叠。
+- 原始日志及逐页截图在被忽略的 `output/`；可随仓库交接的最终证据见 [审查报告](reviews/UI-RELEASE-20260922.md) 和 [正式发布记录](../hengxin-smart-image/docs/UI-RELEASE-20260922.md)。
