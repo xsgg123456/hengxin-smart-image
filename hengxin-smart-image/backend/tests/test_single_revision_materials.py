@@ -1,4 +1,5 @@
 import hashlib
+import pytest
 from uuid import UUID
 
 from app.execution.fixture_runner import run_generation
@@ -55,10 +56,31 @@ def test_fourth_slot_uses_historical_unmarked_base_and_current_annotation(task_e
     assert (work / 'current/00.png').read_bytes() != task_env[0].get(latest['url']).content
     assert (work / 'annotation/reference.png').read_bytes() == task_env[0].get(annotation['url']).content
     prompt = prompt_for(manifest, '只改圈内镜头', 'original-session')
-    assert '第 4 张底图的本轮基础版本 V1' in prompt and '第 1 张底图' not in prompt
-    assert '只修改并交付上述目标 1 张' in prompt and '4 张输入/交付要求' in prompt
-    assert '不得复制到成品' in prompt and '不猜测修改区域' in prompt
+    assert '/work/current/00.png' in prompt and '只交付修改后的这 1 张图片' in prompt
+    assert 'Skill' not in prompt and '使用 $' not in prompt and '底图' not in prompt
+    assert '标注内容不要出现在成品中' in prompt
     assert '/work/annotation/reference.png' in prompt and '只改圈内镜头' in prompt
+    assert 'skillPath' not in manifest and 'path' not in target
+    assert not list((work / 'targets').iterdir()) and not (work / 'skills').exists()
+
+
+def test_text_single_revision_does_not_read_any_original_images(task_env, tmp_path, monkeypatch):
+    from app.modules.tasks.models import TaskSource
+    data = body(task_env, 'text')
+    data['sources'].append(upload(task_env[0]).json())
+    receipt = frozen_request(task_env, data)
+    run_generation(job_for(task_env[1], receipt), task_env[1], task_env[2])
+    accepted = revise(task_env, receipt, target=1).json()
+    with task_env[1]() as session:
+        sources = session.scalars(select(TaskSource).where(TaskSource.task_id == UUID(receipt['taskId'])))
+        for source in sources:
+            file = session.get(FileRecord, source.file_id)
+            task_env[2].objects[file.object_key] = b'broken original'
+    manifest, work = prepared(task_env, accepted, tmp_path, monkeypatch)
+    assert manifest['inputs'] == []
+    assert manifest['targets'][0]['currentPath'] == '/work/current/00.png'
+    assert not list((work / 'inputs').iterdir()) and not list((work / 'targets').iterdir())
+    assert 'skillPath' not in manifest
 
 
 def test_explicit_empty_base_stays_empty_and_legacy_round_uses_current(task_env, tmp_path, monkeypatch):
@@ -79,3 +101,35 @@ def test_explicit_empty_base_stays_empty_and_legacy_round_uses_current(task_env,
     legacy.mkdir()
     manifest, _ = prepared(task_env, receipt, legacy, monkeypatch)
     assert manifest['targets'][0]['currentVersion'] == 1
+
+
+@pytest.mark.parametrize('source_type', ['zip', 'local'])
+def test_finished_revision_does_not_read_original_template_or_skill(task_env, tmp_path, monkeypatch, source_type):
+    from app.modules.skills.models import SkillVersionRecord
+    monkeypatch.setattr(ObjectStream, 'read', lambda self, size: self.data[:size], raising=False)
+    data = body(task_env, 'wallpaper')
+    data['sources'] = [upload(task_env[0]).json()]
+    receipt = frozen_request(task_env, data)
+    run_generation(job_for(task_env[1], receipt), task_env[1], task_env[2])
+    accepted = revise(task_env, receipt, target=0).json()
+    with task_env[1].begin() as session:
+        task = session.get(TaskRecord, UUID(receipt['taskId']))
+        original = session.get(FileRecord, UUID(task.template_snapshot['images'][0]['fileId']))
+        task_env[2].objects[original.object_key] = b'broken template'
+        skill = session.get(SkillVersionRecord, task.skill_version_id)
+        task_env[2].objects[skill.object_key] = b'broken skill'
+        skill.source_type = source_type
+    def unavailable(*args):
+        raise AssertionError('single revision must not validate Skill')
+    monkeypatch.setattr('app.worker.skill_check.validate_local', unavailable)
+    work = tmp_path / 'single'
+    work.mkdir()
+    workspace = Workspace(tmp_path / 'home', work, tmp_path / 'control')
+    with task_env[1]() as session:
+        manifest = prepare_materials(session, task_env[2],
+            session.get(TaskRecord, UUID(receipt['taskId'])),
+            session.get(RoundRecord, UUID(accepted['roundId'])), workspace)
+    assert workspace.use_skill is False
+    assert 'skillPath' not in manifest and 'path' not in manifest['targets'][0]
+    assert (work / 'current/00.png').exists() and (work / 'inputs/00.png').exists()
+    assert not list((work / 'targets').iterdir()) and not (work / 'skills').exists()

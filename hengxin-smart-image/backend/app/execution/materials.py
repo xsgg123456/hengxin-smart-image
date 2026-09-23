@@ -35,11 +35,21 @@ def prepare_materials(session, store, task, round, workspace):
     template = task.template_snapshot
     targets = template['images'] if template else [{'fileId': str(s.file_id)} for s in sources]
     selected = list(range(len(targets))) if round.target is None else [round.target]
-    for category, items in [('inputs', [{'fileId': str(s.file_id)} for s in sources]),
+    single_base = None
+    if round.target is not None:
+        slot = session.scalar(select(ResultSlotRecord).where(
+            ResultSlotRecord.task_id == task.id, ResultSlotRecord.slot == round.target))
+        single_base = (round.base_version_id if round.execution_config.get('singleInputFrozen')
+                       else slot.current_version_id if slot else None)
+    inputs = [] if single_base and task.mode == 'text' else [{'fileId': str(s.file_id)} for s in sources]
+    for category, items in [('inputs', inputs),
                             ('targets', [targets[i] for i in selected])]:
         directory = workspace.work / category
         directory.mkdir()
         for index, item in enumerate(items):
+            if category == 'targets' and single_base:
+                manifest['targets'].append({'slot': index})
+                continue
             file = session.get(FileRecord, UUID(item['fileId']))
             if not file or file.status != 'ready' or file.deleted_at:
                 raise ValueError('冻结图片不可用')
@@ -82,6 +92,9 @@ def prepare_materials(session, store, task, round, workspace):
         name = 'reference' + {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[file.content_type]
         (directory / name).write_bytes(read_object(store, file, 10 * 1024 * 1024))
         manifest['annotationPath'] = '/work/annotation/' + name
+    if single_base:
+        workspace.use_skill = False
+        return manifest
     version = session.get(SkillVersionRecord, task.skill_version_id)
     if not version or version.version != task.skill_snapshot['version'] or version.skill.mode != task.mode:
         raise ValueError('Skill 与任务冻结版本不一致')

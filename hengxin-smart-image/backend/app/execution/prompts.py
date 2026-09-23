@@ -3,8 +3,26 @@ import json
 from pathlib import PurePosixPath
 
 
+def single_revision_prompt(manifest, note):
+    target = manifest['targets'][0]
+    lines = ['请修改这张成品图片：', f"- {target['currentPath']}"]
+    if manifest['mode'] != 'text':
+        role = '手机屏幕参考素材' if manifest['mode'] == 'wallpaper' else '商品参考素材'
+        lines += ['', f'{role}：']
+        lines.extend(f"- {item['path']}" for item in manifest['inputs'])
+    if manifest.get('annotationPath'):
+        lines += ['', '问题位置参考图：', f"- {manifest['annotationPath']}",
+                  '该图仅用于定位问题，标注内容不要出现在成品中。']
+    if note.strip():
+        lines += ['', '修改意见：', json.dumps(note, ensure_ascii=False)]
+    lines += ['', '请在上述成品图片上完成修改，其他内容保持不变，只交付修改后的这 1 张图片。']
+    return '\n'.join(lines)
+
+
 def prompt_for(manifest, note, session_id=None):
     inputs, targets = manifest['inputs'], manifest['targets']
+    if manifest.get('singleRevision') and len(targets) == 1 and targets[0].get('currentPath'):
+        return single_revision_prompt(manifest, note)
     mode = manifest['mode']
     name = PurePosixPath(manifest['skillPath']).parent.name
     lines = [f'使用 ${name}。', '请读取服务器目录 /work/：', '']
@@ -26,7 +44,9 @@ def prompt_for(manifest, note, session_id=None):
     lines.append('')
     if mode == 'wallpaper':
         reference = '这张' if len(inputs) == 1 else '这些'
-        lines.append(f'把{reference}手机屏幕素材替换掉图片的壁纸与镜头，其他一律不允许有任何改变。')
+        camera_scope = ('镜头指屏内前置镜头或开孔位置，'
+                        if name in {'jd-detail-screen-swap', 'jd-detail-screen-swap-790x1500'} else '')
+        lines.append(f'把{reference}手机屏幕素材替换掉图片的壁纸与镜头，{camera_scope}其他一律不允许有任何改变。')
     elif mode == 'product':
         lines.append('按技能规则使用商品素材替换底图中的商品，其他内容保持不变。')
     else:

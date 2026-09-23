@@ -1,6 +1,7 @@
 """Real CLI orchestration. All publication remains behind the Phase8 fence."""
 import json
 import subprocess
+import time
 from pathlib import Path
 from uuid import UUID, uuid4
 from sqlalchemy import select
@@ -22,6 +23,8 @@ from .observation import Observer
 from .diagnostics import failure_for, cli_failure_code
 from .materials import prepare_materials, SkillDeploymentError
 from .process import execute
+from .intervention import (PROMPT as INTERVENTION_PROMPT, initial_set, can_continue,
+                           prepare_continuation, invocation_summary)
 from .workspace import prepare_workspace, sandbox_command, prompt_for
 
 
@@ -99,6 +102,7 @@ def run_generation(job_id, factory=None, store=None):
                     operator_id=round.operator_id, claim_token=token, node=settings.worker_node_name,
                     workspace=str(workspace.control), cli_version=settings.codex_version))
                 note, timeout = round.note, round.execution_config['timeoutSeconds']
+                allow_intervention = initial_set(session, task, round) and not previous
                 session.expunge(task)
                 session.expunge(round)
             observer = Observer(factory, job_id, token, attempt_id, workspace, 0)
@@ -129,43 +133,63 @@ def run_generation(job_id, factory=None, store=None):
                         observed[0] = initial.session_id
                 observer.tick(observed[0])
                 return should_stop(factory, job_id, token)
-            args = ['exec', '--sandbox', 'workspace-write']
-            if previous:
-                args += ['resume', '--skip-git-repo-check', '--json', previous]
-            else:
-                args += ['--skip-git-repo-check', '--json']
-            args += ['--model', 'gpt-6-astra', '-c', 'model_reasoning_effort="high"', '-']
-            command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
-            stage = 'starting'
-            observer.phase(stage)
             def started(pid, boot, birth):
                 register_process(factory, attempt_id, pid, boot, birth)
                 observer.phase('generating')
-            spawning = True
-            stage = 'generating'
-            receipt = execute(command,
-                prompt_for(manifest, note, previous), workspace.control, timeout,
-                monitor,
-                started)
-            completed = True
-            summary = parse_events(workspace.control / 'events.jsonl', previous)
-            observer.tick(summary.session_id, force=True)
-            record_completion(factory, attempt_id, summary, receipt)
-            if receipt['reason'] or summary.error or not summary.turn_completed or receipt['exit_code']:
-                code = receipt['reason'] or summary.error or 'cli_error'
-                if not receipt['reason']:
-                    code = cli_failure_code(workspace.control / 'stderr.log', code)
+
+            deadline = time.monotonic() + timeout
+            prompt = prompt_for(manifest, note, previous)
+            for invocation in range(2):
+                if should_stop(factory, job_id, token):
+                    fail_stopped(factory, job_id, token, '执行权已失效')
+                    return
+                args = ['exec', '--sandbox', 'workspace-write']
+                if previous:
+                    args += ['resume', '--skip-git-repo-check', '--json', previous]
+                else:
+                    args += ['--skip-git-repo-check', '--json']
+                args += ['--model', 'gpt-6-astra', '-c', 'model_reasoning_effort="high"', '-']
+                command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
+                stage = 'starting'
+                observer.phase(stage)
+                remaining = timeout if invocation == 0 else int(deadline - time.monotonic())
+                if remaining < 1:
+                    raise OutputCollectionError('timeout')
+                completed, spawning, stage = False, True, 'generating'
+                receipt = execute(command, prompt, workspace.control, remaining, monitor, started)
+                completed = True
+                summary = invocation_summary(workspace.control, previous)
+                observer.tick(summary.session_id, force=True)
+                record_completion(factory, attempt_id, summary, receipt)
+                code = None
+                if receipt['reason'] or summary.error or not summary.turn_completed or receipt['exit_code']:
+                    code = receipt['reason'] or summary.error or 'cli_error'
+                    if not receipt['reason']:
+                        code = cli_failure_code(workspace.control / 'stderr.log', code)
+                if should_stop(factory, job_id, token):
+                    fail_stopped(factory, job_id, token, '执行权已失效')
+                    return
+                if code is None:
+                    stage = 'validating'
+                    observer.phase(stage)
+                    try:
+                        images = collect_final_outputs(workspace.work, home, workspace.control / 'events.jsonl',
+                            summary.session_id, baseline, len(manifest['targets']))
+                    except OutputCollectionError as error:
+                        code = str(error)
+                    else:
+                        break
+                if (invocation == 0 and allow_intervention
+                        and can_continue(summary, receipt, workspace.control, home, deadline - time.monotonic())
+                        and prepare_continuation(factory, job_id, token, attempt_id, workspace, observer, summary, code)):
+                    previous, observed[0] = summary.session_id, summary.session_id
+                    prompt = INTERVENTION_PROMPT
+                    completed, spawning = False, False
+                    continue
                 failure = failure_for(code, stage)
                 observer.phase('failed', failure)
                 fail_stopped(factory, job_id, token, failure['message'])
                 return
-            if should_stop(factory, job_id, token):
-                fail_stopped(factory, job_id, token, '执行权已失效')
-                return
-            stage = 'validating'
-            observer.phase(stage)
-            images = collect_final_outputs(workspace.work, home, workspace.control / 'events.jsonl',
-                summary.session_id, baseline, len(manifest['targets']))
             stage = 'storing'
             observer.phase(stage)
             outputs = []

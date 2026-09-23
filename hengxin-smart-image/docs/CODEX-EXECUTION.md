@@ -4,6 +4,8 @@ Phase 9 已验收；当前整体进度以 [DEV-PLAN.md](../../DEV-PLAN.md) 为�
 
 ## 配置
 
+2026-09-23生产升级目标为0.156.1，生产必须显式配置 `CODEX_VERSION=0.156.1` 与 `CODEX_BINARY=/opt/hengxin-runtime/codex-0.156.1/codex`，且二者一致。本地旧环境保留0.153.4缺省；以下0.153.4描述属于原验收部署。当前升级状态及验证见 [升级记录](CODEX-UPGRADE-20260923.md)。
+
 Worker环境配置 ENABLE_CODEX_EXECUTOR=true、ENABLE_FIXTURE_EXECUTOR=false；CODEX_BINARY 指向已核实0.153.4可执行文件，CODEX_AUTH_FILE指向专用身份认证文件，CODEX_EXECUTION_ROOT为专用可写目录。不要把认证复制到仓库或前端。CODEX_BWRAP_BINARY默认/opt/hengxin-runtime/bwrap，必须为受信、root拥有的辅助程序。
 
 CODEX_TIMEOUT_SECONDS=3600、QUEUE_VISIBILITY_SECONDS=4200、GENERATION_CONCURRENCY=1；失败自动重跑0。节点名 WORKER_NODE_NAME 必须唯一标识执行主机，不可在不同服务器复用；恢复过程只处理该节点记录。
@@ -19,6 +21,12 @@ CODEX_TIMEOUT_SECONDS=3600、QUEUE_VISIBILITY_SECONDS=4200、GENERATION_CONCURRE
 原生候选仍位于任务home/.codex/generated_images/<sessionId>/，保存启动前基线供进度统计及拒绝历史文件引用。最终成品可来自本轮work（输入/当前图/Skill目录不可作为成品来源），也可来自本会话本轮新增原生图片；额外候选不造成收图失败。缺图、不明确或损坏时明确失败，不扫描目录猜图。升级前没有 delivery.json 的执行，仅在异常恢复时保留旧 manifest/原生来源协议；新任务和后续返工一律走新协议。该说明为新实现，是否上线以独立发布记录为准。
 
 进程退出后不会销毁会话。续接只接受已绑定ID，材料缺失则失败。失联/过期不重跑；本机核实精确进程身份已消失后轮换认领凭证，恢复收集完整且来源可信的本轮结果。明确失败则结束，证据不足继续待核实并保留材料；取消不发布图片，旧凭证始终不能发布。
+
+## 2026-09-23 首轮整套自动干预（已部署）
+
+上文“失败自动重跑0”仍指队列重投和失联恢复不得重新执行。新实现增加明确受控的例外：首次壁纸/商品模板整套任务进程已停止，执行或最终交付失败时，允许同一业务轮次内续接原session一次，共用原总超时。单张、人工返工/重试不触发；认证/额度、取消、会话不明等阻塞保留。
+
+续接复用原home/work和轮次初始baseline，已生成候选可以在最终回复中经复核交付；不会扫描目录猜测成品。第一次control目录保留，第二次使用同级 `<roundId>-intervention-1`；数据库仍是一条逻辑ExecutionAttempt，切换前写次数、清旧进程身份、更新控制目录。用量由第二次intervention.json中的首调用量与本次用量汇总，恢复器使用同一规则，不能重放CLI。详细验证见 [自动干预记录](CLI-INTERVENTION-20260923.md)，部署证据见 [发布记录](CLI-RELEASE-20260923.md)。
 
 ## Ubuntu 24.04 专用许可
 

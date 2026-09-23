@@ -16,7 +16,7 @@ from app.resource_models import UserRecord
 from app.storage.minio_store import get_store
 from app.worker.leases import heartbeat
 from app.execution.process import same_process
-from app.execution.events import parse_events
+from app.execution.intervention import invocation_summary
 from app.execution.output_collector import collect_outputs, OutputCollectionError
 from app.execution.final_delivery import collect_final_outputs
 from app.execution.diagnostics import failure_for
@@ -119,7 +119,7 @@ def reconcile_once(factory, store=None):
         summary, failed, final_delivery, failure = None, False, False, None
         try:
             with heartbeat(factory, job_id, token):
-                summary = parse_events(control / 'events.jsonl', previous)
+                summary = invocation_summary(control, previous)
                 receipt = json.loads((control / 'exit.json').read_text()) if (control / 'exit.json').is_file() else {}
                 failed = (isinstance(receipt, dict) and
                     ((type(receipt.get('exit_code')) is int and receipt['exit_code'] != 0) or

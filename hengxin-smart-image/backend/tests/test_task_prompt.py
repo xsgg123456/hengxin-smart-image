@@ -32,6 +32,31 @@ def test_other_modes_do_not_receive_phone_instructions(mode):
     assert '自定义修改要求' in prompt
 
 
+@pytest.mark.parametrize('name,is_detail', [
+    ('jd-detail-screen-swap', True),
+    ('jd-detail-screen-swap-790x1500', True),
+    ('jd-main-image-wallpaper-camera-swap', False),
+    ('jd-main-image-wallpaper-camera-swap-it-optimized', False),
+    ('jd-detail-screen-swap-other', False),
+])
+@pytest.mark.parametrize('rework', [False, True])
+@pytest.mark.parametrize('input_count', [1, 2])
+def test_camera_scope_is_only_added_for_exact_detail_skills(name, is_detail, rework, input_count):
+    data = materials(count=1 if rework else 4)
+    data['skillPath'] = f'/work/skills/{name}/SKILL.md'
+    if input_count == 2:
+        data['inputs'].append({'slot': 1, 'path': '/work/inputs/01.webp'})
+    if rework:
+        data['targets'][0].update(currentPath='/work/current/00.webp', currentVersion=2)
+    prompt = prompt_for(data, '', 'existing-session' if rework else None)
+    reference = '这张' if input_count == 1 else '这些'
+    scope = '镜头指屏内前置镜头或开孔位置，' if is_detail else ''
+    expected = f'把{reference}手机屏幕素材替换掉图片的壁纸与镜头，{scope}其他一律不允许有任何改变。'
+    assert expected in prompt.splitlines()
+    assert ('镜头指屏内前置镜头或开孔位置' in prompt) == is_detail
+    assert ('本次为返工' in prompt) == rework
+
+
 def test_rework_keeps_current_image_original_target_and_local_slot_zero():
     data = materials(count=1)
     data['targets'][0].update(taskSlot=3, currentPath='/work/current/00.webp', currentVersion=2)

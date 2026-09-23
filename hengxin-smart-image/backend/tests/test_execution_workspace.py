@@ -42,6 +42,26 @@ def test_windows_refuses_to_claim_linux_isolation(tmp_path, monkeypatch):
         sandbox_command(None, str(tmp_path / 'codex'), [])
 
 
+def test_single_revision_hides_prior_skill_discovery_without_mounting_skill(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from app.execution import workspace
+    monkeypatch.setattr(workspace, 'os', SimpleNamespace(name='posix', environ={}))
+    binary, helper, bwrap = (tmp_path / name for name in ('codex', 'codex-code-mode-host', 'bwrap'))
+    for file in (binary, helper, bwrap):
+        file.write_text('test executable')
+    home, work = tmp_path / 'home', tmp_path / 'work'
+    old_skill = home / '.agents/skills/old'
+    old_skill.mkdir(parents=True)
+    (old_skill / 'SKILL.md').write_text('old skill')
+    ws = workspace.Workspace(home, work, tmp_path / 'control', local_skill=old_skill, use_skill=False)
+    args = sandbox_command(ws, str(binary), ['exec', 'resume', 'original-session'], str(bwrap))
+    index = args.index('/home/runner/.agents')
+    assert args[index - 1] == '--tmpfs'
+    assert str(old_skill) not in args and ws.skill_path not in args
+    assert args[-3:] == ['exec', 'resume', 'original-session']
+    assert (old_skill / 'SKILL.md').exists()  # Hiding is per invocation, never a host deletion.
+
+
 @pytest.mark.skipif(os.name != 'posix', reason='Requires POSIX symlinks; execute on Linux worker')
 def test_persistent_codex_home_symlink_cannot_write_outside_task(tmp_path):
     auth = tmp_path / 'auth.json'

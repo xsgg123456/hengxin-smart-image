@@ -22,7 +22,8 @@ class ExecutionAttempt(Base):
         "status IN ('starting','running','finished','uncertain')",
         name='ck_execution_attempt_status'),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    # No automatic retries: a redelivered round cannot create another invocation.
+    # One logical attempt per round; bounded internal continuation keeps separate logs.
+    # Redelivery and recovery never create another invocation.
     round_id: Mapped[UUID] = mapped_column(ForeignKey('execution_rounds.id'), unique=True)
     task_id: Mapped[UUID] = mapped_column(ForeignKey('task_records.id'), index=True)
     operator_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
