@@ -41,6 +41,11 @@ for name in names:
     assert source.name not in {'.env', 'auth.json', 'credentials.json'}, name
     if source.suffix.lower() in {'.py', '.sh', '.js', '.json', '.html', '.css', '.yaml', '.toml', '.ini'}:
         content = source.read_text(encoding='utf-8')
+        # Public Codex runtime convention, not a developer's home directory.
+        if name == 'backend/app/execution/final_delivery.py':
+            content = content.replace("PurePosixPath('/home/runner/.codex/generated_images')", 'PUBLIC_RUNTIME_PATH')
+        if name == 'backend/app/execution/workspace.py':
+            content = content.replace("'--setenv', 'CODEX_HOME', '/home/runner/.codex'", 'PUBLIC_RUNTIME_ENV')
         assert not re.search(r'sk-(?:proj|ant)-[A-Za-z0-9_-]{16,}|-----BEGIN .*PRIVATE KEY|[A-Z]:[/\\]Users[/\\]|/Users/|/home/[^/\s]+/\.codex', content), name
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, target)
