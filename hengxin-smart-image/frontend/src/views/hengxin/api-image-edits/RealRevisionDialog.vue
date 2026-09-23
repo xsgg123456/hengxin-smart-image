@@ -6,12 +6,12 @@
         <ElForm label-position="top">
           <ElFormItem label="修改说明"><ElInput v-model="text" aria-label="修改说明" type="textarea" :rows="6" maxlength="4000" show-word-limit placeholder="写下需要调整的地方，也可以只上传标注图。" :disabled="locked" /></ElFormItem>
           <ElFormItem label="标注图（可选，最多 1 张）">
-            <div class="annotation-control">
-              <input ref="picker" class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" aria-label="上传修改标注图" @change="readAnnotation" />
+            <UploadInteraction class="annotation-control" :disabled="!open || locked || blocked || reading" @files="receiveAnnotation" @error="localError = $event">
+              <input ref="picker" class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" aria-label="上传修改标注图" :disabled="!open || locked || blocked || reading" @change="readAnnotation" />
               <div v-if="annotation" class="annotation-preview"><PicturePreview :picture="annotation" title="修改标注图" /><ElButton text type="danger" :disabled="locked || reading" @click="removeAnnotation">移除标注图</ElButton></div>
-              <ElButton v-else :loading="reading" :disabled="locked" @click="picker?.click()">选择 JPG / PNG 标注图</ElButton>
+              <button v-else type="button" class="annotation-drop" :disabled="locked || blocked || reading" @click="picker?.click()"><strong>选择 JPG / PNG 标注图，或拖到这里</strong></button>
               <p class="hx-footnote">单张不超过 10 MiB。系统将自动附带对应原图和共用素材作为参考；标注图仅用于定位问题。</p>
-            </div>
+            </UploadInteraction>
           </ElFormItem>
         </ElForm>
         <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon />
@@ -26,6 +26,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useUserStore } from '@/store/modules/user'
 import { apiImages, errorText } from '@/api/api-image-edits'
 import type { ApiPicture, ApiTask } from '@/types/api-image-edits'
+import UploadInteraction from '../components/UploadInteraction.vue'
+import { singleImageError } from '../components/upload-interaction'
 import PicturePreview from '../components/PicturePreview.vue'
 import { itemCommand } from './item-command'
 const open = defineModel<boolean>({ required: true })
@@ -41,13 +43,16 @@ const text = ref(''), annotation = ref<ApiPicture>(), baseVersion = ref(0), loca
 const error = computed(() => localError.value || operation.value.state.error)
 const reading = ref(false), picker = ref<HTMLInputElement>()
 let alive = true
+let generation = 0
+watch([locked, () => props.blocked], () => { generation++ }, { flush: 'sync' })
 watch([open, () => props.itemId], () => {
+  generation++
   if (!open.value) { if (!pending.value) void removeAnnotation(); return }
   const command = pending.value?.command
   if (command?.kind === 'revise') { text.value = command.input.text; annotation.value = command.annotation; baseVersion.value = command.input.baseVersion }
   else { text.value = ''; baseVersion.value = item.value?.currentVersion || 0 }
   localError.value = ''
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
 async function removeAnnotation() {
   if (locked.value || !annotation.value) return
   const saved = annotation.value
@@ -57,11 +62,19 @@ async function removeAnnotation() {
   finally { reading.value = false }
 }
 async function readAnnotation(event: Event) {
-  const input = event.target as HTMLInputElement, file = input.files?.[0]; input.value = ''
-  if (!file || locked.value || reading.value) return
+  const input = event.target as HTMLInputElement, files = Array.from(input.files ?? []); input.value = ''
+  await receiveAnnotation(files)
+}
+async function receiveAnnotation(files: File[]) {
+  if (!alive || !open.value || locked.value || props.blocked || reading.value) return
+  const reason = singleImageError(files.length, !!annotation.value)
+  if (reason) { localError.value = reason; return }
+  const file = files[0]
+  if (!file) return
   localError.value = ''
   if (!['image/jpeg', 'image/png'].includes(file.type) || !/\.(jpe?g|png)$/i.test(file.name)) { localError.value = '请选择 JPG 或 PNG 图片'; return }
   if (!file.size || file.size > 10 * 1024 * 1024) { localError.value = '标注图不能为空或超过 10 MiB'; return }
+  const token = generation
   reading.value = true
   let url = ''
   try {
@@ -71,8 +84,9 @@ async function readAnnotation(event: Event) {
     if ((file.type === 'image/jpeg' && !jpeg) || (file.type === 'image/png' && !png)) throw new Error('图片内容与格式不符')
     url = URL.createObjectURL(file); const image = new Image(); image.src = url; await image.decode()
     if (!image.naturalWidth || !image.naturalHeight) throw new Error('图片无法解码')
+    if (!alive || token !== generation || !open.value || locked.value || props.blocked) return
     const saved = await apiImages.upload(file)
-    if (!alive || !open.value) await apiImages.deleteFile(saved.fileId)
+    if (!alive || token !== generation || !open.value || locked.value || props.blocked) await apiImages.deleteFile(saved.fileId)
     else annotation.value = saved
   } catch (e) { localError.value = errorText(e) }
   finally { if (url) URL.revokeObjectURL(url); reading.value = false }
@@ -95,6 +109,8 @@ h3 { margin:0 0 12px; font-size:15px; }
 .current-picture { height:370px; }
 .file-input { display:none; }
 .annotation-control { width:100%; }
+.annotation-drop { width:100%; min-height:88px; padding:16px; border:1px dashed var(--el-border-color); border-radius:6px; background:var(--el-fill-color-blank); color:var(--el-text-color-regular); cursor:pointer; }
+.annotation-drop:hover { border-color:var(--el-color-primary); }
 .annotation-preview { width:130px; }
 .annotation-preview .hx-picture { height:100px; }
 .hx-footnote { line-height:1.6; }

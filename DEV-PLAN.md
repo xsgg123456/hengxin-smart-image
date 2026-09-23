@@ -1,5 +1,14 @@
 # Development Plan — 恒鑫智图
 
+## 2026-09-23 · 原图查看与图片上传正式整改
+
+1. 接入API结果参照：RealTaskDetail/TaskDetail共用素材与原图对照，抽取共享展示组件；读取冻结输入，兼容缺失与图片失败。验收当前版本联动、历史缺失提示及原操作回归。
+2. 承接预览UploadInteraction和ImageUpload，接入RealImageSequence、RealRevisionDialog以及Demo对应入口，覆盖模板与三类CLI创建/问题截图。验收点击/拖拽/原生剪贴板、数量/格式/大小错误、禁用、排序、文字粘贴和焦点隔离；不新增上传接口。
+3. 承接TemplateEditor居中/内部滚动/固定头尾，保持表单加载与保存。验收新建/配置及1440×900、1280×720窗口。
+4. 完成前端全单测、类型检查、生产/Demo构建、隔离浏览器功能检查与独立两阶段审查。真实API页面使用拦截契约数据及模拟上传响应，不连接生产库、不发送付费生成；证据明确区分接口模拟与真实服务器验收。完成后等待用户确认部署。
+
+范围依据Product-Spec本日正式授权与已认可预览。关键文件均位于hengxin-smart-image/frontend/src/views/hengxin/，测试位于frontend/tests/及既有浏览器脚本目录。共享上传和结果参照可隔离并行，最终统一回归；既有已完成阶段保持。
+
 ## 2026-09-23 · API 单张修改多图参照
 
 本地实现及验证记录见 [API单张修改多图参照验证](docs/API-REVISION-MULTIREF-VALIDATION-20260923.md)。本轮未部署生产。

@@ -19,12 +19,14 @@
         <p class="hx-footnote">网络尝试 {{ task.metrics.requestCount }} 次 · 生成重试 {{ task.metrics.retryCount }} 次 · 总耗时 {{ seconds(task.metrics.elapsedSeconds) }} · 费用未提供</p>
       <p class="hx-footnote">排队 {{ seconds(task.metrics.queueSeconds) }} · 生成 {{ seconds(task.metrics.generationSeconds) }} · 收图重试不计入生成重试；返回尺寸以上游实际图片为准。</p>
       </ElCard>
+      <SharedMaterial :picture="task.material" />
       <div class="result-grid hx-gap">
         <ElCard v-for="item in task.items" :key="item.id" class="art-card" shadow="never">
           <div class="hx-row"><strong>原图 {{ item.position }}</strong><ElTag :type="item.state === 'succeeded' ? 'success' : ['failed', 'uncertain'].includes(item.state) ? 'danger' : item.state === 'retry_wait' ? 'warning' : 'info'" size="small">{{ itemLabels[item.state] }}</ElTag></div>
+          <ElButton text type="primary" @click="comparisonId = item.id; comparisonOpen = true">查看原图 / 对照成品</ElButton>
           <div class="result-picture hx-gap"><ApiResultPicture :item="item" :results="results" /></div>
           <p v-if="item.nextAttemptAt" class="hx-footnote">下次尝试：{{ friendlyTime(item.nextAttemptAt) }}</p><p v-if="item.error" class="item-error">{{ item.error }}</p>
-          <div class="result-footer"><span>{{ item.result ? `当前 V${item.currentVersion} · 点击放大` : item.source.name }}</span><ElButton v-if="item.result" text type="primary" :loading="downloading === item.result.fileId" :disabled="!!downloading" @click="download(item.result)">下载图片</ElButton></div>
+          <div class="result-footer"><span>{{ item.result ? `当前 V${item.currentVersion} · 点击放大` : item.source?.name || '原图未记录' }}</span><ElButton v-if="item.result" text type="primary" :loading="downloading === item.result.fileId" :disabled="!!downloading" @click="download(item.result)">下载图片</ElButton></div>
           <p v-if="item.revision" class="hx-footnote">修改：{{ itemLabels[item.revision.state] }} · {{ item.revision.operator }} · 基于 V{{ item.revision.baseVersion }}<span v-if="item.state !== 'succeeded'"> · 旧结果保留</span></p>
           <p v-if="item.retries" class="hx-footnote">已自动重试 {{ item.retries }} / 3 次</p>
           <div class="card-actions">
@@ -35,8 +37,9 @@
           <p v-if="command(item).state.error" class="item-error">{{ command(item).state.error }}</p>
         </ElCard>
       </div>
-      <ElCollapse class="hx-gap"><ElCollapseItem title="本次输入与提示词" name="input"><p class="prompt-text">{{ task.prompt }}</p><div class="input-grid"><div v-for="(picture, index) in inputs" :key="index"><PicturePreview :picture="picture" :pictures="inputs" :index="index" title="本次输入" /><p>{{ index === inputs.length - 1 ? '共用素材' : `原图 ${index + 1}` }}</p></div></div></ElCollapseItem><ElCollapseItem title="处理记录" name="events"><ElEmpty v-if="!task.events.length" description="暂无处理记录" :image-size="60" /><div v-for="(event, index) in task.events" :key="index" class="hx-log">{{ event }}</div></ElCollapseItem></ElCollapse>
+      <ElCollapse class="hx-gap"><ElCollapseItem title="本次输入与提示词" name="input"><p class="prompt-text">{{ task.prompt }}</p><div class="input-grid"><div v-for="(picture, index) in inputs" :key="index"><PicturePreview v-if="picture?.url" :picture="picture" title="本次输入" /><p v-else>图片未记录</p><p>{{ index === inputs.length - 1 ? '共用素材' : `原图 ${index + 1}` }}</p></div></div></ElCollapseItem><ElCollapseItem title="处理记录" name="events"><ElEmpty v-if="!task.events.length" description="暂无处理记录" :image-size="60" /><div v-for="(event, index) in task.events" :key="index" class="hx-log">{{ event }}</div></ElCollapseItem></ElCollapse>
     </div>
+    <SourceComparison v-if="comparison" v-model="comparisonOpen" :position="comparison.position" :source="comparison.source" :result="comparison.result" :version="comparison.currentVersion" />
     <RealRevisionDialog v-if="task && revisionId" v-model="revisionOpen" :task="task" :item-id="revisionId" :blocked="packing || busy" @accepted="emit('refresh')" />
     <RealVersionDialog v-if="task && versionId" v-model="versionOpen" :task="task" :item-id="versionId" :locked="packing || busy" @accepted="emit('refresh')" />
     <template #footer><ElButton @click="open = false">返回换图记录</ElButton></template>
@@ -47,6 +50,8 @@ import { computed, ref, watch } from 'vue'
 import { apiImages, errorText } from '@/api/api-image-edits'
 import { taskLabels, itemLabels, isTaskActive, type ApiPicture, type ApiTask, type ApiItem } from '@/types/api-image-edits'
 import PicturePreview from '../components/PicturePreview.vue'
+import SharedMaterial from './SharedMaterial.vue'
+import SourceComparison from './SourceComparison.vue'
 import ApiResultPicture from './ApiResultPicture.vue'
 import RealRevisionDialog from './RealRevisionDialog.vue'
 import RealVersionDialog from './RealVersionDialog.vue'
@@ -62,12 +67,14 @@ const progressText = computed(() => { const item = props.task?.items.find(i => [
 const seconds = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} 秒` : '未提供'
 const downloading = ref(''), downloadError = ref(''), packing = ref(false)
 const revisionId = ref(''), versionId = ref(''), revisionOpen = ref(false), versionOpen = ref(false)
+const comparisonId = ref(''), comparisonOpen = ref(false)
+const comparison = computed(() => props.task?.items.find(item => item.id === comparisonId.value))
 const user = String(useUserStore().getUserInfo.userId)
 const command = (item: ApiItem) => itemCommand(user, props.task!.id, item.id)
 const hasItemOperation = computed(() => props.task?.items.some(i => command(i).state.busy || command(i).state.pending) || false)
 const canZip = computed(() => !!props.task && !props.busy && !hasItemOperation.value && props.task.items.every(i => i.state === 'succeeded' && i.result))
-watch(() => props.task?.id, () => { revisionOpen.value = false; versionOpen.value = false; revisionId.value = ''; versionId.value = '' })
-watch(open, value => { if (!value) { revisionOpen.value = false; versionOpen.value = false } })
+watch(() => props.task?.id, () => { comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false; revisionId.value = ''; versionId.value = '' })
+watch(open, value => { if (!value) { comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false } })
 async function retryItem(item: ApiItem) {
   if (!props.task || packing.value || props.busy || (props.channelBlocked && !command(item).state.pending)) return
   const taskId = props.task.id

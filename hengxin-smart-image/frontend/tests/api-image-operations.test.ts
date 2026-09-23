@@ -52,6 +52,10 @@ test('严格验证版本DTO：拒绝当前指针错配/重复编号/缺操作人
       versions: [{ number: 1, picture, created: '2026-09-22', operator: '张三', text: '', annotation: null, baseVersion: null }],
       revision: { state: 'failed', text: '调整', annotation: null, operator: '李四', baseVersion: 1, retries: 3, error: '失败' } }], events: [], error: null, metrics: { requestCount: 4, retryCount: 3, elapsedSeconds: 10 } }
   assert.equal(validTask(value), true)
+  assert.equal(validTask({ ...value, material: null, items: [{ ...value.items[0], source: null }] }), true, '历史输入明确为空不阻断成品查看')
+  assert.equal(validTask({ ...value, material: {} }), false, '不能将损坏对象误当缺失图片')
+  assert.equal(validTask({ ...value, items: [{ ...value.items[0], source: undefined }] }), false)
+  assert.equal(validTask({ ...value, items: [{ ...value.items[0], versions: [{ ...value.items[0].versions[0], picture: null }] }] }), false, '成品版本仍严格校验')
   assert.equal(validTask({ ...value, operator: undefined }), false)
   assert.equal(validTask({ ...value, items: [{ ...value.items[0], currentVersion: 2 }] }), false)
   assert.equal(validTask({ ...value, items: [{ ...value.items[0], versions: [...value.items[0].versions, ...value.items[0].versions] }] }), false)

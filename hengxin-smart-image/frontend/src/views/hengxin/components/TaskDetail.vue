@@ -39,7 +39,7 @@
     <label for="revision-note">修改意见</label><ElInput id="revision-note" v-model="feedback" :disabled="submitting" type="textarea" :rows="6" :placeholder="target === null ? '例如：整套图片的屏幕亮度调高，其他内容保持不变' : '例如：请将截图红圈中的镜头向右调整，其余内容保持不变'" maxlength="1000" show-word-limit />
     <template v-if="target !== null">
       <p id="revision-annotation-label">问题截图（可选，{{ annotationMaxCount }} 张）</p>
-      <ImageUpload v-if="feedbackOpen && task" :key="`${identity()}-${task.id}-${revision.draftKey.value}`" v-model="annotations" :mode="task.mode" :disabled="submitting || revision.session.value.uncertain" :max-count="annotationMaxCount" sortable hide-examples :button-label="annotations.length ? '替换问题截图' : '上传问题截图'" aria-labelledby="revision-annotation-label" @blocked="annotationBlocked = $event" />
+      <ImageUpload v-if="feedbackOpen && task" :key="`${identity()}-${task.id}-${revision.draftKey.value}`" v-model="annotations" :mode="task.mode" :disabled="submitting || revision.session.value.uncertain" :max-count="annotationMaxCount" sortable hide-examples button-label="上传问题截图" aria-labelledby="revision-annotation-label" @blocked="annotationBlocked = $event" />
       <p class="hx-footnote">可上传圈出问题的截图。圈线、箭头仅用于定位，不会作为成品内容。</p>
     </template>
     <ElAlert v-if="actionError" :title="actionError" type="error" :closable="false" />

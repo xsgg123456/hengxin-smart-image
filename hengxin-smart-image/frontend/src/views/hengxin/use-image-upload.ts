@@ -90,13 +90,12 @@ export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
   async function add(file: File) {
     if (props.disabled || examplesLoading.value) return
     const maximum = props.maxCount ?? MAX_IMAGES
-    const reason = maximum !== 1 && entries.value.length >= maximum ? `每组最多 ${maximum} 张，请移除图片后再添加`
+    const reason = entries.value.length >= maximum ? maximum === 1 ? '此处已有图片，请先移除再添加' : `每组最多 ${maximum} 张，请移除图片后再添加`
       : !file.size ? '文件为空，请选择有内容的图片'
         : file.size > MAX_IMAGE_BYTES ? '单张图片不能超过 10 MiB'
           : !IMAGE_MIME_TYPES.includes(file.type)
             ? '仅支持 JPG、PNG、WebP 图片' : ''
     if (reason) { error.value = `${file.name}：${reason}`; return }
-    if (maximum === 1) { reset([]); publish() }
     const id = ++sequence
     const url = URL.createObjectURL(file)
     entries.value.push({ id, name: file.name, url, localUrl: url, file, state: 'checking', error: '' })
@@ -108,6 +107,7 @@ export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
     if (!entry) return
     generation++
     examplesLoading.value = false
+    error.value = ''
     release(entry)
     entries.value = entries.value.filter(e => e.id !== id)
     publish()

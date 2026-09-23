@@ -1,5 +1,5 @@
 <template>
-  <ElDialog v-model="visible" :title="templateId ? '配置模板' : '新建套图模板'" width="680px" destroy-on-close
+  <ElDialog v-model="visible" :title="templateId ? '配置模板' : '新建套图模板'" width="min(680px, calc(100vw - 32px))" destroy-on-close align-center append-to-body class="hx-template-dialog"
     :show-close="!busy" :close-on-click-modal="!busy" :close-on-press-escape="!busy" :before-close="beforeClose" @closed="emit('close')">
     <ElAlert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon>
       <ElButton text type="primary" :disabled="loading" @click="initialize">重试加载模板</ElButton>
@@ -104,3 +104,9 @@ async function save() {
 }
 void initialize()
 </script>
+<style>
+.hx-template-dialog { display:flex; flex-direction:column; max-height:calc(100dvh - 48px); margin:auto !important; }
+.hx-template-dialog .el-dialog__header { flex:none; margin:0; padding-bottom:18px; }
+.hx-template-dialog .el-dialog__body { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-right:8px; }
+.hx-template-dialog .el-dialog__footer { flex:none; padding-top:16px; border-top:1px solid var(--el-border-color-lighter); }
+</style>

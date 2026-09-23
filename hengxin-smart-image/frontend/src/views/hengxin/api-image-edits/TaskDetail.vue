@@ -10,15 +10,17 @@
         <p class="hx-footnote">{{ active ? '每批最多 10 张同时处理，当前批完成后继续下一批。关闭详情不会中断演示。' : failed ? '成功结果已保留，失败项可继续重试。' : '全部示例结果已就绪，按原图顺序排列。' }}</p>
         <p class="hx-footnote">ZIP 使用每张图片选定的当前版本。{{ !canZip ? '全部图片与修改成功后可整套下载；修改期间保留旧结果。' : '历史版本可单独查看和下载。' }}</p>
       </ElCard>
+      <SharedMaterial :picture="task.material" />
       <div class="result-grid hx-gap">
         <ElCard v-for="(item, index) in task.items" :key="index" class="art-card" shadow="never">
           <div class="hx-row"><strong>原图 {{ index + 1 }}</strong><ElTag :type="item.state === '成功' ? 'success' : item.state === '失败' ? 'danger' : item.state === '等待重试' ? 'warning' : 'info'" size="small">{{ item.state }}</ElTag></div>
           <p class="item-meta">第 {{ Math.floor(index / 10) + 1 }} 批 · 自动重试 {{ item.retries }}/3</p>
+          <ElButton text type="primary" @click="comparisonIndex = index; comparisonOpen = true">查看原图 / 对照成品</ElButton>
           <div class="result-picture hx-gap">
             <PicturePreview v-if="item.result" :picture="item.result" :pictures="results" :index="results.findIndex(p => p.url === item.result?.url && p.name === item.result?.name)" title="模拟结果" />
             <div v-else class="result-placeholder"><ArtSvgIcon :icon="item.state === '失败' ? 'ri:error-warning-line' : item.state === '等待重试' ? 'ri:refresh-line' : 'ri:image-line'" /><strong>{{ item.state }}</strong><span>{{ item.state === '等待重试' ? `自动重试 ${item.retries}/3` : item.state === '失败' ? '3 次重试已用尽' : '结果将在这里显示' }}</span></div>
           </div>
-          <div class="result-footer"><span>{{ item.result ? '示例结果 · 点击放大' : item.source.name }}</span><div v-if="item.result"><ElButton text type="primary" :disabled="packing || !!(item.revision && item.revision.state !== '成功')" @click="edit(index)">修改</ElButton><ElButton text type="primary" @click="download(item.result)">下载</ElButton></div></div>
+          <div class="result-footer"><span>{{ item.result ? '示例结果 · 点击放大' : item.source?.name || '原图未记录' }}</span><div v-if="item.result"><ElButton text type="primary" :disabled="packing || !!(item.revision && item.revision.state !== '成功')" @click="edit(index)">修改</ElButton><ElButton text type="primary" @click="download(item.result)">下载</ElButton></div></div>
           <div v-if="item.result" class="version-entry"><ElTag size="small" type="info">当前 V{{ item.result.version || 1 }}</ElTag><ElButton text type="primary" @click="history(index)">历史版本（{{ item.versions?.length || 1 }}）</ElButton></div>
           <div v-if="item.revision" class="revision-status"><ElTag size="small" :type="item.revision.state === '失败' ? 'danger' : item.revision.state === '成功' ? 'success' : 'warning'">修改{{ item.revision.state }}</ElTag><span>重试 {{ item.revision.retries }}/3 · {{ item.revision.operator }}</span><ElButton v-if="item.revision.state === '失败'" text type="primary" @click="retryRevision(task, index)">重试修改</ElButton><small v-if="item.revision.state !== '成功'">当前仍展示上次成功结果</small></div>
         </ElCard>
@@ -27,6 +29,7 @@
         <ElCollapseItem title="本次输入与提示词" name="input"><p class="prompt-text">{{ task.prompt }}</p><div class="input-grid"><div v-for="(picture, index) in inputs" :key="index"><PicturePreview :picture="picture" :pictures="inputs" :index="index" title="本次输入" /><p>{{ index === inputs.length - 1 ? '共用素材' : `原图 ${index + 1}` }}</p></div></div></ElCollapseItem>
         <ElCollapseItem title="处理记录" name="events"><div v-for="(event, index) in task.events" :key="index" class="hx-log">{{ event }}</div></ElCollapseItem>
       </ElCollapse>
+      <SourceComparison v-if="comparison" v-model="comparisonOpen" :position="comparisonIndex + 1" :source="comparison.source" :result="comparison.result" :version="comparison.result?.version" />
       <DemoRevisionDialog v-model="revisionOpen" :task="task" :index="revisionIndex" />
       <DemoVersionDialog v-model="historyOpen" :task="task" :index="historyIndex" :locked="packing" />
     </div>
@@ -37,6 +40,8 @@
 import { computed, ref, watch } from 'vue'
 import type { Picture } from '@/types/hengxin'
 import PicturePreview from '../components/PicturePreview.vue'
+import SharedMaterial from './SharedMaterial.vue'
+import SourceComparison from './SourceComparison.vue'
 import { preview, taskState, retryFailed, retryRevision, batchInfo, type EditTask, type EditItem } from './preview-state'
 import { downloadTaskZip } from './preview-download'
 import DemoRevisionDialog from './DemoRevisionDialog.vue'
@@ -45,9 +50,11 @@ import { getVersions } from './preview-state'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task?: EditTask }>()
 const revisionOpen = ref(false), revisionIndex = ref(0), packing = ref(false), zipError = ref('')
+const comparisonIndex = ref(0), comparisonOpen = ref(false)
+const comparison = computed(() => props.task?.items[comparisonIndex.value])
 const historyOpen = ref(false), historyIndex = ref(0)
-watch(() => props.task?.id, () => { revisionOpen.value = false; historyOpen.value = false; zipError.value = '' })
-watch(open, value => { if (!value) { revisionOpen.value = false; historyOpen.value = false } })
+watch(() => props.task?.id, () => { comparisonOpen.value = false; revisionOpen.value = false; historyOpen.value = false; zipError.value = '' })
+watch(open, value => { if (!value) { comparisonOpen.value = false; revisionOpen.value = false; historyOpen.value = false } })
 const state = computed(() => props.task ? taskState(props.task) : '')
 const active = computed(() => ['处理中', '排队中'].includes(state.value))
 const success = computed(() => props.task?.items.filter(item => item.state === '成功').length || 0)

@@ -6,12 +6,12 @@
         <ElForm label-position="top">
           <ElFormItem label="修改说明"><ElInput v-model="text" aria-label="修改说明" type="textarea" :rows="6" maxlength="4000" show-word-limit placeholder="写下需要调整的地方，也可以只上传标注图。" :disabled="busy" /></ElFormItem>
           <ElFormItem label="标注图（可选，最多 1 张）">
-            <div class="annotation-control">
-              <input ref="picker" class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" aria-label="上传修改标注图" @change="readAnnotation" />
+            <UploadInteraction class="annotation-control" :disabled="!open || busy || reading" @files="receiveAnnotation" @error="error = $event">
+              <input ref="picker" class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" aria-label="上传修改标注图" :disabled="!open || busy || reading" @change="readAnnotation" />
               <div v-if="annotation" class="annotation-preview"><PicturePreview :picture="annotation" title="修改标注图" /><ElButton text type="danger" :disabled="busy || reading" @click="annotation = undefined">移除标注图</ElButton></div>
-              <ElButton v-else :loading="reading" :disabled="busy" @click="picker?.click()">选择 JPG / PNG 标注图</ElButton>
+              <button v-else type="button" class="annotation-drop" :disabled="busy || reading" @click="picker?.click()"><strong>选择 JPG / PNG 标注图，或拖到这里</strong></button>
               <p class="hx-footnote">单张不超过 10 MiB。图片与说明仅用于本地交互预览。</p>
-            </div>
+            </UploadInteraction>
           </ElFormItem>
           <ElFormItem label="模拟修改结果 · 仅预览"><ElSelect v-model="scenario" aria-label="模拟修改结果" :disabled="busy"><ElOption label="修改成功" value="success" /><ElOption label="重试耗尽后失败" value="partial" /></ElSelect></ElFormItem>
         </ElForm>
@@ -23,9 +23,11 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Picture } from '@/types/hengxin'
 import PicturePreview from '../components/PicturePreview.vue'
+import UploadInteraction from '../components/UploadInteraction.vue'
+import { singleImageError } from '../components/upload-interaction'
 import { requestRevision, type EditTask, type Scenario } from './preview-state'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task: EditTask; index: number }>()
@@ -33,13 +35,21 @@ const item = computed(() => props.task.items[props.index])
 const text = ref(''), annotation = ref<Picture>(), scenario = ref<Scenario>('success')
 const error = ref(''), busy = ref(false), reading = ref(false), picker = ref<HTMLInputElement>()
 let readToken = 0
+onBeforeUnmount(() => { readToken++ })
 watch(open, value => { readToken++; reading.value = false; if (value) { text.value = ''; annotation.value = undefined; scenario.value = 'success'; error.value = ''; busy.value = false } })
 async function readAnnotation(event: Event) {
-  const input = event.target as HTMLInputElement, file = input.files?.[0]; input.value = ''
-  if (!file || busy.value || reading.value) return
+  const input = event.target as HTMLInputElement, files = Array.from(input.files ?? []); input.value = ''
+  await receiveAnnotation(files)
+}
+async function receiveAnnotation(files: File[]) {
+  if (!open.value || busy.value || reading.value) return
+  const reason = singleImageError(files.length, !!annotation.value)
+  if (reason) { error.value = reason; return }
+  const file = files[0]
+  if (!file) return
   error.value = ''
   if (!['image/jpeg', 'image/png'].includes(file.type) || !/\.(jpe?g|png)$/i.test(file.name)) { error.value = '请选择 JPG 或 PNG 图片'; return }
-  if (file.size > 10 * 1024 * 1024) { error.value = '标注图不能超过 10 MiB'; return }
+  if (!file.size || file.size > 10 * 1024 * 1024) { error.value = '标注图不能为空或超过 10 MiB'; return }
   const token = ++readToken; reading.value = true
   try {
     const bytes = new Uint8Array(await file.slice(0, 8).arrayBuffer())
@@ -68,6 +78,8 @@ h3 { margin:0 0 12px; font-size:15px; }
 .current-picture { height:370px; }
 .file-input { display:none; }
 .annotation-control { width:100%; }
+.annotation-drop { width:100%; min-height:88px; padding:16px; border:1px dashed var(--el-border-color); border-radius:6px; background:var(--el-fill-color-blank); color:var(--el-text-color-regular); cursor:pointer; }
+.annotation-drop:hover { border-color:var(--el-color-primary); }
 .annotation-preview { width:130px; }
 .annotation-preview .hx-picture { height:100px; }
 .hx-footnote { line-height:1.6; }

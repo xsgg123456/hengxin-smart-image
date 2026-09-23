@@ -1,8 +1,9 @@
 <template>
-  <div ref="surface" class="image-upload" @dragover.prevent @drop.prevent="dropFiles">
-    <ElUpload v-if="!compact" :key="uploadGeneration" ref="upload" :drag="!sortable" :multiple="maxCount !== 1" accept="image/png,image/jpeg,image/webp"
-      :auto-upload="false" :show-file-list="false" :disabled="disabled || examplesLoading" :on-change="onChange">
-      <ElButton v-if="sortable" :disabled="disabled || examplesLoading">{{ buttonLabel || '上传图片' }}</ElButton>
+  <UploadInteraction :disabled="disabled || examplesLoading || uploading" @files="receiveFiles" @error="error = $event">
+  <div ref="surface" class="image-upload">
+    <ElUpload v-if="!compact" :key="uploadGeneration" ref="upload" drag :class="{ 'sortable-upload': sortable }" :multiple="maxCount !== 1" accept="image/png,image/jpeg,image/webp"
+      :auto-upload="false" :show-file-list="false" :disabled="disabled || examplesLoading || uploading" :on-change="onChange">
+      <template v-if="sortable"><strong>{{ buttonLabel || '点击上传图片' }}，或拖到这里</strong><p>{{ label || descriptions[mode] }}</p></template>
       <template v-else>
         <div class="hx-upload-icon"><ArtSvgIcon icon="ri:upload-cloud-2-line" /></div>
         <strong>点击上传，或将图片拖到这里</strong><p>{{ label || descriptions[mode] }}</p>
@@ -16,7 +17,7 @@
       <template v-if="sortable">JPG / PNG / WebP · 单张不超过 10 MiB · 每组最多 {{ maxCount ?? 20 }} 张</template>
     </p>
     <div v-if="compact" class="compact-toolbar"><span>已添加 {{ entries.length }} 张</span><span>点击图片放大 · 拖入可继续添加</span></div>
-    <input ref="compactInput" hidden type="file" :multiple="maxCount !== 1" accept="image/png,image/jpeg,image/webp" :disabled="disabled || examplesLoading" @change="pickFiles" />
+    <input ref="compactInput" hidden type="file" :multiple="maxCount !== 1" accept="image/png,image/jpeg,image/webp" :disabled="disabled || examplesLoading || uploading" @change="pickFiles" />
     <div v-if="entries.length" :class="sortable ? 'hx-editor-pictures' : 'compact-grid'">
       <div v-for="(entry, index) in visibleEntries" :key="entry.id" :class="sortable ? 'picture-card' : 'compact-picture'">
         <PicturePreview :picture="entry" :pictures="entries" :index="index" title="本次上传图片" :style="sortable ? { width: '100%', height: '130px' } : { width: '100%', height: '104px' }" />
@@ -28,21 +29,24 @@
         </section>
         <div class="picture-actions">
           <ElButton v-if="!isMockMode && entry.picture" text :loading="downloading.has(entry.id)" :aria-label="`下载图片 ${index + 1}`" @click="download(entry.id, entry.picture)">下载</ElButton>
-          <ElButton v-if="sortable && maxCount !== 1" text :disabled="disabled || examplesLoading || index === 0" :aria-label="`前移图片 ${index + 1}`" @click="move(index, -1)">前移</ElButton>
-          <ElButton v-if="sortable && maxCount !== 1" text :disabled="disabled || examplesLoading || index === entries.length - 1" :aria-label="`后移图片 ${index + 1}`" @click="move(index, 1)">后移</ElButton>
-          <ElButton v-if="entry.state === 'failed'" text type="primary" :disabled="disabled || examplesLoading" :aria-label="`重试图片 ${index + 1}`" @click="retry(entry.id)">重试</ElButton>
+          <ElButton v-if="sortable && maxCount !== 1" text :disabled="disabled || examplesLoading || uploading || index === 0" :aria-label="`前移图片 ${index + 1}`" @click="move(index, -1)">前移</ElButton>
+          <ElButton v-if="sortable && maxCount !== 1" text :disabled="disabled || examplesLoading || uploading || index === entries.length - 1" :aria-label="`后移图片 ${index + 1}`" @click="move(index, 1)">后移</ElButton>
+          <ElButton v-if="entry.state === 'failed'" text type="primary" :disabled="disabled || examplesLoading || uploading" :aria-label="`重试图片 ${index + 1}`" @click="retry(entry.id)">重试</ElButton>
           <button v-if="compact" class="compact-remove" type="button" :disabled="disabled" :aria-label="`移除图片 ${index + 1}`" @click="remove(entry.id)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" /></svg></button>
           <ElButton v-else text type="danger" :disabled="disabled" :aria-label="`移除图片 ${index + 1}`" @click="remove(entry.id)">移除</ElButton>
         </div>
       </div>
-      <button v-if="compact" type="button" class="compact-add" :disabled="disabled || examplesLoading || entries.length >= (maxCount ?? 20)" @click="compactInput?.click()"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.5" /></svg><span>{{ entries.length >= (maxCount ?? 20) ? '已达数量上限' : '添加图片' }}</span></button>
+      <button v-if="compact" type="button" class="compact-add" :disabled="disabled || examplesLoading || uploading || entries.length >= (maxCount ?? 20)" @click="compactInput?.click()"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.5" /></svg><span>{{ entries.length >= (maxCount ?? 20) ? '已达数量上限' : '添加图片' }}</span></button>
     </div>
     <div v-if="compact" class="compact-footer"><span>JPG / PNG / WebP · 单张 ≤ 10 MiB · 最多 {{ maxCount ?? 20 }} 张</span><ElButton v-if="canCollapse" text type="primary" :aria-expanded="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : `展开全部 · 共 ${entries.length} 张` }}</ElButton></div>
     <ElAlert v-if="error" :title="error" type="error" closable show-icon class="hx-gap" @close="error = ''" />
   </div>
+  </UploadInteraction>
 </template>
 <script setup lang="ts">
 import PicturePreview from './PicturePreview.vue'
+import UploadInteraction from './UploadInteraction.vue'
+import { singleImageError } from './upload-interaction'
 import { computed, ref, watch } from 'vue'
 import { useElementSize } from '@vueuse/core'
 import type { UploadFile, UploadInstance } from 'element-plus'
@@ -58,6 +62,7 @@ const upload = ref<UploadInstance>()
 const uploadGeneration = ref(0)
 const descriptions = { wallpaper: '上传希望放入手机屏幕的新壁纸', product: '上传希望替换到模板中的商品图片', text: '上传需要替换文字的商品图片' }
 const { entries, error, blocked, examplesLoading, add, remove, move, retry, useExamples } = useImageUpload(model, props)
+const uploading = computed(() => props.maxCount === 1 && entries.value.some(entry => entry.state === 'checking' || entry.state === 'uploading'))
 const surface = ref<HTMLElement>(), compactInput = ref<HTMLInputElement>()
 const { width } = useElementSize(surface)
 const compact = computed(() => !props.sortable && entries.value.length > 0)
@@ -66,16 +71,18 @@ const limit = computed(() => Math.max(1, Math.floor((width.value + 12) / 116) * 
 const canCollapse = computed(() => compact.value && entries.value.length > limit.value && entries.value.every(entry => entry.state === 'ready'))
 const visibleEntries = computed(() => canCollapse.value && !expanded.value ? entries.value.slice(0, limit.value) : entries.value)
 watch(compact, () => { expanded.value = false })
+async function receiveFiles(files: File[]) {
+  if (props.disabled || examplesLoading.value || uploading.value) return
+  const reason = props.maxCount === 1 ? singleImageError(files.length, entries.value.length > 0) : ''
+  if (reason) { error.value = reason; return }
+  error.value = ''
+  await Promise.all(files.map(add))
+}
 async function pickFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
   input.value = ''
-  await Promise.all(files.map(add))
-}
-async function dropFiles(event: DragEvent) {
-  if (event.target instanceof Element && event.target.closest('.el-upload')) return
-  if (!compact.value || props.disabled || examplesLoading.value) return
-  await Promise.all(Array.from(event.dataTransfer?.files ?? []).map(add))
+  await receiveFiles(files)
 }
 watch(blocked, value => emit('blocked', value), { immediate: true, flush: 'sync' })
 const downloading = ref(new Set<number>())
@@ -85,19 +92,22 @@ async function download(id: number, picture: Picture) {
   try { await downloadPicture(picture) }
   finally { downloading.value.delete(id) }
 }
-let pendingCallbacks = 0
-async function onChange(file: UploadFile) {
+let pickedFiles: File[] = []
+function onChange(file: UploadFile) {
   if (!file.raw) return
-  pendingCallbacks++
-  try { await add(file.raw) }
-  finally {
-    pendingCallbacks--
-    if (!pendingCallbacks) { upload.value?.clearFiles(); uploadGeneration.value++ }
-  }
+  pickedFiles.push(file.raw)
+  if (pickedFiles.length !== 1) return
+  queueMicrotask(async () => {
+    const files = pickedFiles; pickedFiles = []
+    try { await receiveFiles(files) }
+    finally { upload.value?.clearFiles(); uploadGeneration.value++ }
+  })
 }
 async function example() { if (await useExamples()) emit('example') }
 </script>
 <style scoped>
+.sortable-upload :deep(.el-upload-dragger) { padding:16px 12px; }
+.sortable-upload p { margin:5px 0 0; font-size:12px; color:var(--art-gray-600); }
 .image-upload { width: 100%; min-width: 0; }
 .compact-toolbar, .compact-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:12px; color:var(--art-gray-600); }
 .compact-toolbar { margin-bottom:12px; }
