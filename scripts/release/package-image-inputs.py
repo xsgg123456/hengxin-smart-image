@@ -17,12 +17,14 @@ release = 'inputs-20260923-' + commit[:7]
 work = repo / 'output' / release
 stage = work / 'src'
 stage.mkdir(parents=True, exist_ok=False)
-tracked = subprocess.check_output(['git', 'ls-files', 'hengxin-smart-image'], cwd=repo, text=True).splitlines()
+tracked = subprocess.check_output(['git', 'ls-files', '-z', 'hengxin-smart-image'], cwd=repo).decode('utf-8').split('\0')
 names = []
 exact = {'backend/pyproject.toml', 'backend/uv.lock', 'backend/alembic.ini', 'frontend/package.json',
          'frontend/pnpm-lock.yaml', 'infra/Dockerfile.backend', 'infra/compose.yaml',
          'infra/compose.vps.yaml', 'infra/compose.api-image.yaml', 'infra/nginx.vps.conf'}
 for name in tracked:
+    if not name:
+        continue
     relative = Path(name).relative_to('hengxin-smart-image').as_posix()
     if relative.startswith(('backend/app/', 'backend/migrations/')) or relative in exact:
         names.append(relative)
