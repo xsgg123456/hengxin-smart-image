@@ -1,5 +1,7 @@
 # VPS 开发测试部署
 
+当前生产发布（2026-09-23 21:11）`inputs-20260923-b2841c7`：前端0.2.4，原图/素材对照、全局图片拖拽粘贴、模板弹窗居中及API单张多图修正已上线，数据库0017。API、两个outbox及API worker使用本次镜像；native CLI同步两份提示词源码。安装镜像153项测试通过，线上文件哈希、健康与匿名登录页验收通过。后续维护必须使用本次完整Compose overlay链，备份和细节见 [本次发布记录](IMAGE-INPUTS-RELEASE-20260923.md)。以下“最新”标识均为历史记录。
+
 最新 UI/API 查询发布 `ui-20260922-a215301`：前端0.2.1及HTTP API已更新，保留独立API换套图模块。数据库仍0015，CLI/API生成worker与outbox未重启。HTTP API维护须带本发布api-override.yaml，不能使用旧CLI源码覆盖；详见 [本轮发布记录](UI-OPTIMIZATION-RELEASE-20260922.md)。以下标识为历史记录。
 
 最新发布 `api-image-20260922-57ce288`：前端0.2.0、API及独立API worker/outbox已上线，迁移0015。原生CLI worker、CLI outbox及原CLI源码/配置保持原部署。新API镜像的构建源位于该发布目录src，维护必须带API Compose叠加文件。验收与回退见 [API换套图发布记录](API-IMAGE-RELEASE-20260922.md)。下方旧版本记录保留历史背景。
