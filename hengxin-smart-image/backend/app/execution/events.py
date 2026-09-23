@@ -6,6 +6,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def is_reconnect_notice(event: dict) -> bool:
+    """Only the CLI transport retry notice is recoverable, never arbitrary errors."""
+    message = event.get('message')
+    if event.get('type') != 'error' or not isinstance(message, str):
+        return False
+    match = re.fullmatch(
+        r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
+        r'\(stream disconnected before completion: '
+        r'websocket closed by server before response\.completed\)', message)
+    return bool(match and int(match[1]) <= int(match[2]))
+
+
 @dataclass(frozen=True)
 class EventSummary:
     session_id: str | None
@@ -21,6 +33,7 @@ def parse_events(path: Path, expected_session: str | None = None) -> EventSummar
     error = None
     terminals = set()
     active_turn = None
+    reconnect_pending = False
     try:
         with Path(path).open(encoding='utf-8') as stream:
             for line in stream:
@@ -57,6 +70,7 @@ def parse_events(path: Path, expected_session: str | None = None) -> EventSummar
                     if kind == 'turn.failed':
                         continue
                     completed = True
+                    reconnect_pending = False
                     values = event.get('usage')
                     if values is not None:
                         if not isinstance(values, dict) or any(
@@ -70,7 +84,10 @@ def parse_events(path: Path, expected_session: str | None = None) -> EventSummar
                             usage[key] = usage.get(key, 0) + value
                 elif kind == 'error':
                     # Raw upstream errors can contain prompts or credentials.
-                    error = 'cli_error'
+                    if is_reconnect_notice(event) and not completed:
+                        reconnect_pending = True
+                    else:
+                        error = error or 'cli_error'
     except (OSError, UnicodeError):
         error = 'unreadable_event_stream'
-    return EventSummary(session, usage, completed, error)
+    return EventSummary(session, usage, completed, error or ('cli_error' if reconnect_pending else None))

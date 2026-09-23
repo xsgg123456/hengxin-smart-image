@@ -73,7 +73,7 @@ def retry(session, user, task_id, key):
         item.state = 'collecting' if item.result_url or item.result_bytes else 'queued'
         item.cycle_retries = item.collection_retries = 0
         item.next_attempt_at = item.error = None
-    task.completed_at = None
+    task.state, task.completed_at = 'queued', None
     refresh_task(session, task)
     dispatch = session.get(ApiDispatch, task.id)
     dispatch.completed_at, dispatch.next_dispatch_at = None, utcnow()

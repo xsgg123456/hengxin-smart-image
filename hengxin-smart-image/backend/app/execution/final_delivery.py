@@ -10,6 +10,7 @@ from urllib.parse import unquote
 from fastapi import HTTPException
 
 from app.execution.diagnostics import _safe_read, _unique_object
+from app.execution.events import is_reconnect_notice
 from app.execution.output_collector import OutputCollectionError, _checked, _root
 from app.modules.files.validation import MAX_UPLOAD_BYTES, ValidatedImage, validate_image
 
@@ -60,6 +61,7 @@ def _final_text(events: Path, session_id: str) -> str:
     try:
         raw = _safe_read(events, MAX_EVENTS_BYTES, allow_windows_fallback=True)
         previous, last = None, None
+        completed = False
         for line in raw.decode('utf-8').splitlines():
             if not line.strip():
                 continue
@@ -68,8 +70,13 @@ def _final_text(events: Path, session_id: str) -> str:
                 raise ValueError
             if event['type'] == 'thread.started' and event.get('thread_id') != session_id:
                 raise OutputCollectionError('session_mismatch')
-            if event['type'] in {'turn.failed', 'error'}:
+            if event['type'] == 'turn.failed':
                 raise ValueError
+            if event['type'] == 'error':
+                if completed or not is_reconnect_notice(event):
+                    raise ValueError
+            if event['type'] == 'turn.completed':
+                completed = True
             previous, last = last, event
     except OutputCollectionError:
         raise

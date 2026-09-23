@@ -99,7 +99,7 @@ def test_earlier_revision_waits_for_later_inflight_batch(pg_api):
         assert session.get(ApiTask, task_id).state == 'running'
 
 
-def test_old_task_revision_cannot_take_capacity_from_new_inflight_task(pg_api):
+def test_old_task_revision_uses_a_free_task_slot(pg_api):
     factory, user, data, store = pg_api
     with factory() as session:
         old_task = submit(session, user, data, 'old')
@@ -113,4 +113,7 @@ def test_old_task_revision_cannot_take_capacity_from_new_inflight_task(pg_api):
     with factory() as session:
         item = session.scalar(select(ApiItem).where(ApiItem.task_id == old_task))
         revise(session, user, old_task, item.id, ReviseItem(baseVersion=1, text='edit'), 'old-edit')
-    assert claim(factory) is None
+    revision = claim(factory)
+    assert revision
+    with factory() as session:
+        assert session.get(ApiItem, revision[0]).task_id == old_task

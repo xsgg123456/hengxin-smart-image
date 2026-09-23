@@ -49,6 +49,7 @@ def deliver(monkeypatch, receipt, count, offset):
         (work / 'manifest.json').write_text('{"outputs":[{"slot":0,"error":"old error"}]}')
         events = [
             {'type': 'thread.started', 'thread_id': 'test-session'},
+            {'type': 'error', 'message': 'Reconnecting... 2/5 (stream disconnected before completion: websocket closed by server before response.completed)'},
             {'type': 'item.completed', 'item': {'type': 'agent_message',
                 'text': '候选：![candidate](/work/missing.png)'}},
             {'type': 'item.completed', 'item': {'type': 'command_execution', 'exit_code': 0}},

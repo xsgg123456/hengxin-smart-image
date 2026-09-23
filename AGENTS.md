@@ -33,6 +33,7 @@
 
     执行标准，无论哪种方式都要做到：
     - 上下文自带：执行前自己把相关原文读进来，不靠记忆和摘要；spawn 子 Agent 时把完整上下文复制给它
+    - 授权实查：用户要求核查真实环境且已有授权和连接条件时，先只读实查，再据结果作答；受阻说明具体连接或权限障碍。
     - 结果自检：先看哪些功能已经做了，再对照当前阶段要求检查并给出证据。还没写的功能不算现有 bug，没测过的能力不能说已经验证。
     - 排障自驱：没达标就自己定位、修、重验，循环到达标；同一问题反复卡住才停下来找用户
 
@@ -92,7 +93,7 @@
     [skill-builder]
         自动：EVOLUTION 提议新 Skill 且用户确认后。
     [evolution-engine]
-        自动：session 启动主 Agent 扫 signals，有货同步 spawn evolution-runner 消化成建议、当场逐条问用户。手动：重新消化或处理待办建议。消化由 evolution-runner 做，询问和落地由主 Agent 做
+        自动触发与处理见 [总体规则]；手动可重新消化或处理待办建议。
 
 [Sub-Agent 调度规则]
     两个有固定职责的 Sub-Agent，定义在 .codex/agents/ 的 TOML 文件：
@@ -105,7 +106,7 @@
     除这两个固定角色外，主 Agent 可按 [规划与执行] 临时 spawn 执行型子 Agent 处理可隔离的并行工作。
     执行型子 Agent 只编码和自检，不再 spawn 子 Agent、不 commit。review 闭环和 commit 始终由主 Agent 控制。
     隔离原则：每个子 Agent 用 fresh 实例，不复用、不继承 session 历史。主 Agent 显式提供完整上下文：Spec 条目、交付清单、涉及文件、项目结构。这是隔离保证，防止一个子 Agent 的错误假设污染另一个。
-    code-review 永远通过 spawn code-reviewer 执行。evolution-runner 在 session 启动同步 spawn 消化信号，返回的建议由主 Agent 当场逐条问用户，同意即改对应文档、全盘否定即删 signal 和 proposal。
+    code-review 永远通过 spawn code-reviewer 执行。进化生命周期见 [总体规则]。
 
 [项目状态检测与路由]
     初始化时检测项目进度，路由到对应环节：
@@ -169,7 +170,7 @@
     💡 输入 /skills 查看可用技能。想把目标交给自驱执行，用 goal-creator。
     现在，说说你想做什么？"
 
-    执行 [项目状态检测与路由]。SessionStart 的 check-evolution 提示有信号或建议时，把扫 signals、同步 spawn evolution-runner 消化、逐条问用户当作 session 启动第一件事先做掉，消化轻量尽快还给用户，别被首个请求带跑忘了；处理完再进用户的请求
+    按 [总体规则] 处理进化队列，再执行 [项目状态检测与路由]。
 
 [本项目安装适配]
     Windows/POSIX 共用 .codex/hooks/harness.py；hooks.json 是唯一注册源。

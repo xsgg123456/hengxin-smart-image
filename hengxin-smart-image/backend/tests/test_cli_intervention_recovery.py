@@ -43,7 +43,8 @@ def test_text_first_round_is_not_a_template_set(real_env, monkeypatch):
 
 
 @pytest.mark.parametrize('crash', ['crash_before_events', 'crash_after_delivery'])
-def test_recovery_uses_second_process_and_logs_never_replays_cli(real_env, monkeypatch, crash):
+@pytest.mark.parametrize('exit_recorded', [False, True])
+def test_recovery_uses_second_process_and_logs_never_replays_cli(real_env, monkeypatch, crash, exit_recorded):
     receipt = create_set(real_env)
     calls = scripted_cli(monkeypatch, real_env, receipt, ('no_delivery', crash))
     job_id = job_for(real_env[1], receipt)
@@ -60,16 +61,18 @@ def test_recovery_uses_second_process_and_logs_never_replays_cli(real_env, monke
         assert (pid, boot, start) == (1002, 'boot', '102')
         return False
     monkeypatch.setattr(reconcile, 'same_process', stopped)
+    if exit_recorded:
+        (calls[1]['control'] / 'exit.json').write_text('{"exit_code":0,"reason":null}')
     reconcile.reconcile_once(real_env[1], real_env[2])
     reconcile.reconcile_once(real_env[1], real_env[2])
     runner.run_generation(job_id, real_env[1], real_env[2])
     assert len(calls) == 2
     with real_env[1]() as session:
-        success = crash == 'crash_after_delivery'
+        success = crash == 'crash_after_delivery' and exit_recorded
         assert session.get(Job, job_id).status == ('succeeded' if success else 'uncertain')
         assert session.scalar(select(func.count()).select_from(ImageVersion)) == (2 if success else 0)
         usage = session.get(ExecutionUsage, attempt.id).data
-        assert usage['input_tokens'] == (14 if success else 7)
+        assert usage['input_tokens'] == (14 if crash == 'crash_after_delivery' else 7)
 
 
 def test_unknown_second_spawn_clears_first_process_evidence(real_env, monkeypatch):

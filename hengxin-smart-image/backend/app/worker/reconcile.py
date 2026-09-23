@@ -69,6 +69,9 @@ def _settle(factory, attempt_id, job_id, token, summary=None, failed=False, fail
             session.merge(ExecutionUsage(attempt_id=attempt.id, data=summary.usage))
         if job.status in ('succeeded', 'partial', 'failed'):
             attempt.status, attempt.finished_at = 'finished', utcnow()
+            if job.status == 'succeeded':
+                attempt.error = None
+                attempt.observation = dict(attempt.observation or {}, stage='completed', failure=None)
         elif task.deleted_at or round.cancel_requested:
             end(session, round, job, 'cancelled', '原执行进程已退出，取消已确认')
             attempt.status, attempt.finished_at = 'finished', utcnow()
@@ -135,6 +138,9 @@ def reconcile_once(factory, store=None):
                     if json.loads(protocol.read_text()) != {'version': 'final-reply-v1'}:
                         raise ValueError('Unknown delivery protocol')
                     final_delivery = True
+                    if (not isinstance(receipt, dict) or type(receipt.get('exit_code')) is not int
+                            or receipt['exit_code'] != 0 or receipt.get('reason')):
+                        continue  # Missing exit evidence is uncertainty, not successful delivery.
                     images = collect_final_outputs(work, home, control / 'events.jsonl',
                         summary.session_id, baseline, expected)
                 else:

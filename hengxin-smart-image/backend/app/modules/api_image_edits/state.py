@@ -36,7 +36,7 @@ def refresh_task(session, task):
     if 'uncertain' in states:
         task.state = 'uncertain'
     elif any(state in ACTIVE for state in states):
-        task.state = 'running' if task.started_at else 'queued'
+        task.state = 'running' if task.state in {'running', 'uncertain'} else 'queued'
     else:
         task.state = ('succeeded' if all(s == 'succeeded' for s in states)
                       else 'partial_failed' if 'succeeded' in states else 'failed')

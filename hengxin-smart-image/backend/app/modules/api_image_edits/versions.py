@@ -52,6 +52,8 @@ def target(session, task_id, item_id):
 
 
 def enqueue(session, task, item):
+    if task.state not in {'queued', 'running', 'uncertain'}:
+        task.state = 'queued'
     item.state = 'collecting' if item.result_url or item.result_bytes else 'queued'
     item.cycle_retries = item.collection_retries = 0
     item.next_attempt_at = item.error = None

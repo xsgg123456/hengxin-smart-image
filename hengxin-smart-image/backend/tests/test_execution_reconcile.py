@@ -208,6 +208,7 @@ def test_stale_scanned_attempt_cannot_acquire_twice(recovery):
 
 def final_reply_evidence(recovery, text='![主图1](/work/final.png)'):
     control = recovery[6]
+    (control / 'exit.json').write_text(json.dumps({'exit_code': 0, 'reason': None}))
     work = control.parents[1] / 'rounds' / str(recovery[5])
     work.mkdir(parents=True)
     (work / 'final.png').write_bytes(image_bytes())
@@ -241,3 +242,22 @@ def test_unknown_delivery_protocol_is_not_downgraded_to_legacy(recovery):
     (recovery[6] / 'delivery.json').write_text('{"version":"unknown"}')
     reconcile.reconcile_once(recovery[0], recovery[1])
     assert state(recovery)[0].status == 'uncertain' and state(recovery)[3] == 0
+
+
+def test_final_recovery_requires_exit_receipt(recovery):
+    final_reply_evidence(recovery)
+    (recovery[6] / 'exit.json').unlink()
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    assert state(recovery)[0].status == 'uncertain' and state(recovery)[3] == 0
+
+
+def test_reconnected_final_recovery_publishes_once(recovery):
+    from test_reconnect_delivery import NOTICE
+    final_reply_evidence(recovery)
+    path = recovery[6] / 'events.jsonl'
+    lines = path.read_text().splitlines()
+    lines.insert(1, json.dumps(NOTICE))
+    path.write_text('\n'.join(lines))
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    assert state(recovery)[0].status == 'succeeded' and state(recovery)[3] == 1

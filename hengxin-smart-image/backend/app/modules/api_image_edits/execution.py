@@ -16,6 +16,7 @@ from .outcomes import collection_failure, failure, save_response
 from .relay import RelayClient, RelayError
 from .state import event, refresh_task, release_item
 from .versions import execution_inputs, publish_result
+from .scheduling import IMAGES_PER_TASK
 
 
 def inputs(factory, item_id, store):
@@ -94,8 +95,9 @@ def execute_next(factory, store, client=None, downloader=download_result):
 def execute_batch(factory, store, client=None, downloader=download_result):
     # Each execution opens its own sessions. DB admission enforces the same cap
     # even when several Celery deliveries race across processes.
-    with ThreadPoolExecutor(max_workers=10, thread_name_prefix='api-image') as pool:
-        futures = [pool.submit(execute_next, factory, store, client, downloader) for _ in range(10)]
+    with ThreadPoolExecutor(max_workers=IMAGES_PER_TASK, thread_name_prefix='api-image') as pool:
+        futures = [pool.submit(execute_next, factory, store, client, downloader)
+                   for _ in range(IMAGES_PER_TASK)]
         return sum(bool(future.result()) for future in futures)
 
 

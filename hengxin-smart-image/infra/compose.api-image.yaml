@@ -38,7 +38,7 @@ services:
       <<: *api-environment
   api-image-worker:
     <<: *api-service
-    command: ['celery', '-A', 'app.modules.api_image_edits.celery_app:celery_app', 'worker', '-Q', 'api_image_edits', '--concurrency=1', '--hostname=api-image@%h', '--loglevel=WARNING']
+    command: ['celery', '-A', 'app.modules.api_image_edits.celery_app:celery_app', 'worker', '-Q', 'api_image_edits', '--concurrency=5', '--hostname=api-image@%h', '--loglevel=WARNING']
   api-image-outbox:
     <<: *api-service
     command: ['python', '-m', 'app.modules.api_image_edits.outbox']

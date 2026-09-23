@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.models import utcnow
 from .config import get_api_settings
 from .models import ApiAttempt, ApiItem, ApiTask
+from .scheduling import IMAGES_PER_TASK, TASK_CONCURRENCY, candidates
 from .state import ACTIVE, aware, channel, event, refresh_task, release, release_item
 
 
@@ -51,23 +52,10 @@ def claim(factory):
             return None
         leased = [item for item in pending if item.lease_token and item.lease_until
                   and aware(item.lease_until) > now]
-        if len(leased) >= 10:
+        if len(leased) >= TASK_CONCURRENCY * IMAGES_PER_TASK:
             return None
-        # A new revision of an older task must not start an additional batch
-        # beside the task currently owning the shared upstream capacity.
         blocked = any(item.state == 'uncertain' for item in pending)
-        current = leased[0] if leased else pending[0]
-        active = ([item for item in pending if item.state == 'collecting'
-                   and (item.result_url or item.result_bytes)] if blocked else
-                  [item for item in pending if item.task_id == current.task_id])
-        # A new edit on an earlier completed image cannot interrupt a later
-        # batch already in flight, or cause ten calls from each batch to overlap.
-        batch = (current.position - 1) // 10
-        for item in active:
-            # Collecting an already returned result cannot generate a duplicate.
-            # Uncertainty blocks generation, but must not strand safe downloads.
-            if not blocked and (item.position - 1) // 10 != batch:
-                continue
+        for item in candidates(session, pending, leased, blocked):
             if item.lease_token and item.lease_until and aware(item.lease_until) > now:
                 continue
             if item.next_attempt_at and aware(item.next_attempt_at) > now:
@@ -77,6 +65,7 @@ def claim(factory):
             item.state = 'collecting' if item.result_url or item.result_bytes else 'running'
             item.next_attempt_at = None
             task = session.get(ApiTask, item.task_id)
+            task.state = 'running'
             task.started_at = task.started_at or now
             refresh_task(session, task)
             event(task, f'第 {item.position} 张开始处理')

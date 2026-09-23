@@ -41,6 +41,15 @@ def message(text):
             'item': {'id': 'item_30', 'type': 'agent_message', 'text': text}}
 
 
+def test_reconnect_requires_real_final_files(delivery):
+    from test_reconnect_delivery import NOTICE
+    image, run, *_ = delivery
+    with pytest.raises(OutputCollectionError, match='invalid_output_file'):
+        run('![图](/work/final.png)', before=[NOTICE])
+    image()
+    assert run('![图](/work/final.png)', before=[NOTICE])[0].name == 'final.png'
+
+
 def test_four_composited_images_ignore_extra_candidates(delivery):
     image, run, *_ = delivery
     for index, color in enumerate(('red', 'green', 'blue', 'yellow'), 1):
