@@ -43,7 +43,7 @@ def read_settings(session):
     audits = session.scalars(select(SettingsAuditRecord).order_by(
         SettingsAuditRecord.version.desc()).limit(100)).all()
     return {**values(session), 'capacity': get_settings().generation_concurrency,
-            'timeoutCapacity': min(3600, get_settings().codex_timeout_seconds),
+            'timeoutCapacity': get_settings().codex_timeout_seconds,
             'defaultSkillIds': defaults(session), 'dingtalk': dingtalk_config(),
             'audit': [dict(id=str(a.id), operatorId=str(a.operator_id), operatorName=a.operator_name,
                            changedAt=a.created_at.isoformat(), version=a.version, fields=a.fields)

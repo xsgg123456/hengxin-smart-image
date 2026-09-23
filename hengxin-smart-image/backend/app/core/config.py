@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     codex_auth_file: str = Field(default='', repr=False)
     codex_execution_root: str = '/var/lib/hengxin/execution'
     codex_version: str = '0.153.4'
-    codex_timeout_seconds: int = Field(default=3600, ge=10, le=3600)
+    codex_timeout_seconds: int = Field(default=3600, ge=10, le=7200)
     queue_visibility_seconds: int = Field(default=4200, ge=60, le=86400)
     generation_concurrency: int = Field(default=1, ge=1, le=10)
     fixture_delay_seconds: int = Field(default=3, ge=0, le=60)

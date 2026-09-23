@@ -210,6 +210,6 @@ class ManagedSettings(SystemConfig):
 class SettingsInput(SystemConfig):
     version: int = Field(ge=1, strict=True)
     concurrency: int = Field(ge=1, le=10, strict=True)
-    timeoutSeconds: int = Field(ge=60, le=3600, strict=True)
+    timeoutSeconds: int = Field(ge=60, le=7200, strict=True)
     maxUploadBytes: int = Field(ge=1024**2, le=10 * 1024**2, strict=True)
     dingtalk: DingTalkInput

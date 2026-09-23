@@ -185,6 +185,16 @@ def test_real_executor_rejects_unsafe_configuration(overrides):
         Settings(**(config | overrides))
 
 
+def test_two_hour_executor_requires_queue_visibility_margin():
+    config = dict(enable_codex_executor=True, enable_fixture_executor=False,
+                  codex_binary='/opt/codex', codex_auth_file='/private/auth.json',
+                  codex_timeout_seconds=7200, queue_visibility_seconds=7800)
+    assert Settings(**config).codex_timeout_seconds == 7200
+    for changes in ({'queue_visibility_seconds': 7799}, {'codex_timeout_seconds': 7201}):
+        with pytest.raises(ValueError):
+            Settings(**(config | changes))
+
+
 def test_corrupt_frozen_skill_prevents_cli_launch(real_env, monkeypatch):
     receipt = frozen_request(real_env)
     with real_env[1]() as session:

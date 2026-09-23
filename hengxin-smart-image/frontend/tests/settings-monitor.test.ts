@@ -209,7 +209,9 @@ test('动态超时600边界；特殊部署10..59可读取但禁止保存', async
   const current = { ...config(), timeoutCapacity: 600 }
   assert.equal(settings(current), true)
   assert.equal(settings({ ...current, timeoutSeconds: 601 }), false)
-  for (const capacity of [undefined, null, 9, 3601, 600.5, '600']) {
+  assert.equal(settings({ ...current, timeoutCapacity: 7200, timeoutSeconds: 7200 }), true)
+  assert.equal(settings({ ...current, timeoutCapacity: 7200, timeoutSeconds: 7201 }), false)
+  for (const capacity of [undefined, null, 9, 7201, 600.5, '600']) {
     assert.equal(settings({ ...current, timeoutCapacity: capacity }), false)
   }
   let writes = 0

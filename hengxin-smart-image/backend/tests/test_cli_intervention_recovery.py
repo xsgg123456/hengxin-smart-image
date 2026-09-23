@@ -122,7 +122,10 @@ def test_intervention_cannot_silently_change_session(real_env, monkeypatch):
         assert session.scalar(select(func.count()).select_from(ImageVersion)) == 0
 
 
-def test_intervention_only_receives_remaining_total_time(real_env, monkeypatch):
+@pytest.mark.parametrize('limit', [3600, 7200])
+def test_intervention_only_receives_remaining_total_time(real_env, monkeypatch, limit):
+    from app.core.config import get_settings
+    monkeypatch.setattr(get_settings(), 'codex_timeout_seconds', limit)
     receipt = create_set(real_env)
     clock = [0.0]
     monkeypatch.setattr(runner.time, 'monotonic', lambda: clock[0])
@@ -131,7 +134,7 @@ def test_intervention_only_receives_remaining_total_time(real_env, monkeypatch):
             clock[0] = 120.0
     calls = scripted_cli(monkeypatch, real_env, receipt, hook=elapsed)
     runner.run_generation(job_for(real_env[1], receipt), real_env[1], real_env[2])
-    assert [call['timeout'] for call in calls] == [3600, 3480]
+    assert [call['timeout'] for call in calls] == [limit, limit - 120]
 
 
 def test_storage_failure_does_not_regenerate_images(real_env, monkeypatch):

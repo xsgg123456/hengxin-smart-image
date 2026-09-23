@@ -45,6 +45,21 @@ def test_persistent_settings_conflict_and_audit(files_env):
         assert audit.operator_id == files_env[3][0]
 
 
+def test_two_hour_settings_freeze_only_new_rounds(task_env, monkeypatch):
+    admin(task_env)
+    client, factory, _, _ = task_env
+    old = submit(task_env, key='old-hour').json()
+    monkeypatch.setattr(get_settings(), 'codex_timeout_seconds', 7200)
+    data = payload(client)
+    saved = client.put(URL, json={**data, 'timeoutSeconds': 7200})
+    assert saved.status_code == 200 and saved.json()['timeoutCapacity'] == 7200
+    assert client.put(URL, json={**payload(client), 'timeoutSeconds': 7201}).status_code == 422
+    new = submit(task_env, key='new-two-hours').json()
+    with factory() as session:
+        assert session.get(RoundRecord, UUID(old['roundId'])).execution_config['timeoutSeconds'] == 3600
+        assert session.get(RoundRecord, UUID(new['roundId'])).execution_config['timeoutSeconds'] == 7200
+
+
 @pytest.mark.parametrize('role', ['operator', 'designer', 'design_manager'])
 def test_settings_admin_only(files_env, role):
     admin(files_env)
