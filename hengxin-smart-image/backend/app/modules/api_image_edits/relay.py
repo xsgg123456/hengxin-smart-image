@@ -80,7 +80,7 @@ class RelayClient:
         self.pool = pool or urllib3.PoolManager(retries=False)
 
     def preflight(self, original_bytes, original_mime, material_bytes, material_mime, prompt,
-                  parameters=None):
+                  parameters=None, additional_images=None):
         if not self.settings.api_key.get_secret_value():
             raise RelayError('channel', 'API_KEY_MISSING', 'API 换图密钥尚未配置')
         if parameters is not None and parameters != PARAMETERS:
@@ -88,13 +88,19 @@ class RelayClient:
         if (original_mime not in ('image/jpeg', 'image/png', 'image/webp') or
                 (material_bytes is not None and material_mime not in ('image/jpeg', 'image/png', 'image/webp'))):
             raise RelayError('permanent', 'INVALID_INPUT', '输入图片格式不受支持')
+        if additional_images is not None and (len(additional_images) not in (1, 2) or
+                material_bytes is None or any(not data or mime not in ('image/jpeg', 'image/png', 'image/webp')
+                                               for data, mime in additional_images)):
+            raise RelayError('permanent', 'INVALID_INPUT', '修改参照图片不完整或格式不受支持')
 
     def generate(self, original_bytes, original_mime, material_bytes, material_mime, prompt,
-                 parameters=None):
-        self.preflight(original_bytes, original_mime, material_bytes, material_mime, prompt, parameters)
+                 parameters=None, additional_images=None):
+        self.preflight(original_bytes, original_mime, material_bytes, material_mime, prompt, parameters,
+                       additional_images)
         config = self.settings
         images = []
-        for data, mime in ((original_bytes, original_mime), (material_bytes, material_mime)):
+        for data, mime in [(original_bytes, original_mime), (material_bytes, material_mime),
+                           *(additional_images or [])]:
             if data is None:
                 continue
             images.append({'image_url': f'data:{mime};base64,' + base64.b64encode(data).decode('ascii')})

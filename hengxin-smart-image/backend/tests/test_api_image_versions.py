@@ -44,9 +44,9 @@ def test_revision_cas_frozen_inputs_retry_history_and_restore(files_env):
     assert client.get(f'{ROOT}/tasks/{task_id}/zip').status_code == 409
     with factory.begin() as session:
         item = session.get(ApiItem, UUID(first['id']))
-        source, marked, prompt = execution_inputs(session, item, session.get(ApiTask, item.task_id))
-        assert str(source.id) == first['result']['fileId']
-        assert str(marked.id) == annotation['fileId'] and prompt == '修改文字'
+        records, prompt = execution_inputs(session, item, session.get(ApiTask, item.task_id))
+        assert str(records[0].id) == first['result']['fileId']
+        assert str(records[3].id) == annotation['fileId'] and '修改文字' in prompt
         item.state, item.error = 'failed', '上游失败'
         session.get(ApiTask, item.task_id).state = 'partial_failed'
     failed = client.get(f'{ROOT}/tasks/{task_id}').json()
@@ -69,12 +69,15 @@ def test_revision_cas_frozen_inputs_retry_history_and_restore(files_env):
     assert result['versions'][1]['operator'] == '修改操作者'
     assert post(client, path + '/revise', body).status_code == 409
     assert post(client, path + '/restore', {'version': 1}, 'restore').status_code == 200
+    with factory() as session:
+        assert session.get(ApiItem, UUID(first['id'])).revision_snapshot is None
     assert post(client, path + '/restore', {'version': 1}, 'restore').status_code == 200
     assert client.delete(ROOT + '/files/' + new['fileId']).status_code == 409
     assert client.delete(ROOT + '/files/' + annotation['fileId']).status_code == 409
     assert post(client, path + '/revise', {'baseVersion': 1, 'text': '再修改'}).status_code == 202
     with factory.begin() as session:
         item = session.get(ApiItem, UUID(first['id']))
+        assert item.revision_snapshot['fileIds'][0] == first['result']['fileId']
         publish_result(session, item, session.get(ApiTask, item.task_id), UUID(new['fileId']))
         assert item.current_version == 3
     with factory() as session:

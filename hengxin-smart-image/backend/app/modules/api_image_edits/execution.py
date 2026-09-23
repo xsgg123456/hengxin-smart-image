@@ -24,7 +24,10 @@ def inputs(factory, item_id, store):
         item = session.get(ApiItem, item_id)
         task = session.get(ApiTask, item.task_id)
         revision = execution_inputs(session, item, task)
-        if revision:
+        if revision and item.revision_snapshot is not None:
+            records, prompt = revision
+            parameters = task.parameters
+        elif revision:
             source, material, prompt = revision
         else:
             source = session.get(ApiFile, item.source_id)
@@ -32,6 +35,16 @@ def inputs(factory, item_id, store):
             prompt = task.prompt
         # Detach before object-store I/O; no long-lived DB transaction during requests.
         session.expunge_all()
+    if revision and item.revision_snapshot is not None:
+        images = []
+        for record in records:
+            data = read_bytes(store, record)
+            upload = SimpleNamespace(file=BytesIO(data), filename=record.name,
+                                     content_type=record.content_type)
+            with DECODE_SLOTS:
+                _decode_image(upload, get_api_settings().max_download_bytes)
+            images.append((data, record.content_type))
+        return (*images[0], *images[1], prompt, parameters, images[2:])
     return (read_bytes(store, source), source.content_type,
             read_bytes(store, material) if material else None,
             material.content_type if material else None, prompt, task.parameters)

@@ -57,6 +57,7 @@ class ApiItem(Timestamps, Base):
     revision_source_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
     revision_annotation_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
     revision_text: Mapped[str | None] = mapped_column(Text)
+    revision_snapshot: Mapped[dict | None] = mapped_column(JSON)
     revision_operator_id: Mapped[UUID | None] = mapped_column(ForeignKey('users.id'))
     position: Mapped[int] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(20), default='queued')

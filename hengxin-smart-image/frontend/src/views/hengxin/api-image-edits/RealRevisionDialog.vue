@@ -10,7 +10,7 @@
               <input ref="picker" class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" aria-label="上传修改标注图" @change="readAnnotation" />
               <div v-if="annotation" class="annotation-preview"><PicturePreview :picture="annotation" title="修改标注图" /><ElButton text type="danger" :disabled="locked || reading" @click="removeAnnotation">移除标注图</ElButton></div>
               <ElButton v-else :loading="reading" :disabled="locked" @click="picker?.click()">选择 JPG / PNG 标注图</ElButton>
-              <p class="hx-footnote">单张不超过 10 MiB。当前结果与标注图将一同用于修改。</p>
+              <p class="hx-footnote">单张不超过 10 MiB。系统将自动附带对应原图和共用素材作为参考；标注图仅用于定位问题。</p>
             </div>
           </ElFormItem>
         </ElForm>

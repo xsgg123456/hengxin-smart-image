@@ -10,7 +10,7 @@ from test_api_image_domain import ROOT, create, enabled_api, upload
 from test_api_image_execution import Client
 
 
-def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_annotation(files_env):
+def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_annotation(files_env, monkeypatch):
     web, factory, store, _ = files_env
     task_id, _ = create(web, 2)
     first = Client([RelayResult(image_bytes=image_bytes('JPEG'))])
@@ -25,6 +25,8 @@ def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_ann
     endpoint = path + '/items/' + item['id']
     body = {'baseVersion': 1, 'text': '请修正边缘', 'annotationFileId': annotation['fileId']}
     assert web.post(endpoint + '/revise', json=body, headers={'Idempotency-Key': str(uuid4())}).status_code == 202
+    monkeypatch.setattr('app.modules.api_image_edits.versions.build_revision_prompt',
+                        lambda **kwargs: 'later policy must never replace frozen prompt')
     failures = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 4)
     for _ in range(4):
         assert execute_next(factory, store, failures)
@@ -36,7 +38,8 @@ def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_ann
     assert failed['items'][0]['versions'] == item['versions']
     assert failed['items'][1] == neighbor
     assert len(failures.calls) == 4
-    assert all(args[0] == current_bytes and args[2] == image_bytes() and args[4] == body['text'] for args in failures.calls)
+    assert all(args[0] == current_bytes and args[2] == image_bytes() and body['text'] in args[4]
+               and len(args[6]) == 2 for args in failures.calls)
     assert web.post(endpoint + '/retry', headers={'Idempotency-Key': str(uuid4())}).status_code == 202
     recovered = Client()
     assert execute_next(factory, store, recovered)
@@ -47,3 +50,4 @@ def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_ann
     assert result['items'][0]['versions'][1]['baseVersion'] == 1
     assert result['items'][1] == neighbor
     assert recovered.calls[0][0] == current_bytes
+    assert recovered.calls[0] == failures.calls[0]

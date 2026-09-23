@@ -1,8 +1,10 @@
 """Immutable successful versions and frozen inputs for the current edit cycle."""
 from fastapi import HTTPException
+from uuid import UUID
 from sqlalchemy import func, select
 
 from app.models import utcnow
+from app.image_revision_prompt import REVISION_POLICY_VERSION, build_revision_prompt
 from .files import find_file
 from .models import ApiDispatch, ApiItem, ApiOperation, ApiVersion
 from .service import enabled, find_task, operation
@@ -24,6 +26,12 @@ def ensure_legacy(session, item, task):
 def execution_inputs(session, item, task):
     if item.revision_base_version is None:
         return None
+    if item.revision_snapshot is not None:
+        snapshot = item.revision_snapshot
+        ids = snapshot['fileIds']
+        if len(ids) not in (3, 4) or not snapshot['prompt'] or not snapshot['policyVersion']:
+            raise ValueError('invalid revision snapshot')
+        return ([find_file(session, UUID(file_id)) for file_id in ids], snapshot['prompt'])
     return (find_file(session, item.revision_source_id),
             find_file(session, item.revision_annotation_id) if item.revision_annotation_id else None,
             item.revision_text or '')
@@ -83,7 +91,10 @@ def revise(session, user, task_id, item_id, data, key):
     task, item = target(session, task_id, item_id)
     if gate.paused or item.state != 'succeeded' or item.current_version != data.baseVersion:
         raise HTTPException(409, '图片版本或状态已变化，请刷新后重试')
-    for file_id in sorted({item.result_id, data.annotationFileId} - {None}, key=str):
+    file_ids = [item.result_id, item.source_id, task.material_id]
+    if data.annotationFileId:
+        file_ids.append(data.annotationFileId)
+    for file_id in sorted(set(file_ids), key=str):
         record = find_file(session, file_id, lock=True)
         if file_id == data.annotationFileId and (record.content_type not in {'image/jpeg', 'image/png'}
                                                   or record.size_bytes > 10 * 1024 * 1024):
@@ -91,6 +102,13 @@ def revise(session, user, task_id, item_id, data, key):
     item.revision_base_version, item.revision_source_id = data.baseVersion, item.result_id
     item.revision_annotation_id, item.revision_text = data.annotationFileId, data.text
     item.revision_operator_id = user.id
+    item.revision_snapshot = {
+        'fileIds': [str(file_id) for file_id in file_ids],
+        'prompt': build_revision_prompt(current='图1', original='图2', materials=['图3'],
+                                        note=data.text, annotation='图4' if data.annotationFileId else None,
+                                        api=True),
+        'policyVersion': REVISION_POLICY_VERSION,
+    }
     item.result_url = item.result_bytes = None
     enqueue(session, task, item)
     return finish(session, user, key, digest, task, f'第 {item.position} 张已提交修改')
@@ -126,6 +144,7 @@ def restore(session, user, task_id, item_id, data, key):
     item.result_id, item.current_version, item.state = version.file_id, version.number, 'succeeded'
     item.revision_base_version = item.revision_source_id = item.revision_annotation_id = None
     item.revision_text = item.revision_operator_id = None
+    item.revision_snapshot = None
     item.error = item.next_attempt_at = item.result_url = item.result_bytes = None
     refresh_task(session, task)
     return finish(session, user, key, digest, task, f'第 {item.position} 张已恢复 V{version.number}')

@@ -2,28 +2,15 @@
 import json
 from pathlib import PurePosixPath
 
+from app.image_revision_prompt import build_revision_prompt
+
 
 def wallpaper_revision_prompt(manifest, note):
     target = manifest['targets'][0]
-    lines = ['请根据本次修改意见，修改下面这张成品图片。', '',
-             '当前成品：', f"- {target['currentPath']}",
-             '这是本次唯一修改对象，请以此版本为基础。', '',
-             '对应原始底图：', f"- {target['originalPath']}",
-             '用于对照本次问题涉及的原有结构、边缘、遮挡和光影细节。', '',
-             '手机屏幕素材：']
-    lines.extend(f"- {item['path']}" for item in manifest['inputs'])
-    lines.append('用于核对新壁纸及屏内前置镜头或开孔的内容、位置和比例。')
-    if manifest.get('annotationPath'):
-        lines += ['', '问题位置参考图：', f"- {manifest['annotationPath']}",
-                  '仅用于定位问题，图中的圈线、箭头、文字标记及截图界面不得进入成品。']
-    if note.strip():
-        lines += ['', '本次修改意见：', json.dumps(note, ensure_ascii=False)]
-    lines += ['', '修改要求：',
-              '1. 优先解决本次指出的问题，只调整相关区域及必要的衔接部分，保留当前成品中其他已完成的内容。',
-              '2. 需要还原原有细节时，对照原始底图；需要修正壁纸或屏内开孔时，对照手机屏幕素材。不要恢复旧壁纸，也不要撤销此前已确认且与本次问题无关的修改。',
-              '3. 输出前，将修复位置及周边交界与原始底图、当前成品进行对照，确认本次问题得到改善，且没有引入明显的漏贴、接缝、变形或遮挡错误。发现明确缺陷时继续局部修复，不因无关的细微疑虑反复重做整张图。',
-              '4. 保持当前成品的画布尺寸和其他内容。完成后只展示并提供修改后的这1张成品图片；若仍有无法解决的问题，如实说明，不将未解决的问题表述为已修复。']
-    return '\n'.join(lines)
+    return build_revision_prompt(
+        current=target['currentPath'], original=target['originalPath'],
+        materials=[item['path'] for item in manifest['inputs']], note=note,
+        annotation=manifest.get('annotationPath'))
 
 
 def single_revision_prompt(manifest, note):

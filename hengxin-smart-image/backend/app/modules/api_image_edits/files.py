@@ -51,7 +51,9 @@ def delete_file(session, file_id, user):
     item = session.scalar(select(ApiItem.id).where(or_(ApiItem.source_id == file_id,
                                                        ApiItem.result_id == file_id,
                                                        ApiItem.revision_source_id == file_id,
-                                                       ApiItem.revision_annotation_id == file_id)).limit(1))
+                                                       ApiItem.revision_annotation_id == file_id,
+                                                       *(ApiItem.revision_snapshot['fileIds'][index].as_string() == str(file_id)
+                                                         for index in range(4)))).limit(1))
     task = session.scalar(select(ApiTask.id).where(ApiTask.material_id == file_id).limit(1))
     version = session.scalar(select(ApiVersion.id).where(or_(ApiVersion.file_id == file_id,
                                                               ApiVersion.annotation_id == file_id)).limit(1))
