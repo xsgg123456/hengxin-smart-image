@@ -52,7 +52,9 @@ for name in ('api','outbox','api-image-worker','api-image-outbox'):
 print('LIVE_CONFIGURATION_MATCHES')
 PY
 "${new[@]}" config --quiet
-docker build -f "$src/infra/Dockerfile.backend" -t "$image" "$src"
+if [[ "$mode" = build-only ]]; then
+  docker build -f "$src/infra/Dockerfile.backend" -t "$image" "$src"
+fi
 docker run --rm --network none --entrypoint python "$image" -m compileall -q app migrations
 if [[ "$mode" = build-only ]]; then echo BUILD_COMPLETE; exit 0; fi
 # Operator must run installation tests on this exact image before service interruption.
