@@ -28,9 +28,17 @@ def prepared(env, receipt, tmp_path, monkeypatch):
     return manifest, work
 
 
-def test_fourth_slot_uses_historical_unmarked_base_and_current_annotation(task_env, tmp_path, monkeypatch):
-    data = body(task_env)
-    data['sources'] *= 4
+@pytest.mark.parametrize('mode', ['text', 'wallpaper'])
+def test_fourth_slot_uses_historical_unmarked_base_and_current_annotation(task_env, tmp_path, monkeypatch, mode):
+    data = body(task_env, mode)
+    if mode == 'text':
+        data['sources'] *= 4
+    else:
+        response = task_env[0].post('/api/v1/templates', json=dict(name='四张底图', mode=mode,
+            images=data['sources'] * 4, skillVersionId=data['skillVersionId'], active=True, notes='冻结'))
+        assert response.status_code == 200, response.text
+        template = response.json()
+        data.update(templateId=template['id'], templateVersion=template['version'])
     receipt = frozen_request(task_env, data)
     run_generation(job_for(task_env[1], receipt), task_env[1], task_env[2])
     before = detail(task_env, receipt)
@@ -56,12 +64,20 @@ def test_fourth_slot_uses_historical_unmarked_base_and_current_annotation(task_e
     assert (work / 'current/00.png').read_bytes() != task_env[0].get(latest['url']).content
     assert (work / 'annotation/reference.png').read_bytes() == task_env[0].get(annotation['url']).content
     prompt = prompt_for(manifest, '只改圈内镜头', 'original-session')
-    assert '/work/current/00.png' in prompt and '只交付修改后的这 1 张图片' in prompt
-    assert 'Skill' not in prompt and '使用 $' not in prompt and '底图' not in prompt
-    assert '标注内容不要出现在成品中' in prompt
+    assert '/work/current/00.png' in prompt
+    assert 'Skill' not in prompt and '使用 $' not in prompt
+    if mode == 'wallpaper':
+        assert '只展示并提供修改后的这1张成品图片' in prompt
+        assert '截图界面不得进入成品' in prompt
+        assert target['originalPath'] == '/work/original/00.png'
+        assert len(list((work / 'original').iterdir())) == 1
+    else:
+        assert '只交付修改后的这 1 张图片' in prompt and '底图' not in prompt
+        assert '标注内容不要出现在成品中' in prompt
+        assert not list((work / 'targets').iterdir())
     assert '/work/annotation/reference.png' in prompt and '只改圈内镜头' in prompt
     assert 'skillPath' not in manifest and 'path' not in target
-    assert not list((work / 'targets').iterdir()) and not (work / 'skills').exists()
+    assert not (work / 'skills').exists()
 
 
 def test_text_single_revision_does_not_read_any_original_images(task_env, tmp_path, monkeypatch):
@@ -104,7 +120,7 @@ def test_explicit_empty_base_stays_empty_and_legacy_round_uses_current(task_env,
 
 
 @pytest.mark.parametrize('source_type', ['zip', 'local'])
-def test_finished_revision_does_not_read_original_template_or_skill(task_env, tmp_path, monkeypatch, source_type):
+def test_wallpaper_revision_reads_original_but_not_skill(task_env, tmp_path, monkeypatch, source_type):
     from app.modules.skills.models import SkillVersionRecord
     monkeypatch.setattr(ObjectStream, 'read', lambda self, size: self.data[:size], raising=False)
     data = body(task_env, 'wallpaper')
@@ -115,7 +131,7 @@ def test_finished_revision_does_not_read_original_template_or_skill(task_env, tm
     with task_env[1].begin() as session:
         task = session.get(TaskRecord, UUID(receipt['taskId']))
         original = session.get(FileRecord, UUID(task.template_snapshot['images'][0]['fileId']))
-        task_env[2].objects[original.object_key] = b'broken template'
+        original_bytes = task_env[2].objects[original.object_key]
         skill = session.get(SkillVersionRecord, task.skill_version_id)
         task_env[2].objects[skill.object_key] = b'broken skill'
         skill.source_type = source_type
@@ -132,4 +148,51 @@ def test_finished_revision_does_not_read_original_template_or_skill(task_env, tm
     assert workspace.use_skill is False
     assert 'skillPath' not in manifest and 'path' not in manifest['targets'][0]
     assert (work / 'current/00.png').exists() and (work / 'inputs/00.png').exists()
-    assert not list((work / 'targets').iterdir()) and not (work / 'skills').exists()
+    assert manifest['targets'][0]['originalPath'] == '/work/original/00.png'
+    assert (work / 'original/00.png').read_bytes() == original_bytes
+    assert not (work / 'targets').exists() and not (work / 'skills').exists()
+
+
+@pytest.mark.parametrize('problem', ['deleted', 'corrupt', 'missing'])
+def test_wallpaper_revision_cannot_omit_unavailable_original(task_env, tmp_path, monkeypatch, problem):
+    from app.models import utcnow
+    data = body(task_env, 'wallpaper')
+    data['sources'] = [upload(task_env[0], repaired_image_bytes()).json()]
+    receipt = frozen_request(task_env, data)
+    run_generation(job_for(task_env[1], receipt), task_env[1], task_env[2])
+    accepted = revise(task_env, receipt, target=1).json()
+    with task_env[1].begin() as session:
+        task = session.get(TaskRecord, UUID(receipt['taskId']))
+        original = session.get(FileRecord, UUID(task.template_snapshot['images'][1]['fileId']))
+        if problem == 'deleted':
+            original.deleted_at = utcnow()
+        elif problem == 'corrupt':
+            task_env[2].objects[original.object_key] = b'broken'
+        else:
+            del task_env[2].objects[original.object_key]
+    with pytest.raises((ValueError, KeyError)) as caught:
+        prepared(task_env, accepted, tmp_path, monkeypatch)
+    if problem == 'deleted':
+        assert str(caught.value) == '对应原始底图不可用'
+
+
+def test_wallpaper_original_uses_frozen_template_slot(task_env, tmp_path, monkeypatch):
+    from app.modules.templates.models import TemplateVersionRecord
+    data = body(task_env, 'wallpaper')
+    different = upload(task_env[0], repaired_image_bytes()).json()
+    template = task_env[0].post('/api/v1/templates', json=dict(name='不同底图', mode='wallpaper',
+        images=[data['sources'][0], different], skillVersionId=data['skillVersionId'],
+        active=True, notes='原版')).json()
+    data.update(templateId=template['id'], templateVersion=template['version'])
+    receipt = frozen_request(task_env, data)
+    run_generation(job_for(task_env[1], receipt), task_env[1], task_env[2])
+    accepted = revise(task_env, receipt, target=1).json()
+    # Even if the live template data changes, the task's frozen mapping wins.
+    with task_env[1].begin() as session:
+        version = session.scalar(select(TemplateVersionRecord).where(
+            TemplateVersionRecord.template_id == UUID(template['id'])))
+        version.images = [data['sources'][0], data['sources'][0]]
+    manifest, work = prepared(task_env, accepted, tmp_path, monkeypatch)
+    assert manifest['targets'][0]['taskSlot'] == 1
+    assert (work / 'original/00.png').read_bytes() == repaired_image_bytes()
+    assert (work / 'original/00.png').read_bytes() != (work / 'inputs/00.png').read_bytes()

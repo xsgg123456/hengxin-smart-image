@@ -44,20 +44,24 @@ def prepare_materials(session, store, task, round, workspace):
     inputs = [] if single_base and task.mode == 'text' else [{'fileId': str(s.file_id)} for s in sources]
     for category, items in [('inputs', inputs),
                             ('targets', [targets[i] for i in selected])]:
-        directory = workspace.work / category
+        original = category == 'targets' and bool(single_base) and task.mode == 'wallpaper'
+        directory = workspace.work / ('original' if original else category)
         directory.mkdir()
         for index, item in enumerate(items):
-            if category == 'targets' and single_base:
+            if category == 'targets' and single_base and not original:
                 manifest['targets'].append({'slot': index})
                 continue
             file = session.get(FileRecord, UUID(item['fileId']))
             if not file or file.status != 'ready' or file.deleted_at:
-                raise ValueError('冻结图片不可用')
+                raise ValueError('对应原始底图不可用' if original else '冻结图片不可用')
             data = read_object(store, file, 10 * 1024 * 1024)
             name = f'{index:02d}' + {'image/png': '.png', 'image/jpeg': '.jpg',
                                     'image/webp': '.webp'}[file.content_type]
             (directory / name).write_bytes(data)
-            manifest[category].append({'slot': index, 'path': f'/work/{category}/{name}'})
+            if original:
+                manifest['targets'].append({'slot': index, 'originalPath': f'/work/original/{name}'})
+            else:
+                manifest[category].append({'slot': index, 'path': f'/work/{category}/{name}'})
     current_dir = workspace.work / 'current'
     current_dir.mkdir()
     for local_slot, task_slot in enumerate(selected):

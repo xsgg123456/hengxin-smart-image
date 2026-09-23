@@ -104,6 +104,13 @@ def test_single_revision_preserves_original_task_number(delivery):
     assert run('![主图4](/work/final.png)')[0].name == 'final.png'
 
 
+def test_original_reference_cannot_be_delivered_as_result(delivery):
+    image, run, *_ = delivery
+    image('original/00.png')
+    with pytest.raises(OutputCollectionError):
+        run('![成品](/work/original/00.png)')
+
+
 def test_native_history_rejected_even_when_changed(delivery):
     image, run, *_ = delivery
     image('native.png', native=True)

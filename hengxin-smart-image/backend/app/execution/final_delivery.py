@@ -16,7 +16,7 @@ from app.modules.files.validation import MAX_UPLOAD_BYTES, ValidatedImage, valid
 
 MAX_EVENTS_BYTES = 64 * 1024 * 1024
 _EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
-_PROTECTED = {'inputs', 'targets', 'current', 'skills', '.agents', '.codex'}
+_PROTECTED = {'inputs', 'targets', 'original', 'current', 'skills', '.agents', '.codex'}
 _DIGITS = r'[0-9零一二三四五六七八九十]+'
 _NUMBER = re.compile(r'(?:主图|图片|图)\s*[（(]?\s*(' + _DIGITS + r')|第\s*(' + _DIGITS + r')\s*张')
 _ORDERED = re.compile(r'^(' + _DIGITS + r')\s*[.、)）]\s*')

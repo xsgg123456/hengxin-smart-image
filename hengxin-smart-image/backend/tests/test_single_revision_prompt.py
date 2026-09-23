@@ -9,26 +9,37 @@ from app.execution.prompts import prompt_for
     'jd-main-image-wallpaper-camera-swap', 'jd-main-image-wallpaper-camera-swap-it-optimized'])
 @pytest.mark.parametrize('annotation,note', [(False, '镜头向左移动'), (True, ''),
     (True, '只修改圈内位置\n不要改变其他内容')])
-def test_single_revision_uses_only_finished_image_reference_and_feedback(name, annotation, note):
+def test_wallpaper_revision_includes_original_with_distinct_roles(name, annotation, note):
     manifest = {'mode': 'wallpaper', 'singleRevision': True,
         'skillPath': f'/work/skills/{name}/SKILL.md',
         'targets': [{'slot': 0, 'taskSlot': 2, 'path': '/work/targets/00.jpg',
+                     'originalPath': '/work/original/00.jpg',
                      'currentPath': '/work/current/00.png', 'currentVersion': 1}],
         'inputs': [{'path': '/work/inputs/00.jpg'}]}
     if annotation:
         manifest['annotationPath'] = '/work/annotation/reference.png'
-    expected = ['请修改这张成品图片：', '- /work/current/00.png', '',
-                '手机屏幕参考素材：', '- /work/inputs/00.jpg']
-    if annotation:
-        expected += ['', '问题位置参考图：', '- /work/annotation/reference.png',
-                     '该图仅用于定位问题，标注内容不要出现在成品中。']
+    prompt = prompt_for(manifest, note, 'original-session')
+    sections = ['当前成品：', '/work/current/00.png', '对应原始底图：',
+                '/work/original/00.jpg', '手机屏幕素材：', '/work/inputs/00.jpg']
+    assert [prompt.index(part) for part in sections] == sorted(prompt.index(part) for part in sections)
+    assert ('问题位置参考图：' in prompt) == annotation
+    assert ('/work/annotation/reference.png' in prompt) == annotation
+    assert ('本次修改意见：' in prompt) == bool(note)
     if note:
-        expected += ['', '修改意见：', json.dumps(note, ensure_ascii=False)]
-    expected += ['', '请在上述成品图片上完成修改，其他内容保持不变，只交付修改后的这 1 张图片。']
-    assert prompt_for(manifest, note, 'original-session') == '\n'.join(expected)
+        assert json.dumps(note, ensure_ascii=False) in prompt
+    assert '这是本次唯一修改对象' in prompt and '不要恢复旧壁纸' in prompt
+    assert '输出前，将修复位置及周边交界' in prompt
+    assert '只展示并提供修改后的这1张成品图片' in prompt
+    assert '使用 $' not in prompt and '/work/targets/' not in prompt
     del manifest['skillPath']
     del manifest['targets'][0]['path']
-    assert prompt_for(manifest, note, 'original-session') == '\n'.join(expected)
+    assert prompt_for(manifest, note, 'original-session') == prompt
+
+
+def test_wallpaper_revision_requires_explicit_original():
+    with pytest.raises(KeyError, match='originalPath'):
+        prompt_for({'mode': 'wallpaper', 'singleRevision': True,
+                    'targets': [{'currentPath': '/work/current/00.png'}], 'inputs': []}, '修改')
 
 
 @pytest.mark.parametrize('mode,role', [('product', '商品参考素材'), ('text', None)])
