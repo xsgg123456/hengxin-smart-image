@@ -21,7 +21,8 @@ old=(docker compose -f compose.yaml -f compose.vps.yaml -f compose.api-image.yam
   -f /opt/hengxin-releases/three-fixes-20260923/api-override.yaml
   -f /opt/hengxin-releases/cli-two-hour-20260923/api-override.yaml
   -f /opt/hengxin-releases/inputs-20260923-b2841c7/api-override.yaml
-  -f /opt/hengxin-releases/annotation-20260924-6b43b3c/api-override.yaml)
+  -f /opt/hengxin-releases/annotation-20260924-6b43b3c/api-override.yaml
+  -f /opt/hengxin-releases/materials-20260924-e3c60c9/api-override.yaml)
 new=("${old[@]}" -f "$work/api-override.yaml")
 sql() { docker exec hengxin-vps-staging-postgres-1 psql -v ON_ERROR_STOP=1 -U hengxin -d hengxin -Atc "$1"; }
 api_control() { docker exec -i hengxin-vps-staging-api-image-worker-1 python - "$1" "$wait_seconds" < "$helper"; }

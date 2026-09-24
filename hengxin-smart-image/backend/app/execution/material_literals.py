@@ -3,7 +3,7 @@ import json
 import re
 
 SPACE = re.compile(r'[ \t\v\f\r\n\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+')
-TOKEN = re.compile(SPACE.pattern + r'|//[^\r\n\u2028\u2029]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|`(?:\\.|[^`\\])*`|[A-Za-z_$][\w$]*|-?\d+(?:\.\d+)?|.', re.S)
+TOKEN = re.compile(SPACE.pattern + r'|//[^\r\n\u2028\u2029]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|`(?:\\.|[^`\\])*`|[A-Za-z_$][\w$]*|-?\d+(?:\.\d+)?|=>|.', re.S)
 IDENTIFIER = re.compile(r'[A-Za-z_$][A-Za-z0-9_$]*')
 NUMBER = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?')
 HELPERS = {'generatedImage', 'text'}
@@ -11,7 +11,7 @@ RESERVED_BINDINGS = set('await break case catch class const continue debugger de
     'delete do else enum export extends false finally for function if import in '
     'instanceof let new null return super switch this throw true try typeof var '
     'void while with yield implements interface package private protected public '
-    'static eval arguments tools'.split()) | HELPERS
+    'static eval arguments tools Object store'.split()) | HELPERS
 
 
 def string_value(token):
@@ -89,9 +89,39 @@ def literal(tokens, index, depth=0):
     return result, index + 1
 
 
+def metadata_display(tokens, index, result_binding):
+    """Recognize only the fixed result-metadata projection, never execute JS."""
+    prefix = ['text', '(', 'Object', '.', 'fromEntries', '(', 'Object', '.',
+              'entries', '(', result_binding, ')', '.', 'filter', '(', '(', '[']
+    if tokens[index:index + len(prefix)] != prefix:
+        raise ValueError('unsupported metadata display')
+    index += len(prefix)
+    key_binding = tokens[index]
+    if (not IDENTIFIER.fullmatch(key_binding) or key_binding in RESERVED_BINDINGS
+            or tokens[index + 1:index + 5] != [']', ')', '=>', '!']):
+        raise ValueError('unsupported metadata filter')
+    index += 5
+    if tokens[index] != '[':
+        raise ValueError('metadata exclusion list required')
+    excluded, index = literal(tokens, index)
+    if not all(isinstance(key, str) for key in excluded):
+        raise ValueError('metadata exclusions must be strings')
+    suffix = ['.', 'includes', '(', key_binding, ')', ')', ')', ')']
+    if tokens[index:index + len(suffix)] != suffix:
+        raise ValueError('unsupported metadata filter tail')
+    return index + len(suffix)
+
+
 def image_calls(code):
-    tokens = [t for t in TOKEN.findall(code) if not SPACE.fullmatch(t) and not t.startswith(('//', '/*'))]
+    matches = [m for m in TOKEN.finditer(code)
+               if not SPACE.fullmatch(m[0]) and not m[0].startswith(('//', '/*'))]
+    tokens = [m[0] for m in matches]
     relevant = 'image_gen__imagegen' in tokens
+    # JavaScript forbids a line terminator between arrow parameters and =>,
+    # including one hidden in a comment. Whitespace stripping must not admit it.
+    if any(m[0] == '=>' and re.search(r'[\r\n\u2028\u2029]', code[matches[i - 1].end():m.start()])
+           for i, m in enumerate(matches) if i):
+        return [], relevant
     # Parse the entire program, not call-shaped substrings. Prior expressions can
     # fail/exit, and even trailing syntax errors prevent the whole exec from running.
     # This deliberately excludes ASI, dynamic expressions and multiple image calls.
@@ -128,6 +158,16 @@ def image_calls(code):
             elif (call is not None and result_binding is not None and tokens[index] in HELPERS
                     and tokens[index + 1:index + 4] == ['(', result_binding, ')']):
                 index += 4
+            elif call is not None and result_binding is not None and tokens[index] == 'store':
+                if tokens[index + 1] != '(':
+                    raise ValueError('unsupported result storage')
+                key, index = literal(tokens, index + 2)
+                if (not isinstance(key, str)
+                        or tokens[index:index + 3] != [',', result_binding, ')']):
+                    raise ValueError('unsupported result storage')
+                index += 3
+            elif call is not None and result_binding is not None and tokens[index] == 'text':
+                index = metadata_display(tokens, index, result_binding)
             else:
                 raise ValueError('unsupported statement')
             if index < len(tokens):

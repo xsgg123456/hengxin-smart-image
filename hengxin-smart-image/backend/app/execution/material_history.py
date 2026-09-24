@@ -72,9 +72,11 @@ def history(root, task_id, round_id, started, ended, cache_bucket):
                 if event.get('type') == 'response_item' and payload.get('type') == 'message' and payload.get('role') == 'user':
                     content = '\n'.join(part.get('text', '') for part in payload.get('content', []) if isinstance(part, dict))
                     active = any(prompt in content for prompt in prompts)
-                if not active or event.get('type') != 'response_item' or payload.get('type') != 'function_call':
+                call_type = payload.get('type')
+                if not active or event.get('type') != 'response_item' or call_type not in ('function_call', 'custom_tool_call'):
                     continue
-                name, arguments = payload.get('name'), payload.get('arguments')
+                name = payload.get('name')
+                arguments = payload.get('input' if call_type == 'custom_tool_call' else 'arguments')
                 if not isinstance(arguments, str):
                     continue
                 if name in ('exec', 'functions.exec'):

@@ -39,9 +39,18 @@ def evidence(tmp_path, task_id, round_id, started, prompt='系统原文'):
     return control, path
 
 
-def test_history_full_multiple_calls_scoped_and_sanitized(tmp_path):
+@pytest.mark.parametrize('custom', [False, True])
+def test_history_full_multiple_calls_scoped_and_sanitized(tmp_path, custom):
     task, round_id, start = uuid4(), uuid4(), utcnow()
-    evidence(tmp_path, task, round_id, start)
+    _, path = evidence(tmp_path, task, round_id, start)
+    if custom:
+        records = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
+        for row in records:
+            payload = row['payload']
+            if payload['type'] == 'function_call':
+                payload['type'] = 'custom_tool_call'
+                payload['input'] = payload.pop('arguments') + 'store("result", result); text(Object.fromEntries(Object.entries(result).filter(([k]) => !["image_url", "b64_json", "data"].includes(k))));'
+        path.write_text('\n'.join(json.dumps(row, ensure_ascii=False) for row in records), encoding='utf-8')
     data = read_history(tmp_path, task, round_id, start, start + timedelta(seconds=10))
     assert len(data['toolCalls']) == 2
     assert data['toolCalls'][0]['prompt'] == '完整内容' * 6000
@@ -57,6 +66,26 @@ def test_history_full_multiple_calls_scoped_and_sanitized(tmp_path):
 ])
 def test_dynamic_arguments_not_executed_or_partially_displayed(code):
     assert image_calls(code) == ([], True)
+
+
+@pytest.mark.parametrize('kind,name,field', [
+    ('custom_tool_call_output', 'exec', 'input'),
+    ('custom_tool_call', 'unrelated', 'input'),
+    ('function_call', 'exec', 'input'),
+    ('custom_tool_call', 'exec', 'arguments'),
+])
+def test_history_ignores_noncall_and_mismatched_event_fields(tmp_path, kind, name, field):
+    task, round_id, start = uuid4(), uuid4(), utcnow()
+    _, path = evidence(tmp_path, task, round_id, start)
+    records = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
+    for row in records:
+        payload = row['payload']
+        if payload['type'] == 'function_call':
+            code = payload.pop('arguments')
+            payload.update(type=kind, name=name)
+            payload[field] = code
+    path.write_text('\n'.join(json.dumps(row) for row in records), encoding='utf-8')
+    assert not read_history(tmp_path, task, round_id, start, start + timedelta(seconds=10))['toolCalls']
 
 
 def test_literal_parser_quotes_comments_and_no_string_false_positive():

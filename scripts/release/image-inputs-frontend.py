@@ -36,6 +36,7 @@ manifest['composeBaseOverlays'] = [
     '/opt/hengxin-releases/cli-two-hour-20260923/api-override.yaml',
     '/opt/hengxin-releases/inputs-20260923-b2841c7/api-override.yaml',
     '/opt/hengxin-releases/annotation-20260924-6b43b3c/api-override.yaml',
+    '/opt/hengxin-releases/materials-20260924-e3c60c9/api-override.yaml',
 ]
 for name in ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json'):
     temporary = app / (name + '.new')
