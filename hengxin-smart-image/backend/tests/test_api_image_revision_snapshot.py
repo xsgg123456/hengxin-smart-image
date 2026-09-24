@@ -45,6 +45,8 @@ def test_snapshot_final_wire_order_and_prompt(files_env, annotated):
         assert frozen['prompt'] and '图1' in frozen['prompt'] and '图3' in frozen['prompt']
         if annotated:
             assert '图4' in frozen['prompt'] and '定位' in frozen['prompt']
+            assert '自由画笔' in frozen['prompt'] and '不是像素蒙版' in frozen['prompt']
+            assert frozen['policyVersion'] == 'single-image-reference-v2'
     opened = []
     original_open = store.open
     def capture(record):
@@ -103,10 +105,17 @@ def test_acceptance_checks_original_and_material_status(files_env, role):
     assert post(web, path + '/revise', {'baseVersion': 1, 'text': '修复'}).status_code == 404
 
 
-def test_snapshot_freezes_ids_prompt_and_protects_standalone_reference(files_env, monkeypatch):
+@pytest.mark.parametrize('old_policy', [False, True])
+def test_snapshot_freezes_ids_prompt_and_protects_standalone_reference(files_env, monkeypatch, old_policy):
     web, factory, store, _ = files_env
     _, first, path = setup_result(web, factory)
     assert post(web, path + '/revise', {'baseVersion': 1, 'text': '修复'}).status_code == 202
+    if old_policy:
+        with factory.begin() as session:
+            item = session.get(ApiItem, UUID(first['id']))
+            item.revision_snapshot = {**item.revision_snapshot,
+                                      'prompt': '升级前已受理的原提示词，保持原文。',
+                                      'policyVersion': 'single-image-reference-v1'}
     frozen_args = inputs(factory, UUID(first['id']), store)
     monkeypatch.setattr('app.modules.api_image_edits.versions.build_revision_prompt',
                         lambda **kwargs: pytest.fail('retry rebuilt frozen prompt'))

@@ -2,7 +2,14 @@
 import json
 
 
-REVISION_POLICY_VERSION = 'single-image-reference-v1'
+REVISION_POLICY_VERSION = 'single-image-reference-v2'
+
+ANNOTATION_GUIDANCE = (
+    '参考图可能是当前成品上的标注，也可能是用户上传的已有截图，请结合当前成品核对对应位置。'
+    '矩形框、自由画笔圈线和编号仅用于定位问题，不是像素蒙版，不代表框外或圈外像素绝对不变；这些标记不得进入成品。'
+    '框选不表示替换框内全部内容，画笔圈线不表示需要绘制的成品线条；具体修改以对应文字意见为准，继续以无标注成品为基础。'
+    '图中存在编号时，按用户修改意见中的对应编号逐项处理；没有编号时，按实际标记和文字意见定位，不自行假定编号。'
+    '无法确定对应位置或编号意见时，如实说明歧义，不猜测修改区域。')
 
 
 def build_revision_prompt(*, current, original, materials, note, annotation=None, api=False):
@@ -28,7 +35,8 @@ def build_revision_prompt(*, current, original, materials, note, annotation=None
     lines.append(material_purpose)
     if annotation:
         lines += ['', '问题位置参考图：', f'- {annotation}',
-                  '仅用于定位问题，图中的圈线、箭头、文字标记及截图界面不得进入成品。']
+                  '仅用于定位问题，图中的圈线、箭头、文字标记及截图界面不得进入成品。',
+                  ANNOTATION_GUIDANCE]
     if note.strip():
         lines += ['', '本次修改意见：', json.dumps(note, ensure_ascii=False)]
     elif api and annotation:

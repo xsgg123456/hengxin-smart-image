@@ -2,7 +2,7 @@
 import json
 from pathlib import PurePosixPath
 
-from app.image_revision_prompt import build_revision_prompt
+from app.image_revision_prompt import ANNOTATION_GUIDANCE, build_revision_prompt
 
 
 def wallpaper_revision_prompt(manifest, note):
@@ -24,7 +24,7 @@ def single_revision_prompt(manifest, note):
         lines.extend(f"- {item['path']}" for item in manifest['inputs'])
     if manifest.get('annotationPath'):
         lines += ['', '问题位置参考图：', f"- {manifest['annotationPath']}",
-                  '该图仅用于定位问题，标注内容不要出现在成品中。']
+                  '该图仅用于定位问题，标注内容不要出现在成品中。', ANNOTATION_GUIDANCE]
     if note.strip():
         lines += ['', '修改意见：', json.dumps(note, ensure_ascii=False)]
     lines += ['', '请在上述成品图片上完成修改，其他内容保持不变，只交付修改后的这 1 张图片。']

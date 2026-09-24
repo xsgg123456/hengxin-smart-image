@@ -1,118 +1,78 @@
 <template>
-  <ElDialog v-model="open" title="修改这张结果" width="min(900px, 94vw)" append-to-body :close-on-click-modal="false" :close-on-press-escape="!busy && !reading" :show-close="!busy && !reading">
-    <div v-if="item?.result" class="revision-layout">
-      <section><h3>当前生成结果 · 原图 {{ item.position }} · V{{ baseVersion }}</h3><div class="current-picture"><PicturePreview :picture="item.versions.find(v => v.number === baseVersion)?.picture || item.result" title="本次修改基于当前结果" /></div><p class="hx-footnote">以当前 V{{ baseVersion }} 为基础修改；成功后新增版本并设为当前，历史图片保留。</p></section>
-      <section>
-        <ElForm label-position="top">
-          <ElFormItem label="修改说明"><ElInput v-model="text" aria-label="修改说明" type="textarea" :rows="6" maxlength="4000" show-word-limit placeholder="写下需要调整的地方，也可以只上传标注图。" :disabled="locked" /></ElFormItem>
-          <ElFormItem label="标注图（可选，最多 1 张）">
-            <UploadInteraction class="annotation-control" :disabled="!open || locked || blocked || reading" @files="receiveAnnotation" @error="localError = $event">
-              <input ref="picker" class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" aria-label="上传修改标注图" :disabled="!open || locked || blocked || reading" @change="readAnnotation" />
-              <div v-if="annotation" class="annotation-preview"><PicturePreview :picture="annotation" title="修改标注图" /><ElButton text type="danger" :disabled="locked || reading" @click="removeAnnotation">移除标注图</ElButton></div>
-              <button v-else type="button" class="annotation-drop" :disabled="locked || blocked || reading" @click="picker?.click()"><strong>选择 JPG / PNG 标注图，或拖到这里</strong></button>
-              <p class="hx-footnote">单张不超过 10 MiB。系统将自动附带对应原图和共用素材作为参考；标注图仅用于定位问题。</p>
-            </UploadInteraction>
-          </ElFormItem>
-        </ElForm>
-        <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon />
-        <p v-else class="hx-footnote">修改说明与标注图至少填写一种。</p>
-      </section>
-    </div>
-    <template #footer><ElButton :disabled="busy || reading" @click="open = false">关闭</ElButton><ElButton type="primary" :loading="busy" :disabled="reading || blocked || (!pending && !text.trim() && !annotation)" @click="submit">{{ pending ? '确认原修改请求' : '提交单图修改' }}</ElButton></template>
+  <ElDialog v-model="open" :title="`修改第 ${item?.position || ''} 张图片 · 基于 V${baseVersion}`" width="min(1380px, 96vw)" align-center append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!working" :show-close="!working">
+    <AnnotationEditor v-if="open && source" ref="editor" :draft-key="draftKey" :load-original="loadOriginal" :base-label="`本次基于 V${baseVersion} 修改`" :limit="4000" :disabled="working || !!pending || blocked" @submit="submit" />
+    <ElAlert v-else title="该版本的成品原始文件不可用，请重新读取任务详情。" type="error" :closable="false" />
+    <ElAlert v-if="error" :title="error" type="error" :closable="false" />
+    <template #footer><ElButton :disabled="working" @click="open = false">关闭</ElButton><ElButton type="primary" :loading="working" :disabled="blocked || (!source && !pending)" @click="pending ? confirmPrevious() : editor?.preview()">{{ pending ? '确认原修改请求' : '预览提交内容' }}</ElButton></template>
   </ElDialog>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useUserStore } from '@/store/modules/user'
 import { apiImages, errorText } from '@/api/api-image-edits'
 import type { ApiPicture, ApiTask } from '@/types/api-image-edits'
-import UploadInteraction from '../components/UploadInteraction.vue'
-import { singleImageError } from '../components/upload-interaction'
-import PicturePreview from '../components/PicturePreview.vue'
-import { itemCommand } from './item-command'
+import AnnotationEditor, { type PreparedAnnotation } from '../components/annotation/AnnotationEditor.vue'
+import { forgetAnnotationDraft } from '../components/annotation/annotation-drafts'
+import { itemCommand, type ItemCommand } from './item-command'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task: ApiTask; itemId: string; blocked?: boolean }>()
 const emit = defineEmits<{ accepted: [] }>()
-const user = String(useUserStore().getUserInfo.userId)
-const item = computed(() => props.task.items.find(i => i.id === props.itemId)!)
-const operation = computed(() => itemCommand(user, props.task.id, props.itemId))
+const userStore = useUserStore(), user = computed(() => String(userStore.getUserInfo.userId))
+const item = computed(() => props.task.items.find(i => i.id === props.itemId))
+const operation = computed(() => itemCommand(user.value, props.task.id, props.itemId))
 const pending = computed(() => operation.value.state.pending)
-const busy = computed(() => operation.value.state.busy)
-const locked = computed(() => busy.value || !!pending.value)
-const text = ref(''), annotation = ref<ApiPicture>(), baseVersion = ref(0), localError = ref('')
+const uploading = ref(false), working = computed(() => uploading.value || operation.value.state.busy)
+const baseVersion = ref(0), source = shallowRef<ApiPicture>(), localError = ref('')
+const editor = ref<InstanceType<typeof AnnotationEditor>>()
 const error = computed(() => localError.value || operation.value.state.error)
-const reading = ref(false), picker = ref<HTMLInputElement>()
-let alive = true
-let generation = 0
-watch([locked, () => props.blocked], () => { generation++ }, { flush: 'sync' })
-watch([open, () => props.itemId], () => {
-  generation++
-  if (!open.value) { if (!pending.value) void removeAnnotation(); return }
+const draftKey = computed(() => JSON.stringify(['api', user.value, props.task.id, props.itemId, baseVersion.value, source.value?.fileId]))
+let generation = 0, alive = true
+let cached: { file: File; picture: ApiPicture; operation: ReturnType<typeof itemCommand> } | undefined
+watch([open, () => props.itemId, () => props.task.id, user], () => {
+  generation++; clearUnusedUpload(); localError.value = ''
+  if (!open.value) return
   const command = pending.value?.command
-  if (command?.kind === 'revise') { text.value = command.input.text; annotation.value = command.annotation; baseVersion.value = command.input.baseVersion }
-  else { text.value = ''; baseVersion.value = item.value?.currentVersion || 0 }
-  localError.value = ''
+  baseVersion.value = command?.kind === 'revise' ? command.input.baseVersion : item.value?.currentVersion || 0
+  const picture = item.value?.versions.find(v => v.number === baseVersion.value)?.picture
+  source.value = picture ? { ...picture } : undefined
 }, { immediate: true, flush: 'sync' })
-async function removeAnnotation() {
-  if (locked.value || !annotation.value) return
-  const saved = annotation.value
-  reading.value = true
-  try { await apiImages.deleteFile(saved.fileId); if (annotation.value === saved) annotation.value = undefined }
-  catch (e) { localError.value = '清理标注图失败：' + errorText(e) }
-  finally { reading.value = false }
+function clearUnusedUpload() {
+  const saved = cached; cached = undefined
+  // Uncertain requests own their frozen attachment until acceptance is resolved.
+  if (saved && !saved.operation.state.pending && !saved.operation.state.busy) void apiImages.deleteFile(saved.picture.fileId).catch(() => {})
 }
-async function readAnnotation(event: Event) {
-  const input = event.target as HTMLInputElement, files = Array.from(input.files ?? []); input.value = ''
-  await receiveAnnotation(files)
+function loadOriginal() {
+  if (!source.value?.fileId) return Promise.reject(new Error('成品原始文件标识缺失'))
+  return apiImages.download(source.value.fileId)
 }
-async function receiveAnnotation(files: File[]) {
-  if (!alive || !open.value || locked.value || props.blocked || reading.value) return
-  const reason = singleImageError(files.length, !!annotation.value)
-  if (reason) { localError.value = reason; return }
-  const file = files[0]
-  if (!file) return
-  localError.value = ''
-  if (!['image/jpeg', 'image/png'].includes(file.type) || !/\.(jpe?g|png)$/i.test(file.name)) { localError.value = '请选择 JPG 或 PNG 图片'; return }
-  if (!file.size || file.size > 10 * 1024 * 1024) { localError.value = '标注图不能为空或超过 10 MiB'; return }
-  const token = generation
-  reading.value = true
-  let url = ''
-  try {
-    const bytes = new Uint8Array(await file.slice(0, 8).arrayBuffer())
-    const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-    const png = [137, 80, 78, 71, 13, 10, 26, 10].every((byte, i) => bytes[i] === byte)
-    if ((file.type === 'image/jpeg' && !jpeg) || (file.type === 'image/png' && !png)) throw new Error('图片内容与格式不符')
-    url = URL.createObjectURL(file); const image = new Image(); image.src = url; await image.decode()
-    if (!image.naturalWidth || !image.naturalHeight) throw new Error('图片无法解码')
-    if (!alive || token !== generation || !open.value || locked.value || props.blocked) return
-    const saved = await apiImages.upload(file)
-    if (!alive || token !== generation || !open.value || locked.value || props.blocked) await apiImages.deleteFile(saved.fileId)
-    else annotation.value = saved
-  } catch (e) { localError.value = errorText(e) }
-  finally { if (url) URL.revokeObjectURL(url); reading.value = false }
-}
-async function submit() {
-  if (busy.value || reading.value || props.blocked || (!pending.value && !text.value.trim() && !annotation.value)) return
-  if (!pending.value && item.value.currentVersion !== baseVersion.value) { localError.value = '当前版本已更新，请关闭后重新打开修改。'; return }
-  const accepted = await operation.value.submit({ kind: 'revise', input: { baseVersion: baseVersion.value, text: text.value.trim(), annotationFileId: annotation.value?.fileId }, annotation: annotation.value }, (command, key) => {
-    if (command.kind !== 'revise') throw new Error('请先确认此图片尚未完成的操作')
-    return apiImages.revise(props.task.id, props.itemId, command.input, key)
+async function send(command: ItemCommand) {
+  const op = operation.value, taskId = props.task.id, itemId = props.itemId, key = draftKey.value, token = generation
+  const accepted = await op.submit(command, (frozen, idempotencyKey) => {
+    if (frozen.kind !== 'revise') throw new Error('请先确认该图片尚未完成的操作')
+    return apiImages.revise(taskId, itemId, frozen.input, idempotencyKey)
   })
-  if (accepted) { annotation.value = undefined; open.value = false; emit('accepted') }
+  if (accepted) forgetAnnotationDraft(key)
+  if (accepted && alive && token === generation) { cached = undefined; open.value = false; emit('accepted') }
 }
-onBeforeUnmount(() => { alive = false; if (!pending.value && !busy.value) void removeAnnotation() })
+async function confirmPrevious() { if (!working.value && !props.blocked && pending.value) await send(pending.value.command) }
+async function submit(value: PreparedAnnotation) {
+  if (working.value || props.blocked || pending.value) return
+  if (item.value?.currentVersion !== baseVersion.value) { localError.value = '当前版本已更新，请关闭后重新打开修改。'; return }
+  const token = generation; uploading.value = true; localError.value = ''
+  try {
+    let annotation: ApiPicture | undefined
+    if (value.file) {
+      annotation = cached?.file === value.file ? cached.picture : await apiImages.upload(value.file)
+      cached = { file: value.file, picture: annotation, operation: operation.value }
+    }
+    if (!alive || generation !== token || !open.value || props.blocked) {
+      if (annotation) await apiImages.deleteFile(annotation.fileId)
+      return
+    }
+    if (item.value?.currentVersion !== baseVersion.value) throw new Error('当前版本已更新，请关闭后重新打开修改。')
+    await send({ kind: 'revise', input: { baseVersion: baseVersion.value, text: value.text, annotationFileId: annotation?.fileId }, annotation })
+  } catch (error) { if (token === generation) localError.value = errorText(error) }
+  finally { uploading.value = false }
+}
+onBeforeUnmount(() => { alive = false; generation++; clearUnusedUpload() })
 </script>
-<style scoped>
-.revision-layout { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-.revision-layout section { min-width:0; }
-h3 { margin:0 0 12px; font-size:15px; }
-.current-picture { height:370px; }
-.file-input { display:none; }
-.annotation-control { width:100%; }
-.annotation-drop { width:100%; min-height:88px; padding:16px; border:1px dashed var(--el-border-color); border-radius:6px; background:var(--el-fill-color-blank); color:var(--el-text-color-regular); cursor:pointer; }
-.annotation-drop:hover { border-color:var(--el-color-primary); }
-.annotation-preview { width:130px; }
-.annotation-preview .hx-picture { height:100px; }
-.hx-footnote { line-height:1.6; }
-@media(max-width:700px) { .revision-layout { grid-template-columns:1fr; } .current-picture { height:240px; } }
-</style>

@@ -31,7 +31,8 @@
       </template>
     </div>
   </ElDrawer>
-  <ElDialog v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" :width="target === null ? 'min(560px, calc(100vw - 32px))' : 'min(980px, calc(100vw - 32px))'" top="6vh" append-to-body destroy-on-close :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
+  <CliAnnotationDialog v-if="target !== null && base" :key="`${identity()}-${taskId}-${base.id}`" v-model="feedbackOpen" :identity="identity()" :task-id="taskId" :slot="target" :base="base" :pending="submitting" :uncertain="revision.session.value.uncertain" :editable="editable" :error="actionError" @submit="applyAnnotation" @confirm-previous="confirmPrevious" @preparing="preparingAnnotation = $event" />
+  <ElDialog v-else v-model="feedbackOpen" :title="target === null ? '整套修改意见' : `修改第 ${target + 1} 张图片`" :width="target === null ? 'min(560px, calc(100vw - 32px))' : 'min(980px, calc(100vw - 32px))'" top="6vh" append-to-body destroy-on-close :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="closeFeedback">
     <div class="revision-fields" :class="{ 'revision-comparison': target !== null }">
     <div v-if="target !== null" class="revision-base"><strong>{{ base ? `本次基于 V${base.version} 修改` : '尚无成品，本次基于原底图修改' }}</strong><PicturePreview v-if="base" :picture="base" :title="`本次修改基础 V${base.version}`" /><ElEmpty v-else description="暂无生成结果，可参考任务中的原底图说明问题" :image-size="90" /><span v-if="base" class="hx-footnote">点击原图放大查看，关闭预览后可继续填写意见。</span></div>
     <div class="revision-editor">
@@ -70,6 +71,8 @@ import PicturePreview from './PicturePreview.vue'
 import TaskSources from './TaskSources.vue'
 import TaskTemplate from './TaskTemplate.vue'
 import ExecutionProgress from './ExecutionProgress.vue'
+import CliAnnotationDialog from './annotation/CliAnnotationDialog.vue'
+import { forgetAnnotationDraft } from './annotation/annotation-drafts'
 const router = useRouter()
 const archivedResult = ref<{ id: string; name: string }>()
 const open = defineModel<boolean>({ default: false })
@@ -87,6 +90,7 @@ const revision = useRevisionSession(identity, () => props.taskId, async (input, 
 })
 const { target, base, annotations, note: feedback } = revision
 const annotationBlocked = ref(false)
+const preparingAnnotation = ref(false)
 const annotationMaxCount = 1
 const feedbackOpen = ref(false), archiving = ref(false), downloading = ref(false)
 const actionError = computed({ get: () => revision.session.value.error, set: value => { revision.session.value.error = value } })
@@ -94,7 +98,7 @@ const submitting = computed(() => revision.session.value.pending)
 let alive = true
 onBeforeUnmount(() => { alive = false })
 watch(data, value => { if (value) revision.observe(value) })
-const busy = computed(() => submitting.value || archiving.value || downloading.value)
+const busy = computed(() => submitting.value || preparingAnnotation.value || archiving.value || downloading.value)
 const failed = computed(() => !!task.value && ['失败', '部分失败'].includes(task.value.state))
 const outcome = computed(() => data.value ? taskOutcome(data.value) : undefined)
 const actions = computed(() => taskActions(data.value, busy.value || revision.blocked.value, error.value))
@@ -112,8 +116,10 @@ function edit(slot: number | null, version?: ResultVersion) {
 async function revise(input?: RevisionInput) {
   if (input && (input.retry ? !actions.value.canRetry : !actions.value.canRevise)) return
   const owner = identity(), id = props.taskId
+  const annotationKey = JSON.stringify(['cli', owner, id, target.value, base.value?.id])
   try {
     const accepted = await (input ? revision.submit(input) : revision.resolvePrevious())
+    forgetAnnotationDraft(annotationKey)
     if (!alive || props.taskId !== id || identity() !== owner) return
     if (task.value?.id === id) {
       task.value.state = accepted.state; task.value.progress = null; task.value.currentRoundId = accepted.roundId
@@ -124,6 +130,10 @@ async function revise(input?: RevisionInput) {
   } catch { /* 提交错误保留在原身份、原任务；详情错误由 load 单独显示。 */ }
 }
 function confirmPrevious() { if (!submitting.value) void revise() }
+function applyAnnotation(value: { note: string; annotationFileId: string | null }) {
+  if (!task.value || target.value === null || !base.value) return
+  void revise({ taskId: task.value.id, target: target.value, baseVersionId: base.value.id, note: value.note, annotationFileId: value.annotationFileId })
+}
 function applyFeedback() {
   if (!feedback.value.trim() || feedback.value.trim().length > 1000 || !task.value || (target.value !== null && annotationBlocked.value)) return
   void revise({ taskId: task.value.id, target: target.value, note: feedback.value.trim(),

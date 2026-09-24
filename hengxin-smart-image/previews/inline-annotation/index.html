@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>恒鑫智图 · 单张直接标注预览</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="backdrop"></div>
+<div class="preview-bar"><strong>交互预览</strong><span>仅本地演示，不发送生图请求</span><button id="reopen">打开单张修改</button></div>
+<main id="editor" role="dialog" aria-modal="true" aria-labelledby="title">
+ <header><div><h1 id="title">修改第 2 张图片</h1><p>本次基于 <b>V3</b> 修改 · 原图与历史版本保留</p></div><div class="header-right"><div class="segmented" aria-label="预览入口"><button class="active" data-channel="CLI">Codex CLI</button><button data-channel="API">API 换套图</button></div><button id="close" class="icon" aria-label="关闭修改弹窗">×</button></div></header>
+ <div class="workspace">
+  <section class="image-section" aria-label="图片标注区">
+   <div class="toolbar"><div class="segmented" aria-label="标注工具"><button id="draw" class="active">框选问题</button><button id="pen">画笔圈注</button></div><div class="zoom"><button id="out" aria-label="缩小">−</button><span id="scale">100%</span><button id="in" aria-label="放大">＋</button><button id="fit">适应窗口</button></div></div>
+   <p id="gestureHelp" class="gesture-help" aria-live="polite">在这张图上标注，放大后按住右上角手柄移动图片。</p>
+   <div id="stage" tabindex="0" aria-label="图片标注画布" aria-describedby="gestureHelp">
+    <svg id="canvas" viewBox="0 0 800 800" role="img" aria-label="当前成品与问题标注"><image href="assets/result.jpg" width="800" height="800"/><g id="boxes"></g></svg>
+    <button id="panHandle" type="button" aria-label="按住拖动图片" title="按住并拖动可移动图片；聚焦后也可用方向键移动"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-8a1.5 1.5 0 0 1 3 0v8-6a1.5 1.5 0 0 1 3 0v7-3a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-4-1-6-4l-3-5a1.5 1.5 0 0 1 2-2l2 2Z"/></svg><span>拖动图片</span><small id="panHandleHint">先放大图片</small></button>
+    <span class="canvas-hint" id="canvasHint">在图片上按住并拖动，框出需要修改的位置</span>
+   </div>
+   <div class="image-bottom"><span id="selectionCount">未标注 · 演示图片</span><div><button id="undo">撤销</button><button id="remove">删除选中</button><button id="clear">清空标注</button></div></div>
+   <p class="footnote">框选、圈注和移动都在这张图上完成。按住右上角“拖动图片”移动，松开后直接继续标注。</p>
+  </section>
+  <aside>
+   <div class="segmented tabs"><button id="direct" class="active">直接标注</button><button id="uploadMode">上传已有标注图</button></div>
+   <section id="directPanel"><div class="section-title"><h2>问题位置与修改意见</h2><span id="count">0 处</span></div><p class="help">先框选或用画笔圈出位置，再填写修改意见。</p><div id="notes"></div><div id="empty"><span class="empty-box">＋</span><strong>从左侧框选或圈注第一处问题</strong><p>例如：镜头位置、屏幕边缘、文案错误</p></div></section>
+   <section id="uploadPanel" hidden><h2>已有标注图</h2><button id="drop" type="button">点击选择，或拖拽图片到这里<br><small>聚焦此区域后可 Ctrl+V 粘贴图片<br>JPG / PNG / WebP，最多 1 张，10 MiB</small></button><input id="file" type="file" accept="image/jpeg,image/png,image/webp" hidden><div id="uploaded" hidden><img id="uploadPreview" alt="已有标注图预览"><button id="removeUpload">移除图片</button></div><p class="help">将使用这张图片作为标注参考；切回直接标注后仍可继续编辑已画的框。</p></section>
+   <div class="overall"><label for="general">整体补充要求 <span>（可选）</span></label><textarea id="general" maxlength="1000" rows="3" placeholder="例如：保持其他设计、文字和布局不变。"></textarea></div>
+   <div class="info"><strong>只修改这张图片</strong><p>系统自动附带本次修改需要的原图与素材。标注框、编号只用于定位，不作为成品内容。</p></div>
+   <p id="error" role="alert"></p>
+  </aside>
+ </div>
+ <footer><span id="draftHint">关闭后可继续本次草稿 · 预览不调用生图</span><div><button id="cancel">取消</button><button id="submit" class="primary">预览提交内容</button></div></footer>
+</main>
+<dialog id="confirmation"><header><div><h1>确认本次修改内容</h1><p>演示预览 · 尚未发送任何请求</p></div><button id="back" aria-label="关闭提交预览">×</button></header><div class="confirm-body"><img id="composite" alt="自动合成的标注参考图"><div><h2 id="summaryTitle"></h2><p>修改基础：V3 无标注成品</p><p class="help">以下标注图仅用于定位；框外内容按修改要求保持，不承诺逐像素锁定。</p><pre id="summary"></pre></div></div><footer><button id="return">返回继续标注</button><button id="mock" class="primary">模拟提交修改</button></footer><p id="done" role="status"></p></dialog>
+<script type="module" src="app.js"></script></body></html>
