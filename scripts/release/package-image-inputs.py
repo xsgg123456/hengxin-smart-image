@@ -13,7 +13,7 @@ app = repo / 'hengxin-smart-image'
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
 status = json.loads(subprocess.check_output([sys.executable, '.codex/hooks/harness.py', 'review-status'], cwd=repo))
 assert status['approved'], 'Current code must match independently approved snapshot'
-release = 'inputs-20260923-' + commit[:7]
+release = 'annotation-20260924-' + commit[:7]
 work = repo / 'output' / release
 stage = work / 'src'
 stage.mkdir(parents=True, exist_ok=False)
