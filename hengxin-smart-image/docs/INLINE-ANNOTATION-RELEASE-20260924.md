@@ -23,4 +23,23 @@
 
 ## 发布状态
 
-待执行。发布产物、备份位置、安装及公网验收记录在部署后补充。
+2026-09-24 10:48:58（北京时间）部署完成，脚本返回0；随后安装和公网验收通过。发布 `annotation-20260924-6b43b3c`，发布代码提交 `6b43b3c`、功能提交 `f4e7bc6`，前端0.2.5。后续记录提交不改变发布产物。
+
+包包含631个文件，4,833,584字节；SHA-256 `06172542ee3e6c6985868daa6d860d1103acb4fb58b624a5ee67c4d66da94fb4`。本地 `output/annotation-20260924-6b43b3c/release.tar.gz`；服务器 `/opt/hengxin-releases/annotation-20260924-6b43b3c`。
+
+安装镜像 `hengxin-smart-image-backend:annotation-20260924-6b43b3c`，固定ID `sha256:258396c0bd577d9400bbf02f49111183cf6ed011444327cdc016ae6dab6b60ef`。无网络、无生产凭据和数据挂载的安装镜像专项测试187 passed、3 warnings，26.05秒；覆盖API单张冻结快照/执行/版本、CLI单张输入/材料/提示词以及Worker排空。
+
+实际执行及验收：
+
+- 停止HTTP接纳与派发，API/CLI取消消费并证明active/reserved/scheduled及数据库在途为空后停止。没有中断在途生图。
+- 数据库dump经pg_restore目录校验；旧前端、manifest、实际镜像清单和native源码备份到 `/opt/hengxin-backups/annotation-20260924-6b43b3c`，备份保留。
+- 前端470个文件、四个后端服务各152个文件、原生CLI两份提示词源码，逐文件SHA256均匹配发布manifest。四份release manifest指向新发布；API healthy，其余服务running，native active。
+- API Worker池5、专用队列验证通过；native CLI队列与ping通过。CLI0.156.1、超时7200秒、并发5保持。
+- schema0017与revision_snapshot列保持，API通道恢复未暂停。原44笔CLI任务状态30成功/12失败/2取消、8笔API任务成功，没有新增测试业务任务。
+- 公网 https://zhitu.qhhengxin.top/ 登录页正常，首页哈希匹配，无脚本异常或JS/CSS失败；health/ready返回200，匿名auth/me与API换套图tasks均401。
+
+本地证据位于 `output/annotation-release-20260924/`，包括发布/安装测试/验证日志、`production-browser.json`及登录页截图。服务器同发布目录保留原始构建、测试、部署日志。SSH曾短暂中断，均先只读确认未启动再重试，实际切换只执行一次。
+
+在线验收未绕过登录，也未创建收费生成任务；登录后标注交互、原尺寸导出和重试一致性依据此前隔离真实页面测试，不宣称本次已在线验证真实生成效果。
+
+今后维护须使用基础三个Compose文件，依次叠加 `/opt/hengxin-releases/` 下 `three-fixes-20260923/api-override.yaml`、`cli-two-hour-20260923/api-override.yaml`、`inputs-20260923-b2841c7/api-override.yaml`、`annotation-20260924-6b43b3c/api-override.yaml`。native源码仍在 `/opt/hengxin-smart-image/backend`。
