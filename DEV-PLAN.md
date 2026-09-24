@@ -876,4 +876,4 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 3. 公共画布固定工作区、独立意见滚动，优化缩放、指针与框选/画笔/平移；验收两入口、两尺寸、多个视口与原尺寸导出。
 4. 单测、类型检查、生产构建、隔离浏览器流程通过后，review-prepare与独立两阶段审查，登记同一批准快照。未经用户另行授权不提交、不部署。
 
-实现及本地验证已完成，独立两阶段审查PASS，最终快照705f639d已登记批准。前端175项单测、正式构建、执行材料浏览器用例、16组画布矩阵及原有API/CLI标注流程通过；后端全套与采集异常专项通过，审查修正后61项材料专项、三视口光标及最终矩阵独立复验通过。详见 [本轮验证与历史回填说明](docs/ROUND-MATERIALS-CANVAS-VALIDATION-20260924.md) 和 [最终审查](docs/ROUND-MATERIALS-CANVAS-FINAL-REVIEW-20260924.md)。生产尚未更新，旧任务材料需发布后受控回填。
+实现及本地验证已完成，独立两阶段审查PASS。前端175项单测、正式构建、执行材料浏览器用例、16组画布矩阵及原有API/CLI标注流程通过；后端全套与采集异常专项通过，审查修正后材料专项、三视口光标及最终矩阵独立复验通过。详见 [本轮验证](docs/ROUND-MATERIALS-CANVAS-VALIDATION-20260924.md) 和 [功能审查](docs/ROUND-MATERIALS-CANVAS-FINAL-REVIEW-20260924.md)。后续用户授权提交部署：e3c60c9功能发布，真实custom_tool_call格式兼容修正2cdb4ff，0.2.7于2026-09-24 18:40上线；106本地专项、196安装镜像测试、完整哈希/健康/公网验证通过，指定历史轮次已回填系统提示词、生图提示词、三张输入及V2结果。详见 [生产发布记录](hengxin-smart-image/docs/ROUND-MATERIALS-CANVAS-RELEASE-20260924.md)。
