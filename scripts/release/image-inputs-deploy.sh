@@ -3,7 +3,7 @@ set -Eeuo pipefail
 umask 077
 release=${1:?release required}
 mode=${2:-deploy}
-[[ "$release" =~ ^annotation-20260924-[0-9a-f]{7}$ ]]
+[[ "$release" =~ ^materials-20260924-[0-9a-f]{7}$ ]]
 [[ "$mode" = deploy || "$mode" = build-only ]]
 app=/opt/hengxin-smart-image
 work=/opt/hengxin-releases/$release
@@ -12,6 +12,7 @@ backup=/opt/hengxin-backups/$release
 image=hengxin-smart-image-backend:$release
 helper=$src/scripts/release/image-inputs-worker.py
 native=$app/backend
+native_helper=$src/scripts/release/image-inputs-native.py
 wait_seconds=${DRAIN_WAIT_SECONDS:-1800}
 [[ "$wait_seconds" =~ ^[0-9]+$ ]]
 cd "$app/infra"
@@ -19,7 +20,8 @@ cd "$app/infra"
 old=(docker compose -f compose.yaml -f compose.vps.yaml -f compose.api-image.yaml
   -f /opt/hengxin-releases/three-fixes-20260923/api-override.yaml
   -f /opt/hengxin-releases/cli-two-hour-20260923/api-override.yaml
-  -f /opt/hengxin-releases/inputs-20260923-b2841c7/api-override.yaml)
+  -f /opt/hengxin-releases/inputs-20260923-b2841c7/api-override.yaml
+  -f /opt/hengxin-releases/annotation-20260924-6b43b3c/api-override.yaml)
 new=("${old[@]}" -f "$work/api-override.yaml")
 sql() { docker exec hengxin-vps-staging-postgres-1 psql -v ON_ERROR_STOP=1 -U hengxin -d hengxin -Atc "$1"; }
 api_control() { docker exec -i hengxin-vps-staging-api-image-worker-1 python - "$1" "$wait_seconds" < "$helper"; }
@@ -102,8 +104,7 @@ recover() {
         inactive|failed) ;;
         *) recovery_failed ;;
       esac
-      tar -xpf "$backup/native.tar" -C "$native" || recovery_failed
-      if [[ -f "$backup/native-new-file-absent" ]]; then rm -f "$native/app/image_revision_prompt.py" || recovery_failed; fi
+      python3 "$native_helper" restore "$native" "$backup" || recovery_failed
     fi
     if [[ "$native_stopped" = 1 ]]; then systemctl start hengxin-vps-codex-worker || recovery_failed; fi
     if [[ "$backed" = 1 ]]; then tar -xpf "$backup/application.tar" -C "$app" || recovery_failed; fi
@@ -144,27 +145,15 @@ docker exec -i hengxin-vps-staging-postgres-1 pg_restore --list < "$backup/datab
 test -s "$backup/database-list.txt"
 tar -C "$app" -cpf "$backup/application.tar" frontend/dist frontend/package.json API_RELEASE.json API_IMAGE_RELEASE.json FRONTEND_RELEASE.json
 if [[ -f "$app/NATIVE_IMAGE_INPUTS_RELEASE.json" ]]; then cp -p "$app/NATIVE_IMAGE_INPUTS_RELEASE.json" "$backup/"; fi
-files=(app/execution/prompts.py)
-if [[ -f "$native/app/image_revision_prompt.py" ]]; then files+=(app/image_revision_prompt.py); else touch "$backup/native-new-file-absent"; fi
-tar -C "$native" -cpf "$backup/native.tar" "${files[@]}"
+python3 "$native_helper" backup "$native" "$backup"
 backed=1
 echo BACKUP_COMPLETE
-# No schema changes in the annotation release.
+# No schema changes in the materials release.
 test "$(sql 'select version_num from alembic_version')" = 0017
 native_changed=1
-python3 - "$src" "$native" <<'PY'
-import os,shutil,sys
-from pathlib import Path
-source,target=map(Path,sys.argv[1:])
-for name in ('app/execution/prompts.py','app/image_revision_prompt.py'):
-    dest=target/name; temporary=dest.with_suffix('.release-new')
-    stat=dest.stat() if dest.exists() else (target/'app/execution/prompts.py').stat()
-    shutil.copyfile(source/'backend'/name,temporary)
-    os.chown(temporary,stat.st_uid,stat.st_gid); os.chmod(temporary,stat.st_mode & 0o777)
-    os.replace(temporary,dest)
-PY
+python3 "$native_helper" install "$src" "$native"
 systemctl start hengxin-vps-codex-worker
-python3 "$helper" run-native-verify 90
+python3 "$helper" run-native-materials-verify 90
 "${new[@]}" up -d --no-deps --wait api
 api_started=1
 "${new[@]}" up -d --no-deps api-image-worker outbox api-image-outbox

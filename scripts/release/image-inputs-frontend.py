@@ -35,6 +35,7 @@ manifest['composeBaseOverlays'] = [
     '/opt/hengxin-releases/three-fixes-20260923/api-override.yaml',
     '/opt/hengxin-releases/cli-two-hour-20260923/api-override.yaml',
     '/opt/hengxin-releases/inputs-20260923-b2841c7/api-override.yaml',
+    '/opt/hengxin-releases/annotation-20260924-6b43b3c/api-override.yaml',
 ]
 for name in ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json'):
     temporary = app / (name + '.new')
@@ -42,7 +43,9 @@ for name in ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.jso
     os.replace(temporary, app / name)
 native = dict(manifest)
 native['files'] = {name: digest for name, digest in manifest['files'].items()
-                   if name in ('backend/app/execution/prompts.py', 'backend/app/image_revision_prompt.py')}
+                   if name in tuple('backend/app/execution/' + module + '.py' for module in (
+                       'codex_runner', 'materials', 'material_backfill', 'material_bindings',
+                       'material_capture', 'material_history', 'material_literals'))}
 temporary = app / 'NATIVE_IMAGE_INPUTS_RELEASE.json.new'
 temporary.write_text(json.dumps(native, indent=2))
 os.replace(temporary, app / 'NATIVE_IMAGE_INPUTS_RELEASE.json')

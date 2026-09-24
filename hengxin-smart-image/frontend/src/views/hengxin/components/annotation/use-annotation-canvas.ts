@@ -1,8 +1,9 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
+import { useAnnotationShortcuts } from './use-annotation-shortcuts'
+import { useAnnotationViewport } from './use-annotation-viewport'
 import { ElMessageBox } from 'element-plus'
 import {
   appendPoint,
-  clamp,
   cloneMarks,
   moveMark,
   rectangle,
@@ -11,7 +12,6 @@ import {
   type AnnotationMark,
   type Point,
 } from './annotation-model'
-
 type CanvasProps = {
   imageUrl: string
   width: number
@@ -26,9 +26,9 @@ type Gesture = {
   mark?: AnnotationMark
   snapshot: AnnotationMark[]
   origin: Point
+  handle?: string
   client: Point
 }
-
 export function useAnnotationCanvas(
   props: CanvasProps,
   marks: Ref<AnnotationMark[]>,
@@ -36,15 +36,16 @@ export function useAnnotationCanvas(
 ) {
   const svg = ref<SVGSVGElement>()
   const tool = ref<'rect' | 'pen'>('rect')
-  const zoom = ref(1),
-    view = ref<Point>({ x: 0, y: 0 })
+  const { space, cancelGesture } = useAnnotationShortcuts(
+    () => !!props.disabled,
+    () => finish(true),
+  )
   const selected = ref(props.selectedId || '')
   const history = ref<AnnotationMark[][]>([])
   const gesture = ref<Gesture>()
-  const viewBox = computed(
-    () => `${view.value.x} ${view.value.y} ${props.width / zoom.value} ${props.height / zoom.value}`,
-  )
   const locked = computed(() => !!props.disabled || !!gesture.value)
+  const viewport = useAnnotationViewport(props, svg, locked)
+  const { zoom, view, point, setView, fit } = viewport
   const panning = computed(() => gesture.value?.type === 'pan')
   function choose(id: string) {
     selected.value = id
@@ -77,11 +78,15 @@ export function useAnnotationCanvas(
   async function clear() {
     if (locked.value || !marks.value.length) return
     try {
-      await ElMessageBox.confirm('清空所有标注和对应意见？可以通过撤销恢复。', '清空标注', {
-        confirmButtonText: '清空',
-        cancelButtonText: '取消',
-        type: 'warning',
-      })
+      await ElMessageBox.confirm(
+        '清空所有标注和对应意见？可以通过撤销恢复。',
+        '清空标注',
+        {
+          confirmButtonText: '清空',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      )
     } catch {
       return
     }
@@ -90,36 +95,21 @@ export function useAnnotationCanvas(
     marks.value = []
     choose('')
   }
-  function setView(next: Point) {
-    view.value = {
-      x: clamp(next.x, 0, props.width - props.width / zoom.value),
-      y: clamp(next.y, 0, props.height - props.height / zoom.value),
-    }
-  }
-  function setZoom(next: number) {
-    if (locked.value) return
-    const previous = zoom.value
-    zoom.value = clamp(next, 1, 4)
-    setView({
-      x: view.value.x + props.width / previous / 2 - props.width / zoom.value / 2,
-      y: view.value.y + props.height / previous / 2 - props.height / zoom.value / 2,
-    })
-  }
-  function fit() {
-    if (!locked.value) {
-      zoom.value = 1
-      view.value = { x: 0, y: 0 }
-    }
-  }
-  function point(event: PointerEvent): Point | undefined {
-    const matrix = svg.value?.getScreenCTM()
-    if (!matrix) return
-    return new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse())
-  }
   function begin(event: PointerEvent, pan = false) {
-    if (props.disabled || gesture.value || event.button !== 0 || !svg.value) return
+    if (
+      props.disabled ||
+      gesture.value ||
+      ![0, 1].includes(event.button) ||
+      !svg.value
+    )
+      return
+    pan = pan || event.button === 1 || space.value
     const p = point(event)
-    if (!p || (!pan && (p.x < 0 || p.y < 0 || p.x > props.width || p.y > props.height))) return
+    if (
+      !p ||
+      (!pan && (p.x < 0 || p.y < 0 || p.x > props.width || p.y > props.height))
+    )
+      return
     const base: Gesture = {
       type: 'pan',
       pointerId: event.pointerId,
@@ -129,13 +119,18 @@ export function useAnnotationCanvas(
       client: { x: event.clientX, y: event.clientY },
     }
     if (pan) {
-      if (zoom.value === 1) return
+      if (zoom.value <= 1) return
     } else {
       const target = event.target instanceof Element ? event.target : null
       const id = target?.closest('[data-mark]')?.getAttribute('data-mark')
       const hit = marks.value.find((mark) => mark.id === id)
-      if (hit && tool.value === 'rect') {
+      if (
+        hit &&
+        tool.value === 'rect' &&
+        (target?.closest('[data-move]') || target?.hasAttribute('data-resize'))
+      ) {
         base.type = target?.hasAttribute('data-resize') ? 'resize' : 'move'
+        base.handle = target?.getAttribute('data-resize') || undefined
         base.mark = cloneMarks([hit])[0]
         choose(hit.id)
       } else {
@@ -184,7 +179,19 @@ export function useAnnotationCanvas(
         ...current,
         ...rectangle(g.start, p, props.width, props.height),
       }
-    if (g.type === 'pen') next = appendPoint(current, p, props.width, props.height)
+    if (g.type === 'pen') {
+      for (const sample of [...(event.getCoalescedEvents?.() ?? []), event]) {
+        const sampled = point(sample)
+        if (sampled)
+          next = appendPoint(
+            next,
+            sampled,
+            props.width,
+            props.height,
+            event.type === 'pointerup',
+          )
+      }
+    }
     if (g.type === 'move')
       next = {
         ...moveMark(original, dx, dy, props.width, props.height),
@@ -192,7 +199,7 @@ export function useAnnotationCanvas(
       }
     if (g.type === 'resize')
       next = {
-        ...resizeMark(original, dx, dy, props.width, props.height),
+        ...resizeMark(original, dx, dy, props.width, props.height, g.handle),
         note: current.note,
       }
     marks.value = marks.value.map((mark) => (mark.id === next.id ? next : mark))
@@ -205,36 +212,21 @@ export function useAnnotationCanvas(
     const invalid =
       (g.type === 'rect' && (!mark || mark.width < 4 || mark.height < 4)) ||
       (g.type === 'pen' && (!mark || mark.points.length < 2))
+    if (g.type === 'pan' && cancelled) setView(g.origin)
     if (g.type !== 'pan') {
       if (cancelled || invalid) {
         marks.value = restoreGeometry(g.snapshot, marks.value)
         choose('')
-      } else if (JSON.stringify(g.snapshot) !== JSON.stringify(marks.value)) remember(g.snapshot)
+      } else if (JSON.stringify(g.snapshot) !== JSON.stringify(marks.value))
+        remember(g.snapshot)
     }
-    if (svg.value?.hasPointerCapture(g.pointerId)) svg.value.releasePointerCapture(g.pointerId)
+    if (svg.value?.hasPointerCapture(g.pointerId))
+      svg.value.releasePointerCapture(g.pointerId)
   }
   function end(event: PointerEvent, cancel = false) {
-    if (event.pointerId === gesture.value?.pointerId) finish(cancel)
-  }
-  function panKey(event: KeyboardEvent) {
-    if (locked.value) return
-    const directions: Record<string, Point> = {
-      ArrowLeft: { x: -1, y: 0 },
-      ArrowRight: { x: 1, y: 0 },
-      ArrowUp: { x: 0, y: -1 },
-      ArrowDown: { x: 0, y: 1 },
-    }
-    const direction = directions[event.key]
-    if (!direction) return
-    event.preventDefault()
-    setView({
-      x: view.value.x + (direction.x * 40) / zoom.value,
-      y: view.value.y + (direction.y * 40) / zoom.value,
-    })
-  }
-  const cancelGesture = () => finish(true)
-  const onVisibility = () => {
-    if (document.hidden) cancelGesture()
+    if (event.pointerId !== gesture.value?.pointerId) return
+    if (!cancel) move(event)
+    finish(cancel)
   }
   watch(
     () => props.disabled,
@@ -251,32 +243,21 @@ export function useAnnotationCanvas(
       choose('')
     },
   )
-  onMounted(() => {
-    window.addEventListener('blur', cancelGesture)
-    document.addEventListener('visibilitychange', onVisibility)
-  })
-  onBeforeUnmount(() => {
-    cancelGesture()
-    window.removeEventListener('blur', cancelGesture)
-    document.removeEventListener('visibilitychange', onVisibility)
-  })
   return {
     svg,
     tool,
-    zoom,
+    ...viewport,
+    space,
     selected,
     history,
     locked,
     panning,
-    viewBox,
     undo,
     remove,
     clear,
-    setZoom,
     fit,
     begin,
     move,
     end,
-    panKey,
   }
 }

@@ -9,7 +9,8 @@ export type AnnotationMark = {
   points: Point[]
   note: string
 }
-export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max))
+export const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(value, max))
 export const boundPoint = (p: Point, width: number, height: number): Point => ({
   x: clamp(p.x, 0, width),
   y: clamp(p.y, 0, height),
@@ -19,14 +20,22 @@ export const cloneMarks = (marks: AnnotationMark[]) =>
     ...mark,
     points: mark.points.map((point) => ({ ...point })),
   }))
-export function restoreGeometry(snapshot: AnnotationMark[], current: AnnotationMark[]) {
+export function restoreGeometry(
+  snapshot: AnnotationMark[],
+  current: AnnotationMark[],
+) {
   const notes = new Map(current.map((mark) => [mark.id, mark.note]))
   return cloneMarks(snapshot).map((mark) => ({
     ...mark,
     note: notes.get(mark.id) ?? mark.note,
   }))
 }
-export function rectangle(start: Point, end: Point, width: number, height: number) {
+export function rectangle(
+  start: Point,
+  end: Point,
+  width: number,
+  height: number,
+) {
   const a = boundPoint(start, width, height),
     b = boundPoint(end, width, height)
   return {
@@ -61,11 +70,26 @@ export function resizeMark(
   dy: number,
   width: number,
   height: number,
+  handle = 'se',
 ): AnnotationMark {
+  const left = handle.includes('w')
+    ? clamp(mark.x + dx, 0, mark.x + mark.width - 4)
+    : mark.x
+  const top = handle.includes('n')
+    ? clamp(mark.y + dy, 0, mark.y + mark.height - 4)
+    : mark.y
+  const right = handle.includes('e')
+    ? clamp(mark.x + mark.width + dx, mark.x + 4, width)
+    : mark.x + mark.width
+  const bottom = handle.includes('s')
+    ? clamp(mark.y + mark.height + dy, mark.y + 4, height)
+    : mark.y + mark.height
   return {
     ...mark,
-    width: clamp(mark.width + dx, Math.min(4, width - mark.x), width - mark.x),
-    height: clamp(mark.height + dy, Math.min(4, height - mark.y), height - mark.y),
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
   }
 }
 export function appendPoint(
@@ -73,10 +97,15 @@ export function appendPoint(
   point: Point,
   width: number,
   height: number,
+  final = false,
 ): AnnotationMark {
   const next = boundPoint(point, width, height),
     previous = mark.points.at(-1)
-  if (previous && Math.hypot(next.x - previous.x, next.y - previous.y) < 1) return mark
+  if (
+    previous &&
+    Math.hypot(next.x - previous.x, next.y - previous.y) < (final ? 0.001 : 1)
+  )
+    return mark
   const x = Math.min(mark.x, next.x),
     y = Math.min(mark.y, next.y)
   return {
@@ -98,7 +127,11 @@ export function markStyle(width: number, height: number) {
     font: 15 * unit,
   }
 }
-export function badgePoint(mark: AnnotationMark, width: number, height: number): Point {
+export function badgePoint(
+  mark: AnnotationMark,
+  width: number,
+  height: number,
+): Point {
   const { radius, offset } = markStyle(width, height)
   return {
     x: clamp(mark.x + offset, radius, width - radius),

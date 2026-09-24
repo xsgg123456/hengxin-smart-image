@@ -96,12 +96,12 @@ onBeforeUnmount(() => { generation++; revoke(originalUrl.value); revoke(uploadUr
 defineExpose({ preview })
 </script>
 <style scoped>
-.annotation-editor { display:grid; grid-template-columns:minmax(0, 2.65fr) minmax(280px,1fr); gap:24px; max-height:70vh; overflow:auto; }
-.picture-area, aside { min-width:0; } .picture-area { min-height:300px; }
-h3 { font-size:14px; margin:22px 0 8px; } .mark-notes { max-height:30vh; overflow:auto; }
-.mark-note { padding:10px; border:1px solid var(--el-border-color); border-radius:8px; margin-bottom:8px; } .mark-note.selected { border-color:#c35a28; }
-.mark-note label { display:block; margin-bottom:8px; color:#b54b1d; } .general-label { display:block; margin:20px 0 8px; }
+.annotation-editor { display:grid; grid-template-columns:minmax(0, 2.65fr) minmax(280px,1fr); gap:24px; height:min(70dvh,760px); overflow:hidden; grid-template-rows:minmax(0,1fr); }
+.picture-area, aside { min-width:0; min-height:0; } .picture-area { display:flex; flex-direction:column; } .picture-area > .annotation-canvas { flex:1; height:auto; } aside { overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding-right:4px; }
+h3 { font-size:14px; margin:22px 0 8px; } .mark-notes { min-height:0; }
+.mark-note { padding:10px; border:1px solid var(--el-border-color); border-radius:8px; margin-bottom:8px; } .mark-note.selected { border-color:var(--el-color-primary); }
+.mark-note label { display:block; margin-bottom:8px; color:var(--el-color-primary); } .general-label { display:block; margin:20px 0 8px; }
 .annotation-info { margin:20px 0 12px; } .upload-box { width:100%; padding:30px 10px; margin-top:20px; border:1px dashed var(--el-border-color); border-radius:8px; background:transparent; color:inherit; cursor:pointer; }
 .uploaded { width:100%; height:180px; } .confirmation { display:grid; grid-template-columns:1fr 1fr; gap:24px; max-height:65vh; overflow:auto; } .confirmation .el-image { max-height:60vh; } pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
-@media(max-width:900px) { .annotation-editor,.confirmation { grid-template-columns:1fr; } .mark-notes { max-height:250px; } }
+@media(max-width:900px) { .annotation-editor { grid-template-columns:1fr; grid-template-rows:minmax(260px,1fr) 170px; gap:12px; height:calc(100dvh - 160px); min-height:450px; } .confirmation { grid-template-columns:1fr; } }
 </style>

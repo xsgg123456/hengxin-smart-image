@@ -86,9 +86,11 @@ def main():
             drain_restart(celery_app.control, session_factory(), node,
                           lambda: subprocess.run(['systemctl', 'stop', SERVICE], check=True), int(wait))
             print('NATIVE_DRAINED_STOPPED')
-        elif mode == 'native-verify':
+        elif mode in ('native-verify', 'native-materials-verify'):
             from app.execution import prompts  # noqa: F401
             import app.image_revision_prompt  # noqa: F401
+            if mode == 'native-materials-verify':
+                from app.execution import material_capture, material_backfill, codex_runner  # noqa: F401
             deadline = time.monotonic() + int(wait)
             while True:
                 try:

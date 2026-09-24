@@ -26,6 +26,7 @@ from .process import execute
 from .intervention import (PROMPT as INTERVENTION_PROMPT, initial_set, can_continue,
                            prepare_continuation, invocation_summary)
 from .workspace import prepare_workspace, sandbox_command, prompt_for
+from .material_capture import freeze_prompt, freeze_calls, CaptureTicker
 
 
 def should_stop(factory, job_id, token):
@@ -122,7 +123,9 @@ def run_generation(job_id, factory=None, store=None):
             (workspace.control / 'baseline.json').write_text(json.dumps(baseline))
             (workspace.control / 'delivery.json').write_text(json.dumps({'version': 'final-reply-v1'}))
             observed = [previous]
+            capture = CaptureTicker(factory, attempt_id)
             def monitor():
+                capture.tick()
                 if observed[0] is None and (workspace.control / 'events.jsonl').exists():
                     initial = parse_events(workspace.control / 'events.jsonl')
                     if initial.session_id:
@@ -155,6 +158,7 @@ def run_generation(job_id, factory=None, store=None):
                 remaining = timeout if invocation == 0 else int(deadline - time.monotonic())
                 if remaining < 1:
                     raise OutputCollectionError('timeout')
+                freeze_prompt(factory, round.id, manifest, prompt)
                 completed, spawning, stage = False, True, 'generating'
                 receipt = execute(command, prompt, workspace.control, remaining, monitor, started)
                 completed = True
@@ -228,3 +232,6 @@ def run_generation(job_id, factory=None, store=None):
                     mark_uncertain(round, job)
                     if attempt_id:
                         session.get(ExecutionAttempt, attempt_id).status = 'uncertain'
+    finally:
+        if attempt_id:
+            freeze_calls(factory, attempt_id)

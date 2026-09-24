@@ -2,37 +2,59 @@
   <section class="annotation-canvas" aria-label="图片标注区">
     <div class="annotation-toolbar">
       <el-button-group>
-        <el-button :type="tool === 'rect' ? 'primary' : 'default'" :disabled="locked" @click="tool = 'rect'"
+        <el-button
+          :type="tool === 'rect' ? 'primary' : 'default'"
+          :disabled="locked"
+          @click="tool = 'rect'"
           >框选问题</el-button
         >
-        <el-button :type="tool === 'pen' ? 'primary' : 'default'" :disabled="locked" @click="tool = 'pen'"
+        <el-button
+          :type="tool === 'pen' ? 'primary' : 'default'"
+          :disabled="locked"
+          @click="tool = 'pen'"
           >画笔圈注</el-button
         >
       </el-button-group>
       <div class="annotation-zoom">
-        <el-button aria-label="缩小" :disabled="locked || zoom <= 1" @click="setZoom(zoom - 0.25)"
+        <el-button
+          aria-label="缩小"
+          :disabled="locked || zoom <= 1"
+          @click="setZoom(zoom / 1.25)"
           >−</el-button
         >
-        <span>{{ Math.round(zoom * 100) }}%</span>
-        <el-button aria-label="放大" :disabled="locked || zoom >= 4" @click="setZoom(zoom + 0.25)"
+        <span>{{ Math.round(scale * 100) }}%</span>
+        <el-button
+          aria-label="放大"
+          :disabled="locked || zoom >= maxZoom"
+          @click="setZoom(zoom * 1.25)"
           >＋</el-button
         >
         <el-button :disabled="locked" @click="fit">适应窗口</el-button>
+        <el-button
+          :disabled="locked"
+          @click="actualSize"
+          title="1 个原图像素对应 1 个屏幕 CSS 像素"
+          >原图 100%</el-button
+        >
       </div>
     </div>
     <p class="annotation-help" aria-live="polite">
       {{
         panning
           ? '正在移动图片 · 松开后直接继续标注'
-          : `当前：${tool === 'pen' ? '画笔圈注' : '框选'} · 放大后按住右上角手柄移动图片`
+          : `当前：${tool === 'pen' ? '画笔圈注' : '框选'} · 滚轮缩放 · 手柄 / 空格拖动 / 中键平移 · 拖编号移动标注`
       }}
     </p>
-    <div class="annotation-stage" :class="{ panning }">
+    <div
+      class="annotation-stage"
+      :class="{ panning, grabbing: space, disabled, pen: tool === 'pen' }"
+    >
       <svg
         ref="svg"
         :viewBox="viewBox"
         aria-label="当前成品与问题标注"
         role="img"
+        @wheel="wheel"
         @pointerdown="begin($event)"
         @pointermove="move"
         @pointerup="end($event)"
@@ -40,62 +62,20 @@
         @lostpointercapture="end($event, true)"
       >
         <image :href="imageUrl" :width="width" :height="height" />
-        <g v-for="(mark, index) in marks" :key="mark.id" :data-mark="mark.id" class="annotation-mark">
-          <path
-            v-if="mark.kind === 'pen'"
-            :d="markPath(mark)"
-            fill="none"
-            stroke="#d66a26"
-            :stroke-width="style.stroke"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <rect
-            v-else
-            :x="mark.x"
-            :y="mark.y"
-            :width="mark.width"
-            :height="mark.height"
-            :fill="selected === mark.id ? '#ed7c221c' : '#ed7c220b'"
-            stroke="#d66a26"
-            :stroke-width="style.stroke"
-          />
-          <circle
-            :cx="badgePoint(mark, width, height).x"
-            :cy="badgePoint(mark, width, height).y"
-            :r="style.radius"
-            fill="#d66a26"
-          />
-          <text
-            :x="badgePoint(mark, width, height).x"
-            :y="badgePoint(mark, width, height).y"
-            text-anchor="middle"
-            dominant-baseline="central"
-            fill="white"
-            :font-size="style.font"
-            font-family="Arial"
-          >
-            {{ index + 1 }}
-          </text>
-          <rect
-            v-if="selected === mark.id && mark.kind === 'rect' && !disabled"
-            data-resize
-            :x="mark.x + mark.width - style.radius / 2"
-            :y="mark.y + mark.height - style.radius / 2"
-            :width="style.radius"
-            :height="style.radius"
-            fill="white"
-            stroke="#d66a26"
-            :stroke-width="style.stroke / 2"
-            class="resize-handle"
-          />
-        </g>
+        <AnnotationMarks
+          :marks="marks"
+          :selected="selected"
+          :width="width"
+          :height="height"
+          :scale="scale"
+          :editable="!disabled && tool === 'rect'"
+        />
       </svg>
       <button
         type="button"
         class="annotation-pan"
         :class="{ dragging: panning }"
-        :disabled="disabled || zoom === 1"
+        :disabled="disabled || zoom <= 1"
         aria-label="按住拖动图片"
         title="按住并拖动可移动图片；聚焦后也可用方向键移动"
         @pointerdown.stop="begin($event, true)"
@@ -115,18 +95,39 @@
           />
         </svg>
         <span>拖动图片</span
-        ><small>{{ zoom === 1 ? '先放大图片' : panning ? '松开继续标注' : '按住这里拖动' }}</small>
+        ><small>{{
+          zoom <= 1 ? '先放大图片' : panning ? '松开继续标注' : '按住这里拖动'
+        }}</small>
       </button>
       <span v-if="!marks.length" class="annotation-hint">{{
-        tool === 'pen' ? '按住鼠标自由圈注，松开完成一笔' : '在图片上按住并拖动，框出需要修改的位置'
+        tool === 'pen'
+          ? '按住鼠标自由圈注，松开完成一笔'
+          : '在图片上按住并拖动，框出需要修改的位置'
       }}</span>
     </div>
     <div class="annotation-bottom">
-      <span>已标注 {{ marks.length }} 处 · 原图 {{ width }} × {{ height }}</span>
+      <span
+        >已标注 {{ marks.length }} 处 · 原图 {{ width }} × {{ height }}</span
+      >
       <div>
-        <el-button size="small" :disabled="locked || !history.length" @click="undo">撤销</el-button>
-        <el-button size="small" :disabled="locked || !selected" @click="remove()">删除选中</el-button>
-        <el-button size="small" :disabled="locked || !marks.length" @click="clear">清空标注</el-button>
+        <el-button
+          size="small"
+          :disabled="locked || !history.length"
+          @click="undo"
+          >撤销</el-button
+        >
+        <el-button
+          size="small"
+          :disabled="locked || !selected"
+          @click="remove()"
+          >删除选中</el-button
+        >
+        <el-button
+          size="small"
+          :disabled="locked || !marks.length"
+          @click="clear"
+          >清空标注</el-button
+        >
       </div>
     </div>
   </section>
@@ -134,7 +135,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { badgePoint, markPath, markStyle, type AnnotationMark } from './annotation-model'
+import type { AnnotationMark } from './annotation-model'
+import AnnotationMarks from './AnnotationMarks.vue'
 import { useAnnotationCanvas } from './use-annotation-canvas'
 const props = defineProps<{
   imageUrl: string
@@ -149,6 +151,11 @@ const {
   svg,
   tool,
   zoom,
+  scale,
+  maxZoom,
+  actualSize,
+  wheel,
+  space,
   selected,
   history,
   locked,
@@ -164,7 +171,6 @@ const {
   end,
   panKey,
 } = useAnnotationCanvas(props, marks, (id) => emit('select', id))
-const style = computed(() => markStyle(props.width, props.height))
 defineExpose({ remove, undo })
 </script>
 
@@ -173,7 +179,7 @@ defineExpose({ remove, undo })
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 420px;
+  min-height: 0;
   height: 100%;
 }
 .annotation-toolbar,
@@ -188,13 +194,18 @@ defineExpose({ remove, undo })
   flex-wrap: wrap;
 }
 .annotation-zoom {
+  flex-wrap: wrap;
   font-size: 12px;
 }
 .annotation-zoom .el-button + .el-button {
   margin-left: 0;
 }
 .annotation-help {
-  margin: 12px 0;
+  height: 52px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow: auto;
+  margin: 8px 0;
   padding: 8px 12px;
   border-radius: 5px;
   background: var(--el-color-primary-light-9);
@@ -204,12 +215,12 @@ defineExpose({ remove, undo })
 .annotation-stage {
   position: relative;
   flex: 1;
-  min-height: 320px;
+  min-height: 100px;
   overflow: hidden;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   background: var(--el-fill-color-light);
-  cursor: crosshair;
+  cursor: crosshair !important;
   touch-action: none;
 }
 .annotation-stage > svg {
@@ -220,11 +231,13 @@ defineExpose({ remove, undo })
   user-select: none;
   touch-action: none;
 }
-.annotation-mark {
-  cursor: move;
+.annotation-stage > svg, .annotation-stage > svg :deep(*) {
+  cursor: var(--mark-cursor, crosshair) !important;
 }
-.resize-handle {
-  cursor: nwse-resize;
+.annotation-stage.grabbing,
+.annotation-stage.grabbing > svg,
+.annotation-stage.grabbing > svg :deep(*) {
+  cursor: grab !important;
 }
 .annotation-pan {
   position: absolute;
@@ -240,7 +253,7 @@ defineExpose({ remove, undo })
   border: 1px solid var(--el-color-primary-light-5);
   border-radius: 5px;
   box-shadow: 0 2px 10px #22335a12;
-  cursor: grab;
+  cursor: grab !important;
   touch-action: none;
   user-select: none;
 }
@@ -248,14 +261,17 @@ defineExpose({ remove, undo })
   color: var(--el-text-color-secondary);
   font-size: 11px;
 }
+.annotation-pan :deep(*) { cursor: inherit !important; }
 .annotation-pan:disabled {
   color: var(--el-text-color-secondary);
-  cursor: default;
+  cursor: default !important;
   border-color: var(--el-border-color);
 }
 .annotation-pan.dragging,
-.panning {
-  cursor: grabbing;
+.annotation-stage.panning,
+.annotation-stage.panning > svg,
+.annotation-stage.panning > svg :deep(*) {
+  cursor: grabbing !important;
 }
 .annotation-pan:focus-visible {
   outline: 2px solid var(--el-color-primary);

@@ -59,9 +59,9 @@ def prepare_materials(session, store, task, round, workspace):
                                     'image/webp': '.webp'}[file.content_type]
             (directory / name).write_bytes(data)
             if original:
-                manifest['targets'].append({'slot': index, 'originalPath': f'/work/original/{name}'})
+                manifest['targets'].append({'slot': index, 'originalPath': f'/work/original/{name}', 'originalFileId': str(file.id)})
             else:
-                manifest[category].append({'slot': index, 'path': f'/work/{category}/{name}'})
+                manifest[category].append({'slot': index, 'path': f'/work/{category}/{name}', 'fileId': str(file.id)})
     current_dir = workspace.work / 'current'
     current_dir.mkdir()
     for local_slot, task_slot in enumerate(selected):
@@ -83,6 +83,8 @@ def prepare_materials(session, store, task, round, workspace):
             (current_dir / name).write_bytes(data)
             target['currentPath'] = '/work/current/' + name
             target['currentVersion'] = image.version
+            target['currentFileId'] = str(file.id)
+            target['baseVersionId'] = str(image.id)
             if frozen:
                 target['baseVersionId'] = str(image.id)
     if round.target is not None:
@@ -96,6 +98,7 @@ def prepare_materials(session, store, task, round, workspace):
         name = 'reference' + {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[file.content_type]
         (directory / name).write_bytes(read_object(store, file, 10 * 1024 * 1024))
         manifest['annotationPath'] = '/work/annotation/' + name
+        manifest['annotationFileId'] = str(file.id)
     if single_base:
         workspace.use_skill = False
         return manifest

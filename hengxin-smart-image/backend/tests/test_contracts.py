@@ -35,7 +35,9 @@ def test_openapi_request_response_and_pagination():
     app.include_router(archives_router, prefix='/api/v1')
     schema = app.openapi()
     paths = schema['paths']
-    assert len(paths) == 10
+    assert len(paths) == 11
+    materials = paths['/api/v1/tasks/{id}/rounds/{round_id}/materials']['get']['responses']['200']
+    assert materials['content']['application/json']['schema']['$ref'].endswith('/RoundMaterials')
     execution = paths['/api/v1/tasks/{id}/execution']['get']['responses']['200']
     assert execution['content']['application/json']['schema']['$ref'].endswith('/ExecutionView')
     accepted = paths['/api/v1/tasks']['post']['responses']['202']

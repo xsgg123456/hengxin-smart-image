@@ -27,7 +27,7 @@
         </ElCollapseItem><ElCollapseItem title="执行进度与诊断" name="execution">
           <ExecutionProgress :key="task.id" :task-id="task.id" :current-round-id="task.currentRoundId" :rounds="data.rounds" :active="visible" />
         </ElCollapseItem></ElCollapse>
-        <ElCollapse class="hx-gap"><ElCollapseItem :title="`执行与修改记录（${data.rounds.length}）`"><ElEmpty v-if="!data.rounds.length" description="暂无轮次记录" :image-size="60" /><div v-for="round in data.rounds" :key="round.id" class="hx-log"><strong>{{ round.target === null ? '整套' : `第 ${round.target + 1} 张` }} · {{ round.state }}</strong><p v-if="round.baseVersion">基于 V{{ round.baseVersion }} 修改</p><p>{{ round.note || '首次生成' }}</p><ElImage v-if="round.annotation" :src="round.annotation.url" :alt="`问题截图：${round.annotation.name}`" :preview-src-list="[round.annotation.url]" fit="contain" preview-teleported style="width: 80px; height: 80px" /><small>{{ formatTime(round.createdAt) }} · {{ round.operatorId }}</small><p v-if="round.error">{{ round.error }}</p></div></ElCollapseItem></ElCollapse>
+        <RoundHistory :task-id="task.id" :rounds="data.rounds" :active="visible" :identity="identity() || ''" />
       </template>
     </div>
   </ElDrawer>
@@ -66,6 +66,7 @@ import { useTaskDetail } from './use-task-detail'
 import { fixtureNotice, taskActions } from '../task-state'
 import { taskOutcome } from '../task-outcome'
 import ResultCard from './ResultCard.vue'
+import RoundHistory from './RoundHistory.vue'
 import ImageUpload from './ImageUpload.vue'
 import PicturePreview from './PicturePreview.vue'
 import TaskSources from './TaskSources.vue'

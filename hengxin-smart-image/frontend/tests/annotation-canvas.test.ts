@@ -29,15 +29,27 @@ const mark = (overrides: Partial<AnnotationMark> = {}): AnnotationMark => ({
 })
 
 test('非方形原图反向框选与越界拖动使用原像素坐标', () => {
-  assert.deepEqual(rectangle({ x: 700, y: 1300 }, { x: -200, y: 1600 }, 790, 1500), {
-    x: 0,
-    y: 1300,
-    width: 700,
-    height: 200,
-  })
-  assert.deepEqual(moveMark(mark(), 900, 1800, 790, 1500), mark({ x: 740, y: 1420 }))
-  assert.deepEqual(moveMark(mark(), -900, -1800, 790, 1500), mark({ x: 0, y: 0 }))
-  assert.deepEqual(resizeMark(mark(), 1000, 2000, 790, 1500), mark({ width: 770, height: 1470 }))
+  assert.deepEqual(
+    rectangle({ x: 700, y: 1300 }, { x: -200, y: 1600 }, 790, 1500),
+    {
+      x: 0,
+      y: 1300,
+      width: 700,
+      height: 200,
+    },
+  )
+  assert.deepEqual(
+    moveMark(mark(), 900, 1800, 790, 1500),
+    mark({ x: 740, y: 1420 }),
+  )
+  assert.deepEqual(
+    moveMark(mark(), -900, -1800, 790, 1500),
+    mark({ x: 0, y: 0 }),
+  )
+  assert.deepEqual(
+    resizeMark(mark(), 1000, 2000, 790, 1500),
+    mark({ width: 770, height: 1470 }),
+  )
   assert.equal(resizeMark(mark(), -100, -100, 790, 1500).width, 4)
 })
 
@@ -69,7 +81,9 @@ test('一笔圈注只更新一条标注，点与包围范围约束在原图内',
 
 test('撤销几何变动保留同 id 最新意见，删除后撤销恢复原意见和顺序', () => {
   const snapshot = [mark(), mark({ id: 'two', note: '第二处' })]
-  const restored = restoreGeometry(snapshot, [mark({ x: 100, note: '刚更新的意见' })])
+  const restored = restoreGeometry(snapshot, [
+    mark({ x: 100, note: '刚更新的意见' }),
+  ])
   assert.deepEqual(restored, [mark({ note: '刚更新的意见' }), snapshot[1]])
   assert.equal(restoreGeometry(snapshot, [mark({ note: '' })])[0].note, '')
   const copied = cloneMarks([mark({ points: [{ x: 5, y: 6 }] })])
@@ -86,10 +100,15 @@ test('原尺寸 PNG 大小限制拒绝超限与空结果', () => {
   assert.throws(() => validateAnnotationBlob(null), /合成标注图失败/)
   assert.throws(() => validateAnnotationBlob(new Blob([])), /合成标注图失败/)
   assert.throws(
-    () => validateAnnotationBlob(new Blob([new Uint8Array(MAX_ANNOTATION_BYTES + 1)])),
+    () =>
+      validateAnnotationBlob(
+        new Blob([new Uint8Array(MAX_ANNOTATION_BYTES + 1)]),
+      ),
     /未压缩或降采样/,
   )
-  assert.doesNotThrow(() => validateAnnotationBlob(new Blob([new Uint8Array(MAX_ANNOTATION_BYTES)])))
+  assert.doesNotThrow(() =>
+    validateAnnotationBlob(new Blob([new Uint8Array(MAX_ANNOTATION_BYTES)])),
+  )
 })
 
 test('导出按 naturalWidth/Height 完整绘图，矩形和画笔共用数组编号', async () => {
@@ -110,7 +129,8 @@ test('导出按 naturalWidth/Height 完整绘图，矩形和画笔共用数组�
     width: 0,
     height: 0,
     getContext: () => context,
-    toBlob: (callback: (blob: Blob) => void) => callback(new Blob(['png'], { type: 'image/png' })),
+    toBlob: (callback: (blob: Blob) => void) =>
+      callback(new Blob(['png'], { type: 'image/png' })),
   }
   const prior = Object.getOwnPropertyDescriptor(globalThis, 'document')
   Object.defineProperty(globalThis, 'document', {
@@ -143,4 +163,37 @@ test('导出按 naturalWidth/Height 完整绘图，矩形和画笔共用数组�
     if (prior) Object.defineProperty(globalThis, 'document', prior)
     else Reflect.deleteProperty(globalThis, 'document')
   }
+})
+
+test('八方向调整保持对边固定并限制到原图，西北收缩不会翻转', () => {
+  for (const direction of ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']) {
+    const next = resizeMark(mark(), -10, -15, 790, 1500, direction)
+    assert.equal(next.x, direction.includes('w') ? 10 : 20)
+    assert.equal(next.y, direction.includes('n') ? 15 : 30)
+    assert.equal(next.x + next.width, direction.includes('e') ? 60 : 70)
+    assert.equal(next.y + next.height, direction.includes('s') ? 95 : 110)
+  }
+  assert.deepEqual(
+    resizeMark(mark(), 1000, 1000, 790, 1500, 'nw'),
+    mark({ x: 66, y: 106, width: 4, height: 4 }),
+  )
+})
+
+test('画笔收笔保留不足一个原像素的最终位置且不重复加点', () => {
+  const pen = mark({
+    kind: 'pen',
+    points: [{ x: 20, y: 30 }],
+    width: 0,
+    height: 0,
+  })
+  assert.equal(
+    appendPoint(pen, { x: 20.4, y: 30.4 }, 790, 1500).points.length,
+    1,
+  )
+  const final = appendPoint(pen, { x: 20.4, y: 30.4 }, 790, 1500, true)
+  assert.deepEqual(final.points.at(-1), { x: 20.4, y: 30.4 })
+  assert.equal(
+    appendPoint(final, { x: 20.4, y: 30.4 }, 790, 1500, true).points.length,
+    2,
+  )
 })

@@ -9,6 +9,7 @@ from .service import create_task
 from .queries import detail, list_tasks
 from .cancellations import delete_task
 from app.contracts.execution import ExecutionView
+from app.contracts.round_materials import RoundMaterials
 from .observations import execution_view
 
 router = APIRouter(tags=['tasks'])
@@ -40,3 +41,9 @@ def delete(id: UUID, user: SharedUser, session: Database):
 @router.get('/tasks/{id}/execution', response_model=ExecutionView)
 def execution(id: UUID, user: SharedUser, session: Database, roundId: UUID | None = None):
     return execution_view(session, id, roundId)
+
+
+@router.get('/tasks/{id}/rounds/{round_id}/materials', response_model=RoundMaterials)
+def round_materials(id: UUID, round_id: UUID, user: SharedUser, session: Database):
+    from .round_materials import materials
+    return materials(session, id, round_id)

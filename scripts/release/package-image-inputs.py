@@ -13,7 +13,7 @@ app = repo / 'hengxin-smart-image'
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
 status = json.loads(subprocess.check_output([sys.executable, '.codex/hooks/harness.py', 'review-status'], cwd=repo))
 assert status['approved'], 'Current code must match independently approved snapshot'
-release = 'annotation-20260924-' + commit[:7]
+release = 'materials-20260924-' + commit[:7]
 work = repo / 'output' / release
 stage = work / 'src'
 stage.mkdir(parents=True, exist_ok=False)
@@ -32,7 +32,7 @@ for file in (app / 'frontend/dist').rglob('*'):
     if file.is_file() and 'demo-images' not in file.parts:
         names.append(file.relative_to(app).as_posix())
 names.extend('scripts/release/' + name for name in (
-    'image-inputs-deploy.sh', 'image-inputs-worker.py', 'image-inputs-frontend.py'))
+    'image-inputs-deploy.sh', 'image-inputs-worker.py', 'image-inputs-frontend.py', 'image-inputs-native.py'))
 for name in names:
     source = (repo if name.startswith('scripts/') else app) / name
     target = stage / name

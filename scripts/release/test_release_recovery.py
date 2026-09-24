@@ -17,6 +17,7 @@ backup=./backup
 app=./app
 native=./native
 helper=./helper
+native_helper=./native-helper
 wait_seconds=1
 closed=1
 api_started=1
@@ -35,7 +36,11 @@ sql() { record "sql $*"; }
 docker() { record "docker $*"; if [[ "$1" = inspect ]]; then echo true; fi; }
 systemctl() { record "systemctl $*"; if [[ "$1" = show ]]; then echo active; fi; }
 api_control() { record "api_control $*"; [[ "$FAIL_AT" != "$1" ]]; }
-python3() { record "python3 $*"; [[ "$FAIL_AT" != native_verify || "$2" != run-native-verify ]]; }
+python3() {
+  record "python3 $*"
+  [[ "$FAIL_AT" != native_verify || "$2" != run-native-verify ]] || return 1
+  [[ "$FAIL_AT" != native_restore || "$2" != restore ]]
+}
 tar() {
   record "tar $*"
   [[ "$FAIL_AT" != native_restore || "$*" != *native.tar* ]] || return 1
@@ -51,7 +56,7 @@ verify_old_services() { record verify_old_services; [[ "$FAIL_AT" != old_verify 
         root = Path(temporary)
         for case in ['success', *failures, 'web_start']:
             log = root / (case + '.log')
-            result = subprocess.run(['bash'], input=stub + recovery + '\nfalse\nrecover\n', text=True,
+            result = subprocess.run([os.environ.get('BASH', 'bash')], input=stub + recovery + '\nfalse\nrecover\n', text=True,
                                     cwd=root, env={**os.environ, 'TEST_LOG': str(log), 'FAIL_AT': case},
                                     capture_output=True, timeout=10)
             assert result.returncode == 1, (case, result.stdout, result.stderr)
@@ -62,6 +67,7 @@ verify_old_services() { record verify_old_services; [[ "$FAIL_AT" != old_verify 
                 assert opened and web, lines
                 for step in ['verify_old_services', 'api_control api-verify', 'python3 ./helper run-native-verify 90']:
                     assert lines.index(step) < lines.index(opened[0]), (case, lines)
+                assert lines.index('python3 ./native-helper restore ./native ./backup') < lines.index('systemctl start hengxin-vps-codex-worker')
                 assert 'ROLLBACK_BLOCKED' not in result.stdout
             elif case == 'web_start':
                 assert lines[-2:] == ['compose stop -t 30 web api outbox api-image-outbox', 'sql update api_image_channel set paused=true where id=1'], lines
