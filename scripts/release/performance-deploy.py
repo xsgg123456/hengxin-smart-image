@@ -9,6 +9,18 @@ import subprocess
 import sys
 import time
 
+# These repository tooling suites require infra/frontend source, which is deliberately
+# absent from the runtime image. They remain covered by the local full-suite run.
+REPOSITORY_ONLY_TESTS = ('test_local_codex', 'test_local_codex_control',
+    'test_local_codex_ports', 'test_phase11a_checks', 'test_phase11a_environment',
+    'test_phase11a_supervisor')
+
+
+def installed_test_args():
+    return ['-m', 'pytest', '-q',
+        *('--ignore=tests/' + name + '.py' for name in REPOSITORY_ONLY_TESTS),
+        '--deselect=tests/test_contracts.py::test_top_level_fields_match_frontend_interfaces']
+
 spec = importlib.util.spec_from_file_location('runtime', Path(__file__).with_name('performance-runtime.py'))
 r = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(r)
@@ -47,7 +59,7 @@ def main():
         with (work / 'installation-tests.log').open('w') as log:
             subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python',
                 '-e', 'APP_ENV=test', '-e', 'ENABLE_DEV_IDENTITY=false', image,
-                '-m', 'pytest', '-q'], stdout=log, stderr=subprocess.STDOUT, check=True)
+                *installed_test_args()], stdout=log, stderr=subprocess.STDOUT, check=True)
         (work / 'INSTALL_TEST_IMAGE_ID').write_text(r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True))
         print('BUILD_AND_INSTALL_TESTS_PASS', flush=True)
         return

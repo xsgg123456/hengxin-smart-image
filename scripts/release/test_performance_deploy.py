@@ -14,6 +14,13 @@ spec.loader.exec_module(deploy)
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_installed_scope_only_excludes_repository_tools(self):
+        args = deploy.installed_test_args()
+        self.assertEqual(args[:3], ['-m', 'pytest', '-q'])
+        self.assertEqual(sum(a.startswith('--ignore=') for a in args), 6)
+        self.assertNotIn('--ignore=tests/test_contracts.py', args)
+        self.assertIn('--deselect=tests/test_contracts.py::test_top_level_fields_match_frontend_interfaces', args)
+
     def exercise(self, failure):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
