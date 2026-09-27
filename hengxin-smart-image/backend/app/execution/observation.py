@@ -16,6 +16,7 @@ LABELS = {'queued': '等待执行', 'preparing': '准备素材', 'starting': '�
           'cancelled': '已取消', 'uncertain': '执行状态待核实'}
 TERMINAL = {'succeeded': 'completed', 'partial': 'completed', 'failed': 'failed',
             'cancelled': 'cancelled', 'uncertain': 'uncertain'}
+DELIVERY_PENDING_LABEL = '图片已生成，正在保存'
 ACTIVITY = {'thread.started': '执行会话已建立', 'turn.started': '模型已开始处理',
             'turn.completed': '模型本轮处理结束，等待结果校验',
             'turn.failed': '模型报告本轮未完成', 'error': '执行器报告异常'}
@@ -101,7 +102,8 @@ class Observer:
                         or row.claim_token != self.token or job.claim_token != self.token):
                     return
                 if round.status in TERMINAL:
-                    self.data['stage'] = TERMINAL[round.status]
+                    self.data['stage'] = ('storing' if round.status == 'uncertain'
+                        and self.data.get('deliveryReady') is True else TERMINAL[round.status])
                 elif not valid(task, round, job, self.token):
                     return
                 self.data['updatedAt'] = utcnow().isoformat()

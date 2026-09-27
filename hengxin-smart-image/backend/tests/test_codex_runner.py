@@ -150,7 +150,7 @@ def test_revision_explicitly_pins_model_and_effort(real_env, monkeypatch):
     assert calls[0][0][calls[0][0].index('-c') + 1] == 'model_reasoning_effort="high"'
 
 
-@pytest.mark.parametrize('outcome,expected', [('no_image', 'failed'), ('timeout', 'failed'),
+@pytest.mark.parametrize('outcome,expected', [('no_image', 'failed'),
                                             ('unknown', 'uncertain'), ('cancel', 'cancelled'),
                                             ('expired', 'uncertain')])
 def test_failed_unknown_and_cancelled_invocations_never_publish(real_env, monkeypatch, outcome, expected):
@@ -172,8 +172,18 @@ def test_failed_unknown_and_cancelled_invocations_never_publish(real_env, monkey
     with real_env[1]() as session:
         assert session.get(Job, job_id).status == expected
         assert session.scalar(select(ImageVersion)) is None
-        if outcome == 'timeout':
-            assert session.scalar(select(ExecutionAttempt)).error == 'timeout'
+
+
+def test_complete_delivery_survives_timeout_during_process_teardown(real_env, monkeypatch):
+    receipt = frozen_request(real_env)
+    calls = cli(monkeypatch, real_env, receipt, reason='timeout')
+    job_id = job_for(real_env[1], receipt)
+    runner.run_generation(job_id, real_env[1], real_env[2])
+    with real_env[1]() as session:
+        assert session.get(Job, job_id).status == 'succeeded'
+        assert session.scalar(select(ImageVersion)) is not None
+        assert session.scalar(select(ExecutionAttempt)).error == 'timeout'
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize('overrides', [dict(enable_fixture_executor=True),

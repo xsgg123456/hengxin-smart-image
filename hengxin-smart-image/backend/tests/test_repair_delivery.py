@@ -33,7 +33,7 @@ def test_backfill_uses_fenced_collection_and_preserves_audit(recovery, monkeypat
     assert state(recovery)[3] == 1
 
 
-@pytest.mark.parametrize('reason', ['cancelled', 'live', 'missing', 'nonzero', 'generic_error'])
+@pytest.mark.parametrize('reason', ['cancelled', 'live', 'missing', 'generic_error'])
 def test_backfill_refuses_invalid_evidence(recovery, monkeypatch, reason):
     failed(recovery, monkeypatch)
     if reason == 'cancelled':
@@ -43,10 +43,16 @@ def test_backfill_refuses_invalid_evidence(recovery, monkeypatch, reason):
         monkeypatch.setattr(repair_delivery, 'same_process', lambda *a: True)
     elif reason == 'missing':
         (recovery[6] / 'exit.json').unlink()
-    elif reason == 'nonzero':
-        (recovery[6] / 'exit.json').write_text('{"exit_code":1}')
     else:
         (recovery[6] / 'events.jsonl').write_text('{"type":"error","message":"terminal"}')
     with pytest.raises((ValueError, OSError)):
         repair_delivery.prepare_recollection(recovery[0], recovery[7])
     assert state(recovery)[0].status == 'failed' and state(recovery)[3] == 0
+
+
+def test_backfill_accepts_valid_delivery_after_nonzero_exit(recovery, monkeypatch):
+    failed(recovery, monkeypatch)
+    (recovery[6] / 'exit.json').write_text('{"exit_code":1}')
+    assert repair_delivery.prepare_recollection(recovery[0], recovery[7])['images'] == 1
+    reconcile.reconcile_once(recovery[0], recovery[1])
+    assert state(recovery)[0].status == 'succeeded' and state(recovery)[3] == 1

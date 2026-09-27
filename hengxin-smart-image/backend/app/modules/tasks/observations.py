@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 
 from app.contracts.execution import ExecutionView
 from app.execution.diagnostics import failure_for
-from app.execution.observation import LABELS, TERMINAL
+from app.execution.observation import LABELS, TERMINAL, DELIVERY_PENDING_LABEL
 from .attempts import ExecutionAttempt
 from .models import RoundRecord, ResultSlotRecord
 from .queries import find_task, stamp
@@ -19,8 +19,14 @@ def execution_view(session, task_id, round_id=None):
     data = attempt.observation if attempt and isinstance(attempt.observation, dict) else {}
     stage = data.get('stage', 'queued' if round.status == 'queued' else 'generating')
     stage = TERMINAL.get(round.status, stage)
+    delivery_pending = data.get('deliveryReady') is True and round.status in (
+        'running', 'collecting', 'uncertain')
+    if delivery_pending:
+        stage = 'storing'
     failure = data.get('failure')
-    if round.status in ('cancelled', 'uncertain'):
+    if delivery_pending:
+        failure = None
+    elif round.status in ('cancelled', 'uncertain'):
         failure = failure_for('cancelled' if round.status == 'cancelled' else 'execution_uncertain', stage)
     elif round.status in ('failed', 'partial') and not failure:
         startup = failure_for('startup_failed', 'starting')
@@ -32,7 +38,8 @@ def execution_view(session, task_id, round_id=None):
         ResultSlotRecord).where(ResultSlotRecord.task_id == task.id))
     return ExecutionView(taskId=str(task.id), roundId=str(round.id), status=round.status,
         source=task.execution_source, diagnosticId=str(attempt.id) if attempt else None,
-        stage=stage, label='正在取消，等待执行器停止' if round.status == 'cancelling' else LABELS[stage],
+        stage=stage, label='正在取消，等待执行器停止' if round.status == 'cancelling' else (
+            DELIVERY_PENDING_LABEL if delivery_pending else LABELS[stage]),
         startedAt=stamp(round.started_at or round.created_at), finishedAt=stamp(round.finished_at),
         updatedAt=data.get('updatedAt'), lastActivityAt=data.get('lastActivityAt'),
         totalImages=count, detectedImages=data.get('detectedImages'),

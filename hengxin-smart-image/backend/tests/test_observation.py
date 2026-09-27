@@ -81,6 +81,43 @@ def test_database_terminal_state_overrides_old_heartbeat(task_env, tmp_path):
     assert data['stage'] == 'cancelled' and data['status'] == 'cancelled'
 
 
+@pytest.mark.parametrize('status, stage, label', [
+    ('running', 'storing', '图片已生成，正在保存'),
+    ('collecting', 'storing', '图片已生成，正在保存'),
+    ('uncertain', 'storing', '图片已生成，正在保存'),
+    ('cancelled', 'cancelled', '已取消'),
+    ('cancelling', 'storing', '正在取消，等待执行器停止'),
+    ('failed', 'failed', '执行失败'),
+    ('succeeded', 'completed', '处理结束'),
+])
+def test_delivery_ready_display_preserves_terminal_priority(task_env, tmp_path, status, stage, label):
+    receipt, observer = observing(task_env, tmp_path)
+    observer.data.update(deliveryReady=True, stage='storing', detectedImages=1)
+    observer.save()
+    with task_env[1].begin() as session:
+        _, round, job = locked_execution(session, observer.job_id)
+        round.status = job.status = status
+    observer.save()
+    data = task_env[0].get('/api/v1/tasks/' + receipt['taskId'] + '/execution').json()
+    assert (data['status'], data['stage'], data['label']) == (status, stage, label)
+    if status in ('running', 'collecting', 'uncertain'):
+        assert data['failure'] is None and data['detectedImages'] == 1
+    if status in ('failed', 'cancelled'):
+        assert data['failure'] is not None
+
+
+def test_ordinary_storing_and_uncertain_do_not_claim_delivery(task_env, tmp_path):
+    receipt, observer = observing(task_env, tmp_path)
+    observer.phase('storing')
+    endpoint = '/api/v1/tasks/' + receipt['taskId'] + '/execution'
+    assert task_env[0].get(endpoint).json()['label'] == '保存图片'
+    with task_env[1].begin() as session:
+        _, round, job = locked_execution(session, observer.job_id)
+        round.status = job.status = 'uncertain'
+    data = task_env[0].get(endpoint).json()
+    assert data['stage'] == 'uncertain' and data['failure'] is not None
+
+
 def test_round_ownership_deleted_task_and_legacy_are_checked(task_env):
     one = submit(task_env, key='one').json()
     two = submit(task_env, key='two').json()

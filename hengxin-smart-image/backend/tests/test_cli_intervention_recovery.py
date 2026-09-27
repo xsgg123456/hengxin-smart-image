@@ -142,6 +142,6 @@ def test_storage_failure_does_not_regenerate_images(real_env, monkeypatch):
     calls = scripted_cli(monkeypatch, real_env, receipt, ('success',))
     def failed(*args):
         raise OSError('store unavailable')
-    monkeypatch.setattr(runner, 'save_upload', failed)
+    monkeypatch.setattr(real_env[2], 'put', failed)
     runner.run_generation(job_for(real_env[1], receipt), real_env[1], real_env[2])
     assert len(calls) == 1

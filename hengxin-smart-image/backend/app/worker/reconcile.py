@@ -18,7 +18,9 @@ from app.worker.leases import heartbeat
 from app.execution.process import same_process
 from app.execution.intervention import invocation_summary
 from app.execution.output_collector import collect_outputs, OutputCollectionError
-from app.execution.final_delivery import collect_final_outputs
+from app.execution.delivery_acceptance import accept_delivery, UNCERTAIN_DELIVERY
+from app.execution.delivery_storage import store_delivery
+from app.execution.delivery_state import retain_delivery
 from app.execution.diagnostics import failure_for
 from app.execution.provenance import verify_provenance
 
@@ -120,31 +122,32 @@ def reconcile_once(factory, store=None):
             continue
         job_id, token, operator_id, expected, previous = ownership
         summary, failed, final_delivery, failure = None, False, False, None
+        delivery_ready, delivery_count = False, None
         try:
             with heartbeat(factory, job_id, token):
                 summary = invocation_summary(control, previous)
                 receipt = json.loads((control / 'exit.json').read_text()) if (control / 'exit.json').is_file() else {}
-                failed = (isinstance(receipt, dict) and
-                    ((type(receipt.get('exit_code')) is int and receipt['exit_code'] != 0) or
-                     receipt.get('reason') in ('cancelled', 'timeout', 'output_limit')))
-                failed = failed or summary.error in ('turn_failed', 'cli_error')
-                if failed or summary.error or not summary.turn_completed:
-                    continue
                 home = control.parent.parent / 'home' / '.codex'
-                baseline = json.loads((control / 'baseline.json').read_text())
                 work = control.parent.parent / 'rounds' / str(attempt.round_id)
                 protocol = control / 'delivery.json'
                 if protocol.exists():
                     if json.loads(protocol.read_text()) != {'version': 'final-reply-v1'}:
                         raise ValueError('Unknown delivery protocol')
                     final_delivery = True
-                    if (not isinstance(receipt, dict) or type(receipt.get('exit_code')) is not int
-                            or receipt['exit_code'] != 0 or receipt.get('reason')):
-                        continue  # Missing exit evidence is uncertainty, not successful delivery.
-                    images = collect_final_outputs(work, home, control / 'events.jsonl',
-                        summary.session_id, baseline, expected)
+                    images = accept_delivery(control, attempt.task_id, attempt.round_id,
+                                             previous or summary.session_id, expected, receipt)
+                    delivery_ready, delivery_count = True, len(images)
+                    outputs = store_delivery(factory, store or get_store(), operator_id,
+                        attempt.round_id, images, lambda: _active(factory, job_id, token))
                 else:
                     # Executions launched before the upgrade retain their original contract.
+                    failed = (isinstance(receipt, dict) and
+                        ((type(receipt.get('exit_code')) is int and receipt['exit_code'] != 0) or
+                         receipt.get('reason') in ('cancelled', 'timeout', 'output_limit')))
+                    failed = failed or summary.error in ('turn_failed', 'cli_error')
+                    if failed or summary.error or not summary.turn_completed:
+                        continue
+                    baseline = json.loads((control / 'baseline.json').read_text())
                     proof = json.loads((control / 'provenance.json').read_text())
                     manifest = work / 'manifest.json'
                     images = collect_outputs(home, summary.session_id, baseline, expected,
@@ -152,22 +155,25 @@ def reconcile_once(factory, store=None):
                     successful = [image for image in images if image is not None]
                     if successful:
                         verify_provenance(home, summary.session_id, proof, successful)
-                outputs = []
-                for image in images:
-                    if not _active(factory, job_id, token):
-                        break
-                    if image is None:
-                        outputs.append(None)
-                        continue
-                    with factory() as session:
-                        user = session.get(UserRecord, operator_id)
-                        outputs.append(save_upload(session, store or get_store(), user, image).id)
+                    outputs = []
+                    for image in images:
+                        if not _active(factory, job_id, token):
+                            break
+                        if image is None:
+                            outputs.append(None)
+                            continue
+                        with factory() as session:
+                            user = session.get(UserRecord, operator_id)
+                            outputs.append(save_upload(session, store or get_store(), user, image).id)
                 if len(outputs) == expected:
                     publish_results(factory, job_id, token, outputs)
         except OutputCollectionError as error:
-            if final_delivery:
+            if final_delivery and str(error) not in UNCERTAIN_DELIVERY:
                 failed, failure = True, failure_for(str(error), 'validating')
         except Exception:
             pass  # Keep evidence and exclusive uncertain state; never replay CLI.
         finally:
             _settle(factory, attempt.id, job_id, token, summary, failed, failure)
+            if final_delivery and not failed:
+                retain_delivery(factory, job_id, token, attempt.id,
+                                ready=delivery_ready, count=delivery_count)

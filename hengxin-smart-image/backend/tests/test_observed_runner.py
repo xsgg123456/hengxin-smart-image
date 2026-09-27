@@ -8,7 +8,7 @@ import pytest
 from app.core.config import get_settings
 from app.execution import codex_runner as runner
 from app.execution.output_collector import OutputCollectionError
-from files_helpers import files_env  # noqa: F401
+from files_helpers import files_env, image_bytes  # noqa: F401
 from test_tasks import task_env, submit, job_for  # noqa: F401
 
 
@@ -61,17 +61,28 @@ def test_runner_no_longer_uses_skill_manifest_as_delivery(observed_run, monkeypa
 
 
 def test_runner_distinguishes_storage_failure_without_leaking_exception(observed_run, monkeypatch):
-    invoke, _, _, _ = observed_run
-    monkeypatch.setattr(runner, 'collect_final_outputs', lambda *a, **k: [object()])
-    monkeypatch.setattr(runner, 'save_upload', lambda *a: (_ for _ in ()).throw(OSError('secret password=/private/path')))
+    invoke, receipt, env, _ = observed_run
+    execute = runner.execute
+    def delivered(*args):
+        result = execute(*args)
+        control = args[2]
+        (control.parents[1] / 'rounds' / receipt['roundId'] / 'final.png').write_bytes(image_bytes())
+        (control / 'events.jsonl').write_text('\n'.join(map(json.dumps, [
+            {'type': 'thread.started', 'thread_id': 'test-session'},
+            {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': '![成品](/work/final.png)'}},
+            {'type': 'turn.completed'}])))
+        return result
+    monkeypatch.setattr(runner, 'execute', delivered)
+    monkeypatch.setattr(env[2], 'put', lambda *a: (_ for _ in ()).throw(OSError('secret password=/private/path')))
     view = invoke()
-    assert view['failure']['code'] == 'STORAGE_FAILED' and view['failure']['stage'] == 'storing'
+    assert view['status'] == 'uncertain' and view['stage'] == 'storing'
+    assert view['failure'] is None and view['label'] == '图片已生成，正在保存'
     assert 'secret' not in json.dumps(view) and '/private' not in json.dumps(view)
 
 
 def test_runner_output_error_is_not_mislabeled_as_storage(observed_run, monkeypatch):
     invoke, _, _, _ = observed_run
-    monkeypatch.setattr(runner, 'collect_final_outputs', lambda *a, **k: (_ for _ in ()).throw(
+    monkeypatch.setattr(runner, 'accept_delivery', lambda *a, **k: (_ for _ in ()).throw(
         OutputCollectionError('final_output_count_mismatch')))
     view = invoke()
     assert view['failure']['code'] == 'FINAL_OUTPUT_INCOMPLETE'

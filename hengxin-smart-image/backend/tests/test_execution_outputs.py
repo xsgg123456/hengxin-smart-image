@@ -178,7 +178,7 @@ def test_failure_after_duplicate_terminal_still_fails(tmp_path):
 @pytest.mark.parametrize('usage', [{'input_tokens': -1}, {'input_tokens': True}, []])
 def test_invalid_usage_cannot_become_billing_data(tmp_path, usage):
     result = parse_events(events(tmp_path, [{'type': 'turn.completed', 'usage': usage}]))
-    assert result.error == 'invalid_usage' and result.usage is None
+    assert result.error is None and result.usage_error == 'invalid_usage' and result.usage is None
 
 
 def test_external_per_round_manifest(tmp_path):

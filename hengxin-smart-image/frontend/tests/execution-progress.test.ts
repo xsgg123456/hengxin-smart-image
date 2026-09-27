@@ -13,6 +13,28 @@ function dto(patch: Partial<ExecutionData> = {}): ExecutionData {
 }
 const context: ExecutionContext = { taskId: 'task', roundId: 'round', identity: 'user-a', active: true, mock: false }
 const flush = async () => { await Promise.resolve(); await Promise.resolve() }
+
+test('validated delivery keeps server progress label and slow polling until publication', async () => {
+  const pending = dto({ status: 'uncertain', stage: 'storing', label: '图片已生成，正在保存', detectedImages: 3 })
+  assert.equal(isExecutionData(pending), true)
+  assert.equal(executionStageLabel(pending), '图片已生成，正在保存')
+  assert.equal(executionPollDelay(pending.status), 5000)
+  assert.equal(pending.failure, null)
+  assert.equal(executionStageLabel(dto({ stage: 'storing', label: '保存图片' })), '保存图片')
+  for (const [status, label] of [['failed', '执行失败'], ['cancelled', '已取消'], ['succeeded', '已完成']] as const) {
+    assert.equal(executionStageLabel({ ...pending, status }), label)
+  }
+  const h = harness()
+  h.poller.setContext(context)
+  h.requests[0].resolve(pending); await flush()
+  assert.equal(h.state().data?.label, '图片已生成，正在保存')
+  assert.equal(h.timers[0].delay, 5000)
+  h.timers[0].run()
+  h.requests[1].resolve(dto({ status: 'succeeded', stage: 'completed', label: '处理结束' })); await flush()
+  assert.equal(executionStageLabel(h.state().data!), '已完成')
+  assert.equal(h.timers.length, 1)
+  h.poller.dispose()
+})
 function harness() {
   let state: ExecutionState = { loading: false, error: '' }
   const requests: { task: string; round: string; resolve: (data: ExecutionData) => void; reject: (error: Error) => void }[] = []

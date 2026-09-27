@@ -114,10 +114,17 @@ def invocation_summary(control, expected_session=None):
     if data.get('count') != 1:
         raise ValueError('Invalid intervention record')
     previous = data.get('usage')
-    if previous is not None and (not isinstance(previous, dict) or any(
-            not isinstance(k, str) or type(v) is not int or v < 0 for k, v in previous.items())):
-        raise ValueError('Invalid intervention usage')
+    usage_error = summary.usage_error
+    if previous is not None:
+        if not isinstance(previous, dict):
+            previous, usage_error = None, 'invalid_usage'
+        else:
+            trusted = {k: v for k, v in previous.items()
+                       if isinstance(k, str) and type(v) is int and v >= 0}
+            if len(trusted) != len(previous):
+                usage_error = 'invalid_usage'
+            previous = trusted or None
     usage = None if previous is None and summary.usage is None else dict(previous or {})
     for key, value in (summary.usage or {}).items():
         usage[key] = usage.get(key, 0) + value
-    return replace(summary, usage=usage)
+    return replace(summary, usage=usage, usage_error=usage_error)

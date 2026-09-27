@@ -1,21 +1,12 @@
-"""Parse one invocation's CLI JSONL without trusting model prose or tool claims."""
-
+"""Interpret one invocation consistently for accounting and final delivery."""
 import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.execution.diagnostics import _safe_read, _unique_object
 
-def is_reconnect_notice(event: dict) -> bool:
-    """Only the CLI transport retry notice is recoverable, never arbitrary errors."""
-    message = event.get('message')
-    if event.get('type') != 'error' or not isinstance(message, str):
-        return False
-    match = re.fullmatch(
-        r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
-        r'\(stream disconnected before completion: '
-        r'websocket closed by server before response\.completed\)', message)
-    return bool(match and int(match[1]) <= int(match[2]))
+MAX_EVENTS_BYTES = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -24,70 +15,101 @@ class EventSummary:
     usage: dict[str, int] | None
     turn_completed: bool
     error: str | None
+    final_text: str | None = None
+    usage_error: str | None = None
 
 
 def parse_events(path: Path, expected_session: str | None = None) -> EventSummary:
-    session = expected_session
-    usage = None
+    session = None
+    usage = {}
     completed = False
-    error = None
-    terminals = set()
+    error = diagnostic = usage_error = None
+    final_text = candidate = None
     active_turn = None
-    reconnect_pending = False
+    generation = 0
+    terminals = set()
     try:
-        with Path(path).open(encoding='utf-8') as stream:
-            for line in stream:
-                if not line.strip():
-                    continue
-                try:
-                    event = json.loads(line)
-                    if not isinstance(event, dict):
+        raw = _safe_read(Path(path), MAX_EVENTS_BYTES, allow_windows_fallback=True)
+        for line in raw.decode('utf-8').splitlines():
+            if not line.strip():
+                continue
+            event = json.loads(line, object_pairs_hook=_unique_object)
+            if not isinstance(event, dict) or not isinstance(event.get('type'), str):
+                raise ValueError
+            kind = event['type']
+            turn_id = event.get('turn_id')
+            if turn_id is not None and (not isinstance(turn_id, str) or not turn_id):
+                error = error or 'invalid_turn_id'
+                continue
+            if kind == 'thread.started':
+                value = event.get('thread_id')
+                if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', value):
+                    error = error or 'invalid_session_id'
+                elif ((expected_session is not None and value != expected_session)
+                      or (session is not None and value != session)):
+                    error = error or 'session_mismatch'
+                else:
+                    session = value
+                # A new thread boundary cannot authenticate earlier unowned text.
+                candidate = final_text = None
+                completed = False
+            elif kind == 'error':
+                diagnostic = diagnostic or 'cli_error'
+            elif kind == 'turn.started' or kind.startswith('item.'):
+                if kind.startswith('item.'):
+                    item = event.get('item')
+                    if not isinstance(item, dict) or not isinstance(item.get('type'), str):
                         raise ValueError
-                except (ValueError, TypeError):
-                    error = 'invalid_event_stream'
+                if kind == 'turn.started' or completed:
+                    generation += 1
+                    active_turn = turn_id
+                elif turn_id is not None and active_turn is not None and turn_id != active_turn:
+                    error = error or 'invalid_turn_id'
+                completed = False
+                candidate = final_text = None
+                if kind == 'item.completed':
+                    item = event.get('item')
+                    if not isinstance(item, dict) or not isinstance(item.get('type'), str):
+                        raise ValueError
+                    if item['type'] == 'agent_message':
+                        text = item.get('text')
+                        if not isinstance(text, str):
+                            raise ValueError
+                        candidate = text if text.strip() and session else None
+            elif kind == 'turn.failed':
+                completed = False
+                candidate = final_text = None
+                diagnostic = 'turn_failed'
+            elif kind == 'turn.completed':
+                if turn_id is not None and active_turn is not None and turn_id != active_turn:
+                    error = error or 'invalid_turn_id'
                     continue
-                kind = event.get('type')
-                if kind == 'thread.started':
-                    value = event.get('thread_id')
-                    if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', value):
-                        error = 'invalid_session_id'
-                    elif session is not None and session != value:
-                        error = 'session_mismatch'
-                    else:
-                        session = value
-                elif kind == 'turn.started':
-                    active_turn = event.get('turn_id')
-                elif kind in ('turn.completed', 'turn.failed'):
-                    if kind == 'turn.failed':
-                        error = 'turn_failed'
-                    turn = event.get('turn_id') or active_turn or '__invocation__'
-                    if not isinstance(turn, str):
-                        error = 'invalid_turn_id'
+                key = turn_id or active_turn or ('implicit', generation)
+                if key in terminals:
+                    continue
+                terminals.add(key)
+                completed = True
+                final_text = candidate
+                candidate = None
+                diagnostic = None
+                values = event.get('usage')
+                if values is not None:
+                    if not isinstance(values, dict):
+                        usage_error = 'invalid_usage'
                         continue
-                    if turn in terminals:
-                        continue
-                    terminals.add(turn)
-                    if kind == 'turn.failed':
-                        continue
-                    completed = True
-                    reconnect_pending = False
-                    values = event.get('usage')
-                    if values is not None:
-                        if not isinstance(values, dict) or any(
-                            not isinstance(key, str) or type(value) is not int or value < 0
-                            for key, value in values.items()
-                        ):
-                            error = 'invalid_usage'
-                            continue
-                        usage = usage or {}
-                        for key, value in values.items():
-                            usage[key] = usage.get(key, 0) + value
-                elif kind == 'error':
-                    # Raw upstream errors can contain prompts or credentials.
-                    if is_reconnect_notice(event) and not completed:
-                        reconnect_pending = True
-                    else:
-                        error = error or 'cli_error'
-    except (OSError, UnicodeError):
+                    for name, value in values.items():
+                        # Preserve independently trustworthy counters; never invent zero.
+                        if type(value) is int and value >= 0:
+                            usage[name] = usage.get(name, 0) + value
+                        else:
+                            usage_error = 'invalid_usage'
+            else:
+                # Unknown substantive events cannot leave an old delivery final.
+                completed = False
+                candidate = final_text = None
+    except OSError:
         error = 'unreadable_event_stream'
-    return EventSummary(session, usage, completed, error or ('cli_error' if reconnect_pending else None))
+    except (ValueError, UnicodeError, RecursionError):
+        error = 'invalid_event_stream'
+    return EventSummary(session, usage or None, completed, error or (
+        diagnostic if not completed else None), final_text, usage_error)

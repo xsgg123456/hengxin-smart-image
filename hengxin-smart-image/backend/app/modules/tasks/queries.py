@@ -8,10 +8,19 @@ from .attempts import ExecutionSession
 from app.modules.archives.models import ArchiveRecord
 from app.modules.skills.models import SkillVersionRecord
 from app.modules.revisions.service import eligibility
+from app.execution.observation import DELIVERY_PENDING_LABEL
 
 STATE = {'queued': '排队中', 'running': '执行中', 'collecting': '执行中', 'cancelling': '执行中',
          'uncertain': '失败', 'failed': '失败', 'cancelled': '失败', 'succeeded': '待查看',
          'partial': '部分失败'}
+
+
+def delivery_pending(round):
+    return round.status == 'uncertain' and round.error == DELIVERY_PENDING_LABEL
+
+
+def round_state(round):
+    return '执行中' if delivery_pending(round) else STATE[round.status]
 
 
 def stamp(value):
@@ -48,7 +57,7 @@ def serialize(session, task):
             images.append(picture(session.get(FileRecord, version.file_id), version.version))
     identity = session.get(ExecutionSession, task.id) if task.execution_source == 'cli' else None
     incomplete = any(slot.current_version_id is None or slot.error for slot in slots)
-    state = '部分失败' if current.status == 'succeeded' and incomplete else STATE[current.status]
+    state = '部分失败' if current.status == 'succeeded' and incomplete else round_state(current)
     data = dict(id=str(task.id), name=task.name, mode=task.mode, template='',
         skillVersionId=str(task.skill_version_id), ownerId=str(task.owner_id),
         sessionId=identity.session_id if identity else None,
@@ -57,7 +66,8 @@ def serialize(session, task):
         feedback=[r.note for r in rounds if r.note], time=stamp(task.created_at), archived=bool(
             session.scalar(select(ArchiveRecord.id).where(ArchiveRecord.task_id == task.id,
                 ArchiveRecord.deleted_at.is_(None)).limit(1))),
-        currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots), error=current.error,
+        currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots),
+        error=None if delivery_pending(current) else current.error,
         executionSource=task.execution_source)
     if owner:
         data['ownerName'] = owner.name
@@ -104,8 +114,8 @@ def detail(session, task_id):
         baseVersionId=str(r.base_version_id) if r.base_version_id else None,
         baseVersion=session.get(ImageVersion, r.base_version_id).version if r.base_version_id else None,
         annotation=picture(session.get(FileRecord, r.annotation_file_id)) if r.annotation_file_id else None,
-        note=r.note, state=STATE[r.status], createdAt=stamp(r.created_at), startedAt=stamp(r.started_at),
-        finishedAt=stamp(r.finished_at), error=r.error) for r in rounds],
+        note=r.note, state=round_state(r), createdAt=stamp(r.created_at), startedAt=stamp(r.started_at),
+        finishedAt=stamp(r.finished_at), error=None if delivery_pending(r) else r.error) for r in rounds],
         executionControl=b.ExecutionControl(canRevise=can_revise, canRetry=can_retry, blockedReason=reason))
 
 
@@ -123,8 +133,10 @@ def list_tasks(session, query, user=None):
         or_(ResultSlotRecord.current_version_id.is_(None), ResultSlotRecord.error.is_not(None))).exists()
     ready = and_(RoundRecord.status == 'succeeded', ~incomplete)
     partial = or_(RoundRecord.status == 'partial', and_(RoundRecord.status == 'succeeded', incomplete))
-    stats = b.TaskStats(total=count(), processing=count(RoundRecord.status.in_(
-        ['queued', 'running', 'collecting', 'cancelling'])),
+    pending = and_(RoundRecord.status == 'uncertain',
+                   func.coalesce(RoundRecord.error, '') == DELIVERY_PENDING_LABEL)
+    stats = b.TaskStats(total=count(), processing=count(or_(pending, RoundRecord.status.in_(
+        ['queued', 'running', 'collecting', 'cancelling']))),
         ready=count(ready), archived=count(select(ArchiveRecord.id).where(
             ArchiveRecord.task_id == TaskRecord.id, ArchiveRecord.deleted_at.is_(None)).exists()))
     if query.mode:
@@ -140,8 +152,10 @@ def list_tasks(session, query, user=None):
     if query.state:
         public = {'processing': ('排队中', '执行中'), 'error': ('失败', '部分失败')}.get(
             query.state, (query.state,))
-        filters = [RoundRecord.status.in_([key for key, value in STATE.items()
-                   if value in public and key not in ('succeeded', 'partial')])]
+        filters = [and_(~pending, RoundRecord.status.in_([key for key, value in STATE.items()
+                   if value in public and key not in ('succeeded', 'partial')]))]
+        if '执行中' in public:
+            filters.append(pending)
         if '待查看' in public:
             filters.append(ready)
         if '部分失败' in public:

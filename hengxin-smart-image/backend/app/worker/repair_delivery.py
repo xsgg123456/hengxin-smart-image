@@ -5,8 +5,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.execution.final_delivery import collect_final_outputs
-from app.execution.intervention import invocation_summary
+from app.execution.delivery_acceptance import accept_delivery
 from app.execution.process import same_process
 from app.models import utcnow
 from app.modules.tasks.attempts import ExecutionAttempt, ExecutionSession
@@ -27,7 +26,7 @@ def prepare_recollection(factory, attempt_id):
         if (not job or task.execution_source != 'cli' or task.deleted_at or round.cancel_requested
                 or task.current_round_id != round.id or round.status != 'failed'
                 or job.status != 'failed' or attempt.status != 'finished'
-                or job.claim_token != attempt.claim_token or attempt.error != 'cli_error'
+                or job.claim_token != attempt.claim_token
                 or attempt.node != settings.worker_node_name):
             raise ValueError('Not an eligible current false failure')
         if not all((attempt.process_id, attempt.boot_id, attempt.process_start)) or same_process(
@@ -39,30 +38,23 @@ def prepare_recollection(factory, attempt_id):
                        for p in (control, *control.parents))):
             raise ValueError('Unsafe control directory')
         receipt = json.loads((control / 'exit.json').read_text())
-        if (not isinstance(receipt, dict) or type(receipt.get('exit_code')) is not int
-                or receipt['exit_code'] != 0 or receipt.get('reason')):
-            raise ValueError('Successful exit not proved')
         if json.loads((control / 'delivery.json').read_text()) != {'version': 'final-reply-v1'}:
             raise ValueError('Unsupported delivery protocol')
         identity = session.get(ExecutionSession, task.id)
         if not identity or not identity.session_id:
             raise ValueError('Session missing')
-        summary = invocation_summary(control, identity.session_id)
-        if summary.error or not summary.turn_completed:
-            raise ValueError('No successful final turn')
         if session.scalar(select(ImageVersion.id).where(ImageVersion.round_id == round.id).limit(1)):
             raise ValueError('Round already has published versions')
         slots = session.scalars(select(ResultSlotRecord).where(ResultSlotRecord.task_id == task.id)).all()
         expected = len([slot for slot in slots if round.target is None or slot.slot == round.target])
-        images = collect_final_outputs(control.parents[1] / 'rounds' / str(round.id),
-            control.parents[1] / 'home' / '.codex', control / 'events.jsonl', identity.session_id,
-            json.loads((control / 'baseline.json').read_text()), expected)
+        images = accept_delivery(control, task.id, round.id, identity.session_id, expected, receipt)
         observation = dict(attempt.observation or {})
-        observation['recollection'] = {'at': utcnow().isoformat(), 'reason': 'verified_reconnect_false_failure',
+        observation['recollection'] = {'at': utcnow().isoformat(), 'reason': 'verified_final_delivery',
             'previousFailure': observation.get('failure'), 'previousError': attempt.error,
             'previousFinishedAt': str(round.finished_at)}
-        observation['stage'] = 'uncertain'
+        observation.update(stage='storing', deliveryReady=True, detectedImages=expected, failure=None)
         attempt.observation = observation
         attempt.status = 'uncertain'
         mark_uncertain(round, job)
+        round.error = job.error = '图片已生成，正在保存'
         return {'attemptId': str(attempt.id), 'roundId': str(round.id), 'images': len(images)}

@@ -132,7 +132,7 @@ def test_example_code_and_nonimage_links_are_not_delivery(delivery):
     image, run, *_ = delivery
     image()
     reply = ('```markdown\n![示例](/work/example.png)\n```\n'
-             '`[示例](/work/inline.png)`\n    ![缩进代码](/work/code.png)\n'
+             '`[示例](/work/inline.png)`\n\n    ![缩进代码](/work/code.png)\n'
              '[说明](/work/readme.md)\n![成品](/work/final.png)')
     assert len(run(reply)) == 1
 

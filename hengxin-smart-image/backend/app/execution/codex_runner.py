@@ -12,13 +12,13 @@ from app.modules.tasks.attempts import ExecutionAttempt, ExecutionSession, Execu
 from app.modules.tasks.claims import claim, end, locked_execution, mark_uncertain, valid
 from app.modules.tasks.results import publish_results
 from app.modules.revisions.service import safe_initial_retry
-from app.modules.files.service import save_upload
-from app.resource_models import UserRecord
 from app.storage.minio_store import get_store
 from app.worker.leases import heartbeat
 from .events import parse_events
 from .output_collector import snapshot_outputs, OutputCollectionError
-from .final_delivery import collect_final_outputs
+from .delivery_acceptance import accept_delivery, UNCERTAIN_DELIVERY
+from .delivery_storage import store_delivery
+from .delivery_state import retain_delivery
 from .observation import Observer
 from .diagnostics import failure_for, cli_failure_code
 from .materials import prepare_materials, SkillDeploymentError
@@ -50,9 +50,8 @@ def record_completion(factory, attempt_id, summary, receipt):
         attempt.error = receipt['reason'] or summary.error
         identity = session.get(ExecutionSession, attempt.task_id)
         if summary.session_id:
-            if identity.session_id and identity.session_id != summary.session_id:
-                raise ValueError('CLI 未续接原会话')
-            identity.session_id, identity.status = summary.session_id, 'ready'
+            if identity.session_id in (None, summary.session_id) and summary.error != 'session_mismatch':
+                identity.session_id, identity.status = summary.session_id, 'ready'
         session.merge(ExecutionUsage(attempt_id=attempt.id, data=summary.usage))
 
 
@@ -76,7 +75,7 @@ def run_generation(job_id, factory=None, store=None):
     if not token:
         return
     attempt_id, completed, spawning = None, False, False
-    observer, stage = None, 'starting'
+    observer, stage, delivery_ready = None, 'starting', False
     try:
         with heartbeat(factory, job_id, token):
             version = subprocess.run([settings.codex_binary, '--version'], capture_output=True,
@@ -162,27 +161,32 @@ def run_generation(job_id, factory=None, store=None):
                 completed, spawning, stage = False, True, 'generating'
                 receipt = execute(command, prompt, workspace.control, remaining, monitor, started)
                 completed = True
+                stage = 'validating'
                 summary = invocation_summary(workspace.control, previous)
                 observer.tick(summary.session_id, force=True)
                 record_completion(factory, attempt_id, summary, receipt)
-                code = None
-                if receipt['reason'] or summary.error or not summary.turn_completed or receipt['exit_code']:
-                    code = receipt['reason'] or summary.error or 'cli_error'
-                    if not receipt['reason']:
-                        code = cli_failure_code(workspace.control / 'stderr.log', code)
                 if should_stop(factory, job_id, token):
                     fail_stopped(factory, job_id, token, '执行权已失效')
                     return
-                if code is None:
-                    stage = 'validating'
-                    observer.phase(stage)
-                    try:
-                        images = collect_final_outputs(workspace.work, home, workspace.control / 'events.jsonl',
-                            summary.session_id, baseline, len(manifest['targets']))
-                    except OutputCollectionError as error:
-                        code = str(error)
-                    else:
-                        break
+                stage = 'validating'
+                observer.phase(stage)
+                try:
+                    images = accept_delivery(workspace.control, task.id, round.id,
+                                             previous or summary.session_id, len(manifest['targets']), receipt)
+                except OutputCollectionError as error:
+                    code = str(error)
+                    if code in UNCERTAIN_DELIVERY:
+                        retain_delivery(factory, job_id, token, attempt_id)
+                        return
+                    # Execution diagnostics explain a missing delivery, but can never
+                    # veto a delivery which independently passed the collector.
+                    if code in ('final_reply_missing', 'turn_failed'):
+                        code = receipt['reason'] or summary.error or code
+                        code = cli_failure_code(workspace.control / 'stderr.log', code)
+                else:
+                    delivery_ready = True
+                    observer.data.update(deliveryReady=True, detectedImages=len(images), failure=None)
+                    break
                 if (invocation == 0 and allow_intervention
                         and can_continue(summary, receipt, workspace.control, home, deadline - time.monotonic())
                         and prepare_continuation(factory, job_id, token, attempt_id, workspace, observer, summary, code)):
@@ -196,22 +200,19 @@ def run_generation(job_id, factory=None, store=None):
                 return
             stage = 'storing'
             observer.phase(stage)
-            outputs = []
-            for image in images:
-                if image is None:
-                    outputs.append(None)
-                    continue
-                with factory() as session:
-                    user = session.get(UserRecord, round.operator_id)
-                    outputs.append(save_upload(session, store, user, image).id)
+            outputs = store_delivery(factory, store, round.operator_id, round.id, images,
+                                     lambda: not should_stop(factory, job_id, token))
             stage = 'publishing'
             observer.phase(stage)
             if not publish_results(factory, job_id, token, outputs):
-                observer.phase('failed', failure_for('publication_lost', stage))
-                fail_stopped(factory, job_id, token, '执行权已失效，未发布结果')
+                retain_delivery(factory, job_id, token, attempt_id, ready=True, count=len(images))
             else:
                 observer.phase('completed')
     except Exception as error:
+        if completed and stage in ('validating', 'storing', 'publishing'):
+            retain_delivery(factory, job_id, token, attempt_id,
+                            ready=delivery_ready, count=len(images) if delivery_ready else None)
+            return
         code = (str(error) if isinstance(error, (OutputCollectionError, SkillDeploymentError)) else
                 'storage_failed' if stage == 'storing' else
                 'startup_failed' if not spawning else 'unexpected_error')
