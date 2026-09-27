@@ -22,6 +22,9 @@ class PackagingTests(unittest.TestCase):
                      'frontend/src/a.py', 'backend/app/private.key', 'backend/data.db'):
             self.assertIsNone(package.selected(package.APP + name))
         self.assertIsNone(package.selected('scripts/release/unknown.py'))
+        self.assertEqual(package.selected(package.APP + 'backend/tests/fixtures/cli_revision_briefs.json'),
+                         'backend/tests/fixtures/cli_revision_briefs.json')
+        self.assertIsNone(package.selected(package.APP + 'backend/tests/fixtures/auth.json'))
 
     def test_privacy_blocks_real_credentials_and_personal_paths(self):
         for value in ('sk' + '-proj-' + 'a' * 32, 'sk' + '-' + 'a' * 32,

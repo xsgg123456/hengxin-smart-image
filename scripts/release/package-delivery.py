@@ -12,7 +12,8 @@ from pathlib import Path
 APP = 'hengxin-smart-image/'
 PREVIOUS_IMAGE = 'hengxin-smart-image-backend:materials-20260924-2cdb4ff'
 EXACT = {'backend/pyproject.toml', 'backend/uv.lock', 'backend/alembic.ini',
-         'infra/Dockerfile.backend'}
+         'infra/Dockerfile.backend', 'backend/tests/fixtures/cli_revision_briefs.json',
+         'backend/tests/fixtures/unannotated_revision_briefs.json'}
 SCRIPTS = {'delivery-deploy.sh', 'delivery-native.py', 'image-inputs-worker.py'}
 TESTS = {'test_delivery_deploy.py', 'test_delivery_native.py', 'test_package_delivery.py'}
 SENSITIVE = re.compile(
