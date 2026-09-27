@@ -3,6 +3,7 @@
 </template>
 
 <script setup lang="ts">
+import { broadcastLogout } from '@/api/hengxin/identity-lifecycle'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { isMockMode } from '@/api/hengxin/client'
@@ -16,6 +17,7 @@ async function logout() {
   busy.value = true
   try {
     if (!isMockMode) await logoutSession(import.meta.env.VITE_API_URL || '/api/v1')
+    else broadcastLogout()
     const user = useUserStore()
     user.setLoginStatus(false)
     user.info = {}

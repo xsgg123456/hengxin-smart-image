@@ -1,14 +1,18 @@
+import { readIdentityBlob } from '../../api/hengxin/identity-download'
+import { identity } from '../../api/hengxin/identity'
 export function safeFilename(name: string, extension: string): string {
   const base = name.replace(/[/\\<>:"|?*\u0000-\u001f]/g, '_').replace(/(?:\.(?:png|jpe?g|webp|gif|svg|avif|zip))+$/i, '').replace(/[. ]+$/g, '').slice(0, 120)
   const safe = !base || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(base) ? `图片_${base}` : base
   return `${safe}.${extension}`
 }
 export async function readImage(url: string, timeoutMs = 15000): Promise<{ data: Uint8Array; extension: string; mime: string }> {
+  const epoch = identity.epoch
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, { signal: controller.signal, credentials: 'same-origin' })
-    if (!response.ok) throw new Error('图片请求失败')
-    const blob = await response.blob(), data = new Uint8Array(await blob.arrayBuffer())
+    const blob = await readIdentityBlob(url, { signal: controller.signal, credentials: 'same-origin' })
+    identity.assert(epoch)
+    const data = new Uint8Array(await blob.arrayBuffer())
+    identity.assert(epoch)
     const mime = blob.type.split(';')[0].trim().toLowerCase()
     const extension = imageExtension(data, mime)
     return { data, extension, mime }
@@ -53,42 +57,39 @@ export function buildZip(files: { name: string; data: Uint8Array }[]): Blob {
   return new Blob([...parts, ...directory, end], { type: 'application/zip' })
 }
 export async function prepareSet(images: { name: string; url: string }[]): Promise<Blob> {
+  const epoch = identity.epoch
   if (!images.length) throw new Error('没有可下载图片')
   const files = []
   for (const [index, image] of images.entries()) {
     const { data, extension } = await readImage(image.url)
+    identity.assert(epoch)
     files.push({ name: `${String(index + 1).padStart(2, '0')}-${safeFilename(image.name, extension)}`, data })
   }
   return buildZip(files)
 }
 
 export async function requestDownload(baseUrl: string, fileIds: (string | undefined)[], name?: string): Promise<Blob> {
+  const epoch = identity.epoch
   if (!fileIds.length || fileIds.length > 20 || fileIds.some(id => !id || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id))) {
     throw new Error('图片文件标识缺失或无效，请刷新后重试')
   }
   const zipped = name !== undefined
   const path = zipped ? '/files/download-zip' : `/files/${fileIds[0]}/content?download=true`
-  const response = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+  const blob = await readIdentityBlob(`${baseUrl.replace(/\/$/, '')}${path}`, {
     method: zipped ? 'POST' : 'GET', credentials: 'include', signal: AbortSignal.timeout(300000),
     headers: zipped ? { 'Content-Type': 'application/json', Accept: 'application/zip' } : { Accept: 'image/*' },
     body: zipped ? JSON.stringify({ fileIds, name }) : undefined
   })
-  if (!response.ok) {
-    if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('hengxin:unauthorized'))
-    let message = `下载请求失败（${response.status}）`
-    try {
-      const error: unknown = await response.json()
-      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') message = error.message
-    } catch { /* 网关非 JSON 错误使用状态提示 */ }
-    throw new Error(message)
-  }
-  const blob = await response.blob()
+  identity.assert(epoch)
   if (zipped) {
     if (blob.type.split(';')[0] !== 'application/zip' || blob.size < 22) throw new Error('打包响应无效，请重试')
     const end = new DataView(await blob.slice(-22).arrayBuffer())
+    identity.assert(epoch)
     if (end.getUint32(0, true) !== 0x06054b50 || end.getUint16(10, true) !== fileIds.length) throw new Error('打包结果不完整，请重试')
   } else {
-    imageExtension(new Uint8Array(await blob.arrayBuffer()), blob.type.split(';')[0])
+    const data = new Uint8Array(await blob.arrayBuffer())
+    identity.assert(epoch)
+    imageExtension(data, blob.type.split(';')[0])
   }
   return blob
 }

@@ -39,7 +39,7 @@ await context.route('**/*', async route => {
  }
  else if(p.endsWith('/status'))body={enabled:true,paused:false,reason:null}
  else if(p==='/api/v1/api-image-edits/tasks/fixture-api')body=apiTask
- else if(p==='/api/v1/api-image-edits/tasks')body={items:[apiTask],total:1,page:1,pageSize:20}
+ else if(p==='/api/v1/api-image-edits/tasks')body={items:[{id:apiTask.id,name:apiTask.name,created:apiTask.created,status:apiTask.status,operator:apiTask.operator,batch:apiTask.batch,cover:apiTask.items[0].source,counts:{total:1,success:1,failed:0,uncertain:0}}],total:1,page:1,pageSize:20}
  else if(p.endsWith('/execution'))body={taskId:cliTask.id,roundId:'round-1',status:'succeeded',source:'cli',diagnosticId:null,stage:'completed',label:'已完成',startedAt:time,finishedAt:time,updatedAt:time,lastActivityAt:time,totalImages:1,detectedImages:1,legacy:false,events:[],failure:null}
  else if(p==='/api/v1/tasks/fixture-cli')body=cliDetail
  else if(p==='/api/v1/tasks')body={items:[cliTask],total:1,page:1,pageSize:20,stats:{total:1,processing:0,ready:1,archived:0}}

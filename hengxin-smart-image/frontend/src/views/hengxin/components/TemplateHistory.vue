@@ -9,7 +9,7 @@
           <p style="overflow-wrap:anywhere">保存的 Skill：{{ item.skill || '未绑定' }} <span v-if="item.skillVersionId">（{{ item.skillVersionId }}）</span></p>
           <p>绑定方式：{{ item.skillBinding === 'module_default' ? '保存时的模块默认' : '专用版本' }} · {{ item.images.length }} 张图片</p>
           <p v-if="item.notes">{{ item.notes }}</p>
-          <ElTable :data="item.images" :max-height="360">
+          <ElTable v-if="expanded.includes(item.version)" :data="item.images" :max-height="360">
             <ElTableColumn type="index" label="顺序" width="60" />
             <ElTableColumn label="图片" width="110"><template #default="{ row, $index }"><PicturePreview :picture="row" :pictures="item.images" :index="$index" :title="`${item.name} · v${item.version}`" style="width:80px;height:80px" /></template></ElTableColumn>
             <ElTableColumn prop="name" label="文件名称" />

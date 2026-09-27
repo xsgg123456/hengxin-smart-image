@@ -1,6 +1,6 @@
 <template>
-  <ElImage ref="image" :key="`${picture.url}-${attempt}`" :src="picture.url" :alt="picture.name"
-    fit="contain" :preview-src-list="group.map(p => p.url)" :initial-index="index"
+  <ElImage ref="image" :key="`${picture.url}-${attempt}`" :src="displayImageUrl(picture.url, size)" :alt="picture.name" loading="lazy" lazy
+    fit="contain" @error="onImageError" :preview-src-list="group.map(p => p.url)" :initial-index="index"
     :infinite="false" show-progress preview-teleported class="hx-picture"
     tabindex="0" role="button" :aria-label="`放大查看 ${picture.name}`" @keydown.enter.prevent="image?.showPreview()" @keydown.space.prevent="image?.showPreview()">
     <template #placeholder><span class="hx-picture-state" role="status">图片加载中…</span></template>
@@ -10,12 +10,21 @@
 </template>
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { identity } from '@/api/hengxin/identity'
 import type { ImageInstance } from 'element-plus'
 import type { Picture } from '@/types/hengxin'
-const props = defineProps<{ picture: Picture; pictures?: readonly Picture[]; index?: number; title?: string }>()
+import { displayImageUrl } from '../display-image'
+const props = withDefaults(defineProps<{ picture: Picture; pictures?: readonly Picture[]; index?: number; title?: string; size?: 256 | 1024 }>(), { size: 256 })
 const group = computed(() => props.pictures?.length ? props.pictures : [props.picture])
 const index = computed(() => Math.max(0, Math.min(props.index ?? 0, group.value.length - 1)))
 const attempt = ref(0), image = ref<ImageInstance>()
+const onImageError = computed(() => {
+  // 仅源图变化或用户重试形成新图片请求；同身份恢复不重建已加载原图。
+  void props.picture.url
+  void attempt.value
+  const mountedEpoch = identity.epoch
+  return () => { void identity.verify(mountedEpoch, true) }
+})
 </script>
 <style scoped>
 .hx-picture { display:block; width:100%; height:100%; background:var(--art-gray-100); border-radius:8px; cursor:zoom-in; }

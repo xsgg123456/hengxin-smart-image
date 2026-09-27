@@ -1,6 +1,7 @@
 from celery import Celery
 
 from app.core.config import get_settings
+from app.db import worker_budget  # noqa: F401 - register prefork/budget signals
 
 celery_app = Celery("hengxin", broker=get_settings().redis_url,
                     include=["app.worker.tasks", "app.worker.health"])

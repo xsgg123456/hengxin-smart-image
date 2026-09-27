@@ -110,6 +110,7 @@ def revise(session, user, task_id, item_id, data, key):
         'policyVersion': REVISION_POLICY_VERSION,
     }
     item.result_url = item.result_bytes = None
+    item.capacity_cycle_id = item.staging_file_id = None
     enqueue(session, task, item)
     return finish(session, user, key, digest, task, f'第 {item.position} 张已提交修改')
 

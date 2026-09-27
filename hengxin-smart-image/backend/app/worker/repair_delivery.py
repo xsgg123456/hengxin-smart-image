@@ -5,6 +5,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.capacity.admission import reserve
 from app.execution.delivery_acceptance import accept_delivery
 from app.execution.process import same_process
 from app.models import utcnow
@@ -47,6 +48,8 @@ def prepare_recollection(factory, attempt_id):
             raise ValueError('Round already has published versions')
         slots = session.scalars(select(ResultSlotRecord).where(ResultSlotRecord.task_id == task.id)).all()
         expected = len([slot for slot in slots if round.target is None or slot.slot == round.target])
+        if not reserve(session, round.id, 'cli', round.id, max(1, expected) * 20 * 1024 * 1024):
+            raise ValueError('No capacity for recollection; original evidence retained')
         images = accept_delivery(control, task.id, round.id, identity.session_id, expected, receipt)
         observation = dict(attempt.observation or {})
         observation['recollection'] = {'at': utcnow().isoformat(), 'reason': 'verified_final_delivery',

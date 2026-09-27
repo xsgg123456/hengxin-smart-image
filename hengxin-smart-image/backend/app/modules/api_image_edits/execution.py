@@ -5,7 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import HTTPException
 
 from app.models import utcnow
+from app.capacity.admission import covered, published
 from app.modules.files.validation import DECODE_SLOTS, _decode_image
+from app.modules.files.variants import register
 from .claims import claim, owned, start_attempt
 from .config import get_api_settings
 from .downloads import download_result
@@ -72,8 +74,24 @@ def collect(factory, store, item_id, token, downloader):
         _, item = owned(session, item_id, token)
         if not item:
             return
-        record = new_record(owner, image)
-        session.add(record)
+        if not covered(session, item.capacity_cycle_id, 'api', item.id,
+                       2 * get_api_settings().max_download_bytes):
+            return
+        record = session.get(ApiFile, item.staging_file_id) if item.staging_file_id else None
+        if record is None and item.staging_file_id:
+            raise RuntimeError('Missing frozen collection object')
+        if record is None:
+            record = new_record(owner, image)
+            session.add(record)
+            item.staging_file_id = record.id
+        elif (record.owner_id != owner or record.deleted_at or record.checksum != image.checksum
+              or record.size_bytes != len(image.data) or record.content_type != image.content_type
+              or record.width != image.width or record.height != image.height):
+            # An upstream URL changing bytes must never mutate a frozen object.
+            item.error, item.state = '结果内容变化，保留原收图记录待核实', 'failed'
+            release_item(item)
+            refresh_task(session, session.get(ApiTask, item.task_id))
+            return
         session.flush()
         record_id = record.id
     try:
@@ -85,11 +103,14 @@ def collect(factory, store, item_id, token, downloader):
         gate, item = owned(session, item_id, token)
         if not item:
             return
-        session.get(ApiFile, record_id).status = 'ready'
+        saved = session.get(ApiFile, record_id)
+        saved.status = 'ready'
+        register(session, saved, 'api-image-edits')
         item.state, item.error = 'succeeded', None
         item.result_url = item.result_bytes = None
         task = session.get(ApiTask, item.task_id)
         publish_result(session, item, task, record_id)
+        published(session, item.capacity_cycle_id)
         event(task, f'第 {item.position} 张已完成')
         release_item(item)
         refresh_task(session, task)

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from sqlalchemy import select, update
 from app.core.config import get_settings
+from app.capacity.admission import reserve
 from app.models import Job, utcnow
 from app.modules.tasks.attempts import ExecutionAttempt, ExecutionSession, ExecutionUsage
 from app.modules.tasks.claims import end, locked_execution, mark_uncertain, valid
@@ -41,6 +42,10 @@ def _acquire(factory, attempt):
         if task.deleted_at or round.cancel_requested:
             end(session, round, job, 'cancelled', '原执行进程已退出，取消已确认')
             current.status, current.finished_at = 'finished', utcnow()
+            return None
+        count = 1 if round.target is not None else len(session.scalars(
+            select(ResultSlotRecord).where(ResultSlotRecord.task_id == task.id)).all())
+        if not reserve(session, round.id, 'cli', round.id, max(1, count) * 20 * 1024 * 1024):
             return None
         token = uuid4()
         # CAS also fences competing sweepers on databases without row locks.

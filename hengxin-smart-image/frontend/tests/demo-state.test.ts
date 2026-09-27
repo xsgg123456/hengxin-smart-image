@@ -57,15 +57,15 @@ test('Demo 模板历史、默认配置、角色修改在快照恢复后保持一
 
 test('Demo 失败场景刷新继续重试，不丢掉已成功槽位', async t => {
   const first = createMockService({ demo: true, user, delayMs: 0, stepMs: 5, scenario: 'partial-result' })
+  t.after(() => first.dispose())
   const receipt = await first.createTask({ mode: 'text', name: '部分失败', sources: demoImages('text', 2), note: '修改文案' })
-  await pause(60)
-  const failed = await first.getTask(receipt.taskId)
+  const failed = await waitFor(() => first.getTask(receipt.taskId), value => value.task.state === '部分失败')
   assert.equal(failed.task.state, '部分失败')
   const restored = createMockService({ demo: true, user, delayMs: 0, stepMs: 5, scenario: 'partial-result', snapshot: first.snapshot() })
   first.dispose(); t.after(() => restored.dispose())
   await restored.revise({ taskId: receipt.taskId, target: null, note: '', retry: true, sourceRoundId: receipt.roundId })
-  await pause(60)
-  assert.equal((await restored.getTask(receipt.taskId)).task.state, '待查看')
+  const finished = await waitFor(() => restored.getTask(receipt.taskId), value => value.task.state === '待查看')
+  assert.equal(finished.task.state, '待查看')
 })
 
 test('Demo Skill 目录刷新保留移除登记，并能从文件源重新发现', async t => {

@@ -5,6 +5,7 @@ from zipfile import ZIP_STORED, ZipFile
 from fastapi import HTTPException
 from sqlalchemy import select
 from app.modules.files.streaming import OwnedStreamResponse
+from app.modules.files.delivery import FileDelivery
 
 from .files import find_file, read_bytes
 from .models import ApiItem
@@ -19,10 +20,11 @@ def download(session, store, task_id):
                             .order_by(ApiItem.position).with_for_update()).all()
     if not items or any(i.state != 'succeeded' or not i.result_id for i in items):
         raise HTTPException(409, '全部图片成功后才能下载整套 ZIP')
-    records = [find_file(session, item.result_id) for item in items]
+    records = [FileDelivery.capture(find_file(session, item.result_id)) for item in items]
     # Release all SQL locks before object I/O. Version references protect these files.
     session.expunge_all()
     session.commit()
+    session.close()
     buffer = SpooledTemporaryFile(max_size=8 * 1024 * 1024)
     try:
         with ZipFile(buffer, 'w', compression=ZIP_STORED) as archive:

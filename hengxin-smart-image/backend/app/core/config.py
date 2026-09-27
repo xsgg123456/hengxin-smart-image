@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     dingtalk_admin_user_id: str = ''
     dingtalk_api_base_url: str = 'https://api.dingtalk.com'
     database_url: str = Field(repr=False, min_length=1)
+    db_pool_size: int = Field(default=5, ge=1, le=50)
+    db_max_overflow: int = Field(default=10, ge=0, le=50)
+    db_application_name: str = Field(default='hx-app', pattern=r'^[a-z][a-z0-9-]{0,39}$')
+    db_worker_process_limit: int | None = Field(default=None, ge=1, le=32)
+    media_internal_delivery_enabled: bool = False
     redis_url: str = "redis://localhost:6379/0"
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = Field(repr=False, min_length=1)

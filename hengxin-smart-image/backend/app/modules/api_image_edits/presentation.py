@@ -1,10 +1,12 @@
 from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy.orm import load_only
 
 from app.models import utcnow
 from app.resource_models import UserRecord
 from .files import picture
 from .models import ApiAttempt, ApiFile, ApiItem, ApiTask, ApiVersion
 from .state import aware
+from .summaries import summaries
 
 
 def task_view(session, task):
@@ -65,7 +67,7 @@ def task_view(session, task):
                                     if i.revision_base_version is not None else None)} for i in items]}
 
 
-def list_tasks(session, page, size, search, status):
+def list_tasks(session, page, size, search, status, summary=True):
     query = select(ApiTask).where(ApiTask.deleted_at.is_(None))
     if search:
         query = query.where(or_(ApiTask.name.icontains(search, autoescape=True),
@@ -74,8 +76,11 @@ def list_tasks(session, page, size, search, status):
                                cast(ApiTask.id, String).icontains(search, autoescape=True)))
     if status:
         query = query.where(ApiTask.state == status)
-    total = session.scalar(select(func.count()).select_from(query.subquery()))
+    total = session.scalar(select(func.count()).select_from(query.with_only_columns(ApiTask.id).subquery()))
+    if summary:
+        query = query.options(load_only(ApiTask.id, ApiTask.name, ApiTask.state,
+            ApiTask.created_at, ApiTask.owner_id, raiseload=True))
     rows = session.scalars(query.order_by(ApiTask.created_at.desc(), ApiTask.id)
-                           .offset((page - 1) * size).limit(size))
-    return {'items': [task_view(session, task) for task in rows], 'total': total,
+        .offset((page - 1) * size).limit(size)).all()
+    return {'items': summaries(session, rows) if summary else [task_view(session, task) for task in rows], 'total': total,
             'page': page, 'pageSize': size}

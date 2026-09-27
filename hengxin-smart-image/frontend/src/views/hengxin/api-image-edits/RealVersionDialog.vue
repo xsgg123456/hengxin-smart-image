@@ -14,14 +14,14 @@
       <main class="version-main">
         <ElAlert v-if="versions.length === 1" title="目前只有初始版本。修改成功后，可在这里对比并切换历史结果。" type="info" :closable="false" show-icon />
         <div class="version-comparison">
-          <section><h3>选中版本 · V{{ selected.number }} <ElTag v-if="selected.number === currentNumber" size="small">当前</ElTag></h3><div class="version-picture"><PicturePreview :picture="selected.picture" :title="`选中版本 V${selected.number}`" /></div></section>
-          <section><h3>当前结果 · V{{ currentNumber }}</h3><div class="version-picture"><PicturePreview :picture="item.result" :title="`当前结果 V${currentNumber}`" /></div></section>
+          <section><h3>选中版本 · V{{ selected.number }} <ElTag v-if="selected.number === currentNumber" size="small">当前</ElTag></h3><div class="version-picture"><PicturePreview :size="1024" :picture="selected.picture" :title="`选中版本 V${selected.number}`" /></div></section>
+          <section><h3>当前结果 · V{{ currentNumber }}</h3><div class="version-picture"><PicturePreview :size="1024" :picture="item.result" :title="`当前结果 V${currentNumber}`" /></div></section>
         </div>
         <p class="version-note">点击图片可放大查看。当前结果用于后续修改与整套 ZIP 下载。</p>
         <section class="version-description" aria-label="选中版本详情">
           <div class="version-meta"><span>生成时间：{{ friendlyTime(selected.created) || '未记录' }}</span><span>操作人：{{ selected.operator || '未记录' }}</span><ElTag size="small" type="info">{{ selected.baseVersion ? `基于 V${selected.baseVersion}` : '初始生成' }}</ElTag></div>
           <h3>修改说明</h3><p class="version-text">{{ selected.text || '初始生成结果，暂无修改说明。' }}</p>
-          <div v-if="selected.annotation" class="version-annotation"><strong>标注图</strong><div><PicturePreview :picture="selected.annotation" :title="`V${selected.number} 的修改标注图`" /></div></div>
+          <div v-if="selected.annotation" class="version-annotation"><strong>标注图</strong><div><PicturePreview :size="1024" :picture="selected.annotation" :title="`V${selected.number} 的修改标注图`" /></div></div>
         </section>
         <ElAlert v-if="restoreReason" :title="restoreReason" type="info" :closable="false" show-icon />
         <ElAlert v-if="error" :title="error" type="error" :closable="false" show-icon />

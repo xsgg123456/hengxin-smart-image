@@ -1,6 +1,7 @@
 from uuid import uuid4
 from sqlalchemy import func, select
 from app.models import utcnow
+from app.capacity.admission import published
 from app.resource_models import FileRecord
 from .claims import end, locked_execution, valid
 from .models import ImageVersion, ResultSlotRecord
@@ -34,4 +35,6 @@ def publish_results(factory, job_id, token, outputs):
         succeeded = sum(file_id is not None for file_id in outputs)
         status = 'succeeded' if succeeded == len(targets) else 'partial' if succeeded else 'failed'
         end(session, round, job, status, None if status == 'succeeded' else '本轮未全部成功，已有图片和历史版本保留')
+        if status == 'succeeded':
+            published(session, round.id)
         return True

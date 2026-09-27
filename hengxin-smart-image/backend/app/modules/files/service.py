@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from app.core.config import get_settings
 from app.resource_models import FileRecord
+from .variants import register
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def save_upload(session, store, user, image):
         session.commit()
         raise HTTPException(503, '图片存储暂时不可用，请重试') from None
     record.status = 'ready'
+    register(session, record, 'originals')
     try:
         session.commit()
     except Exception:

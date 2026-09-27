@@ -32,6 +32,7 @@
  * @author Art Design Pro Team
  */
 import { defineStore } from 'pinia'
+import { broadcastLogout } from '@/api/hengxin/identity-lifecycle'
 import { ref, computed } from 'vue'
 import { LanguageEnum } from '@/enums/appEnum'
 import { router } from '@/router'
@@ -141,6 +142,7 @@ export const useUserStore = defineStore(
      * 如果是同一账号重新登录，保留工作台标签页
      */
     const logOut = () => {
+      broadcastLogout()
       // 保存当前用户 ID，用于下次登录时判断是否为同一用户
       const currentUserId = info.value.userId
       if (currentUserId) {

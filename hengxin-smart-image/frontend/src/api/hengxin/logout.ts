@@ -1,9 +1,11 @@
+import { broadcastLogout } from './identity-lifecycle'
 import { createRequest } from './http'
 import { noContent } from './validate'
 import { safeReturnPath } from './session'
 
 export async function logoutSession(baseUrl: string, fetcher: typeof fetch = fetch): Promise<void> {
   await createRequest(baseUrl, fetcher)('/auth/logout', noContent, 'POST')
+  broadcastLogout()
 }
 
 export function logoutDestination(href: string): string {

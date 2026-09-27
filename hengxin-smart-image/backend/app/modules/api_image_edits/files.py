@@ -6,6 +6,7 @@ from sqlalchemy import or_, select
 
 from app.core.config import get_settings
 from app.models import utcnow
+from app.modules.files.variants import register
 from .models import ApiFile, ApiItem, ApiTask, ApiVersion
 
 
@@ -42,6 +43,7 @@ def save_upload(session, store, user, image):
         session.commit()
         raise HTTPException(503, '图片存储暂时不可用，请重试') from None
     record.status = 'ready'
+    register(session, record, 'api-image-edits')
     session.commit()
     return record
 

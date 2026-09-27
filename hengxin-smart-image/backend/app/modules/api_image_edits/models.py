@@ -69,6 +69,8 @@ class ApiItem(Timestamps, Base):
     # Private recovery data; serializers must never return upstream URLs or bytes.
     result_url: Mapped[str | None] = mapped_column(Text)
     result_bytes: Mapped[bytes | None] = mapped_column(LargeBinary)
+    capacity_cycle_id: Mapped[UUID | None] = mapped_column(Uuid)
+    staging_file_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
 
 
 class ApiAttempt(Timestamps, Base):

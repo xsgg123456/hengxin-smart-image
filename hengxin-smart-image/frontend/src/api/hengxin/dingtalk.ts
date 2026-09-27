@@ -1,3 +1,4 @@
+import { identity } from './identity'
 import type { User } from "../../types/hengxin";
 import { createRequest, ApiError } from "./http";
 import { isMockMode } from "./client";
@@ -41,8 +42,9 @@ export function startBrowserAuthorization(returnPath: string): void {
   window.location.assign(url);
 }
 
-export function loginByContainer(code: string): Promise<User> {
-  return request(
+export async function loginByContainer(code: string): Promise<User> {
+  identity.advance('changed')
+  const user = await request(
     "/auth/dingtalk/container",
     (value: unknown): value is User => {
       if (!value || typeof value !== "object" || Array.isArray(value))
@@ -58,6 +60,8 @@ export function loginByContainer(code: string): Promise<User> {
     "POST",
     { code },
   );
+  identity.advance('changed')
+  return user
 }
 
 export function dingtalkErrorMessage(error: unknown): string {

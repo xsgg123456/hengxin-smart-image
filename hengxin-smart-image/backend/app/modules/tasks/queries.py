@@ -5,6 +5,7 @@ from app.contracts import business as b
 from app.resource_models import FileRecord, UserRecord
 from .models import TaskRecord, TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
 from .attempts import ExecutionSession
+from .list_batch import ListBatch
 from app.modules.archives.models import ArchiveRecord
 from app.modules.skills.models import SkillVersionRecord
 from app.modules.revisions.service import eligibility
@@ -41,29 +42,30 @@ def find_task(session, task_id):
     return task
 
 
-def serialize(session, task):
-    owner = session.get(UserRecord, task.owner_id)
-    rounds = session.scalars(select(RoundRecord).where(RoundRecord.task_id == task.id)
+def serialize(session, task, batch=None):
+    get = batch.get if batch else session.get
+    owner = get(UserRecord, task.owner_id)
+    rounds = batch.related(RoundRecord, task.id) if batch else session.scalars(select(RoundRecord).where(RoundRecord.task_id == task.id)
                             .order_by(RoundRecord.created_at)).all()
     current = next(r for r in rounds if r.id == task.current_round_id)
-    sources = session.scalars(select(TaskSource).where(TaskSource.task_id == task.id)
+    sources = batch.related(TaskSource, task.id) if batch else session.scalars(select(TaskSource).where(TaskSource.task_id == task.id)
                              .order_by(TaskSource.slot)).all()
-    slots = session.scalars(select(ResultSlotRecord).where(ResultSlotRecord.task_id == task.id)
+    slots = batch.related(ResultSlotRecord, task.id) if batch else session.scalars(select(ResultSlotRecord).where(ResultSlotRecord.task_id == task.id)
                            .order_by(ResultSlotRecord.slot)).all()
     images = []
     for slot in slots:
         if slot.current_version_id:
-            version = session.get(ImageVersion, slot.current_version_id)
-            images.append(picture(session.get(FileRecord, version.file_id), version.version))
-    identity = session.get(ExecutionSession, task.id) if task.execution_source == 'cli' else None
+            version = get(ImageVersion, slot.current_version_id)
+            images.append(picture(get(FileRecord, version.file_id), version.version))
+    identity = get(ExecutionSession, task.id) if task.execution_source == 'cli' else None
     incomplete = any(slot.current_version_id is None or slot.error for slot in slots)
     state = '部分失败' if current.status == 'succeeded' and incomplete else round_state(current)
     data = dict(id=str(task.id), name=task.name, mode=task.mode, template='',
         skillVersionId=str(task.skill_version_id), ownerId=str(task.owner_id),
         sessionId=identity.session_id if identity else None,
         state=state, progress=100 if state == '待查看' else None,
-        images=images, sources=[picture(session.get(FileRecord, source.file_id)) for source in sources],
-        feedback=[r.note for r in rounds if r.note], time=stamp(task.created_at), archived=bool(
+        images=images, sources=[picture(get(FileRecord, source.file_id)) for source in sources],
+        feedback=[r.note for r in rounds if r.note], time=stamp(task.created_at), archived=(task.id in batch.archived) if batch else bool(
             session.scalar(select(ArchiveRecord.id).where(ArchiveRecord.task_id == task.id,
                 ArchiveRecord.deleted_at.is_(None)).limit(1))),
         currentRoundId=str(current.id), sku=task.sku, outputCount=len(slots),
@@ -80,7 +82,7 @@ def serialize(session, task):
     else:
         skill_snapshot = {}
     skill_snapshot['id'] = str(task.skill_version_id)
-    version_record = session.get(SkillVersionRecord, task.skill_version_id)
+    version_record = get(SkillVersionRecord, task.skill_version_id)
     if version_record:
         skill_snapshot.setdefault('name', version_record.skill.name)
         skill_snapshot.setdefault('version', version_record.version)
@@ -164,5 +166,6 @@ def list_tasks(session, query, user=None):
     total = count()
     rows = session.scalars(statement.order_by(TaskRecord.created_at.desc(), TaskRecord.id).offset(
         (query.page - 1) * query.pageSize).limit(query.pageSize)).all()
-    return b.TaskPage(items=[serialize(session, task) for task in rows], page=query.page,
+    batch = ListBatch(session, rows)
+    return b.TaskPage(items=[serialize(session, task, batch) for task in rows], page=query.page,
                       pageSize=query.pageSize, total=total, stats=stats)

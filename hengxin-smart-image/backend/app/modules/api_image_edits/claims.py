@@ -4,6 +4,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from app.models import utcnow
+from app.capacity.admission import reserve, covered, WAITING
 from .config import get_api_settings
 from .models import ApiAttempt, ApiItem, ApiTask
 from .scheduling import IMAGES_PER_TASK, TASK_CONCURRENCY, candidates
@@ -60,6 +61,11 @@ def claim(factory):
                 continue
             if item.next_attempt_at and aware(item.next_attempt_at) > now:
                 continue
+            cycle = item.capacity_cycle_id or uuid4()
+            if not reserve(session, cycle, 'api', item.id, 2 * settings.max_download_bytes):
+                item.error, item.next_attempt_at = WAITING, now + timedelta(seconds=5)
+                continue
+            item.capacity_cycle_id = cycle
             item.lease_token = uuid4()
             item.lease_until = now + timedelta(seconds=settings.lease_seconds)
             item.state = 'collecting' if item.result_url or item.result_bytes else 'running'
@@ -89,6 +95,11 @@ def start_attempt(factory, item_id, token):
     with factory.begin() as session:
         _, item = owned(session, item_id, token)
         if not item or item.state != 'running':
+            return False
+        if not covered(session, item.capacity_cycle_id, 'api', item.id,
+                       2 * get_api_settings().max_download_bytes):
+            item.state, item.error = 'queued', WAITING
+            release_item(item)
             return False
         task = session.get(ApiTask, item.task_id)
         if item.cycle_retries > 0:

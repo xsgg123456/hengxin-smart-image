@@ -1,7 +1,10 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useUserStore } from '@/store/modules/user'
 import { apiImages, errorText, uncertainResponse } from '@/api/api-image-edits'
-import type { ApiTask, ApiTaskState } from '@/types/api-image-edits'
+import { bootstrap, retryBootstrap } from '@/api/hengxin/bootstrap'
+import { identity } from '@/api/hengxin/identity'
+import { isTaskActive } from '@/types/api-image-edits'
+import type { ApiTask, ApiTaskSummary, ApiTaskState } from '@/types/api-image-edits'
 // 未确认的重试请求跨详情关闭和路由切换保留原键。
 const retryKeys = new Map<string, { key: string; uncertain: boolean }>()
 function savedRetry(id: string) {
@@ -17,10 +20,11 @@ function saveRetry(id: string, value?: { key: string; uncertain: boolean }) {
 export function useRecords() {
   const userId = String(useUserStore().getUserInfo.userId)
   const retryId = (id: string) => `${userId}:${id}`
-  const tasks = ref<ApiTask[]>([]), total = ref(0), page = ref(1), search = ref(''), filter = ref<ApiTaskState | ''>('')
+  const tasks = ref<ApiTaskSummary[]>([]), total = ref(0), page = ref(1), search = ref(''), filter = ref<ApiTaskState | ''>('')
   const selectedId = ref(''), selected = ref<ApiTask>(), loading = ref(false), detailLoading = ref(false)
   const error = ref(''), detailError = ref(''), actionError = ref(''), busy = ref(false)
   const retryPending = computed(() => { void actionError.value; void selected.value; return !!savedRetry(retryId(selectedId.value)) })
+  let detailLoadedAt = 0
   let alive = true, listSerial = 0, detailSerial = 0, timer: ReturnType<typeof setTimeout> | undefined, debounce: ReturnType<typeof setTimeout> | undefined
   async function load(silent = false) {
     const serial = ++listSerial; if (!silent) loading.value = true
@@ -36,12 +40,30 @@ export function useRecords() {
     const id = selectedId.value, serial = ++detailSerial
     if (!id) { selected.value = undefined; detailError.value = ''; detailLoading.value = false; return }
     if (!silent) detailLoading.value = true
-    try { const task = await apiImages.task(id); if (alive && serial === detailSerial) { selected.value = task; detailError.value = '' } }
+    try { const task = await apiImages.task(id); if (alive && serial === detailSerial) { selected.value = task; detailLoadedAt = Date.now(); detailError.value = '' } }
     catch (e) { if (alive && serial === detailSerial) { detailError.value = errorText(e) } }
     finally { if (alive && serial === detailSerial) detailLoading.value = false }
   }
   async function refresh(silent = false) { await Promise.all([load(silent), loadDetail(silent)]) }
-  async function poll() { await refresh(true); if (alive) timer = setTimeout(poll, 3000) }
+  const isHidden = () => document.visibilityState === 'hidden'
+  function schedule() { clearTimeout(timer); if (alive && !isHidden() && bootstrap.ready && !bootstrap.locked) timer = setTimeout(poll, 10000) }
+  async function poll() {
+    if (!alive || isHidden() || !bootstrap.ready || bootstrap.locked) return
+    await load(true)
+    if (!alive || isHidden() || !bootstrap.ready || bootstrap.locked) return
+    const listed = tasks.value.find(task => task.id === selectedId.value)
+    if (selectedId.value && (!selected.value || detailError.value || Date.now() - detailLoadedAt >= 30000 || isTaskActive(selected.value) || (listed && isTaskActive(listed)))) await loadDetail(true)
+    schedule()
+  }
+  async function visibility() {
+    clearTimeout(timer)
+    if (isHidden()) { ++listSerial; ++detailSerial; return }
+    const epoch = identity.epoch
+    await retryBootstrap.run()
+    if (!alive || !identity.current(epoch) || isHidden() || !bootstrap.ready || bootstrap.locked) return
+    await refresh(true); schedule()
+  }
+  document.addEventListener('visibilitychange', visibility)
   watch([page, filter], () => { void load() })
   watch(filter, () => { page.value = 1 })
   watch(search, () => { clearTimeout(debounce); debounce = setTimeout(() => { if (page.value !== 1) page.value = 1; else void load() }, 300) })
@@ -59,7 +81,7 @@ export function useRecords() {
       catch (e) { if (uncertainResponse(e)) entry.uncertain = true; else if (!entry.uncertain) saveRetry(retryId(id)); throw new Error(`${errorText(e)}${retryKeys.has(retryId(id)) ? '。结果尚未确认，请再次确认原重试请求。' : ''}`) }
     })
   }
-  void refresh().then(() => { if (alive) timer = setTimeout(poll, 3000) })
-  onBeforeUnmount(() => { alive = false; clearTimeout(timer); clearTimeout(debounce) })
+  void refresh().then(schedule)
+  onBeforeUnmount(() => { alive = false; document.removeEventListener('visibilitychange', visibility); clearTimeout(timer); clearTimeout(debounce) })
   return { tasks, total, page, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry }
 }

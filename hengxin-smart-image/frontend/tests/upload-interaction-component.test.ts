@@ -5,6 +5,7 @@ import { parse, compileScript } from '@vue/compiler-sfc'
 import ts from 'typescript'
 import * as Vue from 'vue'
 import * as helpers from '../src/views/hengxin/components/upload-interaction'
+import { identity } from '../src/api/hengxin/identity'
 
 // 执行真实 SFC setup 与生命周期；宿主仅替代 DOM，不复制组件事件逻辑。
 const source = readFileSync(new URL('../src/views/hengxin/components/UploadInteraction.vue', import.meta.url), 'utf8')
@@ -19,7 +20,12 @@ interface Handlers {
   pasteButton(): Promise<void>
 }
 const module = { exports: {} as { default: { setup(props: object, context: object): Handlers } } }
-new Function('require', 'module', 'exports', code)((name: string) => name === 'vue' ? Vue : helpers, module, module.exports)
+new Function('require', 'module', 'exports', code)((name: string) => {
+  if (name === 'vue') return Vue
+  if (name === '@/api/hengxin/identity') return { identity }
+  if (name === './upload-interaction') return helpers
+  throw new Error(`unexpected dependency: ${name}`)
+}, module, module.exports)
 const renderer = Vue.createRenderer<object, object>({
   createElement: () => ({}), createText: () => ({}), createComment: () => ({}), insert() {}, remove() {},
   setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {}
@@ -98,5 +104,25 @@ test('剪贴板权限拒绝显示可操作提示，读取中卸载后不回写�
     fail(new Error('denied')); await pending
     assert.deepEqual(m.events, unmount ? [] : [{ kind: 'error', value: helpers.clipboardHint }])
     if (!unmount) m.unmount()
+  }
+})
+
+test('剪贴板读取或取图片期间换号/隐藏，不把旧输入及错误投递给新代次', async () => {
+  for (const reason of ['changed', 'suspended'] as const) for (const phase of ['read', 'getType', 'error']) {
+    const m = mount()
+    let finish!: (value: unknown) => void
+    const delayed = new Promise((resolve, reject) => { finish = value => phase === 'error' ? reject(value) : resolve(value) })
+    const items = [{ types: ['image/png'], getType: () => phase === 'getType' ? delayed : Promise.resolve(png) }]
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: {
+      read: () => phase === 'getType' ? Promise.resolve(items) : delayed
+    } } })
+    try {
+      const pending = m.handlers.pasteButton()
+      await Promise.resolve()
+      identity.advance(reason)
+      finish(phase === 'getType' ? png : phase === 'error' ? new Error('denied') : items)
+      await pending
+      assert.deepEqual(m.events, [], `${reason}/${phase}`)
+    } finally { m.unmount() }
   }
 })

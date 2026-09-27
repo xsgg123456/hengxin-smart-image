@@ -42,13 +42,18 @@
  */
 
 import { App, Directive } from 'vue'
-import hljs from 'highlight.js'
+let highlighter: Promise<typeof import('highlight.js')> | undefined
+const processing = new WeakSet<HTMLElement>()
 
 export type HighlightDirective = Directive<HTMLElement>
 
 // 高亮代码
-function highlightCode(block: HTMLElement) {
+async function highlightCode(block: HTMLElement) {
+  highlighter ??= import('highlight.js').catch(error => { highlighter = undefined; throw error })
+  const { default: hljs } = await highlighter
+  if (!block.isConnected) return false
   hljs.highlightElement(block)
+  return true
 }
 
 // 插入行号
@@ -108,18 +113,21 @@ function markBlockAsProcessed(block: HTMLElement) {
 }
 
 // 处理单个代码块
-function processBlock(block: HTMLElement) {
-  if (isBlockProcessed(block)) {
+async function processBlock(block: HTMLElement) {
+  if (isBlockProcessed(block) || processing.has(block)) {
     return
   }
 
+  processing.add(block)
   try {
-    highlightCode(block)
+    if (!await highlightCode(block)) return
     insertLineNumbers(block)
     addCopyButton(block)
     markBlockAsProcessed(block)
   } catch (error) {
     console.warn('处理代码块时出错:', error)
+  } finally {
+    processing.delete(block)
   }
 }
 

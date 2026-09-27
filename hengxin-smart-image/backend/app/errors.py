@@ -1,4 +1,5 @@
 from uuid import uuid4
+import re
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -7,6 +8,11 @@ from starlette.exceptions import HTTPException
 
 
 def error_response(request: Request, status: int, code: str, message: str, headers=None):
+    # Media failures must reauthorize on the next request, including cacheable
+    # 404s emitted before a file response is constructed. Preserve other headers.
+    if re.fullmatch(r'/api/v1/(?:api-image-edits/)?files(?:/.*)?|'
+                    r'/api/v1/api-image-edits/tasks/[^/]+/zip/?', request.url.path):
+        headers = {**(headers or {}), 'Cache-Control': 'private, no-store'}
     return JSONResponse(
         status_code=status,
         content={"code": code, "message": message,

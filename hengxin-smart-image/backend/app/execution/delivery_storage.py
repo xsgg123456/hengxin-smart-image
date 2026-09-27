@@ -4,6 +4,7 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 
 from app.core.config import get_settings
 from app.resource_models import FileRecord
+from app.modules.files.variants import register
 from .delivery_snapshot import image_metadata
 
 
@@ -60,6 +61,7 @@ def store_delivery(factory, store, operator_id, round_id, images, active):
                 _verify(record, fields)
                 _check(active)
                 record.status = 'ready'
+                register(session, record, 'originals')
                 session.commit()
             _check(active)
             result.append(fields['id'])

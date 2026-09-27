@@ -1,6 +1,6 @@
 <template>
     <ElCard shadow="never" class="art-card">
-    <PicturePreview v-if="picture" :picture="picture" :pictures="gallery" :index="gallery.findIndex(p => p.id === picture?.id)" :title="picture.id === slot.currentVersionId ? '当前整套结果' : `第 ${slot.slot + 1} 张 · 版本历史`" />
+    <PicturePreview :size="1024" v-if="picture" :picture="picture" :pictures="gallery" :index="gallery.findIndex(p => p.id === picture?.id)" :title="picture.id === slot.currentVersionId ? '当前整套结果' : `第 ${slot.slot + 1} 张 · 版本历史`" />
     <GenerationPlaceholder v-else-if="state === '排队中' || state === '执行中'" :running="state === '执行中'" :index="slot.slot" />
     <ElEmpty v-else :description="slot.error ? '此位置生成失败' : `第 ${slot.slot + 1} 张 · ${state}`" :image-size="70" />
     <div class="hx-result-meta"><strong>第 {{ slot.slot + 1 }} 张{{ picture ? ` · ${picture.name}` : '' }}</strong></div>

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_session
 from app.modules.auth.permissions import require_permission
 from app.modules.files.service import find_file
+from app.modules.files.delivery import FileDelivery
 from app.modules.files.streaming import OwnedStreamResponse
 from app.modules.files.validation import FORMATS, safe_name
 from app.storage.minio_store import get_store
@@ -46,12 +47,16 @@ class ChunkSink:
 
 class ZipStream:
     def __init__(self, records, store):
-        self.sources = []
+        self.records, self.store = records, store
+        self.source = None
         self.iterator = None
         try:
-            # Open before response headers so missing objects produce a visible 503.
+            # HEAD preflight preserves a visible error for already missing objects.
+            # Keep only the first source open; subsequent files open after release.
             for record in records:
-                self.sources.append((record, store.open(record)))
+                if store.stat(record) != record.size_bytes:
+                    raise OSError('Stored image size mismatch')
+            self.source = store.open(records[0])
         except Exception:
             self.close()
             raise HTTPException(503, '图片暂时不可读取，请稍后重试') from None
@@ -63,39 +68,42 @@ class ZipStream:
     def generate(self, chunk_size):
         sink = ChunkSink()
         with ZipFile(sink, 'w', compression=ZIP_STORED) as archive:
-            for index, (record, source) in enumerate(self.sources, 1):
+            for index, record in enumerate(self.records, 1):
+                if self.source is None:
+                    self.source = self.store.open(record)
                 name = f'{index:02d}-{safe_name(record.name, EXTENSIONS[record.content_type])}'
                 digest, count = hashlib.sha256(), 0
-                with archive.open(name, 'w', force_zip64=True) as target:
-                    yield from sink.drain()
-                    for chunk in source.stream(chunk_size):
-                        count += len(chunk)
-                        if count > record.size_bytes:
-                            raise OSError('Stored image size mismatch')
-                        digest.update(chunk)
-                        target.write(chunk)
+                try:
+                    with archive.open(name, 'w', force_zip64=True) as target:
                         yield from sink.drain()
-                    if count != record.size_bytes or digest.hexdigest() != record.checksum:
-                        raise OSError('Stored image integrity mismatch')
+                        for chunk in self.source.stream(chunk_size):
+                            count += len(chunk)
+                            if count > record.size_bytes:
+                                raise OSError('Stored image size mismatch')
+                            digest.update(chunk)
+                            target.write(chunk)
+                            yield from sink.drain()
+                        if count != record.size_bytes or digest.hexdigest() != record.checksum:
+                            raise OSError('Stored image integrity mismatch')
+                finally:
+                    self.release_source()
                 yield from sink.drain()
         yield from sink.drain()
+
+    def release_source(self):
+        source, self.source = self.source, None
+        if source is not None:
+            try:
+                source.close()
+            finally:
+                source.release_conn()
 
     def close(self):
         try:
             if self.iterator is not None:
                 self.iterator.close()
         finally:
-            # Attempt every release even if one upstream connection fails to close.
-            sources, self.sources = self.sources, []
-            for _, source in sources:
-                try:
-                    source.close()
-                except Exception:
-                    pass
-                try:
-                    source.release_conn()
-                except Exception:
-                    pass
+            self.release_source()
 
     def release_conn(self):
         pass
@@ -105,9 +113,10 @@ class ZipStream:
 def download_zip(body: ZipRequest,
                  user: Annotated[object, Depends(require_permission('shared_resources'))],
                  session: Annotated[Session, Depends(get_session)], store=Depends(get_store)):
-    records = [find_file(session, file_id) for file_id in body.fileIds]
+    records = [FileDelivery.capture(find_file(session, file_id)) for file_id in body.fileIds]
     if any(record.content_type not in EXTENSIONS for record in records):
         raise HTTPException(422, '图片格式不支持下载')
+    session.close()
     name = safe_name(body.name, '.zip')
     if re.match(r'^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)', name, re.I):
         name = '图片_' + name

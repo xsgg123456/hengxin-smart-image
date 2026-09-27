@@ -2,9 +2,10 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 from sqlalchemy import func, select, or_
 from app.core.config import get_settings
+from app.capacity.admission import reserve, WAITING
 from app.models import Job, Outbox, utcnow
 from app.worker.leases import lease_active
-from .models import ExecutionGate, RoundRecord, TaskRecord
+from .models import ExecutionGate, RoundRecord, TaskRecord, ResultSlotRecord
 
 
 def locked_execution(session, job_id, gate=False):
@@ -66,7 +67,13 @@ def claim(factory, job_id):
         if occupied >= min(round.execution_config.get('concurrency', get_settings().generation_concurrency),
                            get_settings().generation_concurrency):
             return None
+        count = 1 if round.target is not None else session.scalar(select(func.count()).select_from(
+            ResultSlotRecord).where(ResultSlotRecord.task_id == task.id))
+        if not reserve(session, round.id, 'cli', round.id, max(1, count) * 20 * 1024 * 1024):
+            round.error = job.error = WAITING
+            return None
         token = uuid4()
+        round.error = job.error = None
         job.claim_token, job.status = token, 'running'
         job.lease_until = utcnow() + timedelta(seconds=get_settings().job_lease_seconds)
         job.execution_count += 1

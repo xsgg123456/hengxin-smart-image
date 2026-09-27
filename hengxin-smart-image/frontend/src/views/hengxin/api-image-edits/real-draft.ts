@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { identity } from '@/api/hengxin/identity'
 import { apiImages, errorText, uncertainResponse } from '@/api/api-image-edits'
 import type { ApiPicture, ApiTaskInput } from '@/types/api-image-edits'
 export interface UploadPicture { id: string; name: string; url: string; fileId?: string; state: 'uploading' | 'ready' | 'failed' | 'removing'; error: string; raw: File }
@@ -14,10 +15,13 @@ export function createDraft(api: DraftApi, decode: (url: string) => Promise<void
   const valid = () => state.images.length >= 2 && state.images.length <= 21 && state.images.every(p => p.state === 'ready' && p.fileId)
     && !!state.name.trim() && state.name.trim().length <= 60 && !!state.prompt.trim() && state.prompt.trim().length <= 4000
   async function upload(picture: UploadPicture) {
+    const epoch = identity.epoch
     picture.state = 'uploading'; picture.error = ''
     try {
       await decode(picture.url)
+      identity.assert(epoch)
       const saved = await api.upload(picture.raw)
+      identity.assert(epoch)
       picture.fileId = saved.fileId; picture.state = 'ready'
     } catch (e) { picture.state = 'failed'; picture.error = errorText(e) }
   }
@@ -59,6 +63,15 @@ export function createDraft(api: DraftApi, decode: (url: string) => Promise<void
   return { state, valid, locked, add, remove, move, submit, retry: (p: UploadPicture) => { if (!locked() && p.state === 'failed') void upload(p) } }
 }
 const drafts = new Map<string, ReturnType<typeof createDraft>>()
+identity.subscribe(reason => {
+  if (reason === 'suspended') return
+  for (const draft of drafts.values()) {
+    for (const picture of draft.state.images) {
+      if (picture.url) URL.revokeObjectURL(picture.url)
+      picture.url = ''
+    }
+  }
+})
 export function draftForUser(userId: string) {
   let draft = drafts.get(userId)
   if (!draft) {
@@ -68,6 +81,10 @@ export function draftForUser(userId: string) {
   image.src = url
 }), URL, () => crypto.randomUUID(), pendingStorage(userId))
     drafts.set(userId, draft)
+  }
+  // 重建显示URL，原始文件及未确认写请求的幂等快照仍按用户隔离保留。
+  for (const picture of draft.state.images) {
+    if (!picture.url) picture.url = URL.createObjectURL(picture.raw)
   }
   return draft
 }

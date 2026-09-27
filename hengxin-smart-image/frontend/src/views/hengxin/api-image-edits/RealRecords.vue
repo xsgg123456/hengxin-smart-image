@@ -7,9 +7,9 @@
     <ElCard class="art-card hx-section" shadow="never">
       <div class="hx-filter"><ElSelect v-model="filter" aria-label="换图状态" style="width:160px"><ElOption label="全部状态" value="" /><ElOption v-for="(label, value) in taskLabels" :key="value" :label="label" :value="value" /></ElSelect><ElInput v-model="search" aria-label="搜索换图记录" maxlength="60" placeholder="搜索任务名称或编号" class="hx-search" clearable /><ElButton :loading="loading" @click="refresh()">刷新</ElButton></div>
       <ArtTable :data="tasks" :columns="columns" :loading="loading" height="auto" :show-table-header="false" :show-pagination="false" empty-height="300px" :empty-text="error ? '列表加载失败，请重试' : '暂无换图记录'" row-key="id">
-        <template #name="{ row }"><div class="hx-table-name"><div class="record-thumb"><PicturePreview v-if="row.items[0]?.source?.url" :picture="row.items[0].source" title="原图缩略图" /></div><div><strong>{{ row.name }}</strong><small>{{ row.id }}</small></div></div></template>
+        <template #name="{ row }"><div class="hx-table-name"><div class="record-thumb"><PicturePreview v-if="row.cover?.url" :picture="row.cover" title="原图缩略图" /></div><div><strong>{{ row.name }}</strong><small>{{ row.id }}</small></div></div></template>
         <template #status="{ row }"><ElTag :type="row.status === 'succeeded' ? 'success' : ['failed', 'partial_failed', 'uncertain'].includes(row.status) ? 'danger' : 'primary'">{{ taskLabels[row.status as ApiTaskState] }}</ElTag></template>
-        <template #progress="{ row }"><span>{{ row.items.filter((item: ApiItem) => item.state === 'succeeded').length }} / {{ row.items.length }} 张成功</span><p class="hx-footnote">{{ row.items.filter((item: ApiItem) => item.state === 'failed').length }} 张失败 · 第 {{ row.batch.current }}/{{ row.batch.total }} 批</p></template>
+        <template #progress="{ row }"><span>{{ row.counts.success }} / {{ row.counts.total }} 张成功</span><p class="hx-footnote">{{ row.counts.failed }} 张失败 · 第 {{ row.batch.current }}/{{ row.batch.total }} 批</p></template>
         <template #operator="{ row }"><span>{{ row.operator || '未记录' }}</span></template>
         <template #created="{ row }"><span>{{ friendlyTime(row.created) }}</span></template>
         <template #action="{ row }"><ElButton text type="primary" @click="show(row.id)">查看详情</ElButton><ElButton text type="danger" :disabled="busy || isTaskActive(row)" @click="remove(row)">删除</ElButton></template>
@@ -24,7 +24,7 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { apiImages } from '@/api/api-image-edits'
-import { taskLabels, isTaskActive, type ApiTask, type ApiItem, type ApiTaskState } from '@/types/api-image-edits'
+import { taskLabels, isTaskActive, type ApiTaskSummary, type ApiTaskState } from '@/types/api-image-edits'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import ChannelNotice from './ChannelNotice.vue'
 import RealTaskDetail from './RealTaskDetail.vue'
@@ -40,12 +40,12 @@ watch(() => route.query.task, id => { selectedId.value = typeof id === 'string' 
 const stats = computed(() => [
   { label: '当前筛选任务', count: total.value, unit: '套' },
   { label: '本页排队 / 处理中', count: tasks.value.filter(t => ['queued', 'running'].includes(t.status)).length, unit: '套' },
-  { label: '本页成功图片', count: tasks.value.reduce((n, t) => n + t.items.filter(i => i.state === 'succeeded').length, 0), unit: '张' },
-  { label: '本页失败 / 需核实', count: tasks.value.reduce((n, t) => n + t.items.filter(i => ['failed', 'uncertain'].includes(i.state)).length, 0), unit: '张' }
+  { label: '本页成功图片', count: tasks.value.reduce((n, t) => n + t.counts.success, 0), unit: '张' },
+  { label: '本页失败 / 需核实', count: tasks.value.reduce((n, t) => n + (t.counts.failed + t.counts.uncertain), 0), unit: '张' }
 ])
 const columns = [{ prop: 'name', label: '任务', useSlot: true, minWidth: 260 }, { prop: 'status', label: '状态', useSlot: true, width: 120 }, { prop: 'progress', label: '图片进度', useSlot: true, minWidth: 165 }, { prop: 'operator', label: '操作人', useSlot: true, width: 115 }, { prop: 'created', label: '创建时间', useSlot: true, minWidth: 120 }, { prop: 'action', label: '操作', useSlot: true, width: 175 }]
 function show(id: string) { void router.replace({ query: { ...route.query, task: id } }) }
-async function remove(task: ApiTask) {
+async function remove(task: ApiTaskSummary) {
   try { await ElMessageBox.confirm('删除此换图记录？删除后将无法从记录中查看结果。', '删除换图记录', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }) } catch { return }
   await action(async () => { await apiImages.remove(task.id); if (selectedId.value === task.id) open.value = false })
 }

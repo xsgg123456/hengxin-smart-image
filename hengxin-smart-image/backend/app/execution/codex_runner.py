@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.db.session import session_factory
 from app.models import utcnow
+from app.capacity.admission import covered
 from app.modules.tasks.attempts import ExecutionAttempt, ExecutionSession, ExecutionUsage
 from app.modules.tasks.claims import claim, end, locked_execution, mark_uncertain, valid
 from app.modules.tasks.results import publish_results
@@ -145,6 +146,9 @@ def run_generation(job_id, factory=None, store=None):
                 if should_stop(factory, job_id, token):
                     fail_stopped(factory, job_id, token, '执行权已失效')
                     return
+                with factory() as session:
+                    if not covered(session, round.id, 'cli', round.id, len(manifest['targets']) * 20 * 1024 * 1024):
+                        raise RuntimeError('Generation capacity reservation missing')
                 args = ['exec', '--sandbox', 'workspace-write']
                 if previous:
                     args += ['resume', '--skip-git-repo-check', '--json', previous]

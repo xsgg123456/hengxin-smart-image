@@ -1,0 +1,48 @@
+# Opt-in after base + vps + api-image + media. ONE replica per service.
+# Native CLI is the default; do not also enable container-worker.
+# 5 + 4 + 6*4 + 6*3 + 1 + 1 = 53 application connections;
+# plus migration 1, maintenance allowance 10 and PostgreSQL reserved 3 = 67/100.
+services:
+  postgres:
+    command: ['postgres', '-c', 'max_connections=100', '-c', 'superuser_reserved_connections=3']
+  api:
+    entrypoint: []
+    command: ['uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8000', '--workers', '1']
+    environment:
+      DB_POOL_SIZE: '5'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-interactive
+  media-api:
+    entrypoint: []
+    command: ['uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8000', '--workers', '1', '--no-access-log']
+    environment:
+      DB_POOL_SIZE: '4'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-media
+  api-image-worker:
+    environment:
+      DB_POOL_SIZE: '4'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-api-worker
+      DB_WORKER_PROCESS_LIMIT: '5'
+  worker:
+    environment:
+      DB_POOL_SIZE: '3'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-cli-worker
+      DB_WORKER_PROCESS_LIMIT: '5'
+  outbox:
+    environment:
+      DB_POOL_SIZE: '1'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-cli-outbox
+  api-image-outbox:
+    environment:
+      DB_POOL_SIZE: '1'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-api-outbox
+  migrate:
+    environment:
+      DB_POOL_SIZE: '1'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-migrate

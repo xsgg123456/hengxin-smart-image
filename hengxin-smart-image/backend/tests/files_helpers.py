@@ -43,7 +43,7 @@ class MemoryStore:
         self.fail_put = self.fail_remove = self.fail_open = False
 
     def put(self, record, data):
-        assert record.object_key not in self.objects
+        assert record.object_key not in self.objects or self.objects[record.object_key] == data
         self.objects[record.object_key] = data
         if self.fail_put:
             raise OSError('injected store failure')
@@ -59,6 +59,11 @@ class MemoryStore:
         stream = ObjectStream(self.objects[record.object_key])
         self.streams.append(stream)
         return stream
+
+    def stat(self, record):
+        if self.fail_open:
+            raise OSError('injected read failure')
+        return len(self.objects[record.object_key])
 
 
 @pytest.fixture

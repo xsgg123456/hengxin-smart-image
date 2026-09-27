@@ -2,12 +2,14 @@ import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { getTask } from '@/api/tasks'
 import { taskPollDelay } from '../task-state'
 import type { TaskDetailData } from '@/types/hengxin'
+import { retryBootstrap } from '@/api/hengxin/bootstrap'
 
 export function useTaskDetail(taskId: Ref<string>, visible: Ref<boolean>) {
   const data = ref<TaskDetailData>(), loading = ref(false), error = ref('')
   let request = 0, timer: ReturnType<typeof setTimeout> | undefined
+  let alive = true
   async function load(quiet = false) {
-    if (!visible.value || !taskId.value) return
+    if (!visible.value || !taskId.value || document.hidden || !alive) return
     clearTimeout(timer)
     const current = ++request
     loading.value = !quiet
@@ -22,7 +24,8 @@ export function useTaskDetail(taskId: Ref<string>, visible: Ref<boolean>) {
     } finally {
       if (current === request) {
         loading.value = false
-        if (visible.value) timer = setTimeout(() => { void load(true) }, taskPollDelay(data.value ? [data.value.task] : []))
+        const delay = taskPollDelay(data.value ? [data.value.task] : []) === 3000 ? 3000 : 30000
+        if (visible.value && !document.hidden) timer = setTimeout(() => { void load(true) }, delay)
       }
     }
   }
@@ -31,7 +34,14 @@ export function useTaskDetail(taskId: Ref<string>, visible: Ref<boolean>) {
     if (id !== previous?.[0]) { data.value = undefined; error.value = '' }
     if (shown) void load()
   }, { immediate: true })
-  onBeforeUnmount(() => { clearTimeout(timer); request++ })
+  async function visibilityChanged() {
+    clearTimeout(timer); request++; loading.value = false
+    if (document.hidden || !visible.value || !alive) return
+    await retryBootstrap.run()
+    if (alive && !document.hidden) void load(true)
+  }
+  document.addEventListener('visibilitychange', visibilityChanged)
+  onBeforeUnmount(() => { alive = false; clearTimeout(timer); request++; document.removeEventListener('visibilitychange', visibilityChanged) })
   const task = computed(() => data.value?.task)
   const complete = computed(() => !error.value && !!data.value && task.value?.state === '待查看' && data.value.slots.length > 0 && data.value.slots.every(slot => slot.currentVersionId && slot.versions.some(v => v.id === slot.currentVersionId)))
   return { data, task, loading, error, complete, load }

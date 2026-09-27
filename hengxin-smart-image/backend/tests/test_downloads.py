@@ -92,7 +92,7 @@ def large_zip(count=128, checksum=None):
         digest.update(b'a' * 65536)
     record = SimpleNamespace(name='../image.exe', content_type='image/png',
                              size_bytes=count * 65536, checksum=checksum or digest.hexdigest())
-    return ZipStream([record], SimpleNamespace(open=lambda _: source)), source
+    return ZipStream([record], SimpleNamespace(open=lambda _: source, stat=lambda r: r.size_bytes)), source
 
 
 def test_large_zip_is_incremental_and_checksum_checked():
@@ -134,3 +134,26 @@ def test_disconnect_before_and_during_iteration_closes_all(fail_after):
     asyncio.run(run())
     assert source.closed and source.released
     assert source.reads < source.count
+
+
+def test_twenty_files_hold_only_one_object_stream_and_close_before_next():
+    active, peak = 0, 0
+    class Source(LargeSource):
+        def close(self):
+            nonlocal active
+            if not self.closed: active -= 1
+            super().close()
+    def opened(record):
+        nonlocal active, peak
+        assert active == 0
+        active += 1; peak = max(peak, active)
+        return Source(1)
+    record = SimpleNamespace(name='one.png', content_type='image/png', size_bytes=65536,
+                             checksum=hashlib.sha256(b'a' * 65536).hexdigest())
+    stream = ZipStream([record] * 20, SimpleNamespace(open=opened, stat=lambda r: r.size_bytes))
+    assert active == 1
+    with ZipFile(BytesIO(b''.join(stream.stream(65536)))) as archive:
+        assert len(archive.namelist()) == 20
+        assert all(archive.read(name) == b'a' * 65536 for name in archive.namelist())
+    stream.close()
+    assert active == 0 and peak == 1

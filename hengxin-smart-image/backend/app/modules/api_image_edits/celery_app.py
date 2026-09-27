@@ -1,6 +1,7 @@
 import logging
 
 from celery import Celery
+from app.db import worker_budget  # noqa: F401 - register prefork/budget signals
 
 from .config import get_api_settings
 

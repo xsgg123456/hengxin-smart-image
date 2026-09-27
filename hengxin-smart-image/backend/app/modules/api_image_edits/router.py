@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote
 from uuid import UUID
 
@@ -10,6 +10,9 @@ from app.db.session import get_session
 from app.modules.auth.permissions import require_permission
 from app.modules.files.multipart import UPLOAD_BODY, parse_upload
 from app.modules.files.streaming import OwnedStreamResponse
+from app.modules.files.delivery import FileDelivery
+from app.modules.files.variant_delivery import deliver_variant
+from app.modules.files.internal_delivery import internal_delivery, head_delivery
 from app.modules.files.validation import validate_image
 from app.storage.minio_store import get_store
 from . import control, files, service, versions, zip_download
@@ -50,9 +53,18 @@ def metadata(file_id: UUID, user: User, session: Database):
 
 
 @router.get('/files/{file_id}/content')
-def content(file_id: UUID, user: User, session: Database, download: bool = False,
-            store=Depends(get_store)):
-    record = files.find_file(session, file_id)
+@router.head('/files/{file_id}/content')
+def content(file_id: UUID, request: Request, user: User, session: Database, download: bool = False,
+            store=Depends(get_store), variant: Literal['256', '1024'] | None = None):
+    record = FileDelivery.capture(files.find_file(session, file_id))
+    if variant is not None and not download:
+        return deliver_variant(session, record, 'api-image-edits', int(variant), request, store)
+    session.close()
+    accelerated = internal_delivery(record, store, request, 'api-image-edits', download)
+    if accelerated is not None:
+        return accelerated
+    if request.method == 'HEAD':
+        return head_delivery(record, store, download)
     try:
         stream = store.open(record)
     except Exception:
@@ -79,8 +91,8 @@ def create(data: CreateTask, user: User, session: Database, key: Key):
 @router.get('/tasks')
 def tasks(user: User, session: Database, page: int = Query(1, ge=1),
           pageSize: int = Query(20, ge=1, le=100), search: str = Query('', max_length=60),
-          status: str = Query('', max_length=30)):
-    return list_tasks(session, page, pageSize, search, status)
+          status: str = Query('', max_length=30), view: Literal['summary', 'detail'] = 'detail'):
+    return list_tasks(session, page, pageSize, search, status, summary=view == 'summary')
 
 
 @router.get('/tasks/{task_id}')

@@ -7,6 +7,7 @@
 </template>
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { identity } from '@/api/hengxin/identity'
 import { clipboardFiles, clipboardHint, isTextInput, readClipboardImages } from './upload-interaction'
 const props = defineProps<{ disabled?: boolean }>()
 const emit = defineEmits<{ files: [files: File[]]; error: [message: string] }>()
@@ -38,15 +39,16 @@ function drop(event: DragEvent) {
 }
 async function pasteButton() {
   if (props.disabled || reading.value) return
+  const epoch = identity.epoch
   const token = generation
   surface.value?.focus({ preventScroll: true }); reading.value = true
   try {
     if (!navigator.clipboard?.read) throw new Error('unavailable')
     const files = await readClipboardImages(navigator.clipboard)
-    if (!alive || props.disabled || token !== generation) return
+    if (!identity.current(epoch) || !alive || props.disabled || token !== generation) return
     if (files.length) emit('files', files)
     else emit('error', '剪贴板中没有图片，请先复制图片，或点击选择文件。')
-  } catch { if (alive && !props.disabled && token === generation) emit('error', clipboardHint) }
+  } catch { if (identity.current(epoch) && alive && !props.disabled && token === generation) emit('error', clipboardHint) }
   finally { reading.value = false }
 }
 </script>

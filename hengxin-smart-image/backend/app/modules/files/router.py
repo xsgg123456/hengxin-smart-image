@@ -1,4 +1,5 @@
 from typing import Annotated
+from typing import Literal
 from urllib.parse import quote
 from uuid import UUID
 
@@ -10,6 +11,9 @@ from app.contracts.business import Picture
 from app.db.session import get_session
 from app.modules.auth.permissions import require_permission
 from app.modules.files.service import find_file, save_upload
+from app.modules.files.delivery import FileDelivery
+from app.modules.files.variant_delivery import deliver_variant
+from app.modules.files.internal_delivery import internal_delivery, head_delivery
 from app.modules.files.streaming import OwnedStreamResponse
 from app.modules.files.validation import validate_image
 from app.modules.files.multipart import UPLOAD_BODY, parse_upload
@@ -44,9 +48,19 @@ def metadata(file_id: UUID, user: SharedUser, session: Database):
 
 
 @router.get('/files/{file_id}/content')
-def content(file_id: UUID, user: SharedUser, session: Database, download: bool = False,
-            store=Depends(get_store)):
-    record = find_file(session, file_id)
+@router.head('/files/{file_id}/content')
+def content(file_id: UUID, request: Request, user: SharedUser, session: Database, download: bool = False,
+            store=Depends(get_store), variant: Literal['256', '1024'] | None = None):
+    record = FileDelivery.capture(find_file(session, file_id))
+    if variant is not None and not download:
+        return deliver_variant(session, record, 'originals', int(variant), request, store)
+    # Auth and business dependencies share this session; release both before storage I/O.
+    session.close()
+    accelerated = internal_delivery(record, store, request, 'originals', download)
+    if accelerated is not None:
+        return accelerated
+    if request.method == 'HEAD':
+        return head_delivery(record, store, download)
     try:
         stream = store.open(record)
     except Exception:

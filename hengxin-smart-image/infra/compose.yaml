@@ -121,6 +121,17 @@ services:
   outbox:
     <<: *app
     command: ['python', '-m', 'app.worker.outbox']
+  image-variants:
+    <<: *app
+    command: ['python', '-m', 'app.modules.files.variant_worker', '--backfill']
+    environment:
+      <<: *environment
+      DB_POOL_SIZE: '1'
+      DB_MAX_OVERFLOW: '0'
+      DB_APPLICATION_NAME: hx-image-variants
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 64
 
 volumes:
   postgres_data:

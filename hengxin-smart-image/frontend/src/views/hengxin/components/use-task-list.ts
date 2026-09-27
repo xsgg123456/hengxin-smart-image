@@ -4,6 +4,7 @@ import { listTasks } from '@/api/tasks'
 import { taskPollDelay } from '../task-state'
 import type { Task, TaskPage } from '@/types/hengxin'
 import { useListLocation } from '../list-location'
+import { identity } from '@/api/hengxin/identity'
 
 export function useTaskList() {
   const location = useListLocation(useRouter(), '/tasks/index', 'task')
@@ -13,7 +14,7 @@ export function useTaskList() {
   let request = 0, timer: ReturnType<typeof setTimeout> | undefined
   function stop() { clearTimeout(timer); request++; loading.value = false }
   async function load(quiet = false) {
-    if (!active.value) return
+    if (!active.value || document.hidden) return
     clearTimeout(timer)
     const current = ++request
     loading.value = !quiet
@@ -28,13 +29,21 @@ export function useTaskList() {
     } finally {
       if (current === request) {
         loading.value = false
-        if (active.value) timer = setTimeout(() => { void load(true) }, taskPollDelay(tasks.value))
+        if (active.value && !document.hidden) timer = setTimeout(() => { void load(true) }, taskPollDelay(tasks.value))
       }
     }
   }
   watch([mode, search, state, scope, page], () => { void load() }, { immediate: true })
   onActivated(() => { active.value = true; void load() })
   onDeactivated(() => { active.value = false; stop() })
-  onBeforeUnmount(() => { active.value = false; stop() })
+  async function visibilityChanged() {
+    stop()
+    if (document.hidden || !active.value) return
+    const epoch = identity.epoch
+    await identity.verify(epoch, true)
+    if (identity.current(epoch) && active.value && !document.hidden) void load(true)
+  }
+  document.addEventListener('visibilitychange', visibilityChanged)
+  onBeforeUnmount(() => { active.value = false; stop(); document.removeEventListener('visibilitychange', visibilityChanged) })
   return { ...location, tasks, stats, total, pageSize, loading, error, active, load }
 }

@@ -8,10 +8,10 @@
     }"
   >
     <DingtalkLogin v-if="bootstrap.authRequired" />
-    <template v-else-if="bootstrap.ready">
+    <div v-if="bootstrap.ready" v-show="!bootstrap.locked" class="hx-protected-content">
       <RouterView />
-    </template>
-    <div v-else class="hx-page">
+    </div>
+    <div v-if="!bootstrap.authRequired && (!bootstrap.ready || bootstrap.locked)" class="hx-page">
       <ElCard class="art-card hx-section">
         <h1>恒鑫智图</h1>
         <p v-if="bootstrap.loading" role="status">正在连接工作区…</p>
@@ -58,3 +58,9 @@
     systemUpgrade()
   })
 </script>
+
+<style>
+html[data-identity-locked] .hx-protected-content,
+html[data-identity-locked] .el-overlay,
+html[data-identity-locked] .el-image-viewer__wrapper { visibility: hidden !important; pointer-events: none !important; }
+</style>

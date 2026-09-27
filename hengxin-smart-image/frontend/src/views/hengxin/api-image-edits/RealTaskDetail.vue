@@ -37,7 +37,7 @@
           <p v-if="command(item).state.error" class="item-error">{{ command(item).state.error }}</p>
         </ElCard>
       </div>
-      <ElCollapse class="hx-gap"><ElCollapseItem title="本次输入与提示词" name="input"><p class="prompt-text">{{ task.prompt }}</p><div class="input-grid"><div v-for="(picture, index) in inputs" :key="index"><PicturePreview v-if="picture?.url" :picture="picture" title="本次输入" /><p v-else>图片未记录</p><p>{{ index === inputs.length - 1 ? '共用素材' : `原图 ${index + 1}` }}</p></div></div></ElCollapseItem><ElCollapseItem title="处理记录" name="events"><ElEmpty v-if="!task.events.length" description="暂无处理记录" :image-size="60" /><div v-for="(event, index) in task.events" :key="index" class="hx-log">{{ event }}</div></ElCollapseItem></ElCollapse>
+      <ElCollapse v-model="expandedSections" class="hx-gap"><ElCollapseItem title="本次输入与提示词" name="input"><p class="prompt-text">{{ task.prompt }}</p><div v-if="expandedSections.includes('input')" class="input-grid"><div v-for="(picture, index) in inputs" :key="index"><PicturePreview v-if="picture?.url" :picture="picture" title="本次输入" /><p v-else>图片未记录</p><p>{{ index === inputs.length - 1 ? '共用素材' : `原图 ${index + 1}` }}</p></div></div></ElCollapseItem><ElCollapseItem title="处理记录" name="events"><ElEmpty v-if="!task.events.length" description="暂无处理记录" :image-size="60" /><div v-for="(event, index) in task.events" :key="index" class="hx-log">{{ event }}</div></ElCollapseItem></ElCollapse>
     </div>
     <SourceComparison v-if="comparison" v-model="comparisonOpen" :position="comparison.position" :source="comparison.source" :result="comparison.result" :version="comparison.currentVersion" />
     <RealRevisionDialog v-if="task && revisionId" v-model="revisionOpen" :task="task" :item-id="revisionId" :blocked="packing || busy" @accepted="emit('refresh')" />
@@ -57,6 +57,7 @@ import RealRevisionDialog from './RealRevisionDialog.vue'
 import RealVersionDialog from './RealVersionDialog.vue'
 import { useUserStore } from '@/store/modules/user'
 import { itemCommand, friendlyTime, saveBlob } from './item-command'
+import { identity } from '@/api/hengxin/identity'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task?: ApiTask; loading: boolean; error: string; actionError: string; busy: boolean; admin: boolean; retryPending: boolean; channelBlocked: boolean }>()
 const emit = defineEmits<{ refresh: []; retry: [id: string]; resolve: [id: string] }>()
@@ -65,6 +66,7 @@ const results = computed(() => props.task?.items.flatMap(i => i.result ? [i.resu
 const inputs = computed(() => props.task ? [...props.task.items.map(i => i.source), props.task.material] : [])
 const progressText = computed(() => { const item = props.task?.items.find(i => ['running', 'retry_wait', 'collecting'].includes(i.state)); return item ? `原图 ${item.position}：${itemLabels[item.state]}` : props.task ? taskLabels[props.task.status] : '' })
 const seconds = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} 秒` : '未提供'
+const expandedSections = ref<string[]>([])
 const downloading = ref(''), downloadError = ref(''), packing = ref(false)
 const revisionId = ref(''), versionId = ref(''), revisionOpen = ref(false), versionOpen = ref(false)
 const comparisonId = ref(''), comparisonOpen = ref(false)
@@ -73,7 +75,7 @@ const user = String(useUserStore().getUserInfo.userId)
 const command = (item: ApiItem) => itemCommand(user, props.task!.id, item.id)
 const hasItemOperation = computed(() => props.task?.items.some(i => command(i).state.busy || command(i).state.pending) || false)
 const canZip = computed(() => !!props.task && !props.busy && !hasItemOperation.value && props.task.items.every(i => i.state === 'succeeded' && i.result))
-watch(() => props.task?.id, () => { comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false; revisionId.value = ''; versionId.value = '' })
+watch(() => props.task?.id, () => { expandedSections.value = []; comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false; revisionId.value = ''; versionId.value = '' })
 watch(open, value => { if (!value) { comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false } })
 async function retryItem(item: ApiItem) {
   if (!props.task || packing.value || props.busy || (props.channelBlocked && !command(item).state.pending)) return
@@ -84,20 +86,24 @@ async function retryItem(item: ApiItem) {
   })) emit('refresh')
 }
 async function downloadZip() {
+  const epoch = identity.epoch
   if (!canZip.value || packing.value || !props.task) return
   const task = props.task; packing.value = true; downloadError.value = ''
-  try { saveBlob(await apiImages.zip(task.id), task.name + '.zip') }
-  catch (e) { downloadError.value = errorText(e) }
+  try { const blob = await apiImages.zip(task.id); identity.assert(epoch); saveBlob(blob, task.name + '.zip') }
+  catch (e) { if (identity.current(epoch)) downloadError.value = errorText(e) }
   finally { packing.value = false }
 }
 async function download(picture: ApiPicture) {
+  const epoch = identity.epoch
   if (downloading.value) return
   downloading.value = picture.fileId; downloadError.value = ''
   try {
-    const blob = await apiImages.download(picture.fileId), url = URL.createObjectURL(blob), link = document.createElement('a')
+    const blob = await apiImages.download(picture.fileId)
+    identity.assert(epoch)
+    const url = URL.createObjectURL(blob), link = document.createElement('a')
     link.href = url; link.download = picture.name; document.body.append(link); link.click(); link.remove()
     setTimeout(() => URL.revokeObjectURL(url), 2000)
-  } catch (e) { downloadError.value = errorText(e) }
+  } catch (e) { if (identity.current(epoch)) downloadError.value = errorText(e) }
   finally { downloading.value = '' }
 }
 </script>

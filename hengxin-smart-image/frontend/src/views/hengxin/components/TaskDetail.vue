@@ -21,11 +21,11 @@
           <ElButton v-if="failed" type="primary" :loading="submitting" :disabled="!actions.canRetry || !lastFailed" @click="retry">重试失败范围</ElButton>
         </div>
         <div class="hx-result-grid"><ResultCard v-for="slot in data.slots" :key="`${task.id}-${slot.slot}`" :slot="slot" :group="currentPictures" :state="task.state" :editable="editable" @edit="edit" /></div>
-        <ElCollapse class="hx-gap"><ElCollapseItem title="原素材与模板信息" name="input">
-          <TaskTemplate :key="`template-${task.id}`" :task="task" />
-          <TaskSources :key="`sources-${task.id}`" :sources="task.sources" />
+        <ElCollapse v-model="expandedSections" class="hx-gap"><ElCollapseItem title="原素材与模板信息" name="input">
+          <TaskTemplate v-if="expandedSections.includes('input')" :key="`template-${task.id}`" :task="task" />
+          <TaskSources v-if="expandedSections.includes('input')" :key="`sources-${task.id}`" :sources="task.sources" />
         </ElCollapseItem><ElCollapseItem title="执行进度与诊断" name="execution">
-          <ExecutionProgress :key="task.id" :task-id="task.id" :current-round-id="task.currentRoundId" :rounds="data.rounds" :active="visible" />
+          <ExecutionProgress v-if="expandedSections.includes('execution')" :key="task.id" :task-id="task.id" :current-round-id="task.currentRoundId" :rounds="data.rounds" :active="visible" />
         </ElCollapseItem></ElCollapse>
         <RoundHistory :task-id="task.id" :rounds="data.rounds" :active="visible" :identity="identity() || ''" />
       </template>
@@ -93,6 +93,7 @@ const { target, base, annotations, note: feedback } = revision
 const annotationBlocked = ref(false)
 const preparingAnnotation = ref(false)
 const annotationMaxCount = 1
+const expandedSections = ref<string[]>([])
 const feedbackOpen = ref(false), archiving = ref(false), downloading = ref(false)
 const actionError = computed({ get: () => revision.session.value.error, set: value => { revision.session.value.error = value } })
 const submitting = computed(() => revision.session.value.pending)
@@ -105,7 +106,7 @@ const outcome = computed(() => data.value ? taskOutcome(data.value) : undefined)
 const actions = computed(() => taskActions(data.value, busy.value || revision.blocked.value, error.value))
 const editable = computed(() => actions.value.canRevise)
 const lastFailed = computed(() => data.value?.rounds.find(r => r.id === task.value?.currentRoundId && ['失败', '部分失败'].includes(r.state)))
-watch([() => props.taskId, identity], () => { feedbackOpen.value = false; archivedResult.value = undefined })
+watch([() => props.taskId, identity], () => { feedbackOpen.value = false; archivedResult.value = undefined; expandedSections.value = [] })
 watch(visible, shown => { if (!shown && !submitting.value) feedbackOpen.value = false })
 function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
 function closeDrawer(done: () => void) { if (!busy.value) { feedbackOpen.value = false; open.value = false; done() } }

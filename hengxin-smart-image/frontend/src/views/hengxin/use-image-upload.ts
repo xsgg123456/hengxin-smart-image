@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, ref, toRaw, watch, type Ref } from 'vue'
 import { getExamplePictures, uploadFile } from '@/api/files'
+import { identity } from '@/api/hengxin/identity'
 import { IMAGE_MIME_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from '@/api/hengxin/limits'
 import type { Mode, Picture } from '@/types/hengxin'
 
@@ -61,6 +62,7 @@ export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
   const current = (id: number) => alive ? entries.value.find(e => e.id === id) : undefined
 
   async function receive(id: number) {
+    const epoch = identity.epoch
     const entry = current(id)
     if (!entry?.file) return
     entry.state = 'checking'
@@ -69,10 +71,12 @@ export function useImageUpload(model: Ref<Picture[]>, props: UploadOptions) {
       const image = new Image()
       image.src = entry.url
       await image.decode()
+      identity.assert(epoch)
       if (!image.naturalWidth || !image.naturalHeight) throw new Error('无法解码图片')
       if (!current(id)) return
       entry.state = 'uploading'
       const picture = await uploadFile(entry.file)
+      identity.assert(epoch)
       if (!current(id)) return
       entry.picture = picture
       entry.url = picture.url

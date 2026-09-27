@@ -13,7 +13,12 @@ export interface ApiTask {
 }
 export interface ApiChannel { enabled: boolean; paused: boolean; reason: string | null }
 export interface ApiTaskInput { name: string; prompt: string; originalFileIds: string[]; materialFileId: string }
-export interface ApiTaskPage { items: ApiTask[]; total: number; page: number; pageSize: number }
+export interface ApiTaskSummary {
+  id: string; name: string; created: string; status: ApiTaskState; operator: string
+  cover: ApiPicture | null; counts: { total: number; success: number; failed: number; uncertain: number }
+  batch: { current: number; total: number; running: number }
+}
+export interface ApiTaskPage { items: ApiTaskSummary[]; total: number; page: number; pageSize: number }
 export const taskLabels: Record<ApiTaskState, string> = { queued: '排队中', running: '处理中', succeeded: '全部成功', partial_failed: '部分失败', failed: '全部失败', uncertain: '需核实' }
 export const itemLabels: Record<ApiItemState, string> = { queued: '等待处理', running: '处理中', retry_wait: '等待重试', collecting: '保存结果中', succeeded: '成功', failed: '失败', uncertain: '需核实' }
-export const isTaskActive = (task: ApiTask) => ['queued', 'running', 'uncertain'].includes(task.status)
+export const isTaskActive = (task: Pick<ApiTask, 'status'>) => ['queued', 'running', 'uncertain'].includes(task.status)

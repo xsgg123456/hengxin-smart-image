@@ -2,10 +2,43 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createDraft } from '../src/views/hengxin/api-image-edits/real-draft'
 import { ApiError } from '../src/api/hengxin/http'
+import { identity } from '../src/api/hengxin/identity'
 import type { ApiPicture, ApiTaskInput } from '../src/types/api-image-edits'
 const file = (name: string) => new File(['image'], name, { type: 'image/png' })
 const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 const urls = { createObjectURL: (blob: Blob) => `blob:${(blob as File).name}`, revokeObjectURL: (_url: string) => {} } as typeof URL
+
+test('选图解码期间换号或隐藏，旧操作不得以新会话开始上传；原账号可重试', async () => {
+  for (const reason of ['changed', 'suspended'] as const) {
+    let decoded!: () => void, calls = 0
+    const draft = createDraft({
+      upload: async f => { calls++; return { fileId: f.name, name: f.name, url: f.name } },
+      deleteFile: async () => {}, create: async () => ({ taskId: 'unused' })
+    }, () => new Promise<void>(resolve => { decoded = resolve }), urls)
+    draft.add(file('A-private.png'))
+    identity.advance(reason); decoded(); await flush()
+    assert.equal(calls, 0)
+    assert.equal(draft.state.images[0].state, 'failed')
+    assert.match(draft.state.images[0].error, /身份已变化/)
+    draft.retry(draft.state.images[0]); decoded(); await flush()
+    assert.equal(calls, 1)
+    assert.equal(draft.state.images[0].state, 'ready')
+  }
+})
+
+test('上传已经发出后换号，不接收旧结果且保留原文件供确认', async () => {
+  let complete!: (value: ApiPicture) => void
+  const raw = file('A.png')
+  const draft = createDraft({
+    upload: () => new Promise(resolve => { complete = resolve }),
+    deleteFile: async () => {}, create: async () => ({ taskId: 'unused' })
+  }, async () => {}, urls)
+  draft.add(raw); await flush(); identity.advance('changed')
+  complete({ fileId: 'old', name: raw.name, url: 'old' }); await flush()
+  assert.equal(draft.state.images[0].state, 'failed')
+  assert.equal(draft.state.images[0].fileId, undefined)
+  assert.equal(draft.state.images[0].raw, raw)
+})
 function setup() {
   const uploads = new Map<string, (p: ApiPicture) => void>()
   const calls: { input: ApiTaskInput; key: string }[] = [], deleted: string[] = []

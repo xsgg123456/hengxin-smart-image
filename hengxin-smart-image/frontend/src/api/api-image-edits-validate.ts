@@ -1,4 +1,4 @@
-import type { ApiChannel, ApiItem, ApiPicture, ApiTask, ApiTaskPage, ApiVersion } from '../types/api-image-edits'
+import type { ApiChannel, ApiItem, ApiPicture, ApiTask, ApiTaskPage, ApiTaskSummary, ApiVersion } from '../types/api-image-edits'
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const text = (v: unknown): v is string => typeof v === 'string'
 const id = (v: unknown): v is string => text(v) && v.length > 0
@@ -25,7 +25,13 @@ export const task = (v: unknown): v is ApiTask => object(v) && id(v.id) && text(
   && Array.isArray(v.events) && v.events.every(text) && nullableText(v.error)
   && object(v.metrics) && count(v.metrics.requestCount) && count(v.metrics.retryCount)
   && (v.metrics.elapsedSeconds === null || (typeof v.metrics.elapsedSeconds === 'number' && Number.isFinite(v.metrics.elapsedSeconds) && v.metrics.elapsedSeconds >= 0))
-export const page = (v: unknown): v is ApiTaskPage => object(v) && Array.isArray(v.items) && v.items.every(task)
+export const summary = (v: unknown): v is ApiTaskSummary => object(v) && id(v.id) && text(v.name) && text(v.created)
+  && text(v.operator) && text(v.status) && ['queued', 'running', 'succeeded', 'partial_failed', 'failed', 'uncertain'].includes(v.status)
+  && (v.cover === null || picture(v.cover)) && object(v.counts) && count(v.counts.total)
+  && count(v.counts.success) && count(v.counts.failed) && count(v.counts.uncertain)
+  && v.counts.success + v.counts.failed + v.counts.uncertain <= v.counts.total
+  && object(v.batch) && count(v.batch.current) && count(v.batch.total) && count(v.batch.running)
+export const page = (v: unknown): v is ApiTaskPage => object(v) && Array.isArray(v.items) && v.items.every(summary)
   && count(v.total) && count(v.page) && v.page > 0 && count(v.pageSize) && v.pageSize > 0
 export const channel = (v: unknown): v is ApiChannel => object(v) && typeof v.enabled === 'boolean' && typeof v.paused === 'boolean' && nullableText(v.reason)
 export const accepted = (v: unknown): v is { taskId: string } => object(v) && id(v.taskId)

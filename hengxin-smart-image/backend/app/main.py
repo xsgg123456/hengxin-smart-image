@@ -6,6 +6,7 @@ from app.core.config import get_settings
 from app.contracts.router import router as contracts_router
 from app.contracts.business import ApiErrorBody
 from app.errors import register_errors
+from app.http_timing import HttpTimingMiddleware
 from app.health import router as health_router
 from app.jobs import router as jobs_router
 from app.modules.auth.dev_identity import seed_dev_identity
@@ -35,6 +36,7 @@ app = FastAPI(title="恒信智能影像 API", version="0.1.0", lifespan=lifespan
     500: {"model": ApiErrorBody, "description": "服务异常"},
 })
 register_errors(app)
+app.add_middleware(HttpTimingMiddleware)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
