@@ -6,8 +6,8 @@
       <ElEmpty v-if="!task && !loading" description="任务不可用，请重试或返回任务列表" />
       <template v-if="task && data">
         <div class="hx-detail-toolbar"><div><ElTag>{{ labels[task.mode] }}</ElTag><span class="hx-muted">{{ task.id }} · {{ formatTime(task.time) }}</span></div></div>
-        <div class="hx-filter"><ElButton :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
-        <p class="hx-footnote">单张修改以正在查看的版本为基础；整套修改、下载和归档使用各位置当前版本。相同版本再次归档会返回已有成品。</p>
+        <div class="hx-filter"><ElButton v-if="showWholeRevision" :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
+        <p class="hx-footnote">单张修改以正在查看的版本为基础；{{ showWholeRevision ? '整套修改、下载和归档' : '下载和归档' }}使用各位置当前版本。相同版本再次归档会返回已有成品。</p>
         <ElAlert v-if="archivedResult" :title="`已归档：${archivedResult.name}`" type="success" :closable="false" show-icon class="hx-gap"><ElButton text type="primary" :disabled="busy" @click="viewArchive">查看该成品</ElButton></ElAlert>
         <ElAlert v-if="isMockMode" title="交互演示：以下为示例图片，尚未调用真实 Skill。修改操作演示版本与状态变化。" type="info" show-icon :closable="false" />
         <ElAlert v-if="fixtureNotice(task)" :title="fixtureNotice(task)" type="warning" show-icon :closable="false" />
@@ -82,6 +82,7 @@ const emit = defineEmits<{ changed: [update?: { taskId: string; state: Task['sta
 const visible = computed(() => open.value && props.active !== false)
 const { data, task, complete, loading, error, load } = useTaskDetail(toRef(props, 'taskId'), visible)
 const currentPictures = computed(() => data.value?.slots.flatMap(slot => slot.versions.filter(v => v.id === slot.currentVersionId)) ?? [])
+const showWholeRevision = computed(() => task.value?.mode !== 'text' || (data.value?.slots.length ?? 0) > 1)
 const user = useUserStore()
 const identity = () => user.isLogin && user.info.userId != null ? String(user.info.userId) : undefined
 const revision = useRevisionSession(identity, () => props.taskId, async (input, key) => {

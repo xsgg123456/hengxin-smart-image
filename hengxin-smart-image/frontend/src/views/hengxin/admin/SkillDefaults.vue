@@ -1,9 +1,9 @@
 <template>
   <ElCard class="art-card hx-section">
-    <h3>模块默认 Skill</h3><p class="hx-muted">模板未指定专用 Skill 时使用此默认值。绑定同一 Skill 的新任务使用最近同步成功的内容。</p>
+    <h3>模块默认 Skill</h3><p class="hx-muted">壁纸、商品模板未指定专用 Skill 时使用此默认值。绑定同一 Skill 的新任务使用最近同步成功的内容。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text :disabled="loading || saving" @click="load">重新加载</ElButton></ElAlert>
     <ElForm v-loading="loading" label-position="top" :disabled="loading || saving || !ready || props.disabled">
-      <ElFormItem v-for="(label, mode) in labels" :key="mode" :label="label">
+      <ElFormItem v-for="(label, mode) in defaultSkillLabels" :key="mode" :label="label">
         <ElSelect v-model="values[mode]" clearable :aria-label="`${label}默认 Skill`" placeholder="不设置默认 Skill" @clear="values[mode] = null">
           <ElOption v-if="unavailable(mode)" :value="values[mode]!" label="原默认 Skill已不可用，请重新选择或清空" disabled />
           <ElOption v-for="skill in available(mode)" :key="skill.id" :value="skill.id" :label="skill.name" />
@@ -19,7 +19,7 @@ import { ElMessage } from 'element-plus'
 import { getCatalogDefaults, saveCatalogDefaults } from '@/api/management'
 import type { Mode, SystemConfig } from '@/types/hengxin'
 import type { CatalogSkill } from '@/types/management'
-import { labels } from '../model'
+import { defaultSkillLabels } from '../model'
 const props = defineProps<{ skills: CatalogSkill[]; disabled?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 const values = ref<SystemConfig['defaultSkillIds']>({ wallpaper: null, product: null, text: null })

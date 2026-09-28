@@ -5,6 +5,7 @@ import type { Mode } from '../../types/hengxin'
 export { createTask } from '../../api/tasks'
 export type { Archive, Mode, Picture, Task, Template } from '../../types/hengxin'
 export const labels: Record<Mode, string> = { wallpaper: '替换壁纸', product: '替换商品', text: '替换文字' }
+export const defaultSkillLabels = { wallpaper: labels.wallpaper, product: labels.product }
 export const connection = reactive({ loading: false, error: '' })
 let refreshing: Promise<void> | undefined
 /** 仅启动阶段的兼容检查；页面列表与详情各自查询，不共享过期快照。 */
