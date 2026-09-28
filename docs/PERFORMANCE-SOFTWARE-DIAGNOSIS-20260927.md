@@ -721,3 +721,5 @@ reviewer独立执行原候选五组51 passed（10.11秒），最终候选13项�
 用户确认全站直接原图，包括列表封面、模板、成品、输入素材、历史版本与对照；公共PicturePreview统一picture.url，删除派生URL helper和其已失效专用测试，清理original/size调用参数。lazy、分页折叠、身份、列表摘要、轮询、下载标注与后端不变。不会删除既有派生文件或停止后台派生程序。
 
 前端类型检查退出0；193项现有测试全部通过（比0.2.9少1项是移除已删除的派生URL功能测试）；生产构建31.82秒成功，480个发布产物隐私审计通过。实际构建只读接生产：列表、历史及对照图片URL无variant，原图/成品宽790/1024且complete=true；历史图加载完后放大13.2毫秒。本轮页面资源记录variant请求为0。证据output/frontend-ab-20260928/global-0210-browser.json；不将全站静态覆盖冒充每个页面都已逐项手测。
+
+上线完成：0.2.10，代码18e5e4c；发布目录/opt/hengxin-releases/frontend-original-20260928-18e5e4c，备份/opt/hengxin-backups/frontend-original-20260928-18e5e4c。安装481文件逐一哈希通过，公网HTML及入口JS/CSS一致，未登录页面实际浏览器渲染正常。登录态历史/对照行为由两位Agent在同一实际构建接生产只读代理中验证，非线上登录态逐页回归。193测试、类型/构建、独立两阶段审查PASS；候选b2f74e05a7eb60bb5dcade2ed757ece3ff969b763a8987e3bc6909305552c3e4。临时会话撤销、测试服务停止；未重启后端/Worker。归档SHA256 cb85228ec878366c3a65698ccf4d9837ee477f975fb15e884d8213ff0b303840，公网证据output/frontend-ab-20260928/production-0210.json。
