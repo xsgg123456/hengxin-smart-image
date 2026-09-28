@@ -1,5 +1,5 @@
 <template>
-  <ElImage ref="image" :key="`${picture.url}-${attempt}`" :src="displayImageUrl(picture.url, size)" :alt="picture.name" loading="lazy" lazy
+  <ElImage ref="image" :key="`${picture.url}-${attempt}`" :src="original ? picture.url : displayImageUrl(picture.url, size)" :alt="picture.name" loading="lazy" lazy
     fit="contain" @error="onImageError" :preview-src-list="group.map(p => p.url)" :initial-index="index"
     :infinite="false" show-progress preview-teleported class="hx-picture"
     tabindex="0" role="button" :aria-label="`放大查看 ${picture.name}`" @keydown.enter.prevent="image?.showPreview()" @keydown.space.prevent="image?.showPreview()">
@@ -14,7 +14,7 @@ import { identity } from '@/api/hengxin/identity'
 import type { ImageInstance } from 'element-plus'
 import type { Picture } from '@/types/hengxin'
 import { displayImageUrl } from '../display-image'
-const props = withDefaults(defineProps<{ picture: Picture; pictures?: readonly Picture[]; index?: number; title?: string; size?: 256 | 1024 }>(), { size: 256 })
+const props = withDefaults(defineProps<{ picture: Picture; pictures?: readonly Picture[]; index?: number; title?: string; original?: boolean; size?: 256 | 1024 }>(), { size: 256 })
 const group = computed(() => props.pictures?.length ? props.pictures : [props.picture])
 const index = computed(() => Math.max(0, Math.min(props.index ?? 0, group.value.length - 1)))
 const attempt = ref(0), image = ref<ImageInstance>()
