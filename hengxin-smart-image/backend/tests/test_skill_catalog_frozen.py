@@ -29,10 +29,13 @@ def test_new_tasks_latest_old_queued_and_revision_use_original_bytes_after_unreg
     monkeypatch.setattr(get_settings(), 'fixture_delay_seconds', 0)
     with factory.begin() as session:
         session.add(ExecutionGate(id=1))
-    path = publish(root)
+    path = publish(root, mode='product')
     row = sync(catalog_env)[0]
     source = upload(client).json()
-    body = dict(mode='text', name='冻结测试', sources=[source], note='修改文字', skillVersionId=row['id'])
+    template = client.post('/api/v1/templates', json=dict(name='商品模板', mode='product',
+        images=[source], skillVersionId=row['id'], active=True, notes='')).json()
+    body = dict(mode='product', name='冻结测试', sources=[source], note='替换商品', skillVersionId=row['id'],
+                templateId=template['id'], templateVersion=template['version'])
     first = client.post('/api/v1/tasks', json=body, headers={'Idempotency-Key': 'first'})
     assert first.status_code == 202, first.text
     first = first.json()
@@ -43,8 +46,14 @@ def test_new_tasks_latest_old_queued_and_revision_use_original_bytes_after_unreg
         old = session.get(TaskRecord, UUID(first['taskId']))
         new = session.get(TaskRecord, UUID(second['taskId']))
         assert old.skill_version_id != new.skill_version_id
+    assert client.delete('/api/v1/templates/' + template['id']).status_code == 204
     assert client.delete(BASE + '/' + row['id']).status_code == 204
-    assert client.post('/api/v1/tasks', json=body, headers={'Idempotency-Key': 'third'}).status_code == 422
+    from app.modules.skills.service import resolve_binding
+    from fastapi import HTTPException
+    import pytest
+    with factory() as session, pytest.raises(HTTPException) as error:
+        resolve_binding(session, 'product', row['id'])
+    assert error.value.status_code == 422
     # Exercise actual material preparation; the changed live tree and removed registration are irrelevant.
     def material(receipt, label, expected):
         with factory() as session:

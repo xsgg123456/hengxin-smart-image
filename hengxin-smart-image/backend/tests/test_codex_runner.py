@@ -18,7 +18,7 @@ from app.models import Job, utcnow
 from app.modules.skills.models import SkillVersionRecord
 from app.modules.tasks.attempts import ExecutionAttempt, ExecutionSession, ExecutionUsage
 from app.modules.tasks.claims import sweep_expired
-from app.modules.tasks.models import ExecutionGate, ImageVersion
+from app.modules.tasks.models import ExecutionGate, ImageVersion, TaskRecord, TaskSource, ResultSlotRecord
 from files_helpers import files_env, image_bytes, ObjectStream
 from test_tasks import body, submit, job_for
 
@@ -49,6 +49,7 @@ def real_env(files_env, monkeypatch, tmp_path):
 
 
 def frozen_request(env, data=None):
+    """Seed a legacy Skill-bound task; new text admission is tested separately."""
     data = data or body(env)
     buffer = BytesIO()
     with ZipFile(buffer, 'w') as archive:
@@ -59,8 +60,20 @@ def frozen_request(env, data=None):
         version.version = '1.0.0'
         version.checksum = hashlib.sha256(raw).hexdigest()
         env[2].objects[version.object_key] = raw
-    response = submit(env, data)
+    response = submit(env, {**data, 'sources': data['sources'][:1]} if data['mode'] == 'text' else data)
     assert response.status_code == 202, response.text
+    if data['mode'] == 'text':
+        with env[1].begin() as session:
+            task = session.get(TaskRecord, UUID(response.json()['taskId']))
+            version = session.get(SkillVersionRecord, UUID(data['skillVersionId']))
+            task.builtin_prompt = None
+            task.skill_version_id = version.id
+            task.skill_snapshot = {'id': str(version.id), 'version': version.version,
+                                   'checksum': version.checksum, 'name': version.skill.name}
+            for index, source in enumerate(data['sources'][1:], 1):
+                session.add(TaskSource(task_id=task.id, slot=index,
+                    file_id=UUID(source['fileId']), name=source['name']))
+                session.add(ResultSlotRecord(task_id=task.id, slot=index))
     return response.json()
 
 

@@ -55,8 +55,8 @@ export interface Task {
   templateId?: string
   templateVersion?: number
   templateSnapshot?: Template
-  skillSnapshot?: SkillSnapshot
-  skillVersionId: string
+  skillSnapshot?: SkillSnapshot | null
+  skillVersionId: string | null
   ownerId: string
   sessionId: string | null
   state: TaskState
@@ -155,6 +155,7 @@ export interface TemplateInput {
   expectedVersion?: number
 }
 export interface CreateTaskInput {
+  annotationFileId?: string | null
   mode: Mode
   name: string
   templateId?: string

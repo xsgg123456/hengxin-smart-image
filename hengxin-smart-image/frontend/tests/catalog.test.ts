@@ -58,15 +58,16 @@ test('草稿不可生成，类型匹配 Skill、版本冲突及历史快照不�
   assert.deepEqual(current.templateSnapshot?.images, draft.images)
 })
 
-test('无 Skill 场景允许草稿但阻止文字默认与模板执行', async t => {
+test('无 Skill 场景允许草稿和文字任务但阻止模板执行', async t => {
   const service = createMockService({ delayMs: 0, scenario: 'no-skills' }); t.after(() => service.dispose())
   assert.deepEqual(await service.listSkills(), [])
   assert.equal((await service.saveTemplate(draft)).active, false)
   assert.equal((await service.listTemplates({ page: 1, pageSize: 12, activeOnly: true })).total, 0)
-  await assert.rejects(service.createTask({ ...taskInput, mode: 'text', note: '替换标题' }), { code: 'SKILL_UNAVAILABLE' })
+  assert.equal((await service.createTask({ ...taskInput, mode: 'text', note: '替换标题' })).state, '排队中')
+  await assert.rejects(service.createTask({ ...taskInput, templateId: 't1' }), { code: 'VALIDATION' })
 })
 
-test('上传 MIME/大小/空文件、文件引用及20张边界，文字输出数等于输入', async t => {
+test('上传 MIME/大小/空文件、文件引用及20张边界，文字限制一张原图', async t => {
   const service = createMockService({ delayMs: 0, stepMs: 3 }); t.after(() => service.dispose())
   for (const invalid of [new File([], 'a.png', { type: 'image/png' }), new File(['x'], 'a.svg', { type: 'image/svg+xml' }),
     new File([new Uint8Array(MAX_IMAGE_BYTES + 1)], 'a.png', { type: 'image/png' })]) {
@@ -75,10 +76,10 @@ test('上传 MIME/大小/空文件、文件引用及20张边界，文字输出�
   const picture = await service.uploadFile(file()); assert.ok(picture.fileId); assert.match(picture.url, /^blob:/)
   await assert.rejects(service.createTask({ ...taskInput, templateId: 't1', sources: [{ name: '伪造', url: '/fake' }] }), { code: 'VALIDATION' })
   await assert.rejects(service.createTask({ ...taskInput, mode: 'text', note: '替换标题', sources: Array(21).fill(picture) }), { code: 'VALIDATION' })
-  const accepted = await service.createTask({ ...taskInput, mode: 'text', note: '替换标题', sources: Array(20).fill({ ...picture, url: '/tampered' }) })
+  const accepted = await service.createTask({ ...taskInput, mode: 'text', note: '替换标题', sources: [{ ...picture, url: '/tampered' }] })
   await settle(service, accepted.taskId)
   const task = (await service.getWorkspace()).tasks.find(task => task.id === accepted.taskId)!
-  assert.equal(task.images.length, 20); assert.equal(task.skillVersionId, 'mock-text-1'); assert.equal(task.sources[0].url, picture.url)
+  assert.equal(task.images.length, 1); assert.equal(task.skillVersionId, null); assert.equal(task.sources[0].url, picture.url)
 })
 
 test('模拟失败可重试，失败操作没有写入副作用', async t => {

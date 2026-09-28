@@ -27,10 +27,19 @@ def frozen_input(session, body):
         sources.append(file)
     snapshot = None
     if body.mode == 'text':
+        if len(sources) != 1:
+            raise HTTPException(422, '文字替换每次只能上传一张原图')
         if not body.note.strip():
             raise HTTPException(422, '请输入自然语言修改要求')
-        skill = resolve_binding(session, body.mode, body.skillVersionId)
+        from .revision_inputs import image_file
+        from app.modules.management.settings import values
+        file = image_file(session, sources[0].id)
+        if not 0 < file.size_bytes <= min(10 * 1024**2, values(session)['maxUploadBytes']):
+            raise HTTPException(422, '原图超过当前上传大小限制')
+        return sources, None, None
     else:
+        if body.annotationFileId is not None:
+            raise HTTPException(422, '只有文字新任务支持定位标注图')
         try:
             template_id = UUID(body.templateId)
         except (ValueError, TypeError, AttributeError):

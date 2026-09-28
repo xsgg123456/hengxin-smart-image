@@ -1,16 +1,16 @@
 <template>
   <div class="annotation-editor">
     <section class="picture-area" v-loading="loading">
-      <ElAlert v-if="loadError" :title="loadError" type="error" :closable="false"><ElButton text @click="load">重新读取成品原图</ElButton></ElAlert>
+      <ElAlert v-if="loadError" :title="loadError" type="error" :closable="false"><ElButton text @click="load">重新读取{{ sourceLabel }}原图</ElButton></ElAlert>
       <AnnotationCanvas v-if="original" v-model="draft.marks" :image-url="originalUrl" :width="original.naturalWidth" :height="original.naturalHeight" :disabled="disabled || draft.mode !== 'direct' || previewOpen" :selected-id="selected" @select="selected = $event" />
-      <p class="hx-footnote">{{ original ? `成品原始尺寸：${original.naturalWidth} × ${original.naturalHeight}` : '正在读取所选版本的成品原始文件' }} · {{ baseLabel }}</p>
+      <p class="hx-footnote">{{ original ? `${sourceLabel}原始尺寸：${original.naturalWidth} × ${original.naturalHeight}` : `正在读取${sourceLabel}原始文件` }} · {{ baseLabel }}</p>
     </section>
     <aside>
       <ElRadioGroup v-model="draft.mode" :disabled="disabled || previewOpen"><ElRadioButton value="direct">直接标注</ElRadioButton><ElRadioButton value="upload">上传已有标注图</ElRadioButton></ElRadioGroup>
       <template v-if="draft.mode === 'direct'">
         <h3>问题位置与修改意见 · {{ draft.marks.length }} 处</h3>
-        <p class="hx-footnote">先框选或用画笔圈出位置，再填写修改意见。</p>
-        <div class="mark-notes"><ElEmpty v-if="!draft.marks.length" description="从左侧框选或圈注第一处问题" :image-size="60" />
+        <p class="hx-footnote">{{ markingOptional ? '可直接填写下方修改意见；需要定位时，再框选或用画笔标注。' : '先框选或用画笔圈出位置，再填写修改意见。' }}</p>
+        <div class="mark-notes"><ElEmpty v-if="!draft.marks.length" :description="markingOptional ? '标注可选，填写修改意见即可提交' : '从左侧框选或圈注第一处问题'" :image-size="60" />
           <div v-for="(mark, i) in draft.marks" :key="mark.id" class="mark-note" :class="{ selected: selected === mark.id }" @click="selected = mark.id">
             <label :for="`mark-${mark.id}`">标注 {{ i + 1 }} · {{ mark.kind === 'rect' ? '框选' : '画笔' }}</label>
             <ElInput :id="`mark-${mark.id}`" v-model="mark.note" :aria-label="`标注 ${i + 1} 修改意见`" type="textarea" :rows="2" :maxlength="limit" :disabled="disabled || previewOpen" placeholder="这里需要改成什么？" />
@@ -28,8 +28,8 @@
     </aside>
   </div>
   <ElDialog v-model="previewOpen" title="确认本次修改内容" width="min(1000px, 94vw)" append-to-body align-center :close-on-click-modal="false" :show-close="!disabled" :close-on-press-escape="!disabled">
-    <div class="confirmation"><ElImage :src="previewUrl || originalUrl" fit="contain" /><div><strong>{{ baseLabel }} · 无标注成品为修改基础</strong><p class="hx-footnote">标注仅用于定位，不承诺框外像素逐一不变。</p><pre>{{ prepared?.text || '根据上传标注图定位修改' }}</pre></div></div>
-    <template #footer><ElButton :disabled="disabled" @click="previewOpen = false">返回继续标注</ElButton><ElButton type="primary" :loading="disabled" @click="confirm">确认提交修改</ElButton></template>
+    <div class="confirmation"><ElImage :src="previewUrl || originalUrl" fit="contain" /><div><strong>{{ baseLabel }} · 无标注{{ sourceLabel }}为修改基础</strong><p class="hx-footnote">标注仅用于定位，不承诺框外像素逐一不变。</p><pre>{{ prepared?.text || '根据上传标注图定位修改' }}</pre></div></div>
+    <template #footer><ElButton :disabled="disabled" @click="previewOpen = false">返回继续标注</ElButton><ElButton type="primary" :loading="disabled" @click="confirm">{{ confirmLabel }}</ElButton></template>
   </ElDialog>
 </template>
 <script setup lang="ts">
@@ -38,7 +38,7 @@ import AnnotationCanvas from './AnnotationCanvas.vue'
 import UploadInteraction from '../UploadInteraction.vue'
 import { annotationDraft, annotationText } from './annotation-drafts'
 import { exportAnnotation } from './annotation-export'
-const props = defineProps<{ draftKey: string; loadOriginal: () => Promise<Blob>; baseLabel: string; limit: number; disabled?: boolean; requireText?: boolean }>()
+const props = withDefaults(defineProps<{ markingOptional?: boolean; sourceLabel?: string; confirmLabel?: string; draftKey: string; loadOriginal: () => Promise<Blob>; baseLabel: string; limit: number; disabled?: boolean; requireText?: boolean }>(), { sourceLabel: '成品', confirmLabel: '确认提交修改' })
 export interface PreparedAnnotation { text: string; file?: File }
 const emit = defineEmits<{ submit: [value: PreparedAnnotation] }>()
 const draft = computed(() => annotationDraft(props.draftKey))
@@ -52,9 +52,9 @@ async function load() {
   let url = ''
   try {
     const blob = await props.loadOriginal()
-    if (!blob.size || !blob.type.startsWith('image/')) throw new Error('成品原始文件不可用')
+    if (!blob.size || !blob.type.startsWith('image/')) throw new Error(`${props.sourceLabel}原始文件不可用`)
     url = URL.createObjectURL(blob); const image = new Image(); image.src = url; await image.decode()
-    if (!image.naturalWidth || !image.naturalHeight) throw new Error('成品原图无法解码')
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error(`${props.sourceLabel}原图无法解码`)
     if (token !== generation) return
     original.value = image; originalUrl.value = url; url = ''
   } catch (error) { if (token === generation) loadError.value = error instanceof Error ? error.message : '原图读取失败' }
@@ -83,7 +83,7 @@ async function preview() {
   if (props.disabled || preparing.value) return
   localError.value = ''; preparing.value = true; const token = generation
   try {
-    if (!original.value) throw new Error('请等待成品原图读取成功后再提交')
+    if (!original.value) throw new Error(`请等待${props.sourceLabel}原图读取成功后再提交`)
     const text = annotationText(draft.value, props.limit, !props.requireText)
     const file = draft.value.mode === 'upload' ? draft.value.uploaded : draft.value.marks.length ? await exportAnnotation(original.value, draft.value.marks) : undefined
     if (token !== generation || props.disabled) return

@@ -60,23 +60,24 @@ test('默认和模板引用保护、权限变化、空态和请求失败', async
 test('模板按Skill身份绑定，同步替换内容但不改已提交任务快照', async t => {
   const api = createMockService({ user: admin, delayMs: 0, stepMs: 100000 })
   t.after(() => api.dispose())
-  const row = (await api.listSkillCatalog('text'))[0]
+  const row = (await api.listSkillCatalog('product'))[0]
   const picture = await api.uploadFile(new File(['image'], 'a.png', { type: 'image/png' }))
-  const receipt = await api.createTask({ name: '冻结', mode: 'text', note: '修改文字', skillVersionId: row.id, sources: [picture] })
+  const receipt = await api.createTask({ name: '冻结', mode: 'product', templateId: 't3', note: '修改文字', skillVersionId: row.id, sources: [picture] })
   const before = (await api.getTask(receipt.taskId)).task.skillSnapshot
   await api.syncSkillCatalog()
   await new Promise(resolve => setTimeout(resolve, 1250))
   assert.equal((await api.getSkillSync()).status, 'succeeded')
-  assert.notEqual((await api.listSkills('text'))[0].checksum, before?.checksum)
+  assert.notEqual((await api.listSkills('product'))[0].checksum, before?.checksum)
   await api.setCatalogStatus(row.id, 'disabled')
   assert.deepEqual((await api.getTask(receipt.taskId)).task.skillSnapshot, before)
-  await assert.rejects(api.createTask({ name: '不能静默替换', mode: 'text', note: '修改文字', skillVersionId: row.id, sources: [picture] }), { code: 'SKILL_UNAVAILABLE' })
+  await assert.rejects(api.createTask({ name: '不能静默替换', mode: 'product', templateId: 't3', note: '修改文字', skillVersionId: row.id, sources: [picture] }), { code: 'SKILL_UNAVAILABLE' })
   const defaults = await api.getCatalogDefaults()
-  await api.saveCatalogDefaults({ ...defaults, text: null })
+  await api.saveCatalogDefaults({ ...defaults, product: null })
+  await api.deleteTemplate('t3'); await api.deleteTemplate('t4')
   await api.removeCatalogSkill(row.id)
   assert.deepEqual((await api.getTask(receipt.taskId)).task.skillSnapshot, before)
   const bound = (await api.listSkillCatalog('wallpaper'))[0]
-  await api.saveCatalogDefaults({ ...defaults, text: null, wallpaper: null })
+  await api.saveCatalogDefaults({ ...defaults, product: null, wallpaper: null })
   await assert.rejects(api.removeCatalogSkill(bound.id), { code: 'CONFLICT' })
 })
 test('目录HTTP契约校验、路径编码和错误保真', async () => {

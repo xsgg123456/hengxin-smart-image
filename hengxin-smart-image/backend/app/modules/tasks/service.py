@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -46,10 +46,14 @@ def create_task(session, user, body, key):
         return previous
     available()
     sources, snapshot, skill = frozen_input(session, body)
+    from .revision_inputs import freeze_annotation
+    from app.execution.text_prompt import snapshot as text_snapshot
+    annotation_id = freeze_annotation(session, user, UUID(body.annotationFileId) if body.annotationFileId else None)
     task = TaskRecord(name=body.name.strip(), sku=(body.sku or '').strip(), mode=body.mode,
-        owner_id=user.id, template_snapshot=snapshot, skill_version_id=skill.id,
+        owner_id=user.id, template_snapshot=snapshot, skill_version_id=skill.id if skill else None,
         skill_snapshot={'id': str(skill.id), 'version': skill.version, 'checksum': skill.checksum,
-                        'name': skill.skill.name},
+                        'name': skill.skill.name} if skill else {},
+        builtin_prompt=text_snapshot() if body.mode == 'text' else None,
         execution_source='cli' if get_settings().enable_codex_executor else 'fixture')
     session.add(task)
     session.flush()
@@ -58,6 +62,7 @@ def create_task(session, user, body, key):
     count = len(snapshot['images']) if snapshot else len(sources)
     session.add_all([ResultSlotRecord(task_id=task.id, slot=i) for i in range(count)])
     round = enqueue(session, user, task, body.note)
+    round.annotation_file_id = annotation_id
     session.add(TaskRequest(user_id=user.id, operation='create', target='', key=key,
         body_hash=digest, task_id=task.id, round_id=round.id))
     try:

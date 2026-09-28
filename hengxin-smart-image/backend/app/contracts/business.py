@@ -110,8 +110,8 @@ class Task(BaseModel):
     templateId: str = omitted()
     templateVersion: int = omitted()
     templateSnapshot: Template = omitted()
-    skillSnapshot: SkillSnapshot = omitted()
-    skillVersionId: str
+    skillSnapshot: SkillSnapshot | None = None
+    skillVersionId: str | None
     ownerId: str
     sessionId: str | None
     state: TaskState
@@ -224,6 +224,12 @@ class CreateTaskInput(BaseModel):
     sku: str = omitted()
     sources: list[Picture]
     note: str
+    annotationFileId: str | None = None
+
+    @field_validator('annotationFileId')
+    @classmethod
+    def valid_annotation_uuid(cls, value):
+        return str(UUID(value)) if value is not None else None
 
 
 class RevisionInput(BaseModel):

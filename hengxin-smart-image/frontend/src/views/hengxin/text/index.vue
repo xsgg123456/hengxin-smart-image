@@ -1,4 +1,4 @@
-<template><CreateTask mode="text" /></template>
+<template><TextCreateTask /></template>
 <script setup lang="ts">
-import CreateTask from '../components/CreateTask.vue'
+import TextCreateTask from '../components/TextCreateTask.vue'
 </script>

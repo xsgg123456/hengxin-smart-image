@@ -32,6 +32,9 @@ def single_revision_prompt(manifest, note):
 
 
 def prompt_for(manifest, note, session_id=None):
+    if 'builtinPrompt' in manifest:
+        from .text_prompt import prompt_for_text
+        return prompt_for_text(manifest, note)
     inputs, targets = manifest['inputs'], manifest['targets']
     if manifest.get('singleRevision') and len(targets) == 1 and targets[0].get('currentPath'):
         return single_revision_prompt(manifest, note)

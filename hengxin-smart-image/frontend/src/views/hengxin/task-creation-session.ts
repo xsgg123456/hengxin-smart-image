@@ -1,9 +1,11 @@
-import { computed, reactive } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import type { Mode, Picture, Template, HengxinService } from '../../types/hengxin'
+import { forgetAnnotationDraft } from './components/annotation/annotation-drafts'
 import { createSubmissionState, useTaskSubmission } from './task-submission'
 
 function createSession() {
   return { submission: createSubmissionState(), draft: reactive({
+    annotationKey: crypto.randomUUID(),
     template: undefined as Template | undefined, sources: [] as Picture[], name: '', sku: '', note: ''
   }) }
 }
@@ -19,6 +21,12 @@ export function useTaskCreationSession(identity: () => string | undefined, mode:
     if (!sessions.has(key)) sessions.set(key, createSession())
     return sessions.get(key)!
   })
+  watch(() => [session.value, session.value.draft.sources.map(p => p.fileId || p.url).join('|')] as const, ([current, source], previous) => {
+    if (mode() !== 'text' || !previous || current !== previous[0] || source === previous[1]) return
+    forgetAnnotationDraft(current.draft.annotationKey)
+    current.draft.annotationKey = crypto.randomUUID()
+    current.draft.note = ''
+  }, { flush: 'sync' })
   const submission = useTaskSubmission((input, key) => {
     if (!identity()) throw new Error('请重新登录后确认上次提交')
     return send(input, key)

@@ -39,7 +39,7 @@ class ListBatch:
         self._load(session, UserRecord, UserRecord.id.in_({task.owner_id for task in tasks}))
         self._load(session, ExecutionSession, ExecutionSession.task_id.in_(ids))
         self._load(session, SkillVersionRecord, SkillVersionRecord.id.in_(
-            {task.skill_version_id for task in tasks}))
+            {task.skill_version_id for task in tasks if task.skill_version_id}))
         self.archived = set(session.scalars(select(ArchiveRecord.task_id).where(
             ArchiveRecord.task_id.in_(ids), ArchiveRecord.deleted_at.is_(None))))
 

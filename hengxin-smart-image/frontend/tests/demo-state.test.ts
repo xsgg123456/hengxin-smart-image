@@ -58,7 +58,7 @@ test('Demo 模板历史、默认配置、角色修改在快照恢复后保持一
 test('Demo 失败场景刷新继续重试，不丢掉已成功槽位', async t => {
   const first = createMockService({ demo: true, user, delayMs: 0, stepMs: 5, scenario: 'partial-result' })
   t.after(() => first.dispose())
-  const receipt = await first.createTask({ mode: 'text', name: '部分失败', sources: demoImages('text', 2), note: '修改文案' })
+  const receipt = await first.createTask({ mode: 'wallpaper', templateId: 't1', name: '部分失败', sources: demoImages('wallpaper', 2), note: '修改文案' })
   const failed = await waitFor(() => first.getTask(receipt.taskId), value => value.task.state === '部分失败')
   assert.equal(failed.task.state, '部分失败')
   const restored = createMockService({ demo: true, user, delayMs: 0, stepMs: 5, scenario: 'partial-result', snapshot: first.snapshot() })

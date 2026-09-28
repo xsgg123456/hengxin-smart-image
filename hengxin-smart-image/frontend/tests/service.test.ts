@@ -92,3 +92,19 @@ test('合法 JSON 的错误结构被拒绝，不能误受理或导致页面崩�
   const workspace = await seed.getWorkspace()
   assert.deepEqual(await responder(workspace).getWorkspace(), workspace)
 })
+
+
+test('新文字任务无需 Skill，仅一张原图且 HTTP 接受空 Skill 快照', async t => {
+  const service = createMockService({ delayMs: 0, stepMs: 1000, empty: true })
+  t.after(() => service.dispose())
+  const textInput = { mode: 'text' as const, name: '单图改字', sources: sampleImages('text', 1), note: '将标题甲改为乙' }
+  const receipt = await service.createTask(textInput)
+  const detail = await service.getTask(receipt.taskId)
+  assert.equal(detail.task.skillVersionId, null)
+  assert.equal(detail.task.skillSnapshot, null)
+  assert.equal(detail.task.outputCount, 1)
+  const http = createHttpService('/api/v1', async () => new Response(JSON.stringify(detail), { headers: { 'content-type': 'application/json' } }))
+  assert.equal((await http.getTask(receipt.taskId)).task.id, receipt.taskId)
+  await assert.rejects(service.createTask({ ...textInput, sources: sampleImages('text', 2) }), { code: 'VALIDATION' })
+  await assert.rejects(service.createTask({ ...textInput, note: '' }), { code: 'VALIDATION' })
+})

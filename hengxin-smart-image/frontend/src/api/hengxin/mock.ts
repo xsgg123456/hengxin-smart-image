@@ -48,18 +48,21 @@ export function createMockService(options: { demo?: boolean; snapshot?: DemoStat
       const sources = catalog.resolvePictures(input.sources)
       if (input.name.trim().length > 60 || (input.sku?.length ?? 0) > 80 || input.note.length > 1000) throw new ApiError('VALIDATION', '名称、SKU 或说明长度超限', 422)
       if (template && input.templateVersion !== undefined && template.version !== input.templateVersion) throw new ApiError('CONFLICT', '模板版本已更新，请重新选择模板', 409)
-      const skill = catalog.resolveSkill(input.mode, template?.skillVersionId ?? input.skillVersionId)
+      if (input.mode === 'text' && input.sources.length !== 1) throw new ApiError('VALIDATION', '文字替换每次仅处理一张原图', 422)
+      const skill = input.mode === 'text' ? undefined : catalog.resolveSkill(input.mode, template?.skillVersionId ?? input.skillVersionId)
+      if (input.mode !== 'text' && input.annotationFileId) throw new ApiError('VALIDATION', '仅文字任务接受首轮标注图', 422)
+      const annotation = input.annotationFileId ? catalog.resolvePictures([{ fileId: input.annotationFileId, name: '', url: '' }])[0] : null
       const task: Task = {
         id: `HX-${crypto.randomUUID()}`, name: input.name.trim(), mode: input.mode, template: template?.name ?? '无需模板',
         templateId: template?.id, templateVersion: template?.version, templateSnapshot: template ? copy(template) : undefined,
-        skillSnapshot: { id: skill.id, name: skill.name, version: skill.version, checksum: skill.checksum },
-        skillVersionId: skill.id, sku: input.sku?.trim(), ownerId: user.id, ownerName: user.name, sessionId: null,
+        skillSnapshot: skill ? { id: skill.id, name: skill.name, version: skill.version, checksum: skill.checksum } : null,
+        skillVersionId: skill?.id ?? null, sku: input.sku?.trim(), ownerId: user.id, ownerName: user.name, sessionId: null,
         state: '排队中', progress: 0, images: [], outputCount: template?.images.length ?? input.sources.length,
         sources, feedback: input.note ? [`初始要求：${input.note}`] : [],
         time: new Date().toISOString(), archived: false, currentRoundId: ''
       }
       db.tasks.unshift(task)
-      const accepted = tasks.run(task, null, input.note, true)
+      const accepted = tasks.run(task, null, input.note, true, { annotation })
       submissions.set(key, { fingerprint, accepted })
       return copy(accepted)
     },

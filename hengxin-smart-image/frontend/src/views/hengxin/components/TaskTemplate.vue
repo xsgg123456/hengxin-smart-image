@@ -10,11 +10,12 @@
         </ElTag>
       </div>
       <div class="hx-binding-item">
-        <span class="hx-binding-label">Skill</span>
-        <strong class="hx-binding-name">{{ skillName || "未记录" }}</strong>
+        <span class="hx-binding-label">{{ builtinText ? "处理方式" : "Skill" }}</span>
+        <strong class="hx-binding-name">{{ skillName || (builtinText ? "文字替换" : "未记录") }}</strong>
       </div>
     </div>
-    <p class="hx-footnote">
+    <p v-if="builtinText" class="hx-footnote">使用任务创建时保存的文字替换要求。</p>
+    <p v-else class="hx-footnote">
       以上绑定来自任务提交时的快照，后续模板或 Skill
       更新不影响此任务。
     </p>
@@ -28,7 +29,7 @@
         </figure>
       </div>
     </section>
-    <ElCollapse v-model="technicalDetailsOpen" class="hx-binding-details">
+    <ElCollapse v-if="!builtinText" v-model="technicalDetailsOpen" class="hx-binding-details">
       <ElCollapseItem name="technical">
         <template #title>技术详情</template>
         <dl class="hx-technical-details" aria-label="任务绑定技术详情">
@@ -94,6 +95,7 @@ import PicturePreview from './PicturePreview.vue';
 
 const props = defineProps<{ task: Task }>();
 const templatePictures = computed(() => props.task.templateSnapshot?.images ?? []);
+const builtinText = computed(() => props.task.mode === "text" && props.task.skillVersionId === null);
 const technicalDetailsOpen = ref<string[]>([]);
 
 const templateName = computed(() => {
@@ -122,7 +124,7 @@ const templateVersionLabel = computed(() =>
 const skillName = computed(() => props.task.skillSnapshot?.name?.trim() || "");
 const skillId = computed(
   () =>
-    props.task.skillSnapshot?.id?.trim() || props.task.skillVersionId.trim(),
+    props.task.skillSnapshot?.id?.trim() || props.task.skillVersionId?.trim() || "",
 );
 const skillChecksum = computed(
   () => props.task.skillSnapshot?.checksum?.trim() || "",

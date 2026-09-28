@@ -35,7 +35,8 @@ export function useCreateTask(mode: Ref<Mode>) {
     if (!sources.value.length) result.push(mode.value === 'text' ? '上传待修改图片' : '上传替换素材')
     if (!name.value.trim()) result.push('填写任务名称')
     if (mode.value === 'text' && !note.value.trim()) result.push('填写文字修改要求')
-    if (!skill.value) result.push('等待可用 Skill')
+    if (mode.value !== 'text' && !skill.value) result.push('等待可用 Skill')
+    if (mode.value === 'text' && sources.value.length > 1) result.push('仅保留一张原图')
     if (uploadBlocked.value) result.push('处理失败或仍在上传的图片')
     return result
   })
@@ -62,9 +63,10 @@ export function useCreateTask(mode: Ref<Mode>) {
     const isCurrent = () => current === sequence && requestedSession === session.value
     const requestedMode = mode.value
     loading.value = true; loadError.value = ''
+    if (requestedMode === 'text') { loading.value = false; return }
     try {
       const [catalog, result] = await Promise.all([
-        listSkillCatalog(requestedMode), requestedMode === 'text' ? undefined : listTemplates({
+        listSkillCatalog(requestedMode), listTemplates({
           page: page.value, pageSize, search: search.value.trim(), mode: requestedMode, activeOnly: true, sort: 'updated'
         })
       ])
@@ -72,7 +74,7 @@ export function useCreateTask(mode: Ref<Mode>) {
       skillVersions.value = catalog
       available.value = result?.items ?? []; total.value = result?.total ?? 0
       const requestedId = typeof route.query.template === 'string' ? route.query.template : undefined
-      if (requestedMode !== 'text' && requestedId && !template.value) {
+      if (requestedId && !template.value) {
         const linked = await getTemplate(requestedId)
         if (!isCurrent()) return
         if (linked.mode !== requestedMode || !linked.active) throw new Error('链接中的模板不可用于当前类型，请前往模板库重新选择')
@@ -104,8 +106,12 @@ export function useCreateTask(mode: Ref<Mode>) {
   async function viewAccepted() {
     if (accepted.value) await router.push({ path: '/tasks/index', query: { task: accepted.value.taskId } })
   }
-  function startNew() { submission.startNew(); error.value = '' }
-  async function submit(resolvePrevious = false) {
+  function startNew() {
+    if (!accepted.value) return
+    submission.startNew(); error.value = ''
+    if (mode.value === 'text') { sources.value = []; note.value = ''; name.value = ''; sku.value = '' }
+  }
+  async function submit(resolvePrevious = false, annotationFileId?: string | null) {
     if (accepted.value) { await viewAccepted(); return }
     if (submitting.value || (!resolvePrevious && blocked.value)) return
     const missing = validationErrors.value
@@ -117,13 +123,14 @@ export function useCreateTask(mode: Ref<Mode>) {
     try {
       const receipt = resolvePrevious ? await submission.resolvePrevious() : await submission.submit({ mode: mode.value, name: name.value.trim(), sku: sku.value.trim() || undefined,
         templateId: template.value?.id, templateVersion: template.value?.version, skillVersionId: skill.value?.id,
-        sources: sources.value.map(p => ({ ...p })), note: note.value.trim() })
+        sources: sources.value.map(p => ({ ...p })), note: note.value.trim(),
+        ...(mode.value === 'text' ? { annotationFileId: annotationFileId ?? null } : {}) })
       // 工作区读取错误会卸载表单，但不应丢弃已经受理的任务标识。
       if (alive && identity() === submittedOwner && session.value === submittedSession && router.currentRoute.value.fullPath === submittedFrom) await router.push({ path: '/tasks/index', query: { task: receipt.taskId } })
     } catch (cause) {
       if (alive) { error.value = cause instanceof Error ? cause.message : '提交失败，请重试'; ElMessage.error(error.value) }
     } finally { if (alive) submitting.value = false }
   }
-  return { available, template, sources, name, sku, note, search, page, pageSize, total, loading, loadError, error,
+  return { session, available, template, sources, name, sku, note, search, page, pageSize, total, loading, loadError, error,
     submitting, uploadBlocked, skill, blocked, validationErrors, select, load, example, submit, accepted, uncertain, viewAccepted, startNew }
 }

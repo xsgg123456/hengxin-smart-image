@@ -30,6 +30,9 @@ def read_object(store, record, limit):
 
 def prepare_materials(session, store, task, round, workspace):
     manifest = {'mode': task.mode, 'inputs': [], 'targets': []}
+    builtin = task.mode == 'text' and task.builtin_prompt is not None
+    if builtin:
+        manifest['builtinPrompt'] = task.builtin_prompt
     sources = session.scalars(select(TaskSource).where(TaskSource.task_id == task.id)
                               .order_by(TaskSource.slot)).all()
     template = task.template_snapshot
@@ -41,7 +44,7 @@ def prepare_materials(session, store, task, round, workspace):
             ResultSlotRecord.task_id == task.id, ResultSlotRecord.slot == round.target))
         single_base = (round.base_version_id if round.execution_config.get('singleInputFrozen')
                        else slot.current_version_id if slot else None)
-    inputs = [] if single_base and task.mode == 'text' else [{'fileId': str(s.file_id)} for s in sources]
+    inputs = [] if builtin or (single_base and task.mode == 'text') else [{'fileId': str(s.file_id)} for s in sources]
     for category, items in [('inputs', inputs),
                             ('targets', [targets[i] for i in selected])]:
         original = category == 'targets' and bool(single_base) and task.mode == 'wallpaper'
@@ -99,7 +102,7 @@ def prepare_materials(session, store, task, round, workspace):
         (directory / name).write_bytes(read_object(store, file, 10 * 1024 * 1024))
         manifest['annotationPath'] = '/work/annotation/' + name
         manifest['annotationFileId'] = str(file.id)
-    if single_base:
+    if single_base or builtin:
         workspace.use_skill = False
         return manifest
     version = session.get(SkillVersionRecord, task.skill_version_id)

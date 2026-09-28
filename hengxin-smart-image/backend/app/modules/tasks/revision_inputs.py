@@ -19,7 +19,7 @@ def image_file(session, file_id):
 
 def freeze_revision(session, user, task, body, current):
     fields = body.model_fields_set
-    if body.target is None and (body.baseVersionId is not None or body.annotationFileId is not None):
+    if not body.retry and body.target is None and (body.baseVersionId is not None or body.annotationFileId is not None):
         raise HTTPException(422, '整套修改不能指定单张基础版本或圈注截图')
     if body.retry:
         for field, original in [('baseVersionId', current.base_version_id),
@@ -44,10 +44,15 @@ def freeze_revision(session, user, task, body, current):
     elif slot.current_version_id:
         raise HTTPException(422, '已有结果时必须指定所见基础版本')
     annotation_id = UUID(body.annotationFileId) if body.annotationFileId else None
+    freeze_annotation(session, user, annotation_id)
+    return base_id, annotation_id, True
+
+
+def freeze_annotation(session, user, annotation_id):
     if annotation_id:
         file = image_file(session, annotation_id)
         if file.owner_id != user.id:
             raise HTTPException(403, '只能提交自己上传的圈注截图')
         if not 0 < file.size_bytes <= min(10 * 1024**2, values(session)['maxUploadBytes']):
             raise HTTPException(422, '圈注截图超过当前上传大小限制')
-    return base_id, annotation_id, True
+    return annotation_id

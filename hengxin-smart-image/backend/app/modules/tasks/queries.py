@@ -61,7 +61,7 @@ def serialize(session, task, batch=None):
     incomplete = any(slot.current_version_id is None or slot.error for slot in slots)
     state = '部分失败' if current.status == 'succeeded' and incomplete else round_state(current)
     data = dict(id=str(task.id), name=task.name, mode=task.mode, template='',
-        skillVersionId=str(task.skill_version_id), ownerId=str(task.owner_id),
+        skillVersionId=str(task.skill_version_id) if task.skill_version_id else None, ownerId=str(task.owner_id),
         sessionId=identity.session_id if identity else None,
         state=state, progress=100 if state == '待查看' else None,
         images=images, sources=[picture(get(FileRecord, source.file_id)) for source in sources],
@@ -81,13 +81,14 @@ def serialize(session, task, batch=None):
                 skill_snapshot[key] = str(value)
     else:
         skill_snapshot = {}
-    skill_snapshot['id'] = str(task.skill_version_id)
-    version_record = get(SkillVersionRecord, task.skill_version_id)
+    if task.skill_version_id:
+        skill_snapshot['id'] = str(task.skill_version_id)
+    version_record = get(SkillVersionRecord, task.skill_version_id) if task.skill_version_id else None
     if version_record:
         skill_snapshot.setdefault('name', version_record.skill.name)
         skill_snapshot.setdefault('version', version_record.version)
         skill_snapshot.setdefault('checksum', version_record.checksum)
-    data['skillSnapshot'] = skill_snapshot
+    data['skillSnapshot'] = skill_snapshot or None
     if task.template_snapshot:
         snapshot = task.template_snapshot
         data.update(template=snapshot['name'], templateId=snapshot['id'],

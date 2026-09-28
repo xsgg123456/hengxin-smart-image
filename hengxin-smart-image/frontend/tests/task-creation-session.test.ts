@@ -108,3 +108,50 @@ test('未完成请求跨卸载仍互斥，迟到回执只写原用户状态', as
   assert.equal(other.form.submission.accepted.value, undefined); assert.equal(posts, 1)
   same.unmount(); other.unmount()
 })
+
+
+test('文字原图移除或替换清理标注，重挂载保留同会话草稿', async () => {
+  const { annotationDraft } = await import('../src/views/hengxin/components/annotation/annotation-drafts')
+  const first = mount(() => 'text-annotation-owner', async () => receipt)
+  first.form.sources.value = structuredClone(input.sources)
+  const key = first.form.session.value.draft.annotationKey
+  annotationDraft(key).general = '修改标题'
+  first.unmount()
+  const next = mount(() => 'text-annotation-owner', async () => receipt)
+  assert.equal(next.form.session.value.draft.annotationKey, key)
+  assert.equal(annotationDraft(key).general, '修改标题')
+  next.form.sources.value = []
+  assert.notEqual(next.form.session.value.draft.annotationKey, key)
+  assert.equal(annotationDraft(key).general, '')
+  next.form.sources.value = structuredClone(input.sources)
+  assert.equal(annotationDraft(next.form.session.value.draft.annotationKey).general, '')
+  next.unmount()
+})
+
+test('文字标注草稿按身份和显式新建会话隔离', () => {
+  const user = ref<string | undefined>('annotation-a'), query = ref('one')
+  const mounted = mount(() => user.value, async () => receipt, () => 'text', () => query.value)
+  const key = mounted.form.session.value.draft.annotationKey
+  user.value = 'annotation-b'
+  assert.notEqual(mounted.form.session.value.draft.annotationKey, key)
+  user.value = 'annotation-a'; query.value = 'two'
+  assert.notEqual(mounted.form.session.value.draft.annotationKey, key)
+  query.value = 'one'
+  assert.equal(mounted.form.session.value.draft.annotationKey, key)
+  mounted.unmount()
+})
+
+test('文字任务未知响应重放保留原图与定位图身份', async () => {
+  const requests: CreateTaskInput[] = [], keys: (string | undefined)[] = []
+  const form = mount(() => 'text-annotation-uncertain', async (value, key) => {
+    requests.push(JSON.parse(JSON.stringify(value))); keys.push(key)
+    if (requests.length === 1) throw new ApiError('UNAVAILABLE', '响应未知')
+    return receipt
+  })
+  const annotated = { ...input, annotationFileId: 'annotation-one' }
+  await assert.rejects(form.form.submission.submit(annotated))
+  await assert.rejects(form.form.submission.submit({ ...annotated, annotationFileId: 'annotation-two' }), /先确认/)
+  await form.form.submission.resolvePrevious()
+  assert.deepEqual(requests, [annotated, annotated]); assert.equal(keys[0], keys[1])
+  form.unmount()
+})
