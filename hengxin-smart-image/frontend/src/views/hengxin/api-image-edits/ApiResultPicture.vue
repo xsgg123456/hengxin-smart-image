@@ -1,6 +1,6 @@
 <template>
   <div class="api-result-picture">
-    <PicturePreview original v-if="item.result" :picture="item.result" :pictures="results" :index="results.findIndex(p => p.fileId === item.result?.fileId)" title="换图结果" />
+    <PicturePreview v-if="item.result" :picture="item.result" :pictures="results" :index="results.findIndex(p => p.fileId === item.result?.fileId)" title="换图结果" />
     <GenerationPlaceholder v-if="pending" :class="{ 'revision-progress': !!item.result }"
       :running="moving" :motion="moving" :compact="!!item.result" :index="item.position - 1"
       :label="label" :status-text="label" :description="description" />

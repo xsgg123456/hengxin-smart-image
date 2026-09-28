@@ -714,3 +714,10 @@ reviewer独立执行原候选五组51 passed（10.11秒），最终候选13项�
 
 
 上线完成：前端0.2.9，Git 1ca77de，发布目录`/opt/hengxin-releases/frontend-original-20260928-1ca77de`；备份`/opt/hengxin-backups/frontend-original-20260928-1ca77de`。归档SHA256为17bc138100c7ce08a1162803302667a6f6d07c89f91308246ae2fce78882f923；安装481文件逐一校验通过，公网HTML及引用JS/CSS哈希与构建一致。后端和Worker未重启。生产浏览器未登录页正常呈现；当前Chrome连接不可用，未冒称登录态线上浏览器复测，登录态行为证据为发布前同一产物连接生产的隔离验证。临时测试服务关闭、临时会话撤销。两阶段独立审查PASS，候选b2df39848eac455574c53b73e921f5e4cda340383fabf30ed9d973991bdb0f82；详细日志和生产核验保存在output/frontend-ab-20260928/。
+
+
+## 2026-09-28 · 0.2.10全站原图恢复
+
+用户确认全站直接原图，包括列表封面、模板、成品、输入素材、历史版本与对照；公共PicturePreview统一picture.url，删除派生URL helper和其已失效专用测试，清理original/size调用参数。lazy、分页折叠、身份、列表摘要、轮询、下载标注与后端不变。不会删除既有派生文件或停止后台派生程序。
+
+前端类型检查退出0；193项现有测试全部通过（比0.2.9少1项是移除已删除的派生URL功能测试）；生产构建31.82秒成功，480个发布产物隐私审计通过。实际构建只读接生产：列表、历史及对照图片URL无variant，原图/成品宽790/1024且complete=true；历史图加载完后放大13.2毫秒。本轮页面资源记录variant请求为0。证据output/frontend-ab-20260928/global-0210-browser.json；不将全站静态覆盖冒充每个页面都已逐项手测。
