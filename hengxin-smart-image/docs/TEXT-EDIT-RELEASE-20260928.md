@@ -1,6 +1,22 @@
 # 单图文字替换生产发布 · 2026-09-28
 
-用户已授权 Git 提交、打包与生产部署。功能提交 `e282255`：单张原图、可选复用 CLI 标注画布、内置冻结提示词、历史 Skill 任务兼容。目标前端 0.2.11、迁移 0020。本记录随实际发布结果更新；当前为准备阶段。
+2026-09-28 13:17（Asia/Shanghai）生产切换完成，随后在线核验通过。功能提交 `e282255`：单张原图、可选复用 CLI 标注画布、内置冻结提示词、历史 Skill 任务兼容。发布代码 `0ebb3bc`，前端 0.2.11、迁移 0020。已本地提交，未推送远端；用户授权生产发布，未执行收费生成。
+
+## 实际发布结果
+
+- 发布标识：`text-edit-20260928-0ebb3bc`，归档789文件、4905427字节；SHA256 `7a4046bc644421ed076b2d4fe38297d7f41fffca06e39d5d2aedc66aa68668f0`，本地/上传后校验一致。
+- 镜像：`hengxin-smart-image-backend:text-edit-20260928-0ebb3bc`；ID `sha256:8df57e8dc1a2406c4bad871694b88499fa5f59395a19cce06c650c4c304f4e37`。实际镜像断网、无生产挂载测试1282通过/76环境跳过/1仓库源码对照排除，166.68秒。排除/跳过不计为通过。
+- 发布增量独立 Stage 1/2 PASS，批准快照 `92d05a54d9398ad57b76aa38e1cf2734cef92e05d48e68963d89443ccc46474e`，见 `TEXT-EDIT-RELEASE-REVIEW-20260928.md`。功能与发布代码均按凭据提交。
+- 关闭入口后 API 与原生 CLI 排空通过；备份完成后迁移0019→0020。数据库dump491271字节且pg_restore --list可读，备份COMPLETE存在。原生51个包兼容检查通过；原生Worker和API Worker就绪（并发5）。API Worker启动初次就绪探测尚未发现节点，按预定重试后成功，未触发回退。
+- 五个后端服务逐一验证镜像ID、原环境/命令及300个文件SHA；原生app158文件和前端484文件（含package.json）全部匹配。完整原11层Compose配置保持，末尾追加本次覆盖。容量准入仍关闭。
+- schema0020与可空skill_version_id、新builtin_prompt JSON列核对通过；原生Worker active，API暂停解除。ready200，PostgreSQL/Redis/MinIO均up。
+- 登录态auth/me、CLI列表、历史CLI详情、API换图列表和壁纸Skill目录均200；空原图文字任务422拒绝且无生成。临时测试会话已撤销，撤销后401；匿名auth/me401。
+- 发布前后CLI成功49/失败12/取消2，API成品116，数量一致。发布后五容器及原生服务日志无Traceback/ImportError/ModuleNotFoundError/CRITICAL。未改写历史任务或开启模型调用。
+- 公网HTTPS首页及入口JS/CSS均200、哈希与构建一致。独立浏览器实际渲染钉钉登录页，无白屏；唯一控制台401来自预期的匿名auth/me。未使用真实钉钉交互验证登录后画布，画布完整流程证据见本地验收报告。
+
+服务器发布目录 `/opt/hengxin-releases/text-edit-20260928-0ebb3bc`，备份目录 `/opt/hengxin-backups/text-edit-20260928-0ebb3bc`。本地证据在 `output/release/text-edit-20260928-0ebb3bc/`：包审计、安装测试、部署日志、verification.json、auth-smoke.json、runtime-check.json、public-login.png。旧镜像和旧资源仍保留，线上入口为 https://zhitu.qhhengxin.top/ 。
+
+后续维护沿用线上API labels中的完整Compose链，并带末层 `/opt/hengxin-releases/text-edit-20260928-0ebb3bc/api-override.yaml`；不要只用基础compose启动旧镜像。当前发布信息保存在API_RELEASE.json、API_IMAGE_RELEASE.json、FRONTEND_RELEASE.json和TEXT_RELEASE.json。上线后回退须遵守文末约束。
 
 ## 生产基线与发布步骤
 
