@@ -4,7 +4,14 @@ const text = (v: unknown): v is string => typeof v === 'string'
 const id = (v: unknown): v is string => text(v) && v.length > 0
 const nullableText = (v: unknown) => v === null || text(v)
 const count = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0
-export const picture = (v: unknown): v is ApiPicture => object(v) && id(v.fileId) && text(v.name) && id(v.url)
+export const picture = (v: unknown): v is ApiPicture => {
+  if (!object(v) || !id(v.fileId) || !text(v.name) || !id(v.url)) return false
+  // 尺寸是可选元数据；历史缺失或损坏不阻断图片，清除无效值后按未知展示。
+  for (const key of ['width', 'height']) {
+    if (v[key] !== undefined && !(typeof v[key] === 'number' && Number.isSafeInteger(v[key]) && v[key] > 0)) delete v[key]
+  }
+  return true
+}
 const positive = (v: unknown): v is number => count(v) && v > 0
 const state = (v: unknown) => text(v) && ['queued', 'running', 'retry_wait', 'collecting', 'succeeded', 'failed', 'uncertain'].includes(v)
 const version = (v: unknown): v is ApiVersion => object(v) && positive(v.number) && picture(v.picture)

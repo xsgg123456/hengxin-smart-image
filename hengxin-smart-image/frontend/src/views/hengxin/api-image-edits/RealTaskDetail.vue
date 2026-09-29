@@ -17,7 +17,7 @@
         <ElProgress class="hx-gap" :percentage="Math.round((success + failed) / task.items.length * 100)" :stroke-width="7" :show-text="false" />
         <p class="hx-footnote">第 {{ task.batch.current }} / {{ task.batch.total }} 批 · {{ task.batch.running }} 张处理中 · 每批最多 10 张，整批结束后处理下一批。</p><p class="hx-footnote">操作人：{{ task.operator || '未记录' }} · {{ friendlyTime(task.created) }} · 成功结果保留，关闭详情不会中断处理。</p>
         <p class="hx-footnote">网络尝试 {{ task.metrics.requestCount }} 次 · 生成重试 {{ task.metrics.retryCount }} 次 · 总耗时 {{ seconds(task.metrics.elapsedSeconds) }} · 费用未提供</p>
-      <p class="hx-footnote">排队 {{ seconds(task.metrics.queueSeconds) }} · 生成 {{ seconds(task.metrics.generationSeconds) }} · 收图重试不计入生成重试；返回尺寸以上游实际图片为准。</p>
+      <p class="hx-footnote">排队 {{ seconds(task.metrics.queueSeconds) }} · 生成 {{ seconds(task.metrics.generationSeconds) }} · 收图重试不计入生成重试；新成品按原图尺寸保存为 PNG，历史成品保持原文件。</p>
       </ElCard>
       <SharedMaterial :picture="task.material" />
       <div class="result-grid hx-gap">

@@ -91,7 +91,7 @@ def owned(session, item_id, token):
     return gate, item
 
 
-def start_attempt(factory, item_id, token):
+def start_attempt(factory, item_id, token, requested_size=None):
     with factory.begin() as session:
         _, item = owned(session, item_id, token)
         if not item or item.state != 'running':
@@ -104,5 +104,7 @@ def start_attempt(factory, item_id, token):
         task = session.get(ApiTask, item.task_id)
         if item.cycle_retries > 0:
             item.retries += 1
-        session.add(ApiAttempt(item_id=item.id, operator_id=item.revision_operator_id or task.owner_id))
+        dimensions = tuple(map(int, requested_size.split("x"))) if requested_size else (None, None)
+        session.add(ApiAttempt(item_id=item.id, operator_id=item.revision_operator_id or task.owner_id,
+                               request_width=dimensions[0], request_height=dimensions[1]))
         return True

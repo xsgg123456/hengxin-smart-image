@@ -66,3 +66,16 @@ def collection_failure(factory, item_id, token, permanent=False):
             release_item(item)
         event(task, f'第 {item.position} 张：{item.error}')
         refresh_task(session, task)
+
+
+def record_return_dimensions(factory, item_id, token, width, height):
+    """Record observed upstream dimensions, never invent evidence for old requests."""
+    with factory.begin() as session:
+        _, item = owned(session, item_id, token)
+        if not item:
+            return False
+        attempt = session.scalar(select(ApiAttempt).where(ApiAttempt.item_id == item.id)
+                                 .order_by(ApiAttempt.created_at.desc(), ApiAttempt.id).limit(1))
+        if attempt and attempt.return_width is None:
+            attempt.return_width, attempt.return_height = width, height
+        return True

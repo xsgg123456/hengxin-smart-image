@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException
+from sqlalchemy import select
 
 from app.models import utcnow
 from app.capacity.admission import covered, published
@@ -11,10 +12,11 @@ from app.modules.files.variants import register
 from .claims import claim, owned, start_attempt
 from .config import get_api_settings
 from .downloads import download_result
+from .dimensions import request_dimensions, normalize_result
 from .files import new_record, read_bytes
 from .heartbeat import heartbeat
-from .models import ApiFile, ApiItem, ApiTask
-from .outcomes import collection_failure, failure, save_response
+from .models import ApiAttempt, ApiFile, ApiItem, ApiTask
+from .outcomes import collection_failure, failure, save_response, record_return_dimensions
 from .relay import RelayClient, RelayError
 from .state import event, refresh_task, release_item
 from .versions import execution_inputs, publish_result
@@ -25,10 +27,12 @@ def inputs(factory, item_id, store):
     with factory() as session:
         item = session.get(ApiItem, item_id)
         task = session.get(ApiTask, item.task_id)
+        original = session.get(ApiFile, item.source_id)
+        width, height = request_dimensions(original.width, original.height)
+        parameters = {**task.parameters, "size": f"{width}x{height}"}
         revision = execution_inputs(session, item, task)
         if revision and item.revision_snapshot is not None:
             records, prompt = revision
-            parameters = task.parameters
         elif revision:
             source, material, prompt = revision
         else:
@@ -49,7 +53,7 @@ def inputs(factory, item_id, store):
         return (*images[0], *images[1], prompt, parameters, images[2:])
     return (read_bytes(store, source), source.content_type,
             read_bytes(store, material) if material else None,
-            material.content_type if material else None, prompt, task.parameters)
+            material.content_type if material else None, prompt, parameters)
 
 
 def collect(factory, store, item_id, token, downloader):
@@ -57,12 +61,22 @@ def collect(factory, store, item_id, token, downloader):
         item = session.get(ApiItem, item_id)
         task = session.get(ApiTask, item.task_id)
         url, data, owner = item.result_url, item.result_bytes, task.owner_id
+        original = session.get(ApiFile, item.source_id)
+        width, height = original.width, original.height
+        last_attempt = session.scalar(select(ApiAttempt).where(ApiAttempt.item_id == item.id)
+                                      .order_by(ApiAttempt.created_at.desc(), ApiAttempt.id).limit(1))
+        # A pre-upgrade staged object is immutable, including its original format.
+        legacy_staging = item.staging_file_id and (not last_attempt or last_attempt.request_width is None)
     try:
         if data is None:
             data = downloader(url)
         upload = SimpleNamespace(file=BytesIO(data), filename='result.png', content_type=None)
         with DECODE_SLOTS:
             image = _decode_image(upload, get_api_settings().max_download_bytes)
+            if not record_return_dimensions(factory, item_id, token, image.width, image.height):
+                return
+            if not legacy_staging:
+                image = normalize_result(image, width, height, get_api_settings().max_download_bytes)
     except HTTPException:
         collection_failure(factory, item_id, token, permanent=True)
         return
@@ -149,7 +163,7 @@ def _execute_claim(factory, store, client, downloader, item_id, token, state):
         except RelayError as error:
             failure(factory, item_id, token, error.kind, error.code, error.retry_after)
             return True
-        if not start_attempt(factory, item_id, token):
+        if not start_attempt(factory, item_id, token, args[5]["size"]):
             return True
         try:
             result = relay.generate(*args)

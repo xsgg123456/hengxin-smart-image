@@ -33,7 +33,8 @@ def approved_target(url, hosts):
 
 def download_result(url, settings=None, pool_factory=None):
     settings = settings or get_api_settings()
-    host, address, path = approved_target(url, settings.allowed_result_hosts)
+    hosts = {*settings.allowed_result_hosts, urlsplit(settings.base_url).hostname.lower()}
+    host, address, path = approved_target(url, hosts)
     pool = (pool_factory or urllib3.HTTPSConnectionPool)(
         address, port=443, server_hostname=host, assert_hostname=host,
         cert_reqs='CERT_REQUIRED', retries=False,

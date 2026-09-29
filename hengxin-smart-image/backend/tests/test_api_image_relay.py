@@ -143,3 +143,28 @@ def test_download_pins_public_ip_and_sends_no_credentials(monkeypatch):
     with pytest.raises(ResultDownloadError): download_result('https://cdn3.dmiapi.com/x', config(), factory)
     monkeypatch.setattr('socket.getaddrinfo', lambda *args, **kwargs: [(2, 1, 6, '', ('127.0.0.1', 443))])
     with pytest.raises(ResultDownloadError): approved_target('https://cdn3.dmiapi.com/x', ['cdn3.dmiapi.com'])
+
+
+def test_controlled_api_origin_download_keeps_security_boundaries(monkeypatch):
+    monkeypatch.setattr('socket.getaddrinfo', lambda *a, **k: [(2, 1, 6, '', ('1.1.1.1', 443))])
+    reply = Mock(status=200, headers={}, connection=None)
+    reply.read1.side_effect = [b'png', b'']
+    pool = Mock()
+    pool.urlopen.return_value = reply
+    factory = Mock(return_value=pool)
+    assert download_result('https://api.qhhengxin.top/result.png', config(), factory) == b'png'
+    assert factory.call_args.args[0] == '1.1.1.1'
+    assert factory.call_args.kwargs['assert_hostname'] == 'api.qhhengxin.top'
+    assert pool.urlopen.call_args.kwargs['headers'] == {'Host': 'api.qhhengxin.top', 'Accept': 'image/*'}
+    assert pool.urlopen.call_args.kwargs['redirect'] is False
+    for url in ['https://api.qhhengxin.top.evil.test/r', 'http://api.qhhengxin.top/r',
+                'https://user:pass@api.qhhengxin.top/r', 'https://api.qhhengxin.top:444/r']:
+        with pytest.raises(ResultDownloadError):
+            download_result(url, config(), factory)
+    reply.status = 302
+    with pytest.raises(ResultDownloadError):
+        download_result('https://api.qhhengxin.top/r', config(), factory)
+    for ip in ['127.0.0.1', '10.0.0.1', '169.254.169.254', '::1']:
+        monkeypatch.setattr('socket.getaddrinfo', lambda *a, address=ip, **k: [(2, 1, 6, '', (address, 443))])
+        with pytest.raises(ResultDownloadError):
+            download_result('https://api.qhhengxin.top/r', config(), factory)

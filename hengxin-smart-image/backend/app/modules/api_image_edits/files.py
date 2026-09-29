@@ -12,6 +12,7 @@ from .models import ApiFile, ApiItem, ApiTask, ApiVersion
 
 def picture(record):
     return {'fileId': str(record.id), 'name': record.name,
+            'width': record.width, 'height': record.height,
             'url': f'/api/v1/api-image-edits/files/{record.id}/content'}
 
 

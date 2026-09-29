@@ -14,8 +14,8 @@
       <main class="version-main">
         <ElAlert v-if="versions.length === 1" title="目前只有初始版本。修改成功后，可在这里对比并切换历史结果。" type="info" :closable="false" show-icon />
         <div class="version-comparison">
-          <section><h3>选中版本 · V{{ selected.number }} <ElTag v-if="selected.number === currentNumber" size="small">当前</ElTag></h3><div class="version-picture"><PicturePreview :picture="selected.picture" :title="`选中版本 V${selected.number}`" /></div></section>
-          <section><h3>当前结果 · V{{ currentNumber }}</h3><div class="version-picture"><PicturePreview :picture="item.result" :title="`当前结果 V${currentNumber}`" /></div></section>
+          <section><h3>选中版本 · V{{ selected.number }} <ElTag v-if="selected.number === currentNumber" size="small">当前</ElTag><PictureDimensions :picture="selected.picture" :source="item.source" /></h3><div class="version-picture"><PicturePreview :picture="selected.picture" :title="`选中版本 V${selected.number}`" /></div></section>
+          <section><h3>当前结果 · V{{ currentNumber }} <PictureDimensions :picture="item.result" :source="item.source" /></h3><div class="version-picture"><PicturePreview :picture="item.result" :title="`当前结果 V${currentNumber}`" /></div></section>
         </div>
         <p class="version-note">点击图片可放大查看。当前结果用于后续修改与整套 ZIP 下载。</p>
         <section class="version-description" aria-label="选中版本详情">
@@ -44,6 +44,7 @@ import { apiImages, errorText } from '@/api/api-image-edits'
 import type { ApiTask } from '@/types/api-image-edits'
 import { itemCommand, friendlyTime, saveBlob } from './item-command'
 import PicturePreview from '../components/PicturePreview.vue'
+import PictureDimensions from './PictureDimensions.vue'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task: ApiTask; itemId: string; locked?: boolean }>()
 const emit = defineEmits<{ accepted: [] }>()
@@ -107,7 +108,7 @@ async function restoreSelected() {
 .version-option:focus-visible { outline:2px solid var(--el-color-primary); outline-offset:-2px; }
 .version-main { display:flex; flex-direction:column; gap:14px; }
 .version-comparison { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-h3 { display:flex; align-items:center; gap:8px; margin:0 0 10px; min-height:24px; font-size:14px; }
+h3 { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 10px; min-height:24px; font-size:14px; }
 .version-picture { height:320px; }
 .version-note { margin:0; font-size:12px; line-height:1.7; color:var(--art-gray-600); }
 .version-sidebar .version-note { margin-top:12px; }

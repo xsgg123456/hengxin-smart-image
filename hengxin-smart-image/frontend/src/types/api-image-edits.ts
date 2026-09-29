@@ -1,6 +1,6 @@
 export type ApiTaskState = 'queued' | 'running' | 'succeeded' | 'partial_failed' | 'failed' | 'uncertain'
 export type ApiItemState = 'queued' | 'running' | 'retry_wait' | 'collecting' | 'succeeded' | 'failed' | 'uncertain'
-export interface ApiPicture { fileId: string; name: string; url: string }
+export interface ApiPicture { fileId: string; name: string; url: string; width?: number; height?: number }
 export interface ApiVersion { number: number; picture: ApiPicture; created: string; operator: string; text: string; annotation: ApiPicture | null; baseVersion: number | null }
 export interface ApiRevision { state: ApiItemState; text: string; annotation: ApiPicture | null; operator: string; baseVersion: number; retries: number; error: string | null }
 export interface ApiRevisionInput { baseVersion: number; text: string; annotationFileId?: string | null }

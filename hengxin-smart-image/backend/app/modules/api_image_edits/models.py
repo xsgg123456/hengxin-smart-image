@@ -82,6 +82,10 @@ class ApiAttempt(Timestamps, Base):
     error: Mapped[str | None] = mapped_column(String(300))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_by: Mapped[UUID | None] = mapped_column(ForeignKey('users.id'))
+    request_width: Mapped[int | None] = mapped_column(Integer)
+    request_height: Mapped[int | None] = mapped_column(Integer)
+    return_width: Mapped[int | None] = mapped_column(Integer)
+    return_height: Mapped[int | None] = mapped_column(Integer)
 
 
 class ApiDispatch(Timestamps, Base):

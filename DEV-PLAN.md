@@ -1,5 +1,13 @@
 # Development Plan — 恒鑫智图
 
+## 2026-09-29 · API 逐图尺寸与 PNG 成品
+
+1. 后端：实现独立尺寸策略与PNG归一化，接入 api_image_edits 的 inputs/relay/collect；逐次记录请求及返回尺寸、版本保存最终文件，历史数据兼容。涉及 backend/app/modules/api_image_edits/、backend/migrations/versions/、backend/tests/test_api_image*。完成标准：Spec文首规则、混合任务/原图锚定/收图幂等/失败/精确域名下载测试通过，不影响CLI。
+2. 前端：API图片契约返回真实width/height，对照弹窗左右标题显示尺寸与不一致提示，历史版本同步，未知回退；复用现有组件及样式。涉及 frontend/src/api/api-image*、types、views/hengxin API组件及 tests。完成标准：接口历史兼容、单测、类型构建、真实隔离浏览器宽窄视口验收。
+3. 主Agent整合：全套可运行回归、编译、功能证据记录到 hengxin-smart-image/docs/API-SIZE-20260929-VALIDATION.md；固定candidateId并spawn独立code-reviewer，两阶段通过登记批准快照。未通过则修复复验。完成交付不自动提交、不部署、不调用收费模型。
+
+实施状态：本地实现与工程验收完成。前端202通过、后端全套1415通过/78条件跳过，构建与6组隔离浏览器检查通过；11张已下载真实图片完成离线PNG原尺寸还原。独立审查Stage 1/2均PASS，批准快照aa75622a0f3752cf480c6958b3a3d82ea97c9c55fa6701f1d4612601875b633f，详见hengxin-smart-image/docs/API-SIZE-20260929-REVIEW.md及VALIDATION.md。本轮取消比例异常阈值，采用PNG；未提交、未部署、未新增收费模型调用。
+
 ## 2026-09-28 · 前端清理发布（用户已授权）
 
 已完成：业务7b41062、发布26e3616；生产前端0.2.12。197测试、4发布测试、构建、隐私审计、独立审查及线上登录态页面验证通过；静态资源484文件校验一致，后端与CLI未重启。详见 FRONTEND-CLEANUP-RELEASE-20260928.md。

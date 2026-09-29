@@ -83,7 +83,12 @@ class RelayClient:
                   parameters=None, additional_images=None):
         if not self.settings.api_key.get_secret_value():
             raise RelayError('channel', 'API_KEY_MISSING', 'API 换图密钥尚未配置')
-        if parameters is not None and parameters != PARAMETERS:
+        actual = PARAMETERS if parameters is None else parameters
+        size = actual.get("size", "")
+        if ({key: value for key, value in actual.items() if key != "size"} !=
+                {key: value for key, value in PARAMETERS.items() if key != "size"} or
+                not isinstance(size, str) or not re.fullmatch(r"[1-9][0-9]*x[1-9][0-9]*", size) or
+                any(int(edge) % 16 for edge in size.split("x"))):
             raise RelayError('permanent', 'INVALID_PARAMETERS', '任务模型参数不符合固定配置')
         if (original_mime not in ('image/jpeg', 'image/png', 'image/webp') or
                 (material_bytes is not None and material_mime not in ('image/jpeg', 'image/png', 'image/webp'))):
@@ -104,7 +109,7 @@ class RelayClient:
             if data is None:
                 continue
             images.append({'image_url': f'data:{mime};base64,' + base64.b64encode(data).decode('ascii')})
-        body = json.dumps({**PARAMETERS, 'prompt': prompt, 'images': images}, ensure_ascii=False).encode()
+        body = json.dumps({**(PARAMETERS if parameters is None else parameters), 'prompt': prompt, 'images': images}, ensure_ascii=False).encode()
         response = None
         started = time.monotonic()
         try:
