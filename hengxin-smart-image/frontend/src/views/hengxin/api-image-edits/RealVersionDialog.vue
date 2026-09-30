@@ -20,7 +20,7 @@
         <p class="version-note">点击图片可放大查看。当前结果用于后续修改与整套 ZIP 下载。</p>
         <section class="version-description" aria-label="选中版本详情">
           <div class="version-meta"><span>生成时间：{{ friendlyTime(selected.created) || '未记录' }}</span><span>操作人：{{ selected.operator || '未记录' }}</span><ElTag size="small" type="info">{{ selected.baseVersion ? `基于 V${selected.baseVersion}` : '初始生成' }}</ElTag></div>
-          <h3>修改说明</h3><p class="version-text">{{ selected.text || '初始生成结果，暂无修改说明。' }}</p>
+          <h3>{{ operationLabel(selected.kind || (selected.baseVersion ? undefined : 'generation')) }}</h3><p class="version-text">{{ selected.text || (selected.kind === 'text_repair' ? '对照对应上传原图修复当前成品文案。' : selected.baseVersion ? '暂无修改说明。' : '初始生成结果，暂无修改说明。') }}</p>
           <div v-if="selected.annotation" class="version-annotation"><strong>标注图</strong><div><PicturePreview :picture="selected.annotation" :title="`V${selected.number} 的修改标注图`" /></div></div>
         </section>
         <ElAlert v-if="restoreReason" :title="restoreReason" type="info" :closable="false" show-icon />
@@ -41,7 +41,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/modules/user'
 import { apiImages, errorText } from '@/api/api-image-edits'
-import type { ApiTask } from '@/types/api-image-edits'
+import { operationLabel, type ApiTask } from '@/types/api-image-edits'
 import { itemCommand, friendlyTime, saveBlob } from './item-command'
 import PicturePreview from '../components/PicturePreview.vue'
 import PictureDimensions from './PictureDimensions.vue'

@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -28,11 +29,17 @@ class ReviseItem(BaseModel):
     baseVersion: int = Field(ge=1)
     text: str = Field(default='', max_length=4000)
     annotationFileId: UUID | None = None
+    kind: Literal['text_edit', 'text_repair'] = 'text_edit'
+    prompt: str | None = Field(default=None, max_length=10000)
 
     @model_validator(mode='after')
     def nonempty(self):
-        if not self.text and not self.annotationFileId:
-            raise ValueError('请填写修改意见或上传标注图')
+        # Old annotation-only bodies may only confirm an already accepted key.
+        if self.kind == 'text_edit' and not self.text and (
+                'kind' in self.model_fields_set or not self.annotationFileId):
+            raise ValueError('请填写文字修改意见')
+        if self.kind == 'text_repair' and self.annotationFileId:
+            raise ValueError('修复文案不接受标注图')
         return self
 
 

@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { DEFAULT_WALLPAPER_PROMPT } from './default-wallpaper-prompt'
 import { identity } from '@/api/hengxin/identity'
 import { apiImages, errorText, uncertainResponse } from '@/api/api-image-edits'
 import type { ApiPicture, ApiTaskInput } from '@/types/api-image-edits'
@@ -7,7 +8,7 @@ interface DraftApi { upload(file: File): Promise<ApiPicture>; deleteFile(id: str
 interface Pending { key: string; input: ApiTaskInput; uncertain: boolean }
 interface Persistence { load(): Pending | null; save(value: Pending | null): void }
 export function createDraft(api: DraftApi, decode: (url: string) => Promise<void>, urls = URL, newKey = () => crypto.randomUUID(), persistence?: Persistence) {
-  const state = reactive({ images: [] as UploadPicture[], name: '', prompt: '', error: '', busy: false, pending: null as Pending | null })
+  const state = reactive({ images: [] as UploadPicture[], name: '', prompt: DEFAULT_WALLPAPER_PROMPT, error: '', busy: false, pending: null as Pending | null })
   state.pending = persistence?.load() || null
   if (state.pending) { state.name = state.pending.input.name; state.prompt = state.pending.input.prompt }
   const persist = () => persistence?.save(state.pending)
@@ -48,11 +49,11 @@ export function createDraft(api: DraftApi, decode: (url: string) => Promise<void
   }
   async function submit() {
     if (state.busy || (!state.pending && !valid())) return
-    if (!state.pending) state.pending = { key: newKey(), uncertain: false, input: { name: state.name.trim(), prompt: state.prompt.trim(), originalFileIds: state.images.slice(0, -1).map(p => p.fileId!), materialFileId: state.images.at(-1)!.fileId! } }
+    if (!state.pending) state.pending = { key: newKey(), uncertain: false, input: { name: state.name.trim(), prompt: state.prompt, originalFileIds: state.images.slice(0, -1).map(p => p.fileId!), materialFileId: state.images.at(-1)!.fileId! } }
     persist(); state.busy = true; state.error = ''
     try {
       const result = await api.create(state.pending.input, state.pending.key)
-      state.images.forEach(p => urls.revokeObjectURL(p.url)); state.images = []; state.name = ''; state.prompt = ''; state.pending = null
+      state.images.forEach(p => urls.revokeObjectURL(p.url)); state.images = []; state.name = ''; state.prompt = DEFAULT_WALLPAPER_PROMPT; state.pending = null
       return result.taskId
     } catch (e) {
       if (uncertainResponse(e)) state.pending!.uncertain = true

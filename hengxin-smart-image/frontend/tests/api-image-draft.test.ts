@@ -107,3 +107,32 @@ test('刷新恢复未确认提交快照并用原键确认，不重复生成新�
   assert.equal(restored.locked(), true); assert.equal(restored.state.name, '任务')
   offline = false; assert.equal(await restored.submit(), 'saved-task'); assert.deepEqual(keys, ['original-key', 'original-key']); assert.equal(stored, null)
 })
+
+test('新草稿预填完整原文、用户编辑或清空保持、恢复快照优先、成功后新任务恢复默认', async () => {
+  const { DEFAULT_WALLPAPER_PROMPT } = await import('../src/views/hengxin/api-image-edits/default-wallpaper-prompt')
+  const sent: ApiTaskInput[] = []
+  const api = { upload: async (f: File) => ({ name: f.name, url: f.name, fileId: f.name }), deleteFile: async () => {}, create: async (input: ApiTaskInput) => { sent.push(input); return { taskId: 'done' } } }
+  const draft = createDraft(api, async () => {}, urls)
+  assert.equal(draft.state.prompt, DEFAULT_WALLPAPER_PROMPT)
+  draft.state.prompt = ''; draft.state.name = '任务'; draft.add(file('o')); draft.add(file('m')); await flush()
+  assert.equal(draft.state.prompt, ''); assert.equal(draft.valid(), false)
+  draft.state.prompt = ' 用户最终编辑的内容 \n'; await draft.submit()
+  assert.equal(sent[0].prompt, ' 用户最终编辑的内容 \n')
+  assert.equal(draft.state.prompt, DEFAULT_WALLPAPER_PROMPT)
+  for (const prompt of ['历史编辑内容', '']) {
+    const input = { name: '旧任务', prompt, originalFileIds: ['o'], materialFileId: 'm' }
+    const restored = createDraft(api, async () => {}, urls, () => 'unused', { load: () => ({ key: 'old', input, uncertain: true }), save: () => {} })
+    assert.equal(restored.state.prompt, prompt)
+  }
+})
+
+test('同一身份返回创建页保留已有编辑和主动清空，另一身份只初始化自己的草稿', async () => {
+  const { draftForUser } = await import('../src/views/hengxin/api-image-edits/real-draft')
+  const { DEFAULT_WALLPAPER_PROMPT } = await import('../src/views/hengxin/api-image-edits/default-wallpaper-prompt')
+  const draft = draftForUser('prompt-edit-user')
+  draft.state.prompt = '用户自定义内容'
+  assert.equal(draftForUser('prompt-edit-user').state.prompt, '用户自定义内容')
+  draft.state.prompt = ''
+  assert.equal(draftForUser('prompt-edit-user').state.prompt, '')
+  assert.equal(draftForUser('prompt-another-user').state.prompt, DEFAULT_WALLPAPER_PROMPT)
+})

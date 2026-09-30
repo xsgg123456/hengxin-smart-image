@@ -43,13 +43,13 @@ def test_revision_rejects_annotation_format_and_size_server_side(files_env, kind
     with factory.begin() as session:
         record = session.get(ApiFile, UUID(annotation['fileId']))
         record.content_type, record.size_bytes = kind, size
-    result = post(client, path + '/revise', {'baseVersion': 1, 'annotationFileId': annotation['fileId']})
+    result = post(client, path + '/revise', {'baseVersion': 1, 'text': '修改文字', 'annotationFileId': annotation['fileId']})
     assert result.status_code == 422
     assert client.get(f'{ROOT}/tasks/{task_id}').json()['items'][0]['state'] == 'succeeded'
 
 
-def test_revision_accepts_jpeg_annotation_without_text(files_env):
+def test_revision_accepts_jpeg_annotation_with_text(files_env):
     client, factory, _, _ = files_env
     _, _, path = setup_result(client, factory)
     annotation = client.post(ROOT + '/files', files={'file': ('mark.jpg', image_bytes('JPEG'), 'image/jpeg')}).json()
-    assert post(client, path + '/revise', {'baseVersion': 1, 'annotationFileId': annotation['fileId']}).status_code == 202
+    assert post(client, path + '/revise', {'baseVersion': 1, 'text': '修改文字', 'annotationFileId': annotation['fileId']}).status_code == 202

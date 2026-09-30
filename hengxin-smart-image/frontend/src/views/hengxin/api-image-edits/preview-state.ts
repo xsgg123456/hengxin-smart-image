@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { DEFAULT_WALLPAPER_PROMPT } from './default-wallpaper-prompt'
 import type { Picture } from '@/types/hengxin'
 
 export type Scenario = 'success' | 'retry' | 'partial'
@@ -20,7 +21,7 @@ export interface EditTask {
 }
 export const currentOperator = '张三（演示）'
 export const preview = reactive({
-  images: [] as Picture[], name: '', prompt: '', scenario: 'retry' as Scenario,
+  images: [] as Picture[], name: '', prompt: DEFAULT_WALLPAPER_PROMPT, scenario: 'retry' as Scenario,
   tasks: [] as EditTask[], paused: false, pendingUploads: 0
 })
 let serial = 0
@@ -57,7 +58,7 @@ export function submitPreview() {
   if (preview.pendingUploads || preview.images.length < 2 || !preview.name.trim() || !preview.prompt.trim()) throw new Error('请补全任务信息，并等待图片读取完成')
   const task = makeTask(preview.images.map(image => ({ ...image })), preview.scenario, preview.name.trim(), preview.prompt.trim())
   preview.tasks.unshift(task)
-  preview.images = []; preview.name = ''; preview.prompt = ''
+  preview.images = []; preview.name = ''; preview.prompt = DEFAULT_WALLPAPER_PROMPT
   return task.id
 }
 export function startScenario(scenario: Scenario): string {

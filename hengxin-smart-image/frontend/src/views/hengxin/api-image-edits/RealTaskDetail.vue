@@ -27,10 +27,11 @@
           <div class="result-picture hx-gap"><ApiResultPicture :item="item" :results="results" /></div>
           <p v-if="item.nextAttemptAt" class="hx-footnote">下次尝试：{{ friendlyTime(item.nextAttemptAt) }}</p><p v-if="item.error" class="item-error">{{ item.error }}</p>
           <div class="result-footer"><span>{{ item.result ? `当前 V${item.currentVersion} · 点击放大` : item.source?.name || '原图未记录' }}</span><ElButton v-if="item.result" text type="primary" :loading="downloading === item.result.fileId" :disabled="!!downloading" @click="download(item.result)">下载图片</ElButton></div>
-          <p v-if="item.revision" class="hx-footnote">修改：{{ itemLabels[item.revision.state] }} · {{ item.revision.operator }} · 基于 V{{ item.revision.baseVersion }}<span v-if="item.state !== 'succeeded'"> · 旧结果保留</span></p>
+          <p v-if="item.revision" class="hx-footnote">{{ operationLabel(item.revision.kind) }}：{{ itemLabels[item.revision.state] }} · {{ item.revision.operator }} · 基于 V{{ item.revision.baseVersion }}<span v-if="item.state !== 'succeeded'"> · 旧结果保留</span></p>
           <p v-if="item.retries" class="hx-footnote">已自动重试 {{ item.retries }} / 3 次</p>
           <div class="card-actions">
-            <ElButton v-if="item.result" size="small" :disabled="packing || busy || command(item).state.busy || (!!command(item).state.pending && command(item).state.pending?.command.kind !== 'revise') || (!command(item).state.pending && (item.state !== 'succeeded' || channelBlocked))" @click="revisionId = item.id; revisionOpen = true">{{ command(item).state.pending?.command.kind === 'revise' ? '确认原修改请求' : '修改这张' }}</ElButton>
+            <ElButton v-if="item.result" size="small" :disabled="!canRevise(item, false)" @click="revisionId = item.id; revisionOpen = true">{{ pendingRevision(item, false) ? '确认原修改请求' : '修改这张' }}</ElButton>
+            <ElButton v-if="item.result" size="small" :loading="command(item).state.busy && pendingRevision(item, true)" :disabled="!canRevise(item, true)" @click="repairText(item)">{{ pendingRevision(item, true) ? '确认原修复请求' : '修复文案' }}</ElButton>
             <ElButton v-if="item.result" text type="primary" @click="versionId = item.id; versionOpen = true">历史版本 · {{ item.versions.length }}</ElButton>
             <ElButton v-if="item.state === 'failed' || command(item).state.pending?.command.kind === 'retry'" size="small" type="primary" :loading="command(item).state.busy" :disabled="packing || busy || (!!command(item).state.pending && command(item).state.pending?.command.kind !== 'retry') || (!command(item).state.pending && channelBlocked)" @click="retryItem(item)">{{ command(item).state.pending ? '确认原重试请求' : '继续重试这张' }}</ElButton>
           </div>
@@ -48,7 +49,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { apiImages, errorText } from '@/api/api-image-edits'
-import { taskLabels, itemLabels, isTaskActive, type ApiPicture, type ApiTask, type ApiItem } from '@/types/api-image-edits'
+import { taskLabels, itemLabels, operationLabel, isTaskActive, type ApiPicture, type ApiTask, type ApiItem } from '@/types/api-image-edits'
 import PicturePreview from '../components/PicturePreview.vue'
 import SharedMaterial from './SharedMaterial.vue'
 import SourceComparison from './SourceComparison.vue'
@@ -77,6 +78,22 @@ const hasItemOperation = computed(() => props.task?.items.some(i => command(i).s
 const canZip = computed(() => !!props.task && !props.busy && !hasItemOperation.value && props.task.items.every(i => i.state === 'succeeded' && i.result))
 watch(() => props.task?.id, () => { expandedSections.value = []; comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false; revisionId.value = ''; versionId.value = '' })
 watch(open, value => { if (!value) { comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false } })
+function pendingRevision(item: ApiItem, repair: boolean) {
+  const pending = command(item).state.pending?.command
+  return pending?.kind === 'revise' && (pending.input.kind === 'text_repair') === repair
+}
+function canRevise(item: ApiItem, repair: boolean) {
+  const state = command(item).state
+  return !packing.value && !props.busy && !state.busy && !!item.result && (state.pending ? pendingRevision(item, repair) : item.state === 'succeeded' && !props.channelBlocked)
+}
+async function repairText(item: ApiItem) {
+  if (!props.task || !canRevise(item, true) || !item.currentVersion) return
+  const taskId = props.task.id
+  if (await command(item).submit({ kind: 'revise', input: { baseVersion: item.currentVersion, kind: 'text_repair', text: '' } }, (action, key) => {
+    if (action.kind !== 'revise' || action.input.kind !== 'text_repair') throw new Error('请先确认此图片尚未完成的操作')
+    return apiImages.revise(taskId, item.id, action.input, key)
+  })) emit('refresh')
+}
 async function retryItem(item: ApiItem) {
   if (!props.task || packing.value || props.busy || (props.channelBlocked && !command(item).state.pending)) return
   const taskId = props.task.id

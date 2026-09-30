@@ -26,6 +26,7 @@ def task_view(session, task):
     def version_view(version):
         return {'number': version.number, 'picture': pic(version.file_id),
                 'created': aware(version.created_at).isoformat(), 'operator': operator(version.operator_id),
+                'kind': version.kind or ('revision' if version.base_version else 'generation'),
                 'text': version.text, 'annotation': pic(version.annotation_id),
                 'baseVersion': version.base_version}
     def item_versions(item):
@@ -36,7 +37,7 @@ def task_view(session, task):
         if item.result_id:
             return [{'number': 1, 'picture': pic(item.result_id),
                      'created': aware(item.updated_at).isoformat(), 'operator': operator(task.owner_id),
-                     'text': task.prompt, 'annotation': None, 'baseVersion': None}]
+                     'kind': 'generation', 'text': task.prompt, 'annotation': None, 'baseVersion': None}]
         return []
     unfinished = [i for i in items if i.state not in {'succeeded', 'failed'}]
     batch_total = (len(items) + 9) // 10
@@ -60,6 +61,7 @@ def task_view(session, task):
                        'result': pic(i.result_id), 'currentVersion': i.current_version or (1 if i.result_id else None),
                        'versions': item_versions(i),
                        'revision': ({'state': i.state, 'text': i.revision_text or '',
+                                     'kind': (i.revision_snapshot or {}).get('kind', 'revision'),
                                      'annotation': pic(i.revision_annotation_id),
                                      'operator': operator(i.revision_operator_id),
                                      'baseVersion': i.revision_base_version,

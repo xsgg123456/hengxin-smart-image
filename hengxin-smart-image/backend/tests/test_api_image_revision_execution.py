@@ -3,10 +3,10 @@ from datetime import timedelta
 
 import pytest
 
-from app.image_revision_prompt import ANNOTATION_GUIDANCE
+from app.image_revision_prompt import ANNOTATION_GUIDANCE, build_revision_prompt
 from app.modules.api_image_edits.execution import execute_next
 from app.modules.api_image_edits.relay import RelayError, RelayResult
-from app.modules.api_image_edits.models import ApiItem
+from app.modules.api_image_edits.models import ApiItem, ApiTask
 from app.models import utcnow
 from files_helpers import files_env, image_bytes
 from test_api_image_domain import ROOT, create, enabled_api, upload
@@ -32,11 +32,15 @@ def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_ann
     with factory.begin() as session:
         record = session.get(ApiItem, UUID(item['id']))
         if old_policy:
-            record.revision_snapshot = {**record.revision_snapshot,
-                'prompt': record.revision_snapshot['prompt'].replace('\n' + ANNOTATION_GUIDANCE, ''),
+            task_record = session.get(ApiTask, record.task_id)
+            record.revision_snapshot = {
+                'fileIds': list(map(str, [record.result_id, record.source_id,
+                                         task_record.material_id, record.revision_annotation_id])),
+                'prompt': build_revision_prompt(current='图1', original='图2', materials=['图3'],
+                    note=body['text'], annotation='图4', api=True).replace('\n' + ANNOTATION_GUIDANCE, ''),
                 'policyVersion': 'single-image-reference-v1'}
         frozen_prompt = record.revision_snapshot['prompt']
-    monkeypatch.setattr('app.modules.api_image_edits.versions.build_revision_prompt',
+    monkeypatch.setattr('app.modules.api_image_edits.versions.build_text_prompt',
                         lambda **kwargs: 'later policy must never replace frozen prompt')
     failures = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 4)
     for _ in range(4):
@@ -50,7 +54,7 @@ def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_ann
     assert failed['items'][1] == neighbor
     assert len(failures.calls) == 4
     assert all(args[0] == current_bytes and args[2] == image_bytes() and body['text'] in args[4]
-               and len(args[6]) == 2 for args in failures.calls)
+               and (len(args[6]) == 2 if old_policy else args[6] is None) for args in failures.calls)
     assert all(args[4] == frozen_prompt for args in failures.calls)
     assert web.post(endpoint + '/retry', headers={'Idempotency-Key': str(uuid4())}).status_code == 202
     recovered = Client()

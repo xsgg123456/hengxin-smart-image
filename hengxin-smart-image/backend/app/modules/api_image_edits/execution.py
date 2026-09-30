@@ -50,7 +50,8 @@ def inputs(factory, item_id, store):
             with DECODE_SLOTS:
                 _decode_image(upload, get_api_settings().max_download_bytes)
             images.append((data, record.content_type))
-        return (*images[0], *images[1], prompt, parameters, images[2:])
+        second = images[1] if len(images) > 1 else (None, None)
+        return (*images[0], *second, prompt, parameters, images[2:] or None)
     return (read_bytes(store, source), source.content_type,
             read_bytes(store, material) if material else None,
             material.content_type if material else None, prompt, parameters)

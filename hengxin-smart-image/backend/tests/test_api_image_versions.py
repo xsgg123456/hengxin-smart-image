@@ -46,7 +46,7 @@ def test_revision_cas_frozen_inputs_retry_history_and_restore(files_env):
         item = session.get(ApiItem, UUID(first['id']))
         records, prompt = execution_inputs(session, item, session.get(ApiTask, item.task_id))
         assert str(records[0].id) == first['result']['fileId']
-        assert str(records[3].id) == annotation['fileId'] and '修改文字' in prompt
+        assert str(records[1].id) == annotation['fileId'] and '修改文字' in prompt
         item.state, item.error = 'failed', '上游失败'
         session.get(ApiTask, item.task_id).state = 'partial_failed'
     failed = client.get(f'{ROOT}/tasks/{task_id}').json()
@@ -96,7 +96,7 @@ def test_legacy_result_compatibility_and_validation(files_env):
     view = client.get(f'{ROOT}/tasks/{task_id}').json()['items'][0]
     assert view['currentVersion'] == view['versions'][0]['number'] == 1
     assert post(client, path + '/revise', {'baseVersion': 1, 'text': ' '}).status_code == 422
-    assert post(client, path + '/revise', {'baseVersion': 1, 'annotationFileId': str(uuid4())}).status_code == 404
+    assert post(client, path + '/revise', {'baseVersion': 1, 'text': '修改文字', 'annotationFileId': str(uuid4())}).status_code == 404
     assert post(client, path + '/restore', {'version': 9}).status_code == 404
     assert post(client, path + '/revise', {'baseVersion': 1, 'text': '修改'}).status_code == 202
     with factory() as session:

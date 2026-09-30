@@ -125,6 +125,7 @@ class ApiVersion(Timestamps, Base):
     number: Mapped[int] = mapped_column(Integer)
     file_id: Mapped[UUID] = mapped_column(ForeignKey('api_image_files.id'))
     operator_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    kind: Mapped[str | None] = mapped_column(String(20))
     text: Mapped[str] = mapped_column(Text, default='')
     annotation_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_files.id'))
     base_version: Mapped[int | None] = mapped_column(Integer)

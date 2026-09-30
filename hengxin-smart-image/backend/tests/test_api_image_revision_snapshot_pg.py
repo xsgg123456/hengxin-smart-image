@@ -43,6 +43,9 @@ def test_postgres_snapshot_only_json_reference_blocks_deletion(pg_api):
         # Deliberately remove the ordinary FK reference so this probes JSONB/JSON
         # extraction itself, independent of source/material deletion guards.
         session.get(ApiTask, task_id).material_id = data.originalFileIds[0]
+        item = session.get(ApiItem, item_id)
+        item.revision_snapshot = {'fileIds': list(map(str, [item.result_id, item.source_id, material.id])),
+                                  'prompt': '历史冻结提示词', 'policyVersion': 'single-image-reference-v1'}
     with factory() as session:
         with pytest.raises(HTTPException) as error:
             delete_file(session, material.id, user)

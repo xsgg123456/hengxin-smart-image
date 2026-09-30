@@ -14,9 +14,10 @@ export const picture = (v: unknown): v is ApiPicture => {
 }
 const positive = (v: unknown): v is number => count(v) && v > 0
 const state = (v: unknown) => text(v) && ['queued', 'running', 'retry_wait', 'collecting', 'succeeded', 'failed', 'uncertain'].includes(v)
-const version = (v: unknown): v is ApiVersion => object(v) && positive(v.number) && picture(v.picture)
+const operationKind = (v: unknown) => v === undefined || (text(v) && ['generation', 'revision', 'text_edit', 'text_repair'].includes(v))
+const version = (v: unknown): v is ApiVersion => object(v) && operationKind(v.kind) && positive(v.number) && picture(v.picture)
   && text(v.created) && text(v.operator) && text(v.text) && (v.annotation === null || picture(v.annotation)) && (v.baseVersion === null || positive(v.baseVersion))
-const revision = (v: unknown) => v === null || (object(v) && state(v.state) && text(v.text) && text(v.operator)
+const revision = (v: unknown) => v === null || (object(v) && operationKind(v.kind) && state(v.state) && text(v.text) && text(v.operator)
   && positive(v.baseVersion) && count(v.retries) && nullableText(v.error) && (v.annotation === null || picture(v.annotation)))
 const item = (v: unknown): v is ApiItem => object(v) && id(v.id) && count(v.position) && v.position > 0 && (v.source === null || picture(v.source))
   && text(v.state) && ['queued', 'running', 'retry_wait', 'collecting', 'succeeded', 'failed', 'uncertain'].includes(v.state)

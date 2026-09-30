@@ -1,6 +1,6 @@
 <template>
   <ElDialog v-model="open" :title="`修改第 ${item?.position || ''} 张图片 · 基于 V${baseVersion}`" width="min(1380px, 96vw)" align-center append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!working" :show-close="!working">
-    <AnnotationEditor v-if="open && source" ref="editor" :draft-key="draftKey" :load-original="loadOriginal" :base-label="`本次基于 V${baseVersion} 修改`" :limit="4000" :disabled="working || !!pending || blocked" @submit="submit" />
+    <AnnotationEditor v-if="open && source" ref="editor" :draft-key="draftKey" :load-original="loadOriginal" :base-label="`本次基于 V${baseVersion} 修改`" :limit="4000" marking-optional require-text :preview-prompt="buildTextEditPrompt" description="仅以当前成品和可选标注为输入，按意见修改文字；默认保留字体风格、字重、字号、颜色及布局，标注不进入成品。" :disabled="working || !!pending || blocked" @submit="submit" />
     <ElAlert v-else title="该版本的成品原始文件不可用，请重新读取任务详情。" type="error" :closable="false" />
     <ElAlert v-if="error" :title="error" type="error" :closable="false" />
     <template #footer><ElButton :disabled="working" @click="open = false">关闭</ElButton><ElButton type="primary" :loading="working" :disabled="blocked || (!source && !pending)" @click="pending ? confirmPrevious() : editor?.preview()">{{ pending ? '确认原修改请求' : '预览提交内容' }}</ElButton></template>
@@ -13,6 +13,7 @@ import { apiImages, errorText } from '@/api/api-image-edits'
 import type { ApiPicture, ApiTask } from '@/types/api-image-edits'
 import AnnotationEditor, { type PreparedAnnotation } from '../components/annotation/AnnotationEditor.vue'
 import { forgetAnnotationDraft } from '../components/annotation/annotation-drafts'
+import { buildTextEditPrompt } from './text-edit-prompt'
 import { itemCommand, type ItemCommand } from './item-command'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task: ApiTask; itemId: string; blocked?: boolean }>()
@@ -70,7 +71,7 @@ async function submit(value: PreparedAnnotation) {
       return
     }
     if (item.value?.currentVersion !== baseVersion.value) throw new Error('当前版本已更新，请关闭后重新打开修改。')
-    await send({ kind: 'revise', input: { baseVersion: baseVersion.value, text: value.text, annotationFileId: annotation?.fileId }, annotation })
+    await send({ kind: 'revise', input: { baseVersion: baseVersion.value, kind: 'text_edit', text: value.text, prompt: buildTextEditPrompt(value.text), annotationFileId: annotation?.fileId }, annotation })
   } catch (error) { if (token === generation) localError.value = errorText(error) }
   finally { uploading.value = false }
 }

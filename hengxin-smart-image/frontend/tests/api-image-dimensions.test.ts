@@ -1,3 +1,4 @@
+import * as apiTypes from '../src/types/api-image-edits'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
@@ -77,6 +78,7 @@ const preview = Vue.defineComponent({ props: ['picture'], setup(props) { return 
 const operation = { state: Vue.reactive({ pending: null, busy: false, error: '' }) }
 const dependencies: Record<string, unknown> = {
   vue: Vue,
+  '@/types/api-image-edits': apiTypes,
   'element-plus': { ElMessage: {}, ElMessageBox: {} },
   '@/store/modules/user': { useUserStore: () => ({ getUserInfo: { userId: 'test-user' } }) },
   '@/api/api-image-edits': { apiImages: {}, errorText: String },

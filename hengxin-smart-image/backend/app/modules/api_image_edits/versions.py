@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 
 from app.models import utcnow
-from app.image_revision_prompt import REVISION_POLICY_VERSION, build_revision_prompt
+from .text_prompts import build_text_prompt
 from .files import find_file
 from .models import ApiDispatch, ApiItem, ApiOperation, ApiVersion
 from .service import enabled, find_task, operation
@@ -29,7 +29,9 @@ def execution_inputs(session, item, task):
     if item.revision_snapshot is not None:
         snapshot = item.revision_snapshot
         ids = snapshot['fileIds']
-        if len(ids) not in (3, 4) or not snapshot['prompt'] or not snapshot['policyVersion']:
+        kind = snapshot.get('kind', 'revision')
+        lengths = {'text_edit': (1, 2), 'text_repair': (2,), 'revision': (3, 4)}
+        if len(ids) not in lengths.get(kind, ()) or not snapshot['prompt'] or not snapshot['policyVersion']:
             raise ValueError('invalid revision snapshot')
         return ([find_file(session, UUID(file_id)) for file_id in ids], snapshot['prompt'])
     return (find_file(session, item.revision_source_id),
@@ -45,7 +47,9 @@ def publish_result(session, item, task, file_id):
                            operator_id=item.revision_operator_id or task.owner_id,
                            text=item.revision_text if item.revision_base_version else task.prompt,
                            annotation_id=item.revision_annotation_id,
-                           base_version=item.revision_base_version))
+                           base_version=item.revision_base_version,
+                           kind=((item.revision_snapshot or {}).get('kind', 'revision')
+                                 if item.revision_base_version else 'generation')))
     item.result_id, item.current_version = file_id, number
 
 
@@ -84,14 +88,25 @@ def finish(session, user, key, digest, task, message):
 def revise(session, user, task_id, item_id, data, key):
     enabled()
     gate = channel(session)
-    old, digest = operation(session, user, key, {'revise': str(task_id), 'item': str(item_id),
-                                               'data': data.model_dump(mode='json')})
+    payload = {'revise': str(task_id), 'item': str(item_id), 'data': data.model_dump(mode='json')}
+    try:
+        old, digest = operation(session, user, key, payload)
+    except HTTPException as error:
+        if error.status_code != 409 or {'kind', 'prompt'} & data.model_fields_set:
+            raise
+        # Confirm a pre-upgrade unknown response without rewriting its frozen cycle.
+        legacy = {**payload, 'data': data.model_dump(mode='json', exclude={'kind', 'prompt'})}
+        old, digest = operation(session, user, key, legacy)
     if old:
         return old.task_id
+    if data.kind == 'text_edit' and not data.text:
+        raise HTTPException(422, '请填写文字修改意见')
     task, item = target(session, task_id, item_id)
     if gate.paused or item.state != 'succeeded' or item.current_version != data.baseVersion:
         raise HTTPException(409, '图片版本或状态已变化，请刷新后重试')
-    file_ids = [item.result_id, item.source_id, task.material_id]
+    file_ids = [item.result_id]
+    if data.kind == 'text_repair':
+        file_ids.append(item.source_id)
     if data.annotationFileId:
         file_ids.append(data.annotationFileId)
     for file_id in sorted(set(file_ids), key=str):
@@ -102,17 +117,18 @@ def revise(session, user, task_id, item_id, data, key):
     item.revision_base_version, item.revision_source_id = data.baseVersion, item.result_id
     item.revision_annotation_id, item.revision_text = data.annotationFileId, data.text
     item.revision_operator_id = user.id
+    prompt, policy = build_text_prompt(data.kind, data.text)
     item.revision_snapshot = {
         'fileIds': [str(file_id) for file_id in file_ids],
-        'prompt': build_revision_prompt(current='图1', original='图2', materials=['图3'],
-                                        note=data.text, annotation='图4' if data.annotationFileId else None,
-                                        api=True),
-        'policyVersion': REVISION_POLICY_VERSION,
+        'prompt': prompt,
+        'policyVersion': policy,
+        'kind': data.kind,
     }
     item.result_url = item.result_bytes = None
     item.capacity_cycle_id = item.staging_file_id = None
     enqueue(session, task, item)
-    return finish(session, user, key, digest, task, f'第 {item.position} 张已提交修改')
+    label = '修复文案' if data.kind == 'text_repair' else '文字修改'
+    return finish(session, user, key, digest, task, f'第 {item.position} 张已提交{label}')
 
 
 def retry_item(session, user, task_id, item_id, key):

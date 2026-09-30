@@ -23,12 +23,12 @@
         <template v-else><ElImage class="uploaded" :src="uploadUrl" fit="contain" /><ElButton text type="danger" :disabled="disabled" @click="draft.uploaded = undefined">移除标注图</ElButton></template>
       </UploadInteraction>
       <label class="general-label">{{ requireText && (draft.mode === 'upload' || !draft.marks.length) ? '修改意见（必填）' : '整体补充要求（可选）' }}</label><ElInput v-model="draft.general" aria-label="整体补充要求" type="textarea" :rows="3" :maxlength="limit" show-word-limit :disabled="disabled || previewOpen" placeholder="例如：保持其他设计、文字和布局不变。" />
-      <ElAlert class="annotation-info" title="只修改这张图片" description="系统自动附带本次修改需要的原图与素材。标注框、笔迹和编号只用于定位，不作为成品内容。" type="info" :closable="false" />
+      <ElAlert class="annotation-info" title="只修改这张图片" :description="description" type="info" :closable="false" />
       <ElAlert v-if="localError" :title="localError" type="error" :closable="false" />
     </aside>
   </div>
   <ElDialog v-model="previewOpen" title="确认本次修改内容" width="min(1000px, 94vw)" append-to-body align-center :close-on-click-modal="false" :show-close="!disabled" :close-on-press-escape="!disabled">
-    <div class="confirmation"><ElImage :src="previewUrl || originalUrl" fit="contain" /><div><strong>{{ baseLabel }} · 无标注{{ sourceLabel }}为修改基础</strong><p class="hx-footnote">标注仅用于定位，不承诺框外像素逐一不变。</p><pre>{{ prepared?.text || '根据上传标注图定位修改' }}</pre></div></div>
+    <div class="confirmation"><ElImage :src="previewUrl || originalUrl" fit="contain" /><div><strong>{{ baseLabel }} · 无标注{{ sourceLabel }}为修改基础</strong><p class="hx-footnote">标注仅用于定位，不承诺框外像素逐一不变。</p><pre>{{ prepared?.text || '根据上传标注图定位修改' }}</pre><details v-if="previewPrompt && prepared"><summary>完整提交提示词</summary><pre>{{ previewPrompt(prepared.text) }}</pre></details></div></div>
     <template #footer><ElButton :disabled="disabled" @click="previewOpen = false">返回继续标注</ElButton><ElButton type="primary" :loading="disabled" @click="confirm">{{ confirmLabel }}</ElButton></template>
   </ElDialog>
 </template>
@@ -38,7 +38,7 @@ import AnnotationCanvas from './AnnotationCanvas.vue'
 import UploadInteraction from '../UploadInteraction.vue'
 import { annotationDraft, annotationText } from './annotation-drafts'
 import { exportAnnotation } from './annotation-export'
-const props = withDefaults(defineProps<{ markingOptional?: boolean; sourceLabel?: string; confirmLabel?: string; draftKey: string; loadOriginal: () => Promise<Blob>; baseLabel: string; limit: number; disabled?: boolean; requireText?: boolean }>(), { sourceLabel: '成品', confirmLabel: '确认提交修改' })
+const props = withDefaults(defineProps<{ description?: string; previewPrompt?: (text: string) => string; markingOptional?: boolean; sourceLabel?: string; confirmLabel?: string; draftKey: string; loadOriginal: () => Promise<Blob>; baseLabel: string; limit: number; disabled?: boolean; requireText?: boolean }>(), { description: '系统自动附带本次修改需要的原图与素材。标注框、笔迹和编号只用于定位，不作为成品内容。', sourceLabel: '成品', confirmLabel: '确认提交修改' })
 export interface PreparedAnnotation { text: string; file?: File }
 const emit = defineEmits<{ submit: [value: PreparedAnnotation] }>()
 const draft = computed(() => annotationDraft(props.draftKey))

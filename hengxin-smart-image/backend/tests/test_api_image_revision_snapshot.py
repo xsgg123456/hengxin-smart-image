@@ -11,7 +11,8 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect, text
 
-from app.image_revision_prompt import REVISION_POLICY_VERSION
+from app.image_revision_prompt import REVISION_POLICY_VERSION, build_revision_prompt
+from app.modules.api_image_edits.text_prompts import TEXT_EDIT_POLICY
 from app.modules.api_image_edits.execution import execute_next, inputs
 from app.modules.api_image_edits.models import ApiFile, ApiItem, ApiTask
 from app.modules.api_image_edits.relay import RelayClient
@@ -31,22 +32,19 @@ def test_snapshot_final_wire_order_and_prompt(files_env, annotated):
     with factory.begin() as session:
         item = session.get(ApiItem, UUID(first['id']))
         item.result_id = UUID(current['fileId'])
-        ids = [item.result_id, item.source_id, session.get(ApiTask, item.task_id).material_id]
+        ids = [item.result_id]
     body = {'baseVersion': 1, 'text': '修复边缘'}
     if annotated:
         annotation = upload(web, 'annotation.png')
-        body = {'baseVersion': 1, 'annotationFileId': annotation['fileId']}
+        body = {'baseVersion': 1, 'text': '修改文字', 'annotationFileId': annotation['fileId']}
         ids.append(UUID(annotation['fileId']))
     assert post(web, path + '/revise', body).status_code == 202
     with factory() as session:
         frozen = session.get(ApiItem, UUID(first['id'])).revision_snapshot
         assert frozen['fileIds'] == list(map(str, ids))
-        assert frozen['policyVersion'] == REVISION_POLICY_VERSION
-        assert frozen['prompt'] and '图1' in frozen['prompt'] and '图3' in frozen['prompt']
-        if annotated:
-            assert '图4' in frozen['prompt'] and '定位' in frozen['prompt']
-            assert '自由画笔' in frozen['prompt'] and '不是像素蒙版' in frozen['prompt']
-            assert frozen['policyVersion'] == 'single-image-reference-v2'
+        assert frozen['policyVersion'] == TEXT_EDIT_POLICY
+        assert '唯一编辑底图' in frozen['prompt'] and body['text'] in frozen['prompt']
+        assert '圈线、框、箭头和编号不得出现在最终图片中' in frozen['prompt']
     opened = []
     original_open = store.open
     def capture(record):
@@ -64,7 +62,7 @@ def test_snapshot_final_wire_order_and_prompt(files_env, annotated):
     assert all(base64.b64decode(entry['image_url'].split(',')[1]) == image_bytes() for entry in wire['images'][1:])
 
 
-@pytest.mark.parametrize('role', [0, 1, 2, 3])
+@pytest.mark.parametrize('role', [0, 1])
 @pytest.mark.parametrize('damage', ['deleted', 'missing', 'checksum', 'decode'])
 def test_each_snapshot_input_failure_never_calls_upstream(files_env, role, damage):
     web, factory, store, _ = files_env
@@ -72,7 +70,7 @@ def test_each_snapshot_input_failure_never_calls_upstream(files_env, role, damag
     current, annotation = upload(web, 'current.png'), upload(web, 'annotation.png')
     with factory.begin() as session:
         session.get(ApiItem, UUID(first['id'])).result_id = UUID(current['fileId'])
-    assert post(web, path + '/revise', {'baseVersion': 1, 'annotationFileId': annotation['fileId']}).status_code == 202
+    assert post(web, path + '/revise', {'baseVersion': 1, 'text': '修改文字', 'annotationFileId': annotation['fileId']}).status_code == 202
     with factory.begin() as session:
         item = session.get(ApiItem, UUID(first['id']))
         record = session.get(ApiFile, UUID(item.revision_snapshot['fileIds'][role]))
@@ -95,14 +93,16 @@ def test_each_snapshot_input_failure_never_calls_upstream(files_env, role, damag
 
 
 @pytest.mark.parametrize('role', ['source', 'material'])
-def test_acceptance_checks_original_and_material_status(files_env, role):
+def test_text_edit_does_not_require_original_or_material_image_inputs(files_env, role):
     web, factory, _, _ = files_env
     _, first, path = setup_result(web, factory)
+    current = upload(web, 'distinct-current.png')
     with factory.begin() as session:
         item = session.get(ApiItem, UUID(first['id']))
+        item.result_id = UUID(current['fileId'])
         target = item.source_id if role == 'source' else session.get(ApiTask, item.task_id).material_id
         session.get(ApiFile, target).status = 'failed'
-    assert post(web, path + '/revise', {'baseVersion': 1, 'text': '修复'}).status_code == 404
+    assert post(web, path + '/revise', {'baseVersion': 1, 'text': '修复'}).status_code == 202
 
 
 @pytest.mark.parametrize('old_policy', [False, True])
@@ -110,14 +110,17 @@ def test_snapshot_freezes_ids_prompt_and_protects_standalone_reference(files_env
     web, factory, store, _ = files_env
     _, first, path = setup_result(web, factory)
     assert post(web, path + '/revise', {'baseVersion': 1, 'text': '修复'}).status_code == 202
-    if old_policy:
-        with factory.begin() as session:
-            item = session.get(ApiItem, UUID(first['id']))
-            item.revision_snapshot = {**item.revision_snapshot,
-                                      'prompt': '升级前已受理的原提示词，保持原文。',
-                                      'policyVersion': 'single-image-reference-v1'}
+    with factory.begin() as session:
+        item = session.get(ApiItem, UUID(first['id']))
+        task = session.get(ApiTask, item.task_id)
+        item.revision_snapshot = {
+            'fileIds': list(map(str, [item.result_id, item.source_id, task.material_id])),
+            'prompt': '升级前已受理的原提示词，保持原文。' if old_policy else build_revision_prompt(
+                current='图1', original='图2', materials=['图3'], note='修复', api=True),
+            'policyVersion': 'single-image-reference-v1' if old_policy else REVISION_POLICY_VERSION,
+        }
     frozen_args = inputs(factory, UUID(first['id']), store)
-    monkeypatch.setattr('app.modules.api_image_edits.versions.build_revision_prompt',
+    monkeypatch.setattr('app.modules.api_image_edits.versions.build_text_prompt',
                         lambda **kwargs: pytest.fail('retry rebuilt frozen prompt'))
     extra = upload(web, 'new-material.png')
     with factory.begin() as session:
