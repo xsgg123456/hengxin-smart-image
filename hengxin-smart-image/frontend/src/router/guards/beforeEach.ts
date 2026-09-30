@@ -17,7 +17,7 @@ import { fetchGetUserInfo } from '@/api/auth'
 import { ApiStatus } from '@/utils/http/status'
 import { isHttpError } from '@/utils/http/error'
 import { RouteRegistry, MenuProcessor, IframeRouteManager } from '../core'
-import { isDeniedBusinessRoute } from '../business-route-access'
+import { isDeniedBusinessRoute, apiWorkspaceRedirect } from '../business-route-access'
 // 路由注册器实例
 let routeRegistry: RouteRegistry | null = null
 // 菜单处理器实例
@@ -112,6 +112,8 @@ async function handleRouteGuard(
     return
   }
   // 已知受限页面提供可见的权限说明，不落入父菜单或 404。
+  const workspace = apiWorkspaceRedirect(to.path, useUserStore().info.roles)
+  if (workspace) { next({ path: workspace, replace: true }); return }
   if (isDeniedBusinessRoute(to.path, useMenuStore().menuList)) {
     closeLoading()
     next({ name: 'Exception403', replace: true })
@@ -198,6 +200,12 @@ async function handleDynamicRoutes(
     IframeRouteManager.getInstance().save()
     // 7. 验证工作标签页
     useWorktabStore().validateWorktabs(router)
+    const workspace = apiWorkspaceRedirect(to.path, useUserStore().info.roles)
+    if (workspace) {
+      routeInitInProgress = false
+      next({ path: workspace, replace: true })
+      return
+    }
     // 8. 静态路由不依赖菜单权限，初始化后直接恢复目标地址。
     if (isStaticRoute(to.path)) {
       routeInitInProgress = false
@@ -248,6 +256,7 @@ async function fetchUserInfo(): Promise<void> {
   const data = bootstrapUser.take() ?? await fetchGetUserInfo()
   identity.assert(epoch)
   userStore.setUserInfo(data)
+  userStore.setSearchHistory(userStore.searchHistory.filter(item => !apiWorkspaceRedirect(item.path, data.roles)))
   // 检查并清理工作台标签页（如果是不同用户登录）
   userStore.checkAndClearWorktabs()
 }

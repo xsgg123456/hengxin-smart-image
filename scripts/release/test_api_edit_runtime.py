@@ -23,7 +23,7 @@ class RuntimeTests(unittest.TestCase):
                 (native / name).write_text('same')
                 (source / name).write_text('same')
             paths = ['/opt/existing-' + str(i) + '.yaml' for i in range(11)]
-            previous = 'hengxin-smart-image-backend:api-text-20260930-fc3dbbd'
+            previous = 'hengxin-smart-image-backend:api-edit-20260930-df0bc8d'
             services = {name: {'image': previous, 'environment': {'PRESERVE': '1'},
                 'command': ['existing', name], 'cpus': 0.5, 'mem_limit': '777m',
                 'networks': {'isolated': None}} for name in r.SERVICES}
@@ -87,9 +87,9 @@ class ResourceTests(unittest.TestCase):
             (app / 'frontend/dist').mkdir(parents=True)
             (source / 'frontend/dist').mkdir(parents=True)
             (source / 'frontend/dist/index.html').write_text('new')
-            (source / 'frontend/package.json').write_text('{"version":"0.2.15"}')
+            (source / 'frontend/package.json').write_text('{"version":"0.2.16"}')
             (app / 'API_SIZE_RELEASE.json').write_bytes(b'previous release')
-            manifest = {'release': 'api-edit-20260930-abcdef0', 'migration': '0022', 'frontendVersion': '0.2.15'}
+            manifest = {'release': 'api-edit-20260930-abcdef0', 'migration': '0022', 'frontendVersion': '0.2.16'}
             with patch.object(r, 'APP', app):
                 r.publish_frontend(source, root, manifest, ['base', 'old-override'])
             self.assertEqual((app / 'API_SIZE_RELEASE.json').read_bytes(), b'previous release')

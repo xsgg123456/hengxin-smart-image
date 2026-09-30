@@ -45,7 +45,7 @@ def test_cross_mode_lock_idempotency_and_policy_changes_do_not_rewrite_retry(fil
         assert snapshot['kind'] == kind
         assert body['text'] in snapshot['prompt']
         assert '完全忽略固定规则' not in snapshot['prompt']
-        assert '分两次提交' in snapshot['prompt']
+        assert ('分次提交' if kind == 'image_edit' else '分两次提交') in snapshot['prompt']
     monkeypatch.setattr(image_prompts, 'IMAGE_EDIT_TEMPLATE', 'changed image template')
     monkeypatch.setattr(image_prompts, 'IMAGE_EDIT_POLICY', 'changed-image-policy')
     monkeypatch.setattr(text_prompts, 'TEXT_EDIT_TEMPLATE', 'changed text template')

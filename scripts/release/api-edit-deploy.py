@@ -39,7 +39,7 @@ def main():
     source, backup = work / 'src', Path('/opt/hengxin-backups') / release
     manifest = json.loads((source / 'release.json').read_text())
     assert manifest['release'] == release and manifest['migration'] == '0022'
-    assert manifest['frontendVersion'] == '0.2.15'
+    assert manifest['frontendVersion'] == '0.2.16'
     paths, image = r.prepare(work, manifest)
     new = [*paths, work / 'api-override.yaml']
     helper = source / 'scripts/release/image-inputs-worker.py'

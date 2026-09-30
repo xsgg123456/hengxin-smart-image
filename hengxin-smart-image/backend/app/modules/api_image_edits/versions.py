@@ -31,7 +31,11 @@ def execution_inputs(session, item, task):
         snapshot = item.revision_snapshot
         ids = snapshot['fileIds']
         kind = snapshot.get('kind', 'revision')
-        lengths = {'image_edit': (1, 2), 'text_edit': (1, 2), 'text_repair': (2,), 'revision': (3, 4)}
+        lengths = {'text_edit': (1, 2), 'text_repair': (2,), 'revision': (3, 4)}
+        if kind == 'image_edit':
+            # Historical cycles retain their original inputs and prompt on every retry.
+            lengths[kind] = {'api-image-edit-v1': (1, 2), 'api-image-edit-v2': (3, 4)}.get(
+                snapshot['policyVersion'], ())
         if len(ids) not in lengths.get(kind, ()) or not snapshot['prompt'] or not snapshot['policyVersion']:
             raise ValueError('invalid revision snapshot')
         return ([find_file(session, UUID(file_id)) for file_id in ids], snapshot['prompt'])
@@ -106,7 +110,9 @@ def revise(session, user, task_id, item_id, data, key):
     if gate.paused or item.state != 'succeeded' or item.current_version != data.baseVersion:
         raise HTTPException(409, '图片版本或状态已变化，请刷新后重试')
     file_ids = [item.result_id]
-    if data.kind == 'text_repair':
+    if data.kind == 'image_edit':
+        file_ids.extend([item.source_id, task.material_id])
+    elif data.kind == 'text_repair':
         file_ids.append(item.source_id)
     if data.annotationFileId:
         file_ids.append(data.annotationFileId)

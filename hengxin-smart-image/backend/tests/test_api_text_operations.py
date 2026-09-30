@@ -50,7 +50,10 @@ def test_text_wire_frozen_roles_source_dimensions_and_multiple_versions(files_en
     assert post(web, path + '/revise', body, 'one').status_code == 202
     assert post(web, path + '/revise', body, 'one').status_code == 202
     assert post(web, path + '/revise', {**body, 'kind': 'text_repair', 'annotationFileId': None}, 'another').status_code == 409
-    expected = [current] + ([original] if kind == 'text_repair' else [annotation] if annotation else [])
+    expected = [current] + ([original, material] if kind == 'image_edit'
+                            else [original] if kind == 'text_repair' else [])
+    if annotation:
+        expected.append(annotation)
     with factory() as session:
         snapshot = session.get(ApiItem, item_id).revision_snapshot
         assert snapshot['fileIds'] == expected and snapshot['kind'] == kind
@@ -78,6 +81,12 @@ def test_text_wire_frozen_roles_source_dimensions_and_multiple_versions(files_en
     if len(expected) == 2:
         expected_size = source_size if kind == 'text_repair' else (500, 600)
         assert base64.b64decode(wire['images'][1]['image_url'].split(',')[1]) == encoded(expected_size)
+    if kind == 'image_edit':
+        expected_bytes = [encoded((500, 600), 'JPEG'), encoded(source_size), encoded((100, 100))]
+        if annotated:
+            expected_bytes.append(encoded((500, 600)))
+        assert [base64.b64decode(entry['image_url'].split(',')[1])
+                for entry in wire['images']] == expected_bytes
     detail = web.get(f'{ROOT}/tasks/{task_id}').json()['items'][0]
     assert detail['currentVersion'] == 2 and detail['revision']['kind'] == kind
     assert [v['kind'] for v in detail['versions']] == ['generation', kind]
@@ -86,10 +95,17 @@ def test_text_wire_frozen_roles_source_dimensions_and_multiple_versions(files_en
     assert post(web, path + '/revise', {'baseVersion': 2, 'kind': kind, 'text': text}).status_code == 202
     assert execute_next(factory, store, relay)
     assert json.loads(pool.request.call_args.kwargs['body'])['size'] == request_size
+    second = web.get(f'{ROOT}/tasks/{task_id}').json()['items'][0]
+    with Image.open(BytesIO(web.get(second['result']['url']).content)) as image:
+        assert image.size == source_size and image.format == 'PNG'
     assert post(web, path + '/restore', {'version': 1}).status_code == 200
     restored = web.get(f'{ROOT}/tasks/{task_id}').json()['items'][0]
     assert restored['currentVersion'] == 1 and restored['revision'] is None
     assert len(restored['versions']) == 3
+    if kind == 'image_edit':
+        assert post(web, path + '/revise', {'baseVersion': 1, 'kind': kind, 'text': text}).status_code == 202
+        with factory() as session:
+            assert session.get(ApiItem, item_id).revision_snapshot['fileIds'] == [current, original, material]
 
 
 @pytest.mark.parametrize('body', [

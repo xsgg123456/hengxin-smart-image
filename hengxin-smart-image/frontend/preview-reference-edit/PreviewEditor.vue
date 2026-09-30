@@ -23,7 +23,7 @@
         <button v-if="!draft.uploaded" class="upload-box" :disabled="disabled" @click="picker?.click()">上传已有标注图，或拖到这里<br />JPG / PNG · 最多 1 张 · 10 MiB</button>
         <template v-else><ElImage class="uploaded" :src="uploadUrl" fit="contain" /><ElButton text type="danger" :disabled="disabled" @click="draft.uploaded = undefined">移除标注图</ElButton></template>
       </UploadInteraction>
-      <label class="general-label">{{ requireText && (draft.mode === 'upload' || !draft.marks.length) ? '修改意见（必填）' : '整体补充要求（可选）' }}</label><ElInput v-model="draft.general" aria-label="整体补充要求" type="textarea" :rows="3" :maxlength="limit" show-word-limit :disabled="disabled || previewOpen" placeholder="例如：保持其他设计、文字和布局不变。" />
+      <slot name="example" /><label class="general-label">{{ requireText && (draft.mode === 'upload' || !draft.marks.length) ? '修改意见（必填）' : '整体补充要求（可选）' }}</label><ElInput v-model="draft.general" aria-label="整体补充要求" type="textarea" :rows="3" :maxlength="limit" show-word-limit :disabled="disabled || previewOpen" placeholder="例如：保持其他设计、文字和布局不变。" />
       <ElAlert class="annotation-info" title="只修改这张图片" :description="description" type="info" :closable="false" />
       <ElAlert v-if="localError" :title="localError" type="error" :closable="false" />
     </aside>
@@ -35,10 +35,10 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-import AnnotationCanvas from './AnnotationCanvas.vue'
-import UploadInteraction from '../UploadInteraction.vue'
-import { annotationDraft, annotationText } from './annotation-drafts'
-import { exportAnnotation } from './annotation-export'
+import AnnotationCanvas from '../src/views/hengxin/components/annotation/AnnotationCanvas.vue'
+import UploadInteraction from '../src/views/hengxin/components/UploadInteraction.vue'
+import { annotationDraft, annotationText } from '../src/views/hengxin/components/annotation/annotation-drafts'
+import { exportAnnotation } from '../src/views/hengxin/components/annotation/annotation-export'
 const props = withDefaults(defineProps<{ description?: string; previewPrompt?: (text: string) => string; markingOptional?: boolean; sourceLabel?: string; confirmLabel?: string; draftKey: string; loadOriginal: () => Promise<Blob>; baseLabel: string; limit: number; disabled?: boolean; requireText?: boolean }>(), { description: '系统自动附带本次修改需要的原图与素材。标注框、笔迹和编号只用于定位，不作为成品内容。', sourceLabel: '成品', confirmLabel: '确认提交修改' })
 export interface PreparedAnnotation { text: string; file?: File }
 const emit = defineEmits<{ submit: [value: PreparedAnnotation]; previewState: [locked: boolean] }>()
@@ -95,7 +95,7 @@ async function preview() {
 }
 function confirm() { if (prepared.value && !props.disabled) { previewOpen.value = false; emit('submit', prepared.value) } }
 onBeforeUnmount(() => { generation++; emit('previewState', false); revoke(originalUrl.value); revoke(uploadUrl.value); revoke(previewUrl.value) })
-defineExpose({ preview })
+defineExpose({ preview, fillExample: () => { draft.value.general = '对照素材图，将三台手机的前置摄像头开孔分别调整到各自屏幕顶部的横向中央，保持各自透视关系，其他内容不变。' } })
 </script>
 <style scoped>
 .annotation-editor { display:grid; grid-template-columns:minmax(0, 2.65fr) minmax(280px,1fr); gap:24px; height:min(70dvh,760px); overflow:hidden; grid-template-rows:minmax(0,1fr); }

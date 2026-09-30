@@ -43,6 +43,8 @@ import { router } from '@/router'
 import { LocationQueryRaw, Router } from 'vue-router'
 import { WorkTab } from '@/types'
 import { useCommon } from '@/hooks/core/useCommon'
+import { useUserStore } from './user'
+import { apiWorkspaceRedirect } from '@/router/business-route-access'
 
 interface WorktabState {
   current: Partial<WorkTab>
@@ -436,6 +438,7 @@ export const useWorktabStore = defineStore(
       try {
         // 动态路由校验：优先使用路由 name 判断有效性；否则用 resolve 匹配参数化路径
         const isTabRouteValid = (tab: Partial<WorkTab>): boolean => {
+          if (tab.path && apiWorkspaceRedirect(tab.path, useUserStore().info.roles)) return false
           try {
             if (tab.name) {
               const routes = routerInstance.getRoutes()

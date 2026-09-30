@@ -101,7 +101,7 @@ def build(repo):
     assert EXACT <= files.keys() and 'frontend/dist/index.html' in files
     validate(files)
     manifest = {'release': release, 'commit': commit, 'candidateId': status['currentId'],
-        'migration': '0022', 'frontendVersion': '0.2.15',
+        'migration': '0022', 'frontendVersion': '0.2.16',
         'files': {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())}}
     files['release.json'] = json.dumps(manifest, indent=2).encode()
     assert common.reviewed_status(repo)['currentId'] == status['currentId']
@@ -124,7 +124,7 @@ def validate(files):
         'backend/app/modules/api_image_edits/text_repair_prompt.txt',
     } <= files.keys()
     assert 'backend/migrations/versions/0022_api_text_operation_kind.py' in files
-    assert json.loads(files['frontend/package.json'])['version'] == '0.2.15'
+    assert json.loads(files['frontend/package.json'])['version'] == '0.2.16'
     assert {'scripts/release/' + n for n in (
         'api-edit-deploy.py', 'api-edit-runtime.py', 'api-edit-verify.py', 'image-inputs-worker.py')} <= files.keys()
 

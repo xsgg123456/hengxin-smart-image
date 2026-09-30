@@ -30,7 +30,7 @@
           <p v-if="item.revision" class="hx-footnote">{{ operationLabel(item.revision.kind) }}：{{ itemLabels[item.revision.state] }} · {{ item.revision.operator }} · 基于 V{{ item.revision.baseVersion }}<span v-if="item.state !== 'succeeded'"> · 旧结果保留</span></p>
           <p v-if="item.retries" class="hx-footnote">已自动重试 {{ item.retries }} / 3 次</p>
           <div class="card-actions">
-            <ElButton v-if="item.result" size="small" :disabled="!canRevise(item, false)" @click="revisionId = item.id; revisionOpen = true">{{ pendingRevision(item, false) ? '确认原修改请求' : '修改这张' }}</ElButton>
+            <ElButton v-if="item.result" size="small" :disabled="!canRevise(item, false)" @click="revisionId = item.id; revisionOpen = true">{{ pendingRevision(item, false) ? '确认原修改请求' : '修改图片' }}</ElButton>
             <ElButton v-if="item.result" size="small" :loading="command(item).state.busy && pendingRevision(item, true)" :disabled="!canRevise(item, true)" @click="repairText(item)">{{ pendingRevision(item, true) ? '确认原修复请求' : '修复文案' }}</ElButton>
             <ElButton v-if="item.result" text type="primary" @click="versionId = item.id; versionOpen = true">历史版本 · {{ item.versions.length }}</ElButton>
             <ElButton v-if="item.state === 'failed' || command(item).state.pending?.command.kind === 'retry'" size="small" type="primary" :loading="command(item).state.busy" :disabled="packing || busy || (!!command(item).state.pending && command(item).state.pending?.command.kind !== 'retry') || (!command(item).state.pending && channelBlocked)" @click="retryItem(item)">{{ command(item).state.pending ? '确认原重试请求' : '继续重试这张' }}</ElButton>

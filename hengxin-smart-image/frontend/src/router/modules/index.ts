@@ -1,4 +1,5 @@
 import type { AppRouteRecord } from '@/types/router'
+const fullWorkspaceRoles = ['super_admin', 'design_manager']
 const pages = [
   ['tasks', '任务中心', 'ri:time-line'],
   ['templates', '模板库', 'ri:layout-grid-line'],
@@ -6,7 +7,7 @@ const pages = [
 ]
 export const routeModules: AppRouteRecord[] = [{
   name: 'HxImageProcessing', path: '/image-processing', component: '/index/index',
-  meta: { title: '图片处理', icon: 'ri:image-edit-line' },
+  meta: { title: '图片处理', icon: 'ri:image-edit-line', roles: fullWorkspaceRoles },
   children: [
     ['wallpaper', '替换壁纸', 'ri:landscape-line'],
     ['product', '替换商品', 'ri:box-3-line'],
@@ -24,10 +25,10 @@ export const routeModules: AppRouteRecord[] = [{
   ]
 }, ...pages.map(([path, title, icon]) => ({
   name: `Hx${path}Page`, path: `/${path}/index`, component: `/hengxin/${path}`,
-  meta: { title, icon, keepAlive: false, fixedTab: path === 'wallpaper' }
+  meta: { title, icon, keepAlive: false, roles: fullWorkspaceRoles }
 })), {
   name: 'HxManagement', path: '/management', component: '/index/index',
-  meta: { title: '管理中心', icon: 'ri:settings-3-line' },
+  meta: { title: '管理中心', icon: 'ri:settings-3-line', roles: fullWorkspaceRoles },
   children: [
     { path: 'usage', title: '调用统计', icon: 'ri:bar-chart-line' },
     { path: 'monitor', title: '执行监控', icon: 'ri:pulse-line', roles: ['super_admin', 'design_manager'] },

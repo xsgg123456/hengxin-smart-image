@@ -32,7 +32,7 @@ class VerifyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             app = Path(folder)
             manifest = {'release': 'api-edit-20260930-abcdef0', 'commit': 'abcdef0',
-                'migration': '0022', 'frontendVersion': '0.2.15', 'files': {'prompt.txt': 'digest'}}
+                'migration': '0022', 'frontendVersion': '0.2.16', 'files': {'prompt.txt': 'digest'}}
             names = ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json', 'API_TEXT_RELEASE.json', 'API_EDIT_RELEASE.json')
             for name in names: (app / name).write_text(json.dumps(manifest))
             (app / 'API_SIZE_RELEASE.json').write_text('unchanged historical marker')
@@ -46,7 +46,7 @@ class VerifyTests(unittest.TestCase):
 
 
 class MainTests(unittest.TestCase):
-    def exercise(self, package_version='0.2.15'):
+    def exercise(self, package_version='0.2.16'):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             app = root / 'app'
@@ -69,7 +69,7 @@ class MainTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(raw)
             manifest = {'release': release, 'commit': 'abcdef0', 'migration': '0022',
-                'frontendVersion': '0.2.15', 'files': {
+                'frontendVersion': '0.2.16', 'files': {
                     name: hashlib.sha256(raw).hexdigest() for name, raw in contents.items()}}
             (work / 'src/release.json').write_text(json.dumps(manifest))
             for name in ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json', 'API_TEXT_RELEASE.json', 'API_EDIT_RELEASE.json'):
@@ -123,7 +123,7 @@ class MainTests(unittest.TestCase):
 
     def test_main_success_checks_services_native_resources_schema_and_public_assets(self):
         result = self.exercise()
-        self.assertEqual(result['frontendVersion'], '0.2.15')
+        self.assertEqual(result['frontendVersion'], '0.2.16')
         self.assertEqual(result['schema'], '0022')
         self.assertEqual(result['hashes'], {'native': 4, 'frontend': 4})
         self.assertEqual(len(result['services']), 5)

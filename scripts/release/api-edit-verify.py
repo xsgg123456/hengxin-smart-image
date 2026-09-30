@@ -33,7 +33,7 @@ def main():
     app = Path('/opt/hengxin-smart-image')
     manifest = json.loads((work / 'src/release.json').read_text())
     assert manifest['release'] == release and manifest['migration'] == '0022'
-    assert manifest['frontendVersion'] == '0.2.15'
+    assert manifest['frontendVersion'] == '0.2.16'
     validate_prompt_manifest(manifest)
     validate_release_markers(app, manifest)
     old = json.loads((work / 'old-compose.private.json').read_text())
@@ -73,7 +73,7 @@ def main():
     validate_kind_column(sql)
     result['operationKindColumn'] = 'nullable varchar(20)'
     result['frontendVersion'] = json.loads((app/'frontend/package.json').read_text())['version']
-    assert result['frontendVersion'] == '0.2.15'
+    assert result['frontendVersion'] == '0.2.16'
     result['native'] = run('systemctl','is-active','hengxin-vps-codex-worker')
     assert result['native'] == 'active'
     assert sql('SELECT paused FROM api_image_channel WHERE id=1') == 'f'

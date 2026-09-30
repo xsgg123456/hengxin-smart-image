@@ -54,7 +54,7 @@ def prepare(work, manifest):
     for name in SERVICES:
         live, spec = inspect(name), config['services'][name]
         assert live['State']['Running'] and live['Config']['Image'] == spec['image'], name
-        assert spec['image'] == 'hengxin-smart-image-backend:api-text-20260930-fc3dbbd', name
+        assert spec['image'] == 'hengxin-smart-image-backend:api-edit-20260930-df0bc8d', name
         env = dict(item.split('=', 1) for item in live['Config']['Env'])
         assert all(env.get(k) == str(v) for k, v in spec.get('environment', {}).items()), name
         assert not spec.get('command') or spec['command'] == live['Config']['Cmd'], name

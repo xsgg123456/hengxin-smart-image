@@ -30,7 +30,7 @@ class RecoveryTests(unittest.TestCase):
             source.mkdir(parents=True)
             (work / 'INSTALL_TEST_IMAGE_ID').write_text('image-id')
             (source / 'release.json').write_text(json.dumps(dict(
-                release=release, migration='0022', frontendVersion='0.2.15')))
+                release=release, migration='0022', frontendVersion='0.2.16')))
             helper = source / 'scripts/release/image-inputs-worker.py'
             helper.parent.mkdir(parents=True)
             helper.write_text('# test helper')

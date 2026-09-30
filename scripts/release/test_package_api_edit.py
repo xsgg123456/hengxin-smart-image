@@ -49,7 +49,7 @@ class PackageTests(unittest.TestCase):
                 'backend/app/modules/api_image_edits/text_edit_prompt.txt': b'edit',
                  'backend/app/modules/api_image_edits/text_repair_prompt.txt': b'repair',
                  'backend/migrations/versions/0022_api_text_operation_kind.py': b'',
-                 'frontend/package.json': b'{"version":"0.2.15"}',
+                 'frontend/package.json': b'{"version":"0.2.16"}',
                  **{'scripts/release/' + n: b'' for n in ('api-edit-deploy.py', 'api-edit-runtime.py', 'api-edit-verify.py', 'image-inputs-worker.py')}}
         package.validate(files)
         for name in files:

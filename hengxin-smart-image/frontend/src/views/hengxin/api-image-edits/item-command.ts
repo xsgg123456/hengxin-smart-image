@@ -1,7 +1,8 @@
 import { reactive } from 'vue'
 import { errorText, uncertainResponse } from '@/api/api-image-edits'
+import type { RevisionReference } from './revision-references'
 import type { ApiPicture, ApiRevisionInput } from '@/types/api-image-edits'
-export type ItemCommand = { kind: 'revise'; input: ApiRevisionInput; annotation?: ApiPicture } | { kind: 'restore'; version: number } | { kind: 'retry' }
+export type ItemCommand = { kind: 'revise'; input: ApiRevisionInput; annotation?: ApiPicture; references?: RevisionReference[] } | { kind: 'restore'; version: number } | { kind: 'retry' }
 export interface PendingCommand { key: string; command: ItemCommand; uncertain: boolean }
 export interface CommandStorage { load(): PendingCommand | null; save(value: PendingCommand | null): void }
 export function createItemCommand(storage?: CommandStorage, key = () => crypto.randomUUID()) {
