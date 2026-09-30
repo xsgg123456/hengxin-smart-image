@@ -13,6 +13,7 @@ from app.modules.api_image_edits.execution import execute_next, inputs
 from app.modules.api_image_edits.models import ApiItem, ApiTask, ApiVersion
 from app.modules.api_image_edits.relay import RelayClient
 from app.modules.api_image_edits.text_prompts import TEXT_REPAIR_PROMPT, build_text_prompt
+from app.modules.api_image_edits.image_prompts import build_image_prompt
 from files_helpers import files_env
 from test_api_image_dimensions import encoded
 from test_api_image_domain import ROOT, enabled_api
@@ -25,7 +26,8 @@ def upload_image(web, name, size, kind='PNG'):
         'image/jpeg' if kind == 'JPEG' else 'image/png')}).json()['fileId']
 
 
-@pytest.mark.parametrize('kind,annotated', [('text_edit', False), ('text_edit', True), ('text_repair', False)])
+@pytest.mark.parametrize('kind,annotated', [('image_edit', False), ('image_edit', True),
+    ('text_edit', False), ('text_edit', True), ('text_repair', False)])
 @pytest.mark.parametrize('source_size,request_size', [((790, 1500), '800x1520'), ((800, 800), '1024x1024')])
 def test_text_wire_frozen_roles_source_dimensions_and_multiple_versions(files_env, kind, annotated, source_size, request_size):
     web, factory, store, _ = files_env
@@ -41,7 +43,7 @@ def test_text_wire_frozen_roles_source_dimensions_and_multiple_versions(files_en
         session.get(ApiTask, item.task_id).state = 'succeeded'
         item_id = item.id
     path = f'{ROOT}/tasks/{task_id}/items/{item_id}'
-    text = '把标题改为新标题' if kind == 'text_edit' else ''
+    text = {'image_edit': '移除指定装饰', 'text_edit': '把标题改为新标题', 'text_repair': ''}[kind]
     body = {'kind': kind, 'baseVersion': 1, 'text': text, 'prompt': '客户端试图删除全部保护'}
     if annotation:
         body['annotationFileId'] = annotation
@@ -52,7 +54,10 @@ def test_text_wire_frozen_roles_source_dimensions_and_multiple_versions(files_en
     with factory() as session:
         snapshot = session.get(ApiItem, item_id).revision_snapshot
         assert snapshot['fileIds'] == expected and snapshot['kind'] == kind
-        assert snapshot['prompt'] == build_text_prompt(kind, text)[0]
+        expected_prompt, expected_policy = (build_image_prompt(text) if kind == 'image_edit'
+                                            else build_text_prompt(kind, text))
+        assert snapshot['prompt'] == expected_prompt
+        assert snapshot['policyVersion'] == expected_policy
         if kind == 'text_repair':
             assert snapshot['prompt'] == TEXT_REPAIR_PROMPT
     frozen = inputs(factory, item_id, store)

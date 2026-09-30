@@ -40,11 +40,12 @@ import { annotationDraft, annotationText } from './annotation-drafts'
 import { exportAnnotation } from './annotation-export'
 const props = withDefaults(defineProps<{ description?: string; previewPrompt?: (text: string) => string; markingOptional?: boolean; sourceLabel?: string; confirmLabel?: string; draftKey: string; loadOriginal: () => Promise<Blob>; baseLabel: string; limit: number; disabled?: boolean; requireText?: boolean }>(), { description: '系统自动附带本次修改需要的原图与素材。标注框、笔迹和编号只用于定位，不作为成品内容。', sourceLabel: '成品', confirmLabel: '确认提交修改' })
 export interface PreparedAnnotation { text: string; file?: File }
-const emit = defineEmits<{ submit: [value: PreparedAnnotation] }>()
+const emit = defineEmits<{ submit: [value: PreparedAnnotation]; previewState: [locked: boolean] }>()
 const draft = computed(() => annotationDraft(props.draftKey))
 const selected = ref(''), original = shallowRef<HTMLImageElement>(), originalUrl = ref(''), loadError = ref(''), loading = ref(false)
 const localError = ref(''), picker = ref<HTMLInputElement>(), uploadUrl = ref(''), previewUrl = ref(''), previewOpen = ref(false), preparing = ref(false)
 const prepared = shallowRef<PreparedAnnotation>()
+watch([preparing, previewOpen], () => emit('previewState', preparing.value || previewOpen.value), { flush: 'sync' })
 let generation = 0
 function revoke(url: string) { if (url) URL.revokeObjectURL(url) }
 async function load() {
@@ -92,7 +93,7 @@ async function preview() {
   finally { preparing.value = false }
 }
 function confirm() { if (prepared.value && !props.disabled) { previewOpen.value = false; emit('submit', prepared.value) } }
-onBeforeUnmount(() => { generation++; revoke(originalUrl.value); revoke(uploadUrl.value); revoke(previewUrl.value) })
+onBeforeUnmount(() => { generation++; emit('previewState', false); revoke(originalUrl.value); revoke(uploadUrl.value); revoke(previewUrl.value) })
 defineExpose({ preview })
 </script>
 <style scoped>

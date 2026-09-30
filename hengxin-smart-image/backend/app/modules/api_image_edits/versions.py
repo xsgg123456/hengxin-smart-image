@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 
 from app.models import utcnow
 from .text_prompts import build_text_prompt
+from .image_prompts import build_image_prompt
 from .files import find_file
 from .models import ApiDispatch, ApiItem, ApiOperation, ApiVersion
 from .service import enabled, find_task, operation
@@ -30,7 +31,7 @@ def execution_inputs(session, item, task):
         snapshot = item.revision_snapshot
         ids = snapshot['fileIds']
         kind = snapshot.get('kind', 'revision')
-        lengths = {'text_edit': (1, 2), 'text_repair': (2,), 'revision': (3, 4)}
+        lengths = {'image_edit': (1, 2), 'text_edit': (1, 2), 'text_repair': (2,), 'revision': (3, 4)}
         if len(ids) not in lengths.get(kind, ()) or not snapshot['prompt'] or not snapshot['policyVersion']:
             raise ValueError('invalid revision snapshot')
         return ([find_file(session, UUID(file_id)) for file_id in ids], snapshot['prompt'])
@@ -99,8 +100,8 @@ def revise(session, user, task_id, item_id, data, key):
         old, digest = operation(session, user, key, legacy)
     if old:
         return old.task_id
-    if data.kind == 'text_edit' and not data.text:
-        raise HTTPException(422, '请填写文字修改意见')
+    if data.kind in {'image_edit', 'text_edit'} and not data.text:
+        raise HTTPException(422, '请填写修改意见')
     task, item = target(session, task_id, item_id)
     if gate.paused or item.state != 'succeeded' or item.current_version != data.baseVersion:
         raise HTTPException(409, '图片版本或状态已变化，请刷新后重试')
@@ -117,7 +118,8 @@ def revise(session, user, task_id, item_id, data, key):
     item.revision_base_version, item.revision_source_id = data.baseVersion, item.result_id
     item.revision_annotation_id, item.revision_text = data.annotationFileId, data.text
     item.revision_operator_id = user.id
-    prompt, policy = build_text_prompt(data.kind, data.text)
+    prompt, policy = (build_image_prompt(data.text) if data.kind == 'image_edit'
+                      else build_text_prompt(data.kind, data.text))
     item.revision_snapshot = {
         'fileIds': [str(file_id) for file_id in file_ids],
         'prompt': prompt,
@@ -127,7 +129,7 @@ def revise(session, user, task_id, item_id, data, key):
     item.result_url = item.result_bytes = None
     item.capacity_cycle_id = item.staging_file_id = None
     enqueue(session, task, item)
-    label = '修复文案' if data.kind == 'text_repair' else '文字修改'
+    label = {'image_edit': '图片修改', 'text_edit': '文字修改', 'text_repair': '修复文案'}[data.kind]
     return finish(session, user, key, digest, task, f'第 {item.position} 张已提交{label}')
 
 

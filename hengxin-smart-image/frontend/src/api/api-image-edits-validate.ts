@@ -14,7 +14,7 @@ export const picture = (v: unknown): v is ApiPicture => {
 }
 const positive = (v: unknown): v is number => count(v) && v > 0
 const state = (v: unknown) => text(v) && ['queued', 'running', 'retry_wait', 'collecting', 'succeeded', 'failed', 'uncertain'].includes(v)
-const operationKind = (v: unknown) => v === undefined || (text(v) && ['generation', 'revision', 'text_edit', 'text_repair'].includes(v))
+const operationKind = (v: unknown) => v === undefined || (text(v) && ['generation', 'revision', 'image_edit', 'text_edit', 'text_repair'].includes(v))
 const version = (v: unknown): v is ApiVersion => object(v) && operationKind(v.kind) && positive(v.number) && picture(v.picture)
   && text(v.created) && text(v.operator) && text(v.text) && (v.annotation === null || picture(v.annotation)) && (v.baseVersion === null || positive(v.baseVersion))
 const revision = (v: unknown) => v === null || (object(v) && operationKind(v.kind) && state(v.state) && text(v.text) && text(v.operator)

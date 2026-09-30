@@ -105,9 +105,14 @@ export function useAnnotationCanvas(
       return
     pan = pan || event.button === 1 || space.value
     const p = point(event)
+    const target = event.target instanceof Element ? event.target : null
+    const id = target?.closest('[data-mark]')?.getAttribute('data-mark')
+    const hit = marks.value.find((mark) => mark.id === id)
+    const editingMark = hit && tool.value === 'rect' &&
+      (target?.closest('[data-move]') || target?.hasAttribute('data-resize'))
     if (
       !p ||
-      (!pan && (p.x < 0 || p.y < 0 || p.x > props.width || p.y > props.height))
+      (!pan && !editingMark && (p.x < 0 || p.y < 0 || p.x > props.width || p.y > props.height))
     )
       return
     const base: Gesture = {
@@ -121,14 +126,7 @@ export function useAnnotationCanvas(
     if (pan) {
       if (zoom.value <= 1) return
     } else {
-      const target = event.target instanceof Element ? event.target : null
-      const id = target?.closest('[data-mark]')?.getAttribute('data-mark')
-      const hit = marks.value.find((mark) => mark.id === id)
-      if (
-        hit &&
-        tool.value === 'rect' &&
-        (target?.closest('[data-move]') || target?.hasAttribute('data-resize'))
-      ) {
+      if (hit && editingMark) {
         base.type = target?.hasAttribute('data-resize') ? 'resize' : 'move'
         base.handle = target?.getAttribute('data-resize') || undefined
         base.mark = cloneMarks([hit])[0]
