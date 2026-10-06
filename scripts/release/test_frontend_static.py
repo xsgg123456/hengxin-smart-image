@@ -19,15 +19,15 @@ class StaticReleaseTests(unittest.TestCase):
         self.source, self.app, self.backup = (self.root / n for n in ('source', 'app', 'backup'))
         files = {'frontend/dist/index.html': b'new entry',
                  'frontend/dist/assets/new.js': b'new asset',
-                 'frontend/package.json': b'{"version":"0.2.18"}'}
+                 'frontend/package.json': b'{"version":"0.2.19"}'}
         for name, value in files.items():
             self.write(self.source / name, value)
-        self.write(self.source / 'release.json', json.dumps(dict(release='test', frontendVersion='0.2.18',
+        self.write(self.source / 'release.json', json.dumps(dict(release='test', frontendVersion='0.2.19',
             files={n: hashlib.sha256(b).hexdigest() for n, b in files.items()})).encode())
         self.write(self.app / 'frontend/dist/index.html', b'old entry')
         self.write(self.app / 'frontend/dist/index.html.gz', b'old compressed entry')
         self.write(self.app / 'frontend/dist/assets/old.js', b'old asset')
-        self.write(self.app / 'frontend/package.json', b'{"version":"0.2.17"}')
+        self.write(self.app / 'frontend/package.json', b'{"version":"0.2.18"}')
         self.write(self.app / 'API_RELEASE.json', b'backend unchanged')
 
     def write(self, path, value):
@@ -65,7 +65,7 @@ class StaticReleaseTests(unittest.TestCase):
                 release.deploy(self.source, self.app, self.backup)
         self.assertEqual((self.app / 'frontend/dist/index.html').read_bytes(), b'old entry')
         self.assertEqual((self.app / 'frontend/dist/index.html.gz').read_bytes(), b'old compressed entry')
-        self.assertEqual(json.loads((self.app / 'frontend/package.json').read_text())['version'], '0.2.17')
+        self.assertEqual(json.loads((self.app / 'frontend/package.json').read_text())['version'], '0.2.18')
         self.assertFalse((self.app / 'FRONTEND_RELEASE.json').exists())
 
 

@@ -1,6 +1,6 @@
 # 恒鑫智图 · 品牌资源包
 
-2026-09-14：用户确认采用。公司为前海恒鑫，产品名为恒鑫智图，用途副标题为京东业务生图。
+2026-09-14：用户确认采用。公司为前海恒鑫，产品名为恒鑫智图，用途副标题为企业 AI 生图平台。
 
 [打开资源预览](preview.html) · [完整横版 SVG](logo-horizontal.svg) · [透明横版 PNG](logo-horizontal.png) · [独立图标 SVG](mark.svg) · [应用图标 PNG](app-icon.png)
 
@@ -8,7 +8,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| logo-horizontal.svg / .png | 完整横版，含“京东业务生图”，用于登录页和介绍资料 |
+| logo-horizontal.svg / .png | 完整横版，含“企业 AI 生图平台”，用于登录页和介绍资料 |
 | logo-horizontal-white.svg / .png | 深色背景的完整横版 |
 | logo-compact.svg / .png | 紧凑横版，仅图形和名称 |
 | logo-compact-white.svg | 深色背景的紧凑横版 |

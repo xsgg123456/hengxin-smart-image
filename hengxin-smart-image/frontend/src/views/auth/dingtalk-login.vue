@@ -9,12 +9,12 @@
             <img
               class="brand-color block dark:hidden"
               src="@imgs/brand/logo-horizontal.svg"
-              alt="恒鑫智图 · 京东业务生图"
+              alt="恒鑫智图 · 企业 AI 生图平台"
             />
             <img
               class="brand-white hidden dark:block"
               src="@imgs/brand/logo-horizontal-white.svg"
-              alt="恒鑫智图 · 京东业务生图"
+              alt="恒鑫智图 · 企业 AI 生图平台"
             />
           </h3>
           <p class="sub-title">使用企业钉钉身份登录工作区</p>

@@ -60,8 +60,8 @@ for white in (False, True):
     ink, secondary = ('#FFFFFF', '#D9DCE3') if white else ('#20242D', '#707782')
     content = '<g transform="translate(4 10) scale(.5)">' + mark(white) + '</g>'
     content += lettering('恒鑫智图', 210, 114, 80, ink, 4)
-    content += lettering('京东业务生图', 214, 165, 25, secondary, 9)
-    save('logo-horizontal' + suffix, 570, 200, content, '恒鑫智图 · 京东业务生图')
+    content += lettering('企业 AI 生图平台', 214, 165, 25, secondary, 9)
+    save('logo-horizontal' + suffix, 570, 200, content, '恒鑫智图 · 企业 AI 生图平台')
     content = '<g transform="translate(0 3) scale(.25)">' + mark(white) + '</g>'
     content += lettering('恒鑫智图', 108, 70, 54, ink, 2)
     save('logo-compact' + suffix, 340, 96, content)
