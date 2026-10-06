@@ -1,10 +1,10 @@
 <template>
-  <details class="conversation-history">
+  <details class="conversation-history" :open="conversation?.turns.some(isEditActive)">
     <summary>修改过程与历史 · {{ conversation?.turns.length || 0 }} 轮 <span>{{ connection }}</span></summary>
     <div class="history-content">
       <div class="history-versions"><span>已发布版本</span><ElButton v-for="version in versions" :key="version.number" size="small" :disabled="disabled" @click="$emit('selectVersion', version.number)">基于 V{{ version.number }} 继续</ElButton></div>
       <p v-if="!conversation?.turns.length" class="hx-footnote">尚无修改轮次。提交后将在这里显示公开回复及结果。</p>
-      <details v-for="(turn, index) in conversation?.turns" :key="turn.id" class="history-turn">
+      <details v-for="(turn, index) in conversation?.turns" :key="turn.id" class="history-turn" :open="isEditActive(turn)">
         <summary>第 {{ index + 1 }} 轮 · {{ editTurnLabels[turn.status] }}{{ turn.adoptedVersion ? ` · V${turn.adoptedVersion}` : '' }}</summary>
         <pre>{{ turn.text }}</pre>
         <p v-for="(message, i) in turn.messages" :key="i" class="message">{{ message }}</p>
@@ -19,7 +19,7 @@
 <script setup lang="ts">
 import type { ApiVersion } from '@/types/api-image-edits'
 import type { EditConversation, EditTurn } from '@/types/api-image-conversation'
-import { editTurnLabels } from '@/types/api-image-conversation'
+import { editTurnLabels, isEditActive } from '@/types/api-image-conversation'
 import type { RevisionReference } from './revision-references'
 import RevisionReferences from './RevisionReferences.vue'
 defineProps<{ conversation?: EditConversation; versions: ApiVersion[]; connection: string; disabled?: boolean }>()

@@ -1,7 +1,7 @@
 <template>
   <div class="image-conversation">
     <div class="conversation-status" role="status"><span>{{ status }}</span><ElButton v-if="loadError" text @click="refresh">重新读取</ElButton></div>
-    <p v-if="latest?.status === 'waiting_user' && latest.messages.length" class="latest-reply">{{ latest.messages.at(-1) }}</p>
+    <p v-if="latest?.messages.length" class="latest-reply" role="status">{{ latest.messages.at(-1) }}</p>
     <ImageConversationHistory :conversation="conversation" :versions="item.versions" :connection="connection" :disabled="locked" @select-version="selectVersion" @select-turn="selectTurn" />
     <div v-if="source" class="revision-editor"><AnnotationEditor ref="editor" :draft-key="draftKey" :load-original="loadOriginal" :base-label="baseLabel" :limit="4000" marking-optional require-text :preview-prompt="buildImageEditPrompt" :disabled="locked || !!referenceError" description="当前底图是唯一编辑基础，原图与素材仅参考指定修改；其余内容保持不变。候选可继续修改，采用后才更新成品。" @preview-state="$emit('previewState', $event)" @submit="submit">
       <template #references="{ hasAnnotation, marks }"><RevisionReferences v-if="!referenceError" :references="references" :has-annotation="hasAnnotation" :marks="marks" /><ElAlert v-else :title="referenceError" type="error" :closable="false" /></template>
@@ -34,7 +34,7 @@ const latest = computed(() => conversation.value?.turns.at(-1))
 const candidate = computed(() => conversation.value?.turns.find(turn => turn.id === baseTurnId.value))
 const canAdopt = computed(() => !!candidate.value?.candidate && candidate.value.status !== 'adopted' && !locked.value)
 const baseLabel = computed(() => baseTurnId.value ? `基于第 ${(conversation.value?.turns.findIndex(t => t.id === baseTurnId.value) ?? 0) + 1} 轮候选 · 图片修改` : `基于 V${baseVersion.value} · 图片修改`)
-const status = computed(() => loading.value ? '正在恢复修改会话…' : active.value ? `${editTurnLabels[active.value.status]} · 关闭窗口后仍继续` : latest.value ? editTurnLabels[latest.value.status] : '填写意见，开始本图的第一轮修改')
+const status = computed(() => loading.value ? '正在恢复修改会话…' : active.value ? `后台${editTurnLabels[active.value.status]} · 本轮编辑暂不可用，关闭窗口后仍继续` : latest.value ? editTurnLabels[latest.value.status] : '填写意见，开始本图的第一轮修改')
 const error = computed(() => localError.value || command.state.error || loadError.value)
 const replyAnchor = computed(() => [...(conversation.value?.turns || [])].reverse().find(turn => turn.status === 'waiting_user')?.id || '')
 const draftKey = computed(() => JSON.stringify(['api-cli', props.user, props.task.id, props.item.id, baseTurnId.value || baseVersion.value, source.value?.fileId, replyAnchor.value]))
