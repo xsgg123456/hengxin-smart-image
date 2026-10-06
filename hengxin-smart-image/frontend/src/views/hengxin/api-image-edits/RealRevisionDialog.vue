@@ -1,18 +1,19 @@
 <template>
-  <ElDialog v-model="open" :title="`修改第 ${item?.position || ''} 张图片 · 基于 V${baseVersion}`" width="min(1380px, 96vw)" align-center append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!working" :show-close="!working">
+  <ElDialog v-model="open" :title="`修改第 ${item?.position || ''} 张图片 · ${cliMode ? imageEditor?.baseLabel || '图片修改' : `基于 V${baseVersion}`}`" width="min(1380px, 96vw)" align-center append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="cliMode || !working" :show-close="cliMode || !working">
     <div class="revision-mode-row">
       <ElRadioGroup v-model="mode" aria-label="修改类型" :disabled="modeLocked"><ElRadioButton value="image_edit">图片修改</ElRadioButton><ElRadioButton value="text_edit">文字修改</ElRadioButton></ElRadioGroup>
       <span class="hx-footnote">{{ mode === 'image_edit' ? '本次只修改画面元素，不修改文字内容' : '本次只修改文字，不调整其他画面元素' }}</span>
       <ElButton text type="primary" :disabled="modeLocked" @click="fixedPromptOpen = true">查看固定提示词</ElButton>
     </div>
     <PendingRevision v-if="pending" :command="pending.command" />
+    <ImageConversationEditor v-else-if="cliMode && open && item" :key="`${user}:${task.id}:${itemId}`" ref="imageEditor" :task="task" :item="item" :user="user" :blocked="blocked" @accepted="emit('accepted')" @preview-state="previewBusy = $event" @locked="imageLocked = $event" />
     <div v-else-if="open && source" class="revision-editor"><AnnotationEditor ref="editor" :draft-key="draftKey" :load-original="loadOriginal" :base-label="`本次基于 V${baseVersion} · ${modeLabel}`" :limit="4000" marking-optional require-text :preview-prompt="buildPrompt" :description="description" :disabled="working || !!pending || blocked || !!referenceError" @preview-state="previewBusy = $event" @submit="submit">
       <template #references="{ hasAnnotation, marks }"><RevisionReferences v-if="!referenceError" :references="references" :has-annotation="hasAnnotation" :marks="marks" /><ElAlert v-else :title="referenceError" type="error" :closable="false" /></template>
       <template #inputs="{ annotationUrl }"><RevisionReferences :references="references" :annotation-url="annotationUrl" confirmation /></template>
     </AnnotationEditor></div>
     <ElAlert v-else title="该版本的成品原始文件不可用，请重新读取任务详情。" type="error" :closable="false" />
     <ElAlert v-if="error" :title="error" type="error" :closable="false" />
-    <template #footer><ElButton :disabled="working" @click="open = false">关闭</ElButton><ElButton type="primary" :loading="working" :disabled="blocked || (!pending && (!source || !!referenceError))" @click="pending ? confirmPrevious() : editor?.preview()">{{ pending ? '确认原修改请求' : '预览提交内容' }}</ElButton></template>
+    <template #footer><ElButton :disabled="!cliMode && working" @click="open = false">关闭</ElButton><template v-if="cliMode"><ElButton v-if="imageEditor?.canAdopt" :disabled="imageEditor?.busy" @click="imageEditor?.adopt()">采用此图</ElButton><ElButton v-if="imageEditor?.active && !imageEditor.pending" type="danger" plain :loading="imageEditor?.busy" @click="imageEditor?.stop()">停止本轮</ElButton><ElButton v-else type="primary" :loading="imageEditor?.busy" :disabled="!imageEditor || (imageEditor.locked && !imageEditor.pending) || blocked" @click="imageEditor?.preview()">{{ imageEditor?.pending ? '确认原修改请求' : '预览提交内容' }}</ElButton></template><ElButton v-else type="primary" :loading="working" :disabled="blocked || (!pending && (!source || !!referenceError))" @click="pending ? confirmPrevious() : editor?.preview()">{{ pending ? '确认原修改请求' : '预览提交内容' }}</ElButton></template>
   </ElDialog>
   <ElDialog v-model="fixedPromptOpen" :title="`${modeLabel} · 固定提示词`" width="min(760px, 94vw)" align-center append-to-body>
     <p class="hx-footnote">固定规则适用于不同图片；本次修改意见在提交时单独填入。需要图片和文字两类修改时，请分两次操作。</p>
@@ -32,6 +33,7 @@ import { buildImageEditPrompt, IMAGE_EDIT_TEMPLATE } from './image-edit-prompt'
 import { itemCommand, type ItemCommand } from './item-command'
 import RevisionReferences from './RevisionReferences.vue'
 import PendingRevision from './PendingRevision.vue'
+import ImageConversationEditor from './ImageConversationEditor.vue'
 import { revisionReferences } from './revision-references'
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ task: ApiTask; itemId: string; blocked?: boolean }>()
@@ -42,7 +44,9 @@ const operation = computed(() => itemCommand(user.value, props.task.id, props.it
 const pending = computed(() => operation.value.state.pending)
 const uploading = ref(false), working = computed(() => uploading.value || operation.value.state.busy)
 const editKind = ref<'image_edit' | 'text_edit'>('image_edit'), previewBusy = ref(false), fixedPromptOpen = ref(false)
-const modeLocked = computed(() => working.value || !!pending.value || !!props.blocked || previewBusy.value || fixedPromptOpen.value)
+const imageEditor = ref<InstanceType<typeof ImageConversationEditor>>(), imageLocked = ref(false)
+const cliMode = computed(() => editKind.value === 'image_edit' && !pending.value)
+const modeLocked = computed(() => working.value || (cliMode.value && imageLocked.value) || !!pending.value || !!props.blocked || previewBusy.value || fixedPromptOpen.value)
 const mode = computed({ get: () => editKind.value, set: (value: 'image_edit' | 'text_edit') => { if (!modeLocked.value) editKind.value = value } })
 const modeLabel = computed(() => mode.value === 'image_edit' ? '图片修改' : '文字修改')
 const buildPrompt = computed(() => mode.value === 'image_edit' ? buildImageEditPrompt : buildTextEditPrompt)
@@ -70,7 +74,14 @@ watch([open, () => props.itemId, () => props.task.id, user], () => {
   const picture = item.value?.versions.find(v => v.number === baseVersion.value)?.picture
   source.value = picture ? { ...picture } : undefined
 }, { immediate: true, flush: 'sync' })
-watch(editKind, () => { generation++; clearUnusedUpload(); localError.value = '' }, { flush: 'sync' })
+watch(editKind, value => {
+  generation++; clearUnusedUpload(); localError.value = ''
+  if (value === 'text_edit' && !pending.value) {
+    baseVersion.value = item.value?.currentVersion || 0
+    const picture = item.value?.versions.find(v => v.number === baseVersion.value)?.picture
+    source.value = picture ? { ...picture } : undefined
+  }
+}, { flush: 'sync' })
 function clearUnusedUpload() {
   const saved = cached; cached = undefined
   // Uncertain requests own their frozen attachment until acceptance is resolved.
@@ -116,9 +127,9 @@ onBeforeUnmount(() => { alive = false; generation++; clearUnusedUpload() })
 <style scoped>
 .revision-mode-row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:16px; }
 .fixed-prompt { white-space:pre-wrap; overflow-wrap:anywhere; max-height:60dvh; overflow:auto; font:inherit; line-height:1.7; }
-.revision-editor :deep(.annotation-editor) { height:min(65dvh,720px); }
+:deep(.revision-editor .annotation-editor) { height:min(65dvh,720px); }
 @media(max-width:900px) {
-  .revision-editor :deep(.annotation-editor) { height:calc(100dvh - 290px); min-height:600px; grid-template-rows:minmax(470px,1fr) 110px; }
+  :deep(.revision-editor .annotation-editor) { height:calc(100dvh - 290px); min-height:600px; grid-template-rows:minmax(470px,1fr) 110px; }
   .revision-editor :deep(.annotation-pan small) { display:none; }
   .revision-editor :deep(.annotation-help) { height:36px; padding:4px 8px; font-size:11px; }
 }

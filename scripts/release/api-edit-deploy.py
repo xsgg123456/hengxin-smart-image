@@ -33,13 +33,13 @@ def pending():
 def main():
     os.umask(0o077)
     release, mode = sys.argv[1:3]
-    assert re.fullmatch(r'api-edit-20260930-[0-9a-f]{7}', release)
+    assert re.fullmatch(r'api-edit-20261006-[0-9a-f]{7}', release)
     assert mode in ('build', 'deploy')
     work = Path('/opt/hengxin-releases') / release
     source, backup = work / 'src', Path('/opt/hengxin-backups') / release
     manifest = json.loads((source / 'release.json').read_text())
-    assert manifest['release'] == release and manifest['migration'] == '0022'
-    assert manifest['frontendVersion'] == '0.2.16'
+    assert manifest['release'] == release and manifest['migration'] == '0023'
+    assert manifest['frontendVersion'] == '0.2.17'
     paths, image = r.prepare(work, manifest)
     new = [*paths, work / 'api-override.yaml']
     helper = source / 'scripts/release/image-inputs-worker.py'
@@ -80,8 +80,8 @@ def main():
         r.compose(paths, 'stop', '-t', '30', 'image-variants')
         r.backup(work, backup)
         print('BACKUP_COMPLETE', flush=True)
-        # image_edit uses the existing nullable kind column; no migration is run.
-        assert r.sql('SELECT version_num FROM alembic_version') == '0022'
+        r.compose(new, 'run', '--rm', '--no-deps', 'migrate')
+        assert r.sql('SELECT version_num FROM alembic_version') == '0023'
         assert r.sql('SELECT enabled FROM capacity_gate WHERE id=1') == 'f'
         native_changed = True
         r.install_native(source)
@@ -134,6 +134,10 @@ def main():
             r.run('systemctl', 'start', 'hengxin-vps-codex-worker')
             native('verify')
             if front_changed:
+                for name in ('nginx.vps.conf', 'nginx.media.conf'):
+                    target = r.APP / 'infra' / name
+                    if (backup / name).exists(): shutil.copyfile(backup / name, target)
+                    else: target.unlink(missing_ok=True)
                 for name in ('index.html', 'index.html.gz'):
                     target = r.APP / 'frontend/dist' / name
                     if (backup / name).exists(): shutil.copy2(backup / name, target)

@@ -54,7 +54,7 @@ def prepare(work, manifest):
     for name in SERVICES:
         live, spec = inspect(name), config['services'][name]
         assert live['State']['Running'] and live['Config']['Image'] == spec['image'], name
-        assert spec['image'] == 'hengxin-smart-image-backend:api-edit-20260930-df0bc8d', name
+        assert spec['image'] == 'hengxin-smart-image-backend:api-edit-20260930-0784c97', name
         env = dict(item.split('=', 1) for item in live['Config']['Env'])
         assert all(env.get(k) == str(v) for k, v in spec.get('environment', {}).items()), name
         assert not spec.get('command') or spec['command'] == live['Config']['Cmd'], name
@@ -84,6 +84,9 @@ def backup(work, backup):
     for name in ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json', 'API_TEXT_RELEASE.json', 'API_EDIT_RELEASE.json'):
         if (APP / name).exists(): shutil.copy2(APP / name, backup / name)
     shutil.copy2(APP / 'frontend/package.json', backup / 'frontend-package.json')
+    for name in ('nginx.vps.conf', 'nginx.media.conf'):
+        if (APP / 'infra' / name).exists():
+            shutil.copy2(APP / 'infra' / name, backup / name)
     shutil.copy2(work / 'old-compose.private.json', backup / 'old-compose.private.json')
     shutil.copy2(work / 'old-paths.json', backup / 'old-paths.json')
     for index, name in enumerate(json.loads((work / 'old-paths.json').read_text())):
@@ -108,6 +111,9 @@ def install_native(source):
 
 
 def publish_frontend(source, work, manifest, paths):
+    # The frontend service is stopped by the controller; preserve bind-mount inode.
+    for name in ('nginx.vps.conf', 'nginx.media.conf'):
+        shutil.copyfile(source / 'infra' / name, APP / 'infra' / name)
     dist, target = source / 'frontend/dist', APP / 'frontend/dist'
     for file in dist.rglob('*'):
         if not file.is_file() or file.name in ('index.html', 'index.html.gz'): continue

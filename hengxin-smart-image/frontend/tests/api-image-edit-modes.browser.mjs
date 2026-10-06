@@ -1,3 +1,6 @@
+// Legacy API-only editor regression (before CLI image conversations).
+// For the current production editor run api-image-conversation.browser.mjs instead.
+// Retained as historical coverage for legacy /revise image requests; not a current UI acceptance test.
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'

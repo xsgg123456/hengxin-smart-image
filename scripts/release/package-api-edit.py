@@ -13,6 +13,7 @@ spec = importlib.util.spec_from_file_location('delivery_package', Path(__file__)
 common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
 EXACT = {'backend/pyproject.toml', 'backend/uv.lock', 'backend/alembic.ini',
+         'infra/nginx.vps.conf', 'infra/nginx.media.conf',
          'frontend/package.json', 'infra/Dockerfile.backend',
          'backend/tests/fixtures/cli_revision_briefs.json',
          'backend/tests/fixtures/unannotated_revision_briefs.json',
@@ -76,7 +77,7 @@ def build(repo):
         raise ValueError('Commit tracked changes before packaging')
     status = common.reviewed_status(repo)
     commit = git('rev-parse', 'HEAD').decode().strip()
-    release = 'api-edit-20260930-' + commit[:7]
+    release = 'api-edit-20261006-' + commit[:7]
     files = {}
     for path in git('ls-files', '-z').decode().split('\0'):
         name = selected(path)
@@ -101,7 +102,7 @@ def build(repo):
     assert EXACT <= files.keys() and 'frontend/dist/index.html' in files
     validate(files)
     manifest = {'release': release, 'commit': commit, 'candidateId': status['currentId'],
-        'migration': '0022', 'frontendVersion': '0.2.16',
+        'migration': '0023', 'frontendVersion': '0.2.17',
         'files': {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())}}
     files['release.json'] = json.dumps(manifest, indent=2).encode()
     assert common.reviewed_status(repo)['currentId'] == status['currentId']
@@ -118,13 +119,14 @@ def build(repo):
 
 
 def validate(files):
+    assert {'infra/nginx.vps.conf', 'infra/nginx.media.conf'} <= files.keys()
     assert {
         'backend/app/modules/api_image_edits/image_edit_prompt.txt',
         'backend/app/modules/api_image_edits/text_edit_prompt.txt',
         'backend/app/modules/api_image_edits/text_repair_prompt.txt',
     } <= files.keys()
-    assert 'backend/migrations/versions/0022_api_text_operation_kind.py' in files
-    assert json.loads(files['frontend/package.json'])['version'] == '0.2.16'
+    assert 'backend/migrations/versions/0023_api_cli_conversations.py' in files
+    assert json.loads(files['frontend/package.json'])['version'] == '0.2.17'
     assert {'scripts/release/' + n for n in (
         'api-edit-deploy.py', 'api-edit-runtime.py', 'api-edit-verify.py', 'image-inputs-worker.py')} <= files.keys()
 

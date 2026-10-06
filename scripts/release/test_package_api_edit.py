@@ -45,11 +45,12 @@ class PackageTests(unittest.TestCase):
 
 
     def test_migration_version_and_helpers_are_required(self):
-        files = {'backend/app/modules/api_image_edits/image_edit_prompt.txt': b'image',
+        files = {'infra/nginx.vps.conf': b'nginx', 'infra/nginx.media.conf': b'nginx',
+                 'backend/app/modules/api_image_edits/image_edit_prompt.txt': b'image',
                 'backend/app/modules/api_image_edits/text_edit_prompt.txt': b'edit',
                  'backend/app/modules/api_image_edits/text_repair_prompt.txt': b'repair',
-                 'backend/migrations/versions/0022_api_text_operation_kind.py': b'',
-                 'frontend/package.json': b'{"version":"0.2.16"}',
+                 'backend/migrations/versions/0023_api_cli_conversations.py': b'',
+                 'frontend/package.json': b'{"version":"0.2.17"}',
                  **{'scripts/release/' + n: b'' for n in ('api-edit-deploy.py', 'api-edit-runtime.py', 'api-edit-verify.py', 'image-inputs-worker.py')}}
         package.validate(files)
         for name in files:

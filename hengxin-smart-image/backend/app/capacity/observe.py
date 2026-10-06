@@ -51,7 +51,7 @@ def enable(session, paths, floor_bytes, api_bytes, cli_bytes):
     if policy.enabled:
         raise ValueError('Already enabled; changing envelopes requires a separately reviewed drain procedure')
     cli_active = session.scalar(select(func.count()).select_from(Job).where(
-        Job.kind == 'generation', Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
+        Job.kind.in_(('generation', 'api_cli_edit')), Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
     api_active = session.scalar(select(func.count()).select_from(ApiItem).where(
         ApiItem.state.in_(['running', 'collecting', 'uncertain'])))
     if cli_active or api_active:

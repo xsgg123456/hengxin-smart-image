@@ -107,6 +107,8 @@ def revise(session, user, task_id, item_id, data, key):
     if data.kind in {'image_edit', 'text_edit'} and not data.text:
         raise HTTPException(422, '请填写修改意见')
     task, item = target(session, task_id, item_id)
+    from .conversation import assert_idle
+    assert_idle(session, item.id)
     if gate.paused or item.state != 'succeeded' or item.current_version != data.baseVersion:
         raise HTTPException(409, '图片版本或状态已变化，请刷新后重试')
     file_ids = [item.result_id]
@@ -159,6 +161,8 @@ def restore(session, user, task_id, item_id, data, key):
     if old:
         return old.task_id
     task, item = target(session, task_id, item_id)
+    from .conversation import assert_idle
+    assert_idle(session, item.id)
     if item.state != 'succeeded':
         raise HTTPException(409, '图片处理中，暂不能切换版本')
     version = session.scalar(select(ApiVersion).where(ApiVersion.item_id == item.id,

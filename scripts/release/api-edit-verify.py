@@ -28,12 +28,12 @@ def validate_kind_column(sql):
 
 def main():
     release = sys.argv[1]
-    assert re.fullmatch(r'api-edit-20260930-[0-9a-f]{7}', release)
+    assert re.fullmatch(r'api-edit-20261006-[0-9a-f]{7}', release)
     work = Path('/opt/hengxin-releases') / release
     app = Path('/opt/hengxin-smart-image')
     manifest = json.loads((work / 'src/release.json').read_text())
-    assert manifest['release'] == release and manifest['migration'] == '0022'
-    assert manifest['frontendVersion'] == '0.2.16'
+    assert manifest['release'] == release and manifest['migration'] == '0023'
+    assert manifest['frontendVersion'] == '0.2.17'
     validate_prompt_manifest(manifest)
     validate_release_markers(app, manifest)
     old = json.loads((work / 'old-compose.private.json').read_text())
@@ -61,19 +61,22 @@ def main():
             target, group = app/name, 'native'
         elif name.startswith('frontend/'):
             target, group = app/name, 'frontend'
+        elif name in ('infra/nginx.vps.conf', 'infra/nginx.media.conf'):
+            assert hashlib.sha256((app/name).read_bytes()).hexdigest() == digest, name
+            continue
         else:
             continue
         assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, name
         counts[group] += 1
     result['hashes'] = counts
     result['schema'] = sql('SELECT version_num FROM alembic_version')
-    assert result['schema'] == '0022'
+    assert result['schema'] == '0023'
     for column in ('request_width','request_height','return_width','return_height'):
         assert sql("SELECT is_nullable FROM information_schema.columns WHERE table_name='api_image_attempts' AND column_name='" + column + "'") == 'YES'
     validate_kind_column(sql)
     result['operationKindColumn'] = 'nullable varchar(20)'
     result['frontendVersion'] = json.loads((app/'frontend/package.json').read_text())['version']
-    assert result['frontendVersion'] == '0.2.16'
+    assert result['frontendVersion'] == '0.2.17'
     result['native'] = run('systemctl','is-active','hengxin-vps-codex-worker')
     assert result['native'] == 'active'
     assert sql('SELECT paused FROM api_image_channel WHERE id=1') == 'f'

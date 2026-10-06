@@ -86,6 +86,9 @@ def retry(session, user, task_id, key):
 def delete_task(session, user, task_id):
     channel(session)
     task = find_task(session, task_id, lock=True)
+    from .conversation import assert_idle
+    for item_id in session.scalars(select(ApiItem.id).where(ApiItem.task_id == task.id)):
+        assert_idle(session, item_id)
     active_item = session.scalar(select(ApiItem.id).where(ApiItem.task_id == task.id,
                               ApiItem.state.in_({'running', 'uncertain'})).limit(1))
     if task.state in {'running', 'uncertain'} or active_item:

@@ -1065,3 +1065,9 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 4. 单测、类型检查、生产构建、隔离浏览器流程通过后，review-prepare与独立两阶段审查，登记同一批准快照。未经用户另行授权不提交、不部署。
 
 实现及本地验证已完成，独立两阶段审查PASS。前端175项单测、正式构建、执行材料浏览器用例、16组画布矩阵及原有API/CLI标注流程通过；后端全套与采集异常专项通过，审查修正后材料专项、三视口光标及最终矩阵独立复验通过。详见 [本轮验证](docs/ROUND-MATERIALS-CANVAS-VALIDATION-20260924.md) 和 [功能审查](docs/ROUND-MATERIALS-CANVAS-FINAL-REVIEW-20260924.md)。后续用户授权提交部署：e3c60c9功能发布，真实custom_tool_call格式兼容修正2cdb4ff，0.2.7于2026-09-24 18:40上线；106本地专项、196安装镜像测试、完整哈希/健康/公网验证通过，指定历史轮次已回填系统提示词、生图提示词、三张输入及V2结果。详见 [生产发布记录](hengxin-smart-image/docs/ROUND-MATERIALS-CANVAS-RELEASE-20260924.md)。
+
+## 2026-10-06 · CLI 单图多轮修改与 SSE
+1. 后端：api_image_edits 下新增会话/轮次/事件与迁移、提交/查询/停止/采用/SSE，复用 execution 的进程、隔离、解析与文件验证；专项覆盖续接、幂等、并发、纯文字、结果尺寸和断线补发。
+2. 前端：RealRevisionDialog 中 image 模式接入专用多轮组件和客户端，复用 AnnotationEditor 原布局，SSE 恢复与结果采用；text 模式保持。类型与客户端/UI 验证。
+3. 集成：注册worker/migration/router、代理 SSE 不缓冲；完整后端/前端检查、构建、隔离浏览器标注/多轮流程。
+4. 快照审查：harness review-prepare，独立 code-reviewer 两阶段，修复后重新固定快照并批准。未授权本轮提交/部署。

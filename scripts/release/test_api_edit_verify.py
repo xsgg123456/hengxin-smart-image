@@ -31,8 +31,8 @@ class VerifyTests(unittest.TestCase):
     def test_all_active_markers_must_match_every_manifest_field(self):
         with tempfile.TemporaryDirectory() as folder:
             app = Path(folder)
-            manifest = {'release': 'api-edit-20260930-abcdef0', 'commit': 'abcdef0',
-                'migration': '0022', 'frontendVersion': '0.2.16', 'files': {'prompt.txt': 'digest'}}
+            manifest = {'release': 'api-edit-20261006-abcdef0', 'commit': 'abcdef0',
+                'migration': '0023', 'frontendVersion': '0.2.17', 'files': {'prompt.txt': 'digest'}}
             names = ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json', 'API_TEXT_RELEASE.json', 'API_EDIT_RELEASE.json')
             for name in names: (app / name).write_text(json.dumps(manifest))
             (app / 'API_SIZE_RELEASE.json').write_text('unchanged historical marker')
@@ -46,11 +46,11 @@ class VerifyTests(unittest.TestCase):
 
 
 class MainTests(unittest.TestCase):
-    def exercise(self, package_version='0.2.16'):
+    def exercise(self, package_version='0.2.17'):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             app = root / 'app'
-            release = 'api-edit-20260930-abcdef0'
+            release = 'api-edit-20261006-abcdef0'
             releases = root / 'releases'
             work = releases / release
             (work / 'src').mkdir(parents=True)
@@ -68,8 +68,8 @@ class MainTests(unittest.TestCase):
                 target = app / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(raw)
-            manifest = {'release': release, 'commit': 'abcdef0', 'migration': '0022',
-                'frontendVersion': '0.2.16', 'files': {
+            manifest = {'release': release, 'commit': 'abcdef0', 'migration': '0023',
+                'frontendVersion': '0.2.17', 'files': {
                     name: hashlib.sha256(raw).hexdigest() for name, raw in contents.items()}}
             (work / 'src/release.json').write_text(json.dumps(manifest))
             for name in ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json', 'API_TEXT_RELEASE.json', 'API_EDIT_RELEASE.json'):
@@ -93,7 +93,7 @@ class MainTests(unittest.TestCase):
                 if 'psql' in args:
                     query = args[-1]
                     queries.append(query)
-                    if query == 'SELECT version_num FROM alembic_version': return '0022'
+                    if query == 'SELECT version_num FROM alembic_version': return '0023'
                     if "column_name='kind'" in query: return 'YES:character varying:20'
                     if 'information_schema.columns' in query: return 'YES'
                     if query in ('SELECT paused FROM api_image_channel WHERE id=1', 'SELECT enabled FROM capacity_gate WHERE id=1'): return 'f'
@@ -123,8 +123,8 @@ class MainTests(unittest.TestCase):
 
     def test_main_success_checks_services_native_resources_schema_and_public_assets(self):
         result = self.exercise()
-        self.assertEqual(result['frontendVersion'], '0.2.16')
-        self.assertEqual(result['schema'], '0022')
+        self.assertEqual(result['frontendVersion'], '0.2.17')
+        self.assertEqual(result['schema'], '0023')
         self.assertEqual(result['hashes'], {'native': 4, 'frontend': 4})
         self.assertEqual(len(result['services']), 5)
         self.assertEqual(len(result['public']), 3)

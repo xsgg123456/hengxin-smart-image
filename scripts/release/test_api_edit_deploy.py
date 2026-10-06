@@ -24,13 +24,13 @@ class RecoveryTests(unittest.TestCase):
     def exercise(self, failure, mode='deploy', schema='0022'):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            release = 'api-edit-20260930-abcdef0'
+            release = 'api-edit-20261006-abcdef0'
             work = root / 'hengxin-releases' / release
             source = work / 'src'
             source.mkdir(parents=True)
             (work / 'INSTALL_TEST_IMAGE_ID').write_text('image-id')
             (source / 'release.json').write_text(json.dumps(dict(
-                release=release, migration='0022', frontendVersion='0.2.16')))
+                release=release, migration='0023', frontendVersion='0.2.17')))
             helper = source / 'scripts/release/image-inputs-worker.py'
             helper.parent.mkdir(parents=True)
             helper.write_text('# test helper')
@@ -41,6 +41,8 @@ class RecoveryTests(unittest.TestCase):
             (frontend / 'dist').mkdir(parents=True)
             (frontend / 'dist/index.html').write_text('old-html')
             (frontend / 'package.json').write_text('old-package')
+            (root / 'app/infra').mkdir()
+            (root / 'app/infra/nginx.vps.conf').write_text('old-nginx')
             markers = ('API_RELEASE.json', 'API_IMAGE_RELEASE.json', 'FRONTEND_RELEASE.json', 'API_TEXT_RELEASE.json', 'API_EDIT_RELEASE.json')
             for name in markers[:-1]: (root / 'app' / name).write_text('old-marker')
             (root / 'app/API_SIZE_RELEASE.json').write_text('historical-size')
@@ -59,7 +61,7 @@ class RecoveryTests(unittest.TestCase):
 
             def compose(paths, *args, **kwargs):
                 events.append(('compose', tuple(paths), args))
-                if 'migrate' in args: state['schema'] = '0022'
+                if 'migrate' in args: state['schema'] = '0023'
                 if failure == 'rollback' and paths == ['old'] and args[0] == 'up':
                     raise RuntimeError('rollback failed')
                 return ''
@@ -82,6 +84,7 @@ class RecoveryTests(unittest.TestCase):
                 shutil.copytree(native / 'app', dest / 'native-app')
                 shutil.copy2(frontend / 'dist/index.html', dest / 'index.html')
                 shutil.copy2(frontend / 'package.json', dest / 'frontend-package.json')
+                shutil.copy2(root / 'app/infra/nginx.vps.conf', dest / 'nginx.vps.conf')
                 for name in markers:
                     if (root / 'app' / name).exists(): shutil.copy2(root / 'app' / name, dest / name)
 
@@ -91,6 +94,8 @@ class RecoveryTests(unittest.TestCase):
 
             def publish(*args):
                 if failure != 'front': return
+                (root / 'app/infra/nginx.vps.conf').write_text('new-nginx')
+                (root / 'app/infra/nginx.media.conf').write_text('new-media')
                 (frontend / 'dist/index.html').write_text('new-html')
                 (frontend / 'dist/index.html.gz').write_text('new-gzip')
                 (frontend / 'package.json').write_text('new-package')
@@ -112,6 +117,8 @@ class RecoveryTests(unittest.TestCase):
                 else:
                     with self.assertRaises(RuntimeError): deploy.main()
             if failure == 'front':
+                self.assertEqual((root / 'app/infra/nginx.vps.conf').read_text(), 'old-nginx')
+                self.assertFalse((root / 'app/infra/nginx.media.conf').exists())
                 self.assertEqual((frontend / 'dist/index.html').read_text(), 'old-html')
                 self.assertFalse((frontend / 'dist/index.html.gz').exists())
                 self.assertEqual((frontend / 'package.json').read_text(), 'old-package')
@@ -129,7 +136,7 @@ class RecoveryTests(unittest.TestCase):
     def test_partial_frontend_publication_restores_markers_and_package(self):
         events, state, code = self.exercise('front')
         self.assertEqual(code, 'old')
-        self.assertEqual(state, {'schema': '0022', 'paused': False})
+        self.assertEqual(state, {'schema': '0023', 'paused': False})
 
     def test_backup_failure_never_migrates_and_recovers_old_services(self):
         events, state, code = self.exercise('backup')
@@ -143,7 +150,7 @@ class RecoveryTests(unittest.TestCase):
         events, state, code = self.exercise('install')
         self.assertIn(('install',), events)
         self.assertEqual(code, 'old')
-        self.assertEqual(state, {'schema': '0022', 'paused': False})
+        self.assertEqual(state, {'schema': '0023', 'paused': False})
 
     def test_rollback_failure_keeps_intake_closed(self):
         events, state, code = self.exercise('rollback')
@@ -161,16 +168,16 @@ class RecoveryTests(unittest.TestCase):
     def test_post_open_failure_retains_new_code(self):
         events, state, code = self.exercise('open')
         self.assertEqual(code, 'new')
-        self.assertEqual(state, {'schema': '0022', 'paused': True})
+        self.assertEqual(state, {'schema': '0023', 'paused': True})
         self.assertFalse(any(e[0] == 'compose' and e[1] == ('old',) and e[2][0] == 'up' for e in events))
 
     def test_success_stops_variants_before_backup(self):
         events, state, code = self.exercise('success')
         stop = next(i for i,e in enumerate(events) if e[0] == 'compose' and e[2] == ('stop', '-t', '30', 'image-variants'))
         self.assertLess(stop, events.index(('backup',)))
-        self.assertEqual(state, {'schema': '0022', 'paused': False})
+        self.assertEqual(state, {'schema': '0023', 'paused': False})
         self.assertEqual(code, 'new')
-        self.assertFalse(any(e[0] == 'compose' and 'migrate' in e[2] for e in events))
+        self.assertTrue(any(e[0] == 'compose' and 'migrate' in e[2] for e in events))
 
     def test_build_never_stops_or_changes_production(self):
         events, state, code = self.exercise('success', 'build')

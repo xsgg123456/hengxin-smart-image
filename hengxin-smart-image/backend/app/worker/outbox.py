@@ -22,10 +22,15 @@ def dispatch_once(factory=None, sender=publish):
     factory = factory or session_factory()
     from app.modules.tasks.claims import sweep_expired
     sweep_expired(factory)
+    from app.modules.api_image_edits.conversation_runtime import sweep
+    from app.modules.api_image_edits.conversation_models import ConversationTurn
+    sweep(factory)
     with factory.begin() as session:
         rows = session.scalars(select(Outbox).join(Job, Job.id == Outbox.job_id).where(
             Outbox.completed_at.is_(None), Outbox.next_dispatch_at <= utcnow(),
-            or_(Job.status == 'queued', and_(Job.kind != 'generation', Job.status == 'running')),
+            or_(Job.status == 'queued', and_(Job.kind.not_in(('generation', 'api_cli_edit')), Job.status == 'running'),
+                and_(Job.kind == 'api_cli_edit', Job.status == 'uncertain', select(ConversationTurn.id).where(
+                    ConversationTurn.job_id == Job.id, ConversationTurn.cancel_requested.is_(True)).exists())),
             or_(Job.lease_until.is_(None), Job.lease_until <= utcnow()),
         ).order_by(Outbox.next_dispatch_at).limit(100).with_for_update(of=Outbox, skip_locked=True)).all()
         for row in rows:

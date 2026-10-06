@@ -63,7 +63,7 @@ def claim(factory, job_id):
             end(session, round, job, 'cancelled')
             return None
         occupied = session.scalar(select(func.count()).select_from(Job).where(
-            Job.kind == 'generation', Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
+            Job.kind.in_(('generation', 'api_cli_edit')), Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
         if occupied >= min(round.execution_config.get('concurrency', get_settings().generation_concurrency),
                            get_settings().generation_concurrency):
             return None

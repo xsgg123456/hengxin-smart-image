@@ -43,6 +43,9 @@ def execute_job(job_id: str):
         kind = job.kind if job else None
     if kind == 'test':
         run_job(job_id, factory)
+    elif kind == 'api_cli_edit':
+        from app.modules.api_image_edits.conversation_runner import run_turn
+        run_turn(job_id, factory)
     elif kind == 'generation':
         from app.modules.tasks.models import RoundRecord, TaskRecord
         with factory() as session:

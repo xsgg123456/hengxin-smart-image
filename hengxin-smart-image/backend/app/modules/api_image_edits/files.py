@@ -51,6 +51,14 @@ def save_upload(session, store, user, image):
 
 def delete_file(session, file_id, user):
     record = find_file(session, file_id, lock=True)
+    from .conversation_models import ConversationTurn
+    referenced = session.scalar(select(ConversationTurn.id).where(or_(
+        ConversationTurn.base_file_id == file_id, ConversationTurn.annotation_id == file_id,
+        ConversationTurn.candidate_id == file_id,
+        *(ConversationTurn.snapshot['fileIds'][index].as_string() == str(file_id)
+          for index in range(4)))).limit(1))
+    if referenced:
+        raise HTTPException(409, '图片仍被修改会话引用')
     item = session.scalar(select(ApiItem.id).where(or_(ApiItem.source_id == file_id,
                                                        ApiItem.result_id == file_id,
                                                        ApiItem.revision_source_id == file_id,

@@ -23,7 +23,7 @@ class RuntimeTests(unittest.TestCase):
                 (native / name).write_text('same')
                 (source / name).write_text('same')
             paths = ['/opt/existing-' + str(i) + '.yaml' for i in range(11)]
-            previous = 'hengxin-smart-image-backend:api-edit-20260930-df0bc8d'
+            previous = 'hengxin-smart-image-backend:api-edit-20260930-0784c97'
             services = {name: {'image': previous, 'environment': {'PRESERVE': '1'},
                 'command': ['existing', name], 'cpus': 0.5, 'mem_limit': '777m',
                 'networks': {'isolated': None}} for name in r.SERVICES}
@@ -35,7 +35,7 @@ class RuntimeTests(unittest.TestCase):
                 return json.dumps({'services': services}) if kwargs.get('capture') else ''
             with patch.multiple(r, NATIVE=native, inspect=inspect, compose=compose,
                                 Path=lambda _: SimpleNamespace(is_file=lambda: True)):
-                found, image = r.prepare(work, {'release': 'api-edit-20260930-abcdef0', 'files': {}})
+                found, image = r.prepare(work, {'release': 'api-edit-20261006-abcdef0', 'files': {}})
             self.assertEqual(found, paths)
             overrides = json.loads((work / 'api-override.yaml').read_text())['services']
             self.assertEqual(set(overrides), {*r.SERVICES, 'migrate'})
@@ -87,9 +87,12 @@ class ResourceTests(unittest.TestCase):
             (app / 'frontend/dist').mkdir(parents=True)
             (source / 'frontend/dist').mkdir(parents=True)
             (source / 'frontend/dist/index.html').write_text('new')
-            (source / 'frontend/package.json').write_text('{"version":"0.2.16"}')
+            (source / 'infra').mkdir(); (app / 'infra').mkdir()
+            for name in ('nginx.vps.conf', 'nginx.media.conf'):
+                (source / 'infra' / name).write_text('SSE config')
+            (source / 'frontend/package.json').write_text('{"version":"0.2.17"}')
             (app / 'API_SIZE_RELEASE.json').write_bytes(b'previous release')
-            manifest = {'release': 'api-edit-20260930-abcdef0', 'migration': '0022', 'frontendVersion': '0.2.16'}
+            manifest = {'release': 'api-edit-20261006-abcdef0', 'migration': '0023', 'frontendVersion': '0.2.17'}
             with patch.object(r, 'APP', app):
                 r.publish_frontend(source, root, manifest, ['base', 'old-override'])
             self.assertEqual((app / 'API_SIZE_RELEASE.json').read_bytes(), b'previous release')
