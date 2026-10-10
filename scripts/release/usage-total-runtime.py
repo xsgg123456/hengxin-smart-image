@@ -43,7 +43,8 @@ def unchanged(before):
 
 
 def api_settings(live):
-    return {key: live['Config'].get(key) for key in ('Env', 'Cmd', 'Entrypoint', 'User', 'WorkingDir')} | {
+    return {key: live['Config'].get(key) for key in ('Cmd', 'Entrypoint', 'User', 'WorkingDir')} | {
+        'Env': sorted(live['Config'].get('Env') or []),
         'Mounts': sorted([{k: m.get(k) for k in ('Type', 'Source', 'Destination', 'RW', 'Propagation')}
                           for m in live['Mounts']], key=lambda m: m['Destination']),
         'Ports': live['HostConfig']['PortBindings'],

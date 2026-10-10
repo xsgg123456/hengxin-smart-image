@@ -123,6 +123,16 @@ class DeployTests(unittest.TestCase):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_api_environment_order_is_ignored_but_value_changes_are_rejected(self):
+        old = {'Config': {'Env': ['A=one', 'B=two']}, 'Mounts': [],
+               'HostConfig': {'PortBindings': {}}}
+        new = json.loads(json.dumps(old))
+        new['Config']['Env'].reverse()
+        self.assertEqual(d.r.api_settings(old), d.r.api_settings(new))
+        for values in (['A=changed', 'B=two'], ['A=one'], ['A=one', 'B=two', 'C=three']):
+            new['Config']['Env'] = values
+            self.assertNotEqual(d.r.api_settings(old), d.r.api_settings(new))
+
     def test_prepare_generates_api_only_override_and_keeps_migrate(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
