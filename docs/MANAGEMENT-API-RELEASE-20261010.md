@@ -29,3 +29,22 @@ pnpm audit --prod：critical0、high36、moderate34、low1，与既有依赖基�
 发布前对象存储只读全量核对：904个未删除ready图片对象全部存在，大小与数据库一致；记录ID与大小指纹204078de7c55897574522de48ebaeb1187cd5c92e8cdd56c3d958f3eb317623d。其余文件记录的状态不属于本次ready核对范围，未删除任何对象。
 
 首轮发布审查R1已返修：完整安装验证改为开放前执行，公网资源与鉴权验证纳入部署事务；开放后失败关闭接纳、保留新执行器。返修后37项工具专项通过。
+
+## 生产发布结果
+
+生产发布完成：management-20261010-4a09a59，源码4a09a59088b5baf796c0327e3abeeafa43f4c82f，前端0.2.20，schema0026。功能提交bccf95e，发布增量R2两阶段PASS，批准候选b31d45e364ac443088cf9b16afdcd208329bfef1459621fd5b36e4aab71224b2。
+
+- 发布包892文件、5,066,622字节；SHA256 ed9e5455259fde074c3f835e2942fcb5f45d077aebb211429c472d6f69b1e701。白名单隐私审计、归档回读、上传SHA及逐文件复验通过。
+- 最终服务器镜像断网安装测试：1447 passed、104 skipped、1 deselected、15 warnings，263.55秒。跳过项依赖外部PG/专用宿主；唯一deselect依赖未打包前端源接口文件；另6个仓库infra专用模块未装入运行镜像测试范围。不是所有跳过能力均在生产实测。
+- 排空API与原生CLI后备份完成：/opt/hengxin-backups/management-20261010-4a09a59，包含数据库dump及目录有效性检查、native app、前端入口及配置/活动发布标记。未强停生图任务，未覆盖业务数据库。
+- 迁移0023→0026成功；幂等回填新增1236条统计事实。五后端服务更新，每服务360个后端文件、native192个文件、frontend524个文件哈希全部匹配；生产compose参数保持。
+- 开放前安装与契约验证通过，开放后完整公网哈希/鉴权验证通过，部署返回0。API worker启动初次ping尚未就绪，按既有重试策略随后通过，无回退。
+- API与CLI独立心跳均available，各1个worker；API5套×10图，180/60/360秒；CLI并发/容量5、7200秒、gpt-6-astra/high。清理开关false，1天/7天规则显示准确，没有启动清理删除调度。
+- 切换前后基线逐项一致，仅schema变化：56套任务、391张原图、431版本、923文件记录、678次请求；轮次15 adopted/8 candidate/1 waiting_user。版本/文件ID指纹一致。
+- 904个未删除ready图片对象发布前后全部HEAD成功，大小均等于数据库；ID+大小指纹一致。未产生额外生图请求、未删除图片。
+- 新管理报表：1236条事实=1236条事件；当前可见55套、380张成功图片、0失败/0待处理/0待核实。此口径排除已删除任务，与上述全表总量区别明确。
+- API readiness ready，PostgreSQL/Redis/MinIO up，native active，通道已开放。公网页面与入口JS/CSS哈希匹配；实际浏览器无pageerror或JS/CSS失败，新管理三接口及API任务接口匿名均401。浏览器验证匿名登录页；已授权管理报表/监控/配置通过安装API内只读真实管理员身份函数与契约核对，未伪称完成真实钉钉登录或付费生成测试。
+
+证据：output/release/management-20261010-4a09a59/ 内package-audit.json、installation-tests.log、deploy.log、verification.json、browser.log、production-login.png；output/release/management-prep/ 内本地build、audit、工具测试以及baseline/objects前后核对。首次浏览器断言错误地将品牌副标题当heading，按实际DOM修正定位后通过，业务页面无需修改。
+
+未推送Git远端；保留既有用户skill改动，不纳入本次提交。备份与旧镜像保留供回退。
