@@ -20,7 +20,7 @@ function saveRetry(id: string, value?: { key: string; uncertain: boolean }) {
 export function useRecords() {
   const userId = String(useUserStore().getUserInfo.userId)
   const retryId = (id: string) => `${userId}:${id}`
-  const tasks = ref<ApiTaskSummary[]>([]), total = ref(0), page = ref(1), search = ref(''), filter = ref<ApiTaskState | ''>('')
+  const tasks = ref<ApiTaskSummary[]>([]), total = ref(0), page = ref(1), pageSize = ref(20), search = ref(''), filter = ref<ApiTaskState | ''>('')
   const selectedId = ref(''), selected = ref<ApiTask>(), loading = ref(false), detailLoading = ref(false)
   const error = ref(''), detailError = ref(''), actionError = ref(''), busy = ref(false)
   const retryPending = computed(() => { void actionError.value; void selected.value; return !!savedRetry(retryId(selectedId.value)) })
@@ -29,9 +29,9 @@ export function useRecords() {
   async function load(silent = false) {
     const serial = ++listSerial; if (!silent) loading.value = true
     try {
-      const result = await apiImages.list({ page: page.value, pageSize: 20, search: search.value, status: filter.value })
+      const result = await apiImages.list({ page: page.value, pageSize: pageSize.value, search: search.value, status: filter.value })
       if (!alive || serial !== listSerial) return
-      if (page.value > 1 && !result.items.length && result.total <= (page.value - 1) * 20) { page.value = Math.max(1, Math.ceil(result.total / 20)); return }
+      if (page.value > 1 && !result.items.length && result.total <= (page.value - 1) * pageSize.value) { page.value = Math.max(1, Math.ceil(result.total / pageSize.value)); return }
       tasks.value = result.items; total.value = result.total; error.value = ''
     } catch (e) { if (alive && serial === listSerial) error.value = errorText(e) }
     finally { if (alive && serial === listSerial) loading.value = false }
@@ -64,9 +64,9 @@ export function useRecords() {
     await refresh(true); schedule()
   }
   document.addEventListener('visibilitychange', visibility)
-  watch([page, filter], () => { void load() })
-  watch(filter, () => { page.value = 1 })
-  watch(search, () => { clearTimeout(debounce); debounce = setTimeout(() => { if (page.value !== 1) page.value = 1; else void load() }, 300) })
+  watch([filter, pageSize], () => { page.value = 1 }, { flush: 'sync' })
+  watch([page, filter, pageSize], () => { clearTimeout(debounce); void load() })
+  watch(search, () => { ++listSerial; clearTimeout(debounce); debounce = setTimeout(() => { if (page.value !== 1) page.value = 1; else void load() }, 300) })
   watch(selectedId, () => { selected.value = undefined; actionError.value = ''; void loadDetail() })
   async function action(run: () => Promise<unknown>) {
     if (busy.value) return
@@ -83,5 +83,5 @@ export function useRecords() {
   }
   void refresh().then(schedule)
   onBeforeUnmount(() => { alive = false; document.removeEventListener('visibilitychange', visibility); clearTimeout(timer); clearTimeout(debounce) })
-  return { tasks, total, page, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry }
+  return { tasks, total, page, pageSize, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry }
 }

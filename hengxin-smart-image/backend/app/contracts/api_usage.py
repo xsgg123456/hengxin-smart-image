@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 Category = Literal['task_created', 'api_request', 'cli_submission', 'cli_round',
                    'cli_candidate', 'version_published', 'adopt', 'restore']
+GenerationType = Literal['initial', 'api_edit', 'cli_edit']
 
 
 class UsageQuery(BaseModel):
@@ -13,11 +14,17 @@ class UsageQuery(BaseModel):
     userId: str | None = None
     unassigned: bool = False
     category: Category | None = None
+    generationType: GenerationType | None = None
+    outputsOnly: bool = False
     page: int = Field(default=1, ge=1)
     pageSize: int = Field(default=20, ge=1, le=100)
 
 
 class Summary(BaseModel):
+    initialImages: int = 0
+    modifiedImages: int = 0
+    totalGeneratedImages: int = 0
+    generatedTasks: int = 0
     tasksCreated: int = 0
     apiAttempts: int = 0
     apiSucceeded: int = 0
@@ -70,6 +77,8 @@ class Event(BaseModel):
     completedAt: str | None
     state: str
     quantity: int
+    generationType: GenerationType | None
+    generatedImages: int
     isRetry: bool | None
     attribution: Literal['verified', 'historical_unverified']
     durationSeconds: float | None

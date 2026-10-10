@@ -11,7 +11,7 @@ test('真实 API 统计发送独立事件分页和日期筛选，汇总与库存
   const url = new URL(paths[0]!, 'http://local')
   assert.equal(url.pathname, '/api/v1/management/api-usage'); assert.equal(url.searchParams.get('userId'), '用户&一')
   assert.equal(url.searchParams.get('page'), '2'); assert.deepEqual(result.summary, report.summary); assert.deepEqual(result.inventory, report.inventory)
-  await client({ unassigned: true }); assert.match(paths[1]!, /unassigned=true/)
+  await client({ unassigned: true, generationType: 'api_edit', outputsOnly: false }); assert.match(paths[1]!, /generationType=api_edit/); assert.match(paths[1]!, /outputsOnly=false/); assert.match(paths[1]!, /unassigned=true/)
 })
 test('未提供 Token/费用、未知重试、空操作者、已删除历史均原样保留', async () => {
   const report = usageFixture()
@@ -24,6 +24,12 @@ test('未提供 Token/费用、未知重试、空操作者、已删除历史均�
 test('缺字段、负计数、畸形比例、非法归属与事件拒绝，不降级为模拟统计', async () => {
   for (const mutate of [
     (r: ReturnType<typeof usageFixture>) => { r.summary.apiAttempts = -1 },
+    (r: ReturnType<typeof usageFixture>) => { r.summary.initialImages = -1 },
+    (r: ReturnType<typeof usageFixture>) => { r.summary.modifiedImages = 1.5 },
+    (r: ReturnType<typeof usageFixture>) => { delete (r.summary as Partial<typeof r.summary>).totalGeneratedImages },
+    (r: ReturnType<typeof usageFixture>) => { r.summary.generatedTasks = NaN },
+    (r: ReturnType<typeof usageFixture>) => { r.events[0]!.generatedImages = -1 },
+    (r: ReturnType<typeof usageFixture>) => { Object.assign(r.events[0]!, { generationType: 'invalid' }) },
     (r: ReturnType<typeof usageFixture>) => { r.summary.requestSuccessRate = 2 },
     (r: ReturnType<typeof usageFixture>) => { r.events[0]!.occurredAt = 'bad' },
     (r: ReturnType<typeof usageFixture>) => { delete (r.summary as Partial<typeof r.summary>).apiUnknown },

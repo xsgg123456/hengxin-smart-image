@@ -14,7 +14,7 @@
         <template #created="{ row }"><span>{{ friendlyTime(row.created) }}</span></template>
         <template #action="{ row }"><ElButton text type="primary" @click="show(row.id)">查看详情</ElButton><ElButton text type="danger" :disabled="busy || isTaskActive(row)" @click="remove(row)">删除</ElButton></template>
       </ArtTable>
-      <ElPagination v-if="total" v-model:current-page="page" :page-size="20" :total="total" layout="total, prev, pager, next" class="hx-gap" />
+      <ElPagination v-if="total" v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next" class="hx-gap" />
     </ElCard>
     <RealTaskDetail v-model="open" :task="selected" :loading="detailLoading" :error="detailError" :action-error="actionError" :busy="busy" :admin="isAdmin" :retry-pending="retryPending" :channel-blocked="blocked" @refresh="loadDetail()" @retry="retry" @resolve="resolve" />
   </div>
@@ -34,7 +34,7 @@ import { useChannel } from './use-channel'
 import { useRecords } from './use-records'
 const router = useRouter(), route = useRoute()
 const { status, error: channelError, loading: channelLoading, busy: channelBusy, isAdmin, blocked, load: loadChannel, resume } = useChannel()
-const { tasks, total, page, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, loadDetail, refresh, action, retry } = useRecords()
+const { tasks, total, page, pageSize, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, loadDetail, refresh, action, retry } = useRecords()
 const open = computed({ get: () => !!selectedId.value, set: value => { if (!value) void router.replace({ query: { ...route.query, task: undefined } }) } })
 watch(() => route.query.task, id => { selectedId.value = typeof id === 'string' ? id : '' }, { immediate: true })
 const stats = computed(() => [

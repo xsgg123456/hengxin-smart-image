@@ -13,7 +13,7 @@ from app.contracts import api_usage as c
 from app.db.session import get_session
 from app.modules.auth.dependencies import CurrentUser
 from app.modules.api_image_edits.models import ApiItem, ApiTask
-from app.modules.management.api_usage_summary import summarize
+from app.modules.management.api_usage_summary import generated_images, generation_type, summarize
 from app.resource_models import UserRecord
 
 router = APIRouter(tags=['management'])
@@ -61,6 +61,7 @@ def event(fact: dict, names: dict, deleted: set) -> c.Event:
         creatorId=str(fact['owner_id']), operatorId=str(fact['operator_id']) if fact['operator_id'] else None,
         operatorName=names.get(fact['operator_id'], '未知操作者'), occurredAt=start.isoformat(),
         completedAt=end.isoformat() if end else None, state=fact['state'], quantity=fact['quantity'],
+        generationType=generation_type(fact), generatedImages=generated_images(fact),
         isRetry=fact['is_retry'], attribution=fact['attribution'],
         durationSeconds=max(0, (end - start).total_seconds()) if end else None)
 
@@ -84,6 +85,7 @@ def build_report(session: Session, user: UserRecord, query: c.UsageQuery) -> c.R
     users = session.scalars(select(UserRecord).order_by(UserRecord.name, UserRecord.id)).all()
     names = {u.id: u.name for u in users}
     facts = []
+    unverified_versions = 0
     groups = defaultdict(list)
     for fact in read_facts(session):
         actor = fact['operator_id']
@@ -94,6 +96,13 @@ def build_report(session: Session, user: UserRecord, query: c.UsageQuery) -> c.R
             continue
         if query.category and fact['category'] != query.category:
             continue
+        if query.generationType and generation_type(fact) != query.generationType:
+            continue
+        if query.outputsOnly:
+            if fact['category'] == 'version_published' and fact['channel'] == 'unknown':
+                unverified_versions += fact['quantity']
+            if not generated_images(fact):
+                continue
         facts.append(fact)
         groups[(day.isoformat(), str(actor) if actor else '')].append(fact)
     facts.sort(key=lambda f: (utc(f['occurred_at']), f['key']), reverse=True)
@@ -104,9 +113,12 @@ def build_report(session: Session, user: UserRecord, query: c.UsageQuery) -> c.R
     page = facts[offset:offset + query.pageSize]
     ids = {f['task_id'] for f in page}
     visible = set(session.scalars(select(ApiTask.id).where(ApiTask.id.in_(ids), ApiTask.deleted_at.is_(None)))) if ids else set()
+    summary = summarize(facts)
+    if query.outputsOnly:
+        summary.unverifiedVersions = unverified_versions
     return c.Report(scope='all' if all_scope else 'personal',
         users=[c.UserOption(id=str(u.id), name=u.name) for u in users if all_scope or u.id == user.id],
-        inventory=inventory(session, owner), summary=summarize(facts), rows=rows,
+        inventory=inventory(session, owner), summary=summary, rows=rows,
         events=[event(f, names, ids - visible) for f in page], total=len(facts), page=query.page, pageSize=query.pageSize)
 
 

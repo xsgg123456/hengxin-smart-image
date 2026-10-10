@@ -1,0 +1,15 @@
+{
+  "baselineCommit": "f530911ea33670001ba30e508047bf21b061e4c2",
+  "scope": "isolated-preview-only",
+  "port": 3027,
+  "files": {
+    "output/usage-total-preview/frontend/.env.mock": "f31b3c44cc3e49d25c437bf558a0077da309fde2491a5942e0b75bfced6f9aa6",
+    "output/usage-total-preview/frontend/src/types/import/components.d.ts": "d6034c9e783fe7629d6e4f6188ecc36de45b146316891f8770f0dd5d569b37d1",
+    "output/usage-total-preview/frontend/src/views/hengxin/admin/preview/UsagePreview.vue": "835c9112228f8cb7edc30c2769d366b6c165aed597868181e7e35744b462152f",
+    "output/usage-total-preview/frontend/src/views/hengxin/admin/preview/usage-total-data.ts": "bfeae0e38d9c8575e1c81a022ec09c4435eb948d2133d6169679a0632cf88731",
+    "output/usage-total-preview/frontend/src/views/hengxin/api-image-edits/RecordsPreview.vue": "876bd52f9f33d9010723973feab7d627fc50d4ec0cd7927867f0b8950c4766bb",
+    "output/usage-total-preview/frontend/src/views/hengxin/api-image-edits/records.vue": "905702623ccf3f4af2b6305a12c7df4d180ac13551ceb1f02ce5015effcf79de",
+    "output/usage-total-preview/frontend/verify-usage-total.ts": "a522eed34006d1ba2b024aac4c9c465030e2e63e417622c34c65f0a62b2b96fb",
+    "output/usage-total-preview/frontend/vite.config.ts": "927e993ebad4f9361eff905cfd9ef9ebd91b7f4ccc01d68f622cbbea39a2acf9"
+  }
+}

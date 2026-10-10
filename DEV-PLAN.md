@@ -1100,3 +1100,9 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 本轮本地实现与验收完成：后端1643项通过、17项条件跳过；前端236项、类型检查、正式构建、隔离浏览器及PG迁移/并发通过。R2独立两阶段审查PASS，详见 docs/MANAGEMENT-API-R2-REVIEW-20261010.md 与 docs/MANAGEMENT-API-VALIDATION-20261010.md。生产未部署、未迁移、未回填；部署需另行确认。
 
 生产发布已获用户授权并完成：前端0.2.20，schema0026，回填1236条事实，安装与公网验收通过。详见 docs/MANAGEMENT-API-RELEASE-20261010.md。自动清理仍关闭。
+
+## 2026-10-10 累计生成图片与记录分页
+
+预览已获用户确认，进入本地正式开发。按 docs/USAGE-TOTAL-IMPLEMENTATION-20261010.md 顺序：产出事实聚合与契约 → 正式前端及分页 → 全套验证和独立审查。后端与前端契约先固定，可分别实现；主Agent统一集成验收。生产部署另行确认。
+
+正式代码本地实现及验证结果见 docs/USAGE-TOTAL-VALIDATION-20261010.md；累计13、采用/恢复/清理保全、真实分页和隔离浏览器已验证。生产未部署，Git尚未提交；审查结果以对应报告及快照凭据为准。

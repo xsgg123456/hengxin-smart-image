@@ -5,7 +5,7 @@ import { compileScript, parse } from '@vue/compiler-sfc'
 import ts from 'typescript'
 import * as Vue from 'vue'
 import { useAdminQuery } from '../src/views/hengxin/admin/use-admin-query'
-import { usageCategoryLabels } from '../src/api/api-management-usage-validate'
+import { usageCategoryLabels, generationLabels } from '../src/api/api-management-usage-validate'
 import type { ApiUsageQuery } from '../src/types/api-management-usage'
 import { usageFixture } from './api-management-usage-fixture'
 interface Node { tag: string; text: string; props: Record<string, unknown>; children: Node[]; parent: Node | null }
@@ -23,7 +23,7 @@ let result = usageFixture(), fail = false, roles = ['super_admin']; let pending:
 const deps: Record<string, unknown> = {
   vue: Vue, 'vue-router': { useRouter: () => ({ push: (q: unknown) => navigation.push(q) }) },
   '@/api/api-management-usage': { getApiUsage: async (q: ApiUsageQuery) => { calls.push({ ...q }); if (pending) await pending; if (fail) throw new Error('统计服务不可用'); return structuredClone(result) } },
-  '@/api/api-management-usage-validate': { usageCategoryLabels },
+  '@/api/api-management-usage-validate': { usageCategoryLabels, generationLabels },
   '@/store/modules/user': { useUserStore: () => ({ info: { roles } }) }, './use-admin-query': { useAdminQuery }
 }
 function compile(name: string) {
@@ -55,24 +55,24 @@ const click = (root: Node, label: string) => { const n = all(root).find(n => n.t
 function reset() { calls.length = 0; navigation.length = 0; result = usageFixture(); fail = false; roles = ['super_admin']; pending = undefined }
 
 test('真实统计组件：分页不改变全量汇总、筛选显式提交、失败隐藏旧结果且可重试', async () => {
-  reset(); const view = mount(usage)
+  reset(); result.rows = Array.from({ length: 55 }, (_, i) => ({ ...result.rows[0]!, userName: `人员${i}` })); const view = mount(usage)
   try {
     await Vue.nextTick(); await flush()
-    assert.equal((find(view.root, 'ElTable').props.data as unknown[]).length, 8)
+    assert.equal((find(view.root, 'ElTable').props.data as unknown[]).length, 20)
     const kpis = () => all(view.root).filter(n => n.props.class === 'hx-admin-kpis').map(text).join(''); const before = kpis()
     ;(find(view.root, 'ElPagination').props['onUpdate:currentPage'] as (v: number) => void)(2); await flush()
-    assert.equal((find(view.root, 'ElTable').props.data as unknown[]).length, 2)
+    assert.equal((find(view.root, 'ElTable').props.data as unknown[]).length, 20)
     assert.equal(kpis(), before); assert.equal(calls.length, 1)
     update(find(view.root, 'ElDatePicker'), ['2026-10-02', '2026-10-03'])
     update(find(view.root, 'ElSelect', '统计人员'), 'u1')
-    update(find(view.root, 'ElSelect', '统计事件类型'), 'api_request')
+    update(find(view.root, 'ElSelect', '生成类型'), 'api_edit')
     assert.equal(calls.length, 1)
     fail = true; click(view.root, '查询统计'); await flush()
-    assert.deepEqual(calls.at(-1), { from: '2026-10-02', to: '2026-10-03', userId: 'u1', category: 'api_request', page: 1, pageSize: 1 })
+    assert.deepEqual(calls.at(-1), { from: '2026-10-02', to: '2026-10-03', userId: 'u1', generationType: 'api_edit', outputsOnly: true, page: 1, pageSize: 1 })
     assert.equal(find(view.root, 'ElAlert').props.title, '统计服务不可用')
     assert.equal(all(view.root).some(n => n.tag === 'ElTable'), false)
     fail = false; click(view.root, '重试加载'); await flush(); assert.ok(find(view.root, 'ElTable'))
-    assert.match(text(view.root), /仅按创建人过滤，不受日期与事件类型影响/); assert.match(text(view.root), /来源待核实版本 2（不计生成或采用）/)
+    assert.doesNotMatch(text(view.root), /库存/); assert.match(text(view.root), /来源待核实版本 2（来源待核实、未计入累计）/)
     assert.match(text(view.root), /费用：未提供/)
   } finally { view.close() }
 })
@@ -83,10 +83,10 @@ test('真实统计组件：个人视图不发送其他人员、空态保留真�
 })
 test('真实明细组件：未知归属独立查询，删除任务不跳转，事件分页与API任务跳转正确', async () => {
   reset(); const row = { ...result.rows[0]!, userId: null }
-  const view = mount(detail, { row, category: 'cli_round' })
+  const view = mount(detail, { row, generationType: 'cli_edit', outputsOnly: true })
   try {
     await flush(); assert.equal(calls[0]?.unassigned, true); assert.equal(calls[0]?.userId, undefined)
-    assert.equal(calls[0]?.from, row.date); assert.equal(calls[0]?.to, row.date); assert.equal(calls[0]?.category, 'cli_round')
+    assert.equal(calls[0]?.from, row.date); assert.equal(calls[0]?.to, row.date); assert.equal(calls[0]?.generationType, 'cli_edit'); assert.equal(calls[0]?.outputsOnly, true)
     assert.match(text(view.root), /已删除/); assert.match(text(view.root), /历史归属未核实/)
     assert.equal(all(view.root).filter(n => n.tag === 'ElButton').length, 0)
     result.events[0]!.taskDeleted = false
@@ -104,7 +104,34 @@ test('真实统计组件：初次慢加载显式等待，不伪造个人范围�
     await Vue.nextTick(); assert.ok(find(view.root, 'ElSkeleton'))
     assert.doesNotMatch(text(view.root), /个人/); assert.doesNotMatch(text(view.root), /当前原图库存/)
     finish(); await flush(); update(find(view.root, 'ElTabs'), 'execution'); await flush()
-    assert.match(text(view.root), /CLI 真实启动/); assert.match(text(view.root), /启动证据不足 1/)
+    assert.match(text(view.root), /CLI 修改轮次/); assert.match(text(view.root), /启动证据不足 1/)
     assert.match(text(view.root), /API 请求成功率 50.0%/); assert.match(text(view.root), /未知 2/)
   } finally { finish(); pending = undefined; view.close() }
+})
+
+
+test('累计统计默认全量、日报20/50/100、切换页签保留已应用筛选、重置恢复全量', async () => {
+  reset(); result.rows = Array.from({ length: 101 }, (_, i) => ({ ...result.rows[0]!, userName: `人员${i}` }))
+  const view = mount(usage)
+  try {
+    await flush(); assert.deepEqual(calls[0], { outputsOnly: true, page: 1, pageSize: 1 })
+    assert.match(text(view.root), /首次生成 10 张 \+ 修改生成 3 张 = 累计 13 张/)
+    assert.match(text(view.root), /生成任务数1/)
+    for (const size of [50, 100, 20]) {
+      const pager = find(view.root, 'ElPagination')
+      ;(pager.props['onUpdate:pageSize'] as (v: number) => void)(size)
+      ;(pager.props.onSizeChange as () => void)(); await flush()
+      assert.equal((find(view.root, 'ElTable').props.data as unknown[]).length, size)
+      assert.equal(find(view.root, 'ElPagination').props['current-page'], 1)
+      assert.equal(calls.length, 1)
+    }
+    update(find(view.root, 'ElSelect', '生成类型'), 'initial'); click(view.root, '查询统计'); await flush()
+    update(find(view.root, 'ElSelect', '生成类型'), 'cli_edit')
+    update(find(view.root, 'ElTabs'), 'execution'); await flush()
+    assert.equal(calls.at(-1)?.generationType, 'initial'); assert.equal(calls.at(-1)?.outputsOnly, false)
+    update(find(view.root, 'ElTabs'), 'business'); await flush()
+    assert.equal(calls.at(-1)?.outputsOnly, true)
+    click(view.root, '重置'); await flush()
+    assert.equal(calls.at(-1)?.generationType, undefined); assert.equal(calls.at(-1)?.from, undefined); assert.equal(calls.at(-1)?.userId, undefined)
+  } finally { view.close() }
 })
