@@ -46,6 +46,7 @@ export interface Template {
 }
 export interface SkillSnapshot { id?: string; name?: string; version?: string; checksum?: string }
 export interface Task {
+  retention?: { status: 'active' | 'cache_pending' | 'expire_pending' | 'expired'; lastActivityAt: string; expiresAt: string; cacheClearedAt: string | null } | null
   ownerName?: string
   executionSource?: 'fixture' | 'unavailable' | 'cli'
   id: string
@@ -165,7 +166,7 @@ export interface CreateTaskInput {
   sources: Picture[]
   note: string
 }
-export interface RevisionInput { taskId: string; target: number | null; note: string; retry?: boolean; sourceRoundId?: string; baseVersionId?: string | null; annotationFileId?: string | null }
+export interface RevisionInput { restartExpired?: boolean; taskId: string; target: number | null; note: string; retry?: boolean; sourceRoundId?: string; baseVersionId?: string | null; annotationFileId?: string | null }
 export interface HengxinService extends ManagementService {
   getUser(): Promise<User>
   getWorkspace(): Promise<Workspace>

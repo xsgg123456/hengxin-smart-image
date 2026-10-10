@@ -1081,3 +1081,12 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 2. 前端：RealRevisionDialog 中 image 模式接入专用多轮组件和客户端，复用 AnnotationEditor 原布局，SSE 恢复与结果采用；text 模式保持。类型与客户端/UI 验证。
 3. 集成：注册worker/migration/router、代理 SSE 不缓冲；完整后端/前端检查、构建、隔离浏览器标注/多轮流程。
 4. 快照审查：harness review-prepare，独立 code-reviewer 两阶段，修复后重新固定快照并批准。未授权本轮提交/部署。
+
+
+## 2026-10-10 · CLI 自动清理本地实施
+1. 保留状态与调度：backend/app/retention/、migrations/versions/0024_cli_retention.py、core/config.py、infra维护service示例；持久清理状态、锁、索引、默认关闭与7天缓冲、路径安全和重试可验证。
+2. 业务适配：API conversation/runtime/runner 与旧CLI tasks/execution 接入有效活动与过期保护；保留正式版本、输入和统计，删除无引用候选/过程，过期后明确新会话。测试覆盖清理失败/重启/并发/跨域引用。
+3. 前端：既有API多轮组件/客户端/types与旧任务入口展示过期策略及新会话状态；复用既有组件样式，拒绝旧候选并清旧选择，禁用清理中提交。相关单测及隔离浏览器通过。
+4. 主Agent执行前后端全回归、PG隔离并发/迁移、类型/构建/功能验证，固定review候选并spawn code-reviewer两阶段，修复至PASS；保存证据并交付。不得部署、开启生产清理、提交或推送。
+
+本地实现与验证完成：后端 Linux 1617 项通过（17 项既有专用宿主测试跳过），前端 221 项、类型检查、正式构建、两入口隔离浏览器及真实 PG 并发/迁移通过。独立两阶段审查通过；默认关闭，等待用户确认生产部署。见 [验证记录](docs/CLI-RETENTION-VALIDATION-20261010.md)、[验收报告](docs/CLI-RETENTION-ACCEPTANCE-20261010.md)。

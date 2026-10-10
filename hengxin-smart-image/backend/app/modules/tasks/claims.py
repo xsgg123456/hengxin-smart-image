@@ -27,6 +27,10 @@ def locked_execution(session, job_id, gate=False):
 
 def end(session, round, job, status, error=None):
     round.status, round.error, round.finished_at = status, error, utcnow()
+    task = session.get(TaskRecord, round.task_id)
+    if task and task.execution_source == 'cli':
+        from app.retention.state import touch
+        touch(session, 'legacy_cli', task.id)
     job.status, job.error, job.completed_at, job.lease_until = status, error, utcnow(), None
     outbox = session.get(Outbox, job.id)
     if outbox:
@@ -57,6 +61,13 @@ def claim(factory, job_id):
             return None
         if job.status in ('running', 'collecting', 'cancelling') and not lease_active(job):
             mark_uncertain(round, job)
+        if task.execution_source == 'cli':
+            from app.retention.state import guard
+            from fastapi import HTTPException
+            try:
+                guard(session, 'legacy_cli', task.id)
+            except HTTPException:
+                return None
         if job.status != 'queued' or round.status != 'queued':
             return None
         if task.deleted_at or round.cancel_requested or task.current_round_id != round.id:

@@ -7,7 +7,7 @@ from sqlalchemy.orm import load_only
 from app.resource_models import FileRecord, UserRecord
 from app.modules.archives.models import ArchiveRecord
 from app.modules.skills.models import SkillVersionRecord
-from .models import TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
+from .models import TaskRecord, TaskSource, RoundRecord, ResultSlotRecord, ImageVersion
 from .attempts import ExecutionSession
 
 
@@ -16,9 +16,11 @@ class ListBatch:
         self.records = {}
         self.groups = {}
         self.archived = set()
+        self.retention = {}
         if not tasks:
             return
         ids = [task.id for task in tasks]
+        from app.retention.models import RetentionEntry
         for model in (TaskSource, RoundRecord, ResultSlotRecord):
             statement = select(model).where(model.task_id.in_(ids))
             if model is RoundRecord:
@@ -37,7 +39,16 @@ class ListBatch:
         self._load(session, FileRecord, FileRecord.id.in_(
             {source.file_id for source in sources} | {v.file_id for v in versions}))
         self._load(session, UserRecord, UserRecord.id.in_({task.owner_id for task in tasks}))
-        self._load(session, ExecutionSession, ExecutionSession.task_id.in_(ids))
+        identities = session.execute(select(TaskRecord.id, ExecutionSession, RetentionEntry)
+            .outerjoin(ExecutionSession, ExecutionSession.task_id == TaskRecord.id)
+            .outerjoin(RetentionEntry, (RetentionEntry.resource_id == TaskRecord.id)
+                       & (RetentionEntry.domain == 'legacy_cli')).where(TaskRecord.id.in_(ids)))
+        self.records[ExecutionSession] = {}
+        for task_id, identity, retained in identities:
+            if identity:
+                self.records[ExecutionSession][task_id] = identity
+            if retained:
+                self.retention[task_id] = retained
         self._load(session, SkillVersionRecord, SkillVersionRecord.id.in_(
             {task.skill_version_id for task in tasks if task.skill_version_id}))
         self.archived = set(session.scalars(select(ArchiveRecord.task_id).where(

@@ -13,12 +13,13 @@ export function createConversationCommand(storage?: { load(): PendingConversatio
       const result = await request(state.pending.action, state.pending.key)
       state.pending = null; storage?.save(null); return result
     } catch (error) {
-      if (uncertainResponse(error)) state.pending!.uncertain = true
+      if (uncertainResponse(error) && state.pending) state.pending.uncertain = true
       else if (!state.pending?.uncertain) state.pending = null
       storage?.save(state.pending); state.error = errorText(error) + (state.pending ? '。请确认原请求，避免重复提交。' : '')
     } finally { state.busy = false }
   }
-  return { state, send }
+  function discardExpired() { state.pending = null; state.error = ''; storage?.save(null) }
+  return { state, send, discardExpired }
 }
 const commands = new Map<string, ReturnType<typeof createConversationCommand>>()
 export function conversationCommand(user: string, task: string, item: string) {

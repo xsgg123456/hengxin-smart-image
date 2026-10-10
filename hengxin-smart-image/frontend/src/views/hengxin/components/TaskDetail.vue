@@ -5,6 +5,7 @@
       <div v-if="loading && !task" class="hx-detail-loading" role="status" aria-live="polite"><strong>正在读取任务详情…</strong><span>正在同步任务状态、结果和可用操作</span><ElSkeleton :rows="6" animated /></div>
       <ElEmpty v-if="!task && !loading" description="任务不可用，请重试或返回任务列表" />
       <template v-if="task && data">
+        <ElAlert v-if="task.executionSource === 'cli'" title="CLI 会话闲置 24 小时清缓存，连续 7 天清理会话历史；正式图片和必要输入保留。过期后修改将明确开启新会话。" type="info" :closable="false" class="hx-gap" />
         <div class="hx-detail-toolbar"><div><ElTag>{{ labels[task.mode] }}</ElTag><span class="hx-muted">{{ task.id }} · {{ formatTime(task.time) }}</span></div></div>
         <div class="hx-filter"><ElButton v-if="showWholeRevision" :disabled="!editable" @click="edit(null)">整套修改</ElButton><ElButton :disabled="!complete || busy" :loading="downloading" @click="download">{{ isMockMode ? '下载整套示例' : '下载整套' }}</ElButton><ElButton type="primary" :disabled="!complete || busy" :loading="archiving" @click="archive">{{ task.archived ? '再次归档当前整套' : '归档到成品库' }}</ElButton></div>
         <p class="hx-footnote">单张修改以正在查看的版本为基础；{{ showWholeRevision ? '整套修改、下载和归档' : '下载和归档' }}使用各位置当前版本。相同版本再次归档会返回已有成品。</p>
@@ -52,7 +53,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { getService, isMockMode } from '@/api/hengxin/client'
 import { useUserStore } from '@/store/modules/user'
@@ -100,7 +101,16 @@ const actionError = computed({ get: () => revision.session.value.error, set: val
 const submitting = computed(() => revision.session.value.pending)
 let alive = true
 onBeforeUnmount(() => { alive = false })
-watch(data, value => { if (value) revision.observe(value) })
+watch(data, value => {
+  if (!value) return
+  if (value.task.retention?.status === 'expired' && revision.session.value.expiredAt !== value.task.retention.expiresAt) {
+    feedbackOpen.value = false
+    for (const slot of value.slots) for (const version of slot.versions) {
+      forgetAnnotationDraft(JSON.stringify(['cli', identity(), value.task.id, slot.slot, version.id]))
+    }
+  }
+  revision.observe(value)
+})
 const busy = computed(() => submitting.value || preparingAnnotation.value || archiving.value || downloading.value)
 const failed = computed(() => !!task.value && ['失败', '部分失败'].includes(task.value.state))
 const outcome = computed(() => data.value ? taskOutcome(data.value) : undefined)
@@ -118,6 +128,12 @@ function edit(slot: number | null, version?: ResultVersion) {
 }
 async function revise(input?: RevisionInput) {
   if (input && (input.retry ? !actions.value.canRetry : !actions.value.canRevise)) return
+  const confirmationOwner = identity(), confirmationTask = props.taskId
+  if (input && task.value?.retention?.status === 'expired') {
+    try { await ElMessageBox.confirm('历史对话已清理。本次将以正式图片、原图和本轮意见开启新会话，不恢复旧记忆。', '开启新会话', { confirmButtonText: '开启新会话', cancelButtonText: '取消', type: 'info' }) } catch { return }
+    if (!alive || confirmationOwner !== identity() || confirmationTask !== props.taskId) return
+    input = { ...input, restartExpired: true }
+  }
   const owner = identity(), id = props.taskId
   const annotationKey = JSON.stringify(['cli', owner, id, target.value, base.value?.id])
   try {

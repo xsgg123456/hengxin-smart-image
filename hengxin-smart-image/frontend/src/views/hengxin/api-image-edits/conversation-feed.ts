@@ -1,6 +1,7 @@
 import type { EditConversation, EditEvent } from '@/types/api-image-conversation'
 /** A read begun before an SSE event cannot erase messages already displayed. */
 export function acceptConversationSnapshot(current: EditConversation | undefined, incoming: EditConversation, cursor: number) {
+  if (current?.retention?.status === 'expired' && incoming.retention?.status !== 'expired' && incoming.lastEventId <= current.lastEventId) return current
   return incoming.lastEventId < Math.max(cursor, current?.lastEventId || 0) ? current : incoming
 }
 export function appendConversationEvent(current: EditConversation | undefined, event: EditEvent, cursor: number) {

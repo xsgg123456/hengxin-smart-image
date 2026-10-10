@@ -23,6 +23,12 @@ def eligibility(session, task, current, rounds):
         return False, False, '原任务执行器当前不可用，请保留意见稍后再试'
     failed = current.status in ('failed', 'partial')
     if task.execution_source == 'cli':
+        from app.retention.state import describe
+        retention = describe(session, 'legacy_cli', task.id)
+        if retention and retention['status'] in ('cache_pending', 'expire_pending'):
+            return False, False, '会话正在清理，请稍后重试'
+        if retention and retention['status'] == 'expired':
+            return True, False, '会话历史已清理，新修改将开启新会话'
         identity = session.get(ExecutionSession, task.id)
         if not identity:
             return False, failed, None if failed else '缺少原会话，无法返工'

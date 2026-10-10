@@ -37,8 +37,8 @@ def pg_api():
     with admin.begin() as connection:
         connection.execute(text(f'CREATE SCHEMA {schema}'))
     engine = create_engine(url, connect_args={'options': f'-csearch_path={schema}'})
-    tables = [t for t in Base.metadata.sorted_tables if t.name in ('users', 'image_variants') or t.name.startswith(('api_image_', 'capacity_'))]
-    Base.metadata.create_all(engine, tables=tables)
+    # API mutation guards also read CLI conversations; model the complete schema.
+    Base.metadata.create_all(engine)
     factory = sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     with factory() as session:

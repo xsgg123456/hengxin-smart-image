@@ -60,7 +60,18 @@ def serialize(session, task, batch=None):
     identity = get(ExecutionSession, task.id) if task.execution_source == 'cli' else None
     incomplete = any(slot.current_version_id is None or slot.error for slot in slots)
     state = '部分失败' if current.status == 'succeeded' and incomplete else round_state(current)
-    data = dict(id=str(task.id), name=task.name, mode=task.mode, template='',
+    from app.retention.state import aware, describe, HISTORY_AGE
+    retention = None
+    if task.execution_source == 'cli':
+        if batch:
+            row = batch.retention.get(task.id)
+            if row:
+                retention = dict(status=row.status, lastActivityAt=aware(row.last_activity_at).isoformat(),
+                    expiresAt=(aware(row.last_activity_at) + HISTORY_AGE).isoformat(),
+                    cacheClearedAt=aware(row.cache_cleared_at).isoformat() if row.cache_cleared_at else None)
+        else:
+            retention = describe(session, 'legacy_cli', task.id)
+    data = dict(retention=retention, id=str(task.id), name=task.name, mode=task.mode, template='',
         skillVersionId=str(task.skill_version_id) if task.skill_version_id else None, ownerId=str(task.owner_id),
         sessionId=identity.session_id if identity else None,
         state=state, progress=100 if state == '待查看' else None,

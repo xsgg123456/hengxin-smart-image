@@ -5,7 +5,7 @@ import type { Accepted, HengxinService, Picture, ResultVersion, RevisionInput, T
 function createSession() {
   return reactive({ drafts: {} as Record<string, string>, target: null as number | null,
     base: null as ResultVersion | null, annotations: {} as Record<string, Picture[]>,
-    pending: false, uncertain: false, error: '', settled: false,
+    pending: false, uncertain: false, error: '', settled: false, expiredAt: '',
     accepted: undefined as Accepted | undefined,
     attempt: undefined as { input: RevisionInput; key: string } | undefined })
 }
@@ -31,7 +31,15 @@ export function useRevisionSession(identity: () => string | undefined, taskId: (
   const blocked = computed(() => session.value.pending || session.value.uncertain || (!!session.value.accepted && !session.value.settled))
   function observe(detail: TaskDetailData) {
     const current = session.value
-    if (detail.task.id !== taskId() || !current.accepted) return
+    if (detail.task.id !== taskId()) return
+    const retention = detail.task.retention
+    if (retention?.status === 'expired' && current.expiredAt !== retention.expiresAt && !current.pending) {
+      current.expiredAt = retention.expiresAt
+      current.drafts = {}; current.annotations = {}; current.base = null
+      current.accepted = undefined; current.attempt = undefined; current.uncertain = false
+      current.settled = false; current.error = ''
+    }
+    if (!current.accepted) return
     const round = detail.rounds.find(item => item.id === current.accepted!.roundId)
     if (round?.finishedAt && !['排队中', '执行中'].includes(round.state)) current.settled = true
   }

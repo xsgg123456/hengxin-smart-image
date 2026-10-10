@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     enable_test_jobs: bool = False
     enable_fixture_executor: bool = False
     enable_codex_executor: bool = False
+    cli_retention_enabled: bool = False
+    cli_retention_batch_size: int = Field(default=25, ge=1, le=100)
     codex_binary: str = ''
     codex_bwrap_binary: str = '/opt/hengxin-runtime/bwrap'
     codex_auth_file: str = Field(default='', repr=False)

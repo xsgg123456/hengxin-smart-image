@@ -137,3 +137,17 @@ test('响应丢失后的重放冻结基础版本和圈注文件，不随弹窗�
   await form.resolvePrevious()
   assert.equal(sent[1].baseVersionId, 'v1'); assert.equal(sent[1].annotationFileId, 'mark1')
 })
+
+test('过期观察清理旧意见和基础选择，新生命周期仅清理一次且显式发送重启字段', async () => {
+  const sent: RevisionInput[] = []
+  const form = useRevisionSession(() => 'expired-owner', () => 'a', async body => { sent.push(body); return receipt })
+  form.target.value = 0; form.base.value = v1; form.note.value = '旧意见'
+  form.annotations.value = [{ fileId: 'old', name: '旧截图', url: '/old' }]
+  const detail = { task: { id: 'a', retention: { status: 'expired', expiresAt: '2026-10-10' } }, rounds: [] } as unknown as TaskDetailData
+  form.observe(detail)
+  assert.equal(form.base.value, null); assert.equal(form.note.value, ''); assert.deepEqual(form.annotations.value, [])
+  form.note.value = '本轮新意见'; form.observe(detail)
+  assert.equal(form.note.value, '本轮新意见')
+  await form.submit({ ...input, note: form.note.value, restartExpired: true })
+  assert.equal(sent[0].restartExpired, true)
+})

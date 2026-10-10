@@ -13,6 +13,7 @@ from app.execution.public_messages import public_message
 from .conversation import emit
 from .conversation_models import Conversation, ConversationTurn
 from .models import ApiItem, ApiTask
+from app.retention.state import guard, touch
 
 
 def locked(session, job_id):
@@ -24,7 +25,11 @@ def locked(session, job_id):
     task = session.scalar(select(ApiTask).where(ApiTask.id == item.task_id).with_for_update())
     session.refresh(item, with_for_update=True)
     session.refresh(conversation, with_for_update=True)
-    session.refresh(turn, with_for_update=True)
+    # A cleanup may have won the parent lock after the initial turn lookup.
+    turn = session.scalar(select(ConversationTurn).where(ConversationTurn.id == turn.id)
+                          .with_for_update().execution_options(populate_existing=True))
+    if turn is None:
+        return (None,) * 5
     job = session.scalar(select(Job).where(Job.id == turn.job_id).with_for_update())
     return task, item, conversation, turn, job
 
@@ -36,6 +41,7 @@ def finish(session, conversation, turn, job, status, error=None):
     dispatch = session.get(Outbox, job.id)
     dispatch.completed_at = None if status == 'uncertain' and turn.cancel_requested else utcnow()
     emit(session, conversation, turn)
+    touch(session, 'api_cli', conversation.id)
 
 
 def claim(factory, job_id):
@@ -45,6 +51,7 @@ def claim(factory, job_id):
         task, item, conversation, turn, job = locked(session, job_id)
         if not job:
             return None
+        guard(session, 'api_cli', conversation.id)
         if job.status == 'running' and not lease_active(job):
             finish(session, conversation, turn, job, 'uncertain', '执行状态待核实，禁止自动重试')
         if job.status != 'queued' or turn.status != 'queued':
@@ -123,5 +130,5 @@ def sweep(factory):
     for job_id in ids:
         with factory.begin() as session:
             _, _, conversation, turn, job = locked(session, job_id)
-            if job.status == 'running' and not lease_active(job):
+            if job and job.status == 'running' and not lease_active(job):
                 finish(session, conversation, turn, job, 'uncertain', '执行中断，禁止自动重试')

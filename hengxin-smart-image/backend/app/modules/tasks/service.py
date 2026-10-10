@@ -35,6 +35,9 @@ def enqueue(session, user, task, note, target=None):
     session.flush()
     session.add(Outbox(job_id=job_id))
     task.current_round_id = round_id
+    if task.execution_source == 'cli':
+        from app.retention.state import touch
+        touch(session, 'legacy_cli', task.id)
     return round
 
 
@@ -93,10 +96,17 @@ def accept_round(session, user, task_id, body, key):
     previous = replay(session, user.id, 'round', target, key, digest)
     if previous:
         return previous
+    from app.retention.state import entry, guard
+    retention = entry(session, 'legacy_cli', task.id) if task.execution_source == 'cli' else None
+    restarting = retention is not None and retention.status == 'expired'
+    if restarting and body.retry:
+        raise HTTPException(409, '会话历史已清理，请输入新意见开启新会话')
     from app.modules.revisions.service import eligibility
     rounds = session.scalars(select(RoundRecord).where(RoundRecord.task_id == task_id)).all()
     current = next(r for r in rounds if r.id == task.current_round_id)
     can_revise, can_retry, reason = eligibility(session, task, current, rounds)
+    if task.execution_source == 'cli':
+        guard(session, 'legacy_cli', task.id, restart=body.restartExpired)
     if body.retry:
         if not can_retry:
             raise HTTPException(409, reason or '只有当前已确认失败的轮次可以重试')
@@ -116,6 +126,12 @@ def accept_round(session, user, task_id, body, key):
     from .revision_inputs import freeze_revision
     base_id, annotation_id, frozen = freeze_revision(session, user, task, body, current)
     try:
+        if restarting:
+            from .attempts import ExecutionSession
+            identity = session.get(ExecutionSession, task.id)
+            if identity:
+                session.delete(identity)
+                session.flush()
         round = enqueue(session, user, task, body.note, body.target)
         round.base_version_id, round.annotation_file_id = base_id, annotation_id
         if frozen:

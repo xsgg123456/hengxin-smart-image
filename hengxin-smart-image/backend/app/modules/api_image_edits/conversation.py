@@ -13,11 +13,13 @@ from .service import operation
 from .state import channel
 from .versions import target
 from app.modules.management.settings import values
+from app.retention.state import describe, entry, guard, touch
 
 ACTIVE = ('queued', 'running', 'uncertain')
 
 
 class SubmitTurn(BaseModel):
+    restartExpired: bool = False
     text: str = Field(min_length=1, max_length=20000)
     prompt: str | None = Field(default=None, max_length=40000)
     baseVersion: int | None = Field(default=None, ge=1)
@@ -63,6 +65,7 @@ def view(session, task_id, item_id):
     def image(file_id):
         return picture(find_file(session, file_id)) if file_id else None
     return {'id': str(conversation.id) if conversation else None, 'itemId': str(item.id),
+            'retention': describe(session, 'api_cli', conversation.id) if conversation else None,
             'currentVersion': item.current_version,
             'lastEventId': conversation.last_event_id if conversation else 0,
             'turns': [{'id': str(t.id), 'status': t.status, 'text': t.text, 'prompt': t.prompt,
@@ -80,7 +83,10 @@ def submit(session, user, task_id, item_id, data, key):
     # Same ordering as legacy revisions; gate also serializes operation keys.
     channel(session)
     task, item = target(session, task_id, item_id)
-    old, digest = operation(session, user, key, {'cliTurn': str(item_id), 'data': data.model_dump(mode='json')})
+    payload = data.model_dump(mode='json')
+    if not data.restartExpired:
+        payload.pop('restartExpired')  # Existing clients retain their original idempotency digest.
+    old, digest = operation(session, user, key, {'cliTurn': str(item_id), 'data': payload})
     if old:
         return
     if not get_settings().enable_codex_executor:
@@ -93,6 +99,10 @@ def submit(session, user, task_id, item_id, data, key):
         conversation = Conversation(id=uuid4(), item_id=item.id, last_event_id=0)
         session.add(conversation)
         session.flush()
+    retained = entry(session, 'api_cli', conversation.id)
+    if retained and retained.status == 'expired' and data.baseTurnId:
+        raise HTTPException(409, '历史候选已清理，请选择正式图片开启新会话')
+    guard(session, 'api_cli', conversation.id, restart=data.restartExpired)
     if data.baseTurnId:
         base = session.get(ConversationTurn, data.baseTurnId)
         if not base or base.conversation_id != conversation.id or not base.candidate_id:
@@ -128,6 +138,7 @@ def submit(session, user, task_id, item_id, data, key):
     session.flush()
     emit(session, conversation, turn)
     session.add(Outbox(job_id=job_id))
+    touch(session, 'api_cli', conversation.id)
     session.add(ApiOperation(operator_id=user.id, key=key, payload_hash=digest, task_id=task.id))
     session.commit()
 
@@ -143,6 +154,7 @@ def selected(session, task_id, item_id, turn_id):
 
 def stop(session, task_id, item_id, turn_id):
     _, _, conversation, turn = selected(session, task_id, item_id, turn_id)
+    guard(session, 'api_cli', conversation.id)
     if turn.status in ('queued', 'running', 'uncertain'):
         turn.cancel_requested = True
         if turn.status == 'uncertain':
@@ -155,6 +167,7 @@ def stop(session, task_id, item_id, turn_id):
             job.status, job.completed_at = 'cancelled', utcnow()
             session.get(Outbox, job.id).completed_at = utcnow()
         emit(session, conversation, turn)
+        touch(session, 'api_cli', conversation.id)
     session.commit()
 
 
@@ -164,6 +177,7 @@ def adopt(session, user, task_id, item_id, turn_id, data, key):
     old, digest = operation(session, user, key, {'adopt': str(turn_id), 'version': data.expectedVersion})
     if old:
         return
+    guard(session, 'api_cli', conversation.id)
     assert_idle(session, item.id)
     if (item.state != 'succeeded' or item.current_version != data.expectedVersion
             or turn.status != 'candidate' or not turn.candidate_id):
@@ -179,5 +193,6 @@ def adopt(session, user, task_id, item_id, turn_id, data, key):
     item.error = item.next_attempt_at = item.result_url = item.result_bytes = None
     turn.status, turn.adopted_version = 'adopted', number
     emit(session, conversation, turn)
+    touch(session, 'api_cli', conversation.id)
     session.add(ApiOperation(operator_id=user.id, key=key, payload_hash=digest, task_id=task.id))
     session.commit()

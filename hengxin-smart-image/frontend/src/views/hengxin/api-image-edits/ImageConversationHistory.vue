@@ -3,7 +3,7 @@
     <summary>修改过程与历史 · {{ conversation?.turns.length || 0 }} 轮 <span>{{ connection }}</span></summary>
     <div class="history-content">
       <div class="history-versions"><span>已发布版本</span><ElButton v-for="version in versions" :key="version.number" size="small" :disabled="disabled" @click="$emit('selectVersion', version.number)">基于 V{{ version.number }} 继续</ElButton></div>
-      <p v-if="!conversation?.turns.length" class="hx-footnote">尚无修改轮次。提交后将在这里显示公开回复及结果。</p>
+      <p v-if="!conversation?.turns.length" class="hx-footnote">{{ conversation?.retention?.status === 'expired' ? '历史已清理。已发布版本仍可选，新修改将开启新会话。' : '尚无修改轮次。提交后将在这里显示公开回复及结果。' }}</p>
       <details v-for="(turn, index) in conversation?.turns" :key="turn.id" class="history-turn" :open="isEditActive(turn)">
         <summary>第 {{ index + 1 }} 轮 · {{ editTurnLabels[turn.status] }}{{ turn.adoptedVersion ? ` · V${turn.adoptedVersion}` : '' }}</summary>
         <pre>{{ turn.text }}</pre>

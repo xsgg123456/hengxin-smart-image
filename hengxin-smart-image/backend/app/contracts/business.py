@@ -101,6 +101,7 @@ class Round(BaseModel):
 
 
 class Task(BaseModel):
+    retention: dict | None = None
     ownerName: str = omitted()
     executionSource: Literal['fixture', 'unavailable', 'cli'] = omitted()
     id: str
@@ -233,6 +234,7 @@ class CreateTaskInput(BaseModel):
 
 
 class RevisionInput(BaseModel):
+    restartExpired: bool = False
     taskId: str
     target: int | None = Field(ge=0, strict=True)
     note: str = Field(max_length=1000)

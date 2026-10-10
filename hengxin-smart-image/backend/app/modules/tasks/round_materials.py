@@ -18,11 +18,14 @@ def materials(session, task_id, round_id):
         raise HTTPException(404, '轮次不存在')
     data = dict(taskId=str(task.id), roundId=str(row.id), note=row.note, status=row.status,
                 systemPrompts=[], toolCalls=[], inputs=[], outputs=[], notices=[])
+    expired = row.execution_config.get('historyExpired')
     evidence = row.execution_config.get('materials', {})
     for key in ('systemPrompts', 'toolCalls', 'notices'):
         data[key] = list(evidence.get(key, []))
+    if expired:
+        data['notices'].append('本轮会话历史已按 7 天保留规则清理，正式图片仍可查看。')
     attempt = session.scalar(select(ExecutionAttempt).where(ExecutionAttempt.round_id == row.id))
-    if task.execution_source == 'cli' and attempt and not evidence.get('captured'):
+    if task.execution_source == 'cli' and attempt and not evidence.get('captured') and not row.execution_config.get('historyExpired'):
         next_start = session.scalar(select(ExecutionAttempt.started_at).where(
             ExecutionAttempt.task_id == task.id, ExecutionAttempt.started_at > attempt.started_at)
             .order_by(ExecutionAttempt.started_at).limit(1))
@@ -32,9 +35,9 @@ def materials(session, task_id, round_id):
             if history[key]:
                 data[key] = history[key]
         data['notices'].extend(history['notices'])
-    if not data['systemPrompts']:
+    if not expired and not data['systemPrompts']:
         data['notices'].append('系统任务提示词未采集，不使用现行模板重建历史内容。')
-    if not data['toolCalls']:
+    if not expired and not data['toolCalls']:
         data['notices'].append('实际生图工具提示词尚未采集或无法回溯。')
 
     def add(role, label, file_id, version=None, output=False):
@@ -77,7 +80,7 @@ def materials(session, task_id, round_id):
             data['notices'].append('本轮未冻结基础成品版本，未使用当前版本替代历史。')
     if row.annotation_file_id:
         add('annotation', '标注参考图', row.annotation_file_id)
-    else:
+    elif not expired:
         data['notices'].append('本轮未提交标注图。')
     outputs = session.execute(select(ImageVersion, ResultSlotRecord.slot).join(ResultSlotRecord,
         ImageVersion.slot_id == ResultSlotRecord.id).where(ImageVersion.round_id == row.id,

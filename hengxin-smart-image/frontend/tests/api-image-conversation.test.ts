@@ -4,6 +4,8 @@ import { createConversationClient, eventDecoder, conversationValid } from '../sr
 import { identity, StaleIdentityError } from '../src/api/hengxin/identity'
 import { createConversationCommand, type ConversationAction } from '../src/views/hengxin/api-image-edits/conversation-command'
 import { acceptConversationSnapshot, appendConversationEvent } from '../src/views/hengxin/api-image-edits/conversation-feed'
+import { conversationDrafts } from '../src/views/hengxin/api-image-edits/conversation-drafts'
+import { annotationDraft } from '../src/views/hengxin/components/annotation/annotation-drafts'
 import type { EditConversation } from '../src/types/api-image-conversation'
 const empty = { id: null, itemId: 'item', currentVersion: 2, lastEventId: 0, turns: [] }
 test('交错GET与实时消息不回退，重连重复事件与快照重放只显示一次', () => {
@@ -69,4 +71,46 @@ test('响应丢失后续接原图片请求，冻结意见与key；采用操作�
   assert.deepEqual(await command.send({ kind: 'adopt', turnId: 'other', expectedVersion: 3 }, send), empty)
   assert.deepEqual(sent[1], sent[0])
   assert.equal(command.state.pending, null)
+})
+
+test('保留状态兼容旧响应，拒绝无效字段；过期快照不能被旧响应恢复', () => {
+  const retention = { status: 'expired' as const, lastActivityAt: '2026-10-01', expiresAt: '2026-10-08', cacheClearedAt: null }
+  const expired = { ...empty, id: 'same-id', lastEventId: 9, retention }
+  assert.equal(conversationValid(empty), true)
+  assert.equal(conversationValid({ ...empty, retention: null }), true)
+  for (const status of ['active', 'cache_pending', 'expire_pending', 'expired']) assert.equal(conversationValid({ ...expired, retention: { ...retention, status } }), true)
+  assert.equal(conversationValid({ ...expired, retention: { ...retention, status: 'unknown' } }), false)
+  assert.equal(conversationValid({ ...expired, retention: { ...retention, expiresAt: 3 } }), false)
+  assert.equal(acceptConversationSnapshot(expired, { ...empty, lastEventId: 9 }, 9), expired)
+  assert.equal(acceptConversationSnapshot(expired, { ...empty, lastEventId: 8 }, 9), expired)
+  const restarted = { ...expired, lastEventId: 10, retention: { ...retention, status: 'active' as const } }
+  assert.equal(acceptConversationSnapshot(expired, restarted, 9), restarted)
+})
+test('过期丢弃冻结旧请求，新会话提交显式携带restartExpired', async () => {
+  let stored: unknown
+  const command = createConversationCommand({ load: () => null, save: value => { stored = value } }, () => 'key')
+  await command.send({ kind: 'submit', input: { baseTurnId: 'old', text: '旧意见', prompt: '旧提示' } }, async () => { throw new Error('断线') })
+  command.discardExpired()
+  assert.equal(stored, null); assert.equal(command.state.pending, null)
+  const input = { baseVersion: 2, text: '新意见', prompt: '新提示', restartExpired: true }
+  const api = createConversationClient('/api/v1', async (_url, init) => {
+    assert.deepEqual(JSON.parse(String(init?.body)), input)
+    return new Response(JSON.stringify(empty), { headers: { 'Content-Type': 'application/json' } })
+  })
+  await command.send({ kind: 'submit', input }, (action, key) => api.submit('task', 'item', action.kind === 'submit' ? action.input : input, key))
+})
+
+test('过期清除该会话所有已选底图草稿，关闭重开保留新代次且不影响其他图', () => {
+  const drafts = conversationDrafts('user:task:item')
+  for (const key of ['candidate-draft', 'version-draft']) { drafts.track(key); annotationDraft(key).general = '旧意见' }
+  annotationDraft('other-item').general = '别图意见'
+  drafts.expire('conversation:20')
+  assert.equal(annotationDraft('candidate-draft').general, '')
+  assert.equal(annotationDraft('version-draft').general, '')
+  assert.equal(annotationDraft('other-item').general, '别图意见')
+  const reopened = conversationDrafts('user:task:item')
+  assert.equal(reopened.epoch(), 'conversation:20')
+  reopened.track('new-draft'); annotationDraft('new-draft').general = '新意见'
+  reopened.expire('conversation:20')
+  assert.equal(annotationDraft('new-draft').general, '新意见')
 })
