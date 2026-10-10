@@ -20,6 +20,9 @@ from app.modules.archives.router import router as archives_router
 from app.modules.skills.router import router as skills_router
 from app.modules.skills.catalog_router import router as catalog_router
 from app.modules.management.router import router as management_router
+from app.modules.management.api_usage import router as api_usage_router
+from app.modules.management.api_monitor import router as api_monitor_router
+from app.modules.management.execution_settings import router as execution_settings_router
 from app.modules.management.settings_router import router as settings_router
 from app.modules.management.monitor_router import router as monitor_router
 from app.modules.api_image_edits.router import router as api_image_router
@@ -47,6 +50,9 @@ app.include_router(templates_router, prefix="/api/v1")
 app.include_router(skills_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
 app.include_router(management_router, prefix="/api/v1")
+app.include_router(api_usage_router, prefix="/api/v1")
+app.include_router(api_monitor_router, prefix="/api/v1")
+app.include_router(execution_settings_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(monitor_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")

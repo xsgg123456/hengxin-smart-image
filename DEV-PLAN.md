@@ -1090,3 +1090,11 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 4. 主Agent执行前后端全回归、PG隔离并发/迁移、类型/构建/功能验证，固定review候选并spawn code-reviewer两阶段，修复至PASS；保存证据并交付。不得部署、开启生产清理、提交或推送。
 
 本地实现与验证完成：后端 Linux 1617 项通过（17 项既有专用宿主测试跳过），前端 221 项、类型检查、正式构建、两入口隔离浏览器及真实 PG 并发/迁移通过。独立两阶段审查通过；默认关闭，等待用户确认生产部署。见 [验证记录](docs/CLI-RETENTION-VALIDATION-20261010.md)、[验收报告](docs/CLI-RETENTION-ACCEPTANCE-20261010.md)。
+
+## 2026-10-10 管理中心统计预览
+先复用既有框架完成调用统计、执行监控和系统配置隔离预览；完成筛选/明细/状态交互，类型与浏览器验证及独立审查后交用户确认。详见 docs/MANAGEMENT-API-PREVIEW-20261010.md。正式后端整改另行实施。
+
+## 2026-10-10 管理中心 API 统计实施
+按 docs/MANAGEMENT-API-IMPLEMENTATION-20261010.md：先统计事实与清理保全，再聚合接口/监控/配置，接真实前端，最后隔离测试和独立审查。文件主要在 backend/app/modules/management/api_stats、api_image_edits采集点、0025迁移及frontend管理页面/契约。
+
+本轮本地实现与验收完成：后端1643项通过、17项条件跳过；前端236项、类型检查、正式构建、隔离浏览器及PG迁移/并发通过。R2独立两阶段审查PASS，详见 docs/MANAGEMENT-API-R2-REVIEW-20261010.md 与 docs/MANAGEMENT-API-VALIDATION-20261010.md。生产未部署、未迁移、未回填；部署需另行确认。

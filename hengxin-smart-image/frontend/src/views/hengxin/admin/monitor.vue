@@ -1,36 +1,41 @@
 <template>
   <div class="hx-page">
-    <div class="hx-heading"><div><span class="hx-eyebrow">EXECUTION HEALTH</span><h1>执行监控</h1><p>查看当前服务状态与业务异常，空闲表示暂无执行，不代表离线。</p></div><ElButton :loading="loading" @click="load">刷新状态</ElButton></div>
-    <AdminPreview />
-    <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text :disabled="loading" @click="load">重试加载</ElButton></ElAlert>
-    <ElCard v-if="loading && !report" class="art-card hx-section"><p role="status">正在读取执行状态…</p><ElSkeleton :rows="5" animated /></ElCard>
-    <ElEmpty v-else-if="!report && !error" description="暂无监控报告" />
-    <template v-if="report">
-      <ElAlert v-if="error" title="刷新失败，以下为上次读取的报告，不代表当前状态。" type="warning" :closable="false" />
-      <p v-else-if="loading" class="hx-muted" role="status">正在刷新，以下为上次读取的报告…</p>
-      <div class="hx-admin-kpis hx-gap"><ElCard class="art-card hx-admin-kpi hx-health-kpi"><div><span>总体服务</span><strong>{{ states[report.state] }}</strong><small>当前健康状态</small></div><ArtSvgIcon icon="ri:heart-pulse-line" /></ElCard><ElCard class="art-card hx-admin-kpi"><div><span>排队任务</span><strong>{{ monitorCount(report.queueSize) }}</strong><small>等待执行</small></div><ArtSvgIcon icon="ri:time-line" /></ElCard><ElCard class="art-card hx-admin-kpi"><div><span>正在执行</span><strong>{{ monitorCount(report.runningCount) }}</strong><small>占用执行节点</small></div><ArtSvgIcon icon="ri:loader-4-line" /></ElCard><ElCard class="art-card hx-admin-kpi"><div><span>最后检查</span><strong class="hx-admin-kpi-time">{{ report.checkedAt ? time(report.checkedAt) : '未检查' }}</strong><small>心跳时间</small></div><ArtSvgIcon icon="ri:refresh-line" /></ElCard></div>
-      <ElAlert v-if="report.state === 'unknown'" :title="report.issue?.message || '健康检查已过期或尚未提供，当前状态未知。'" type="warning" :closable="false" />
-      <ElAlert v-if="report.state === 'unavailable'" :title="report.issue?.message || '执行服务暂不可用，请根据依赖状态处理异常。'" type="error" :closable="false" />
-      <ElCard v-if="report.detail" class="art-card hx-section hx-gap"><div class="hx-admin-section-head"><div><span class="hx-admin-kicker">RUNTIME</span><h2>执行环境</h2><p>依赖状态和 Worker 心跳只用于判断当前可执行性。</p></div><ElTag :type="report.detail.configured ? 'success' : 'warning'">{{ report.detail.configured ? '环境就绪' : '状态待确认' }}</ElTag></div><p class="hx-muted">CLI {{ report.detail.cliVersion || '未提供' }} · 配置{{ report.detail.configured === null ? '未知' : report.detail.configured ? '就绪' : '未就绪' }} · 临时空间 {{ report.detail.freeDiskBytes == null ? '未知' : `${(report.detail.freeDiskBytes / 1024 ** 3).toFixed(1)} GiB` }}</p><p class="hx-muted">最近结果：{{ report.detail.lastResult || '尚无记录' }}（历史结果不替代当前健康检查）</p>
-        <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="report.detail.workers" :columns="workerColumns" :show-pagination="false" empty-text="暂无执行节点"><template #state="{ row }">{{ states[row.state as keyof typeof states] }}</template><template #checkedAt="{ row }">{{ time(row.checkedAt) }}</template></ArtTable>
-        <div class="hx-source-list"><ElTag v-for="dependency in report.detail.dependencies" :key="dependency.name" :type="dependency.state === 'available' ? 'success' : dependency.state === 'unavailable' ? 'danger' : 'warning'">{{ dependency.name }} · {{ dependency.message }}</ElTag></div>
-      </ElCard>
-      <ElCard class="art-card hx-section hx-gap"><div class="hx-admin-section-head"><div><span class="hx-admin-kicker">QUEUE & INCIDENTS</span><h2>队列与业务异常</h2><p>{{ coverage?.summary }}</p></div><ElTag type="info" effect="plain">{{ report.tasks.length }} 条</ElTag></div><ElAlert v-if="coverage?.truncated" title="非运行任务已截断：运行中及待核实任务全部显示，排队、失败、部分失败任务仅显示最近 100 条。更多任务请前往任务中心查看。" type="info" :closable="false" /><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="report.tasks" :columns="columns" :loading="loading" :show-pagination="false" :empty-text="coverage?.emptyText"><template #name="{ row }"><ElButton type="primary" text @click="router.push({path:'/tasks/index', query:{taskId:row.taskId}})">{{ row.name }}</ElButton></template><template #sessionId="{ row }">{{ row.sessionId || '未提供' }}</template><template #elapsedSeconds="{ row }">{{ elapsedTime(row.elapsedSeconds) }}</template><template #error="{ row }">{{ row.error || '—' }}</template></ArtTable></ElCard>
+    <div class="hx-heading"><div><span class="hx-eyebrow">EXECUTION HEALTH</span><h1>执行监控</h1><p>按 API 生图与 CLI 图片修改分别查看数据库队列和执行服务心跳。</p></div><ElButton :loading="loading" @click="load">刷新状态</ElButton></div>
+    <ElAlert v-if="error" :title="error + '；已有快照可能过期，请重新读取。'" type="error" :closable="false" />
+    <ElSkeleton v-if="loading && !data" :rows="8" animated />
+    <ElEmpty v-else-if="!data && !error" description="暂无监控快照" />
+    <template v-if="data">
+      <p class="hx-muted" role="status">数据库快照：{{ time(data.checkedAt) }}（北京时间）。心跳未知不表示空闲，数据库计数不证明执行服务在线。</p>
+      <div class="hx-admin-kpis"><ElCard v-for="item in data.channels" :key="item.channel" class="art-card hx-admin-kpi"><div><span>{{ names[item.channel] }}执行服务</span><strong>{{ error ? '快照过期' : states[item.state] }}</strong><small>独立 Worker 心跳；不代表上游模型已验证可用</small></div></ElCard></div>
+      <div class="hx-stack">
+        <ElCard v-for="item in data.channels" :key="item.channel" class="art-card hx-section">
+          <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">{{ item.channel === 'api' ? 'API GENERATION' : 'CLI IMAGE EDIT' }}</span><h2>{{ names[item.channel] }}</h2><p>{{ item.channel === 'api' ? '图片级请求、等待重试与收图。' : '当前图片会话的最新轮次；候选和澄清回复不计入失败。' }}</p></div><ElTag :type="item.state === 'available' ? 'success' : 'warning'">服务：{{ error ? '快照过期' : states[item.state] }}</ElTag></div>
+          <ElAlert v-if="!item.enabled" title="此执行渠道在部署配置中未启用。" type="warning" :closable="false" />
+          <ElAlert v-if="item.paused" :title="item.pauseReason || 'API 通道暂停'" type="error" :closable="false" />
+          <p v-if="item.channel === 'cli'" class="hx-muted">全局占用 {{ count(item.sharedActiveTurns) }} 个轮次，其中旧 CLI 任务占用 {{ count(item.otherActiveTurns) }} 个；下表只统计 API 图片修改业务。</p>
+          <ElAlert v-if="item.queueState === 'unknown'" title="数据库队列采集失败，数量未知。" type="warning" :closable="false" />
+          <ElTable :data="item.metrics" table-layout="auto"><ElTableColumn label="阶段" min-width="120"><template #default="{row}">{{ phases[row.phase] || row.phase }}</template></ElTableColumn><ElTableColumn label="关联任务（套）" min-width="135"><template #default="{row}">{{ count(row.tasks) }}</template></ElTableColumn><ElTableColumn label="涉及图片（张）" min-width="135"><template #default="{row}">{{ count(row.images) }}</template></ElTableColumn><ElTableColumn v-if="item.channel === 'cli'" label="修改轮次（次）" min-width="135"><template #default="{row}">{{ count(row.turns) }}</template></ElTableColumn></ElTable>
+          <p v-if="!item.workers.length" class="hx-muted">尚无 Worker 心跳，无法从心跳判断执行节点是否在线。</p><p v-for="worker in item.workers" :key="worker.id" class="hx-muted">{{ worker.id }} · {{ time(worker.checkedAt) }}（北京时间） · {{ states[worker.state] }} · 采样容量 {{ count(worker.capacity) }}</p>
+          <p class="hx-footnote">{{ item.channel === 'api' ? `当前配置：全站 ${count(item.concurrencyLimit)} 套任务准入，每套 ${count(item.imagesPerBatch)} 张 / 批` : `当前配置：全站最多 ${count(item.concurrencyLimit)} 个 CLI 执行轮次；同一图片会话串行` }}。</p>
+          <p class="hx-footnote">同套任务可跨阶段、跨渠道出现，各行套数不能直接相加；当前运行数量不等于并发配置。最新失败与历史失败请求分别统计。</p>
+        </ElCard>
+        <ElCard class="art-card hx-section"><div class="hx-admin-section-head"><div><span class="hx-admin-kicker">QUEUE & INCIDENTS</span><h2>需要关注的任务</h2><p>打开对应 API 任务详情；已删除任务不进入当前队列。</p></div></div>
+          <ElTable :data="data.incidents" :empty-text="data.channels.some(c => c.queueState === 'unknown') ? '采集不完整，关注任务未知' : '当前没有需要关注的任务'"><ElTableColumn label="任务" min-width="185"><template #default="{row}"><ElButton type="primary" text @click="router.push({path:'/api-image-edits/records',query:{task:row.taskId}})">{{ row.name }}</ElButton></template></ElTableColumn><ElTableColumn label="执行渠道" min-width="145"><template #default="{row}">{{ names[row.channel as 'api'|'cli'] }}</template></ElTableColumn><ElTableColumn label="状态" min-width="115"><template #default="{row}">{{ phases[row.phase] || row.phase }}</template></ElTableColumn><ElTableColumn prop="images" label="涉及图片（张）" min-width="135" /></ElTable>
+          <p v-if="data.incidentsTruncated" class="hx-muted">仅展示前 100 条关注记录，队列数量包含全部记录。</p>
+        </ElCard>
+      </div>
     </template>
   </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getMonitor } from '@/api/management'
-import ArtTable from '@/components/core/tables/art-table/index.vue'
-import AdminPreview from './AdminPreview.vue'
+import { getApiMonitor } from '@/api/execution-management'
 import { useAdminQuery } from './use-admin-query'
-import { elapsedTime, monitorCount, monitorCoverage } from './monitor-presentation'
-const router = useRouter(), { data: report, loading, error, load } = useAdminQuery(getMonitor)
-const coverage = computed(() => report.value ? monitorCoverage(report.value) : undefined)
-const states = { idle: '空闲', running: '执行中', unavailable: '不可用', unknown: '未知' }
-const time = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
-const workerColumns = [{ prop: 'id', label: '节点' }, { prop: 'state', label: '状态', useSlot: true }, { prop: 'concurrency', label: '并发上限' }, { prop: 'checkedAt', label: '心跳 / 检查时间', minWidth: 170, useSlot: true }]
-const columns = computed(() => [{ prop: 'name', label: '任务', minWidth: 190, useSlot: true }, { prop: 'operatorName', label: '操作者', width: 120 }, { prop: 'state', label: '阶段', width: 100 }, ...(report.value?.detail ? [{ prop: 'sessionId', label: '会话标识', minWidth: 140, useSlot: true }] : []), { prop: 'elapsedSeconds', label: '已运行', width: 110, useSlot: true }, { prop: 'error', label: '业务错误', minWidth: 160, useSlot: true }])
+const router = useRouter()
+const {data, loading, error, load} = useAdminQuery(getApiMonitor)
+const names = {api:'API 生图',cli:'CLI 图片修改'}
+const states = {available:'在线',unavailable:'不可用',unknown:'未知'}
+const phases: Record<string,string> = {queued:'排队',running:'运行',retry_wait:'等待重试',collecting:'收图',cancelling:'取消中',uncertain:'待核实',failed:'当前失败'}
+const count = (value: number|null) => value === null ? '未知' : value
+const time = (value: string) => new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})
 </script>

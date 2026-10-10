@@ -40,6 +40,9 @@ def finish(session, conversation, turn, job, status, error=None):
     job.error, job.completed_at, job.lease_until = error, utcnow(), None
     dispatch = session.get(Outbox, job.id)
     dispatch.completed_at = None if status == 'uncertain' and turn.cancel_requested else utcnow()
+    from app.modules.management.api_stats.facts import record_turn
+    item = session.get(ApiItem, conversation.item_id)
+    record_turn(session, session.get(ApiTask, item.task_id), turn)
     emit(session, conversation, turn)
     touch(session, 'api_cli', conversation.id)
 

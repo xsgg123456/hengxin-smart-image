@@ -52,6 +52,9 @@ def busy(session, item, conversation):
 
 
 def erase_history(session, conversation, row, now):
+    from app.modules.management.api_stats.backfill import preserve
+    item = session.get(ApiItem, conversation.item_id)
+    preserve(session, task_id=item.task_id)
     turns = session.scalars(select(ConversationTurn).where(
         ConversationTurn.conversation_id == conversation.id)).all()
     jobs = [turn.job_id for turn in turns]

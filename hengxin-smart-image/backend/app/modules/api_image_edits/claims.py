@@ -19,6 +19,8 @@ def mark_uncertain(session, item):
                                                           ApiAttempt.state == 'running')):
         attempt.state, attempt.error = 'uncertain', item.error
         attempt.completed_at = utcnow()
+        from app.modules.management.api_stats.facts import record_attempt
+        record_attempt(session, item, task, attempt)
     event(task, item.error)
     refresh_task(session, task)
 
@@ -105,6 +107,11 @@ def start_attempt(factory, item_id, token, requested_size=None):
         if item.cycle_retries > 0:
             item.retries += 1
         dimensions = tuple(map(int, requested_size.split("x"))) if requested_size else (None, None)
-        session.add(ApiAttempt(item_id=item.id, operator_id=item.revision_operator_id or task.owner_id,
-                               request_width=dimensions[0], request_height=dimensions[1]))
+        attempt = ApiAttempt(item_id=item.id,
+                             operator_id=item.request_operator_id or item.revision_operator_id or task.owner_id,
+                             request_width=dimensions[0], request_height=dimensions[1])
+        session.add(attempt)
+        session.flush()
+        from app.modules.management.api_stats.facts import record_attempt
+        record_attempt(session, item, task, attempt, started=True)
         return True

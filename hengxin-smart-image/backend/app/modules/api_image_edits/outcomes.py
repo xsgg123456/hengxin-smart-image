@@ -13,6 +13,8 @@ def finish_attempt(session, item, state, error=None):
                          ApiAttempt.state == 'running').order_by(ApiAttempt.created_at.desc()).limit(1))
     if attempt:
         attempt.state, attempt.error, attempt.completed_at = state, error, utcnow()
+        from app.modules.management.api_stats.facts import record_attempt
+        record_attempt(session, item, session.get(ApiTask, item.task_id), attempt)
 
 
 def failure(factory, item_id, token, kind, code, retry_after=None):

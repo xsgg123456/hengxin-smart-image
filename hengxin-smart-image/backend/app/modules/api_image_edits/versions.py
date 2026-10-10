@@ -48,13 +48,17 @@ def publish_result(session, item, task, file_id):
     ensure_legacy(session, item, task)
     number = (session.scalar(select(func.max(ApiVersion.number)).where(
         ApiVersion.item_id == item.id)) or 0) + 1
-    session.add(ApiVersion(item_id=item.id, number=number, file_id=file_id,
-                           operator_id=item.revision_operator_id or task.owner_id,
+    version = ApiVersion(item_id=item.id, number=number, file_id=file_id,
+                           operator_id=item.request_operator_id or item.revision_operator_id or task.owner_id,
                            text=item.revision_text if item.revision_base_version else task.prompt,
                            annotation_id=item.revision_annotation_id,
                            base_version=item.revision_base_version,
                            kind=((item.revision_snapshot or {}).get('kind', 'revision')
-                                 if item.revision_base_version else 'generation')))
+                                 if item.revision_base_version else 'generation'))
+    session.add(version)
+    session.flush()
+    from app.modules.management.api_stats.facts import record_version
+    record_version(session, item, task, version)
     item.result_id, item.current_version = file_id, number
 
 
@@ -126,6 +130,7 @@ def revise(session, user, task_id, item_id, data, key):
     item.revision_base_version, item.revision_source_id = data.baseVersion, item.result_id
     item.revision_annotation_id, item.revision_text = data.annotationFileId, data.text
     item.revision_operator_id = user.id
+    item.request_operator_id, item.request_is_retry = user.id, False
     prompt, policy = (build_image_prompt(data.text) if data.kind == 'image_edit'
                       else build_text_prompt(data.kind, data.text))
     item.revision_snapshot = {
@@ -150,6 +155,7 @@ def retry_item(session, user, task_id, item_id, key):
     task, item = target(session, task_id, item_id)
     if gate.paused or item.state != 'failed':
         raise HTTPException(409, '当前图片或通道状态不能重试')
+    item.request_operator_id, item.request_is_retry = user.id, True
     enqueue(session, task, item)
     return finish(session, user, key, digest, task, f'第 {item.position} 张已提交重试')
 
@@ -176,4 +182,9 @@ def restore(session, user, task_id, item_id, data, key):
     item.revision_snapshot = None
     item.error = item.next_attempt_at = item.result_url = item.result_bytes = None
     refresh_task(session, task)
+    from app.modules.management.api_stats.facts import record_action
+    # Operation digest is stable for replays; include the actor's idempotency key.
+    import hashlib
+    identifier = hashlib.sha256(f'{user.id}:{key}'.encode()).hexdigest()
+    record_action(session, task, 'restore', identifier, user.id)
     return finish(session, user, key, digest, task, f'第 {item.position} 张已恢复 V{version.number}')

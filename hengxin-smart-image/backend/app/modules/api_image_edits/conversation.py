@@ -136,6 +136,8 @@ def submit(session, user, task_id, item_id, data, key):
                                    'timeoutSeconds': config['timeoutSeconds'], 'concurrency': config['concurrency']})
     session.add(turn)
     session.flush()
+    from app.modules.management.api_stats.facts import record_action
+    record_action(session, task, 'cli_submission', turn.id, user.id, channel='cli')
     emit(session, conversation, turn)
     session.add(Outbox(job_id=job_id))
     touch(session, 'api_cli', conversation.id)
@@ -184,14 +186,20 @@ def adopt(session, user, task_id, item_id, turn_id, data, key):
         raise HTTPException(409, '图片版本或候选状态已变化，请刷新后重试')
     find_file(session, turn.candidate_id, lock=True)
     number = (session.scalar(select(func.max(ApiVersion.number)).where(ApiVersion.item_id == item.id)) or 0) + 1
-    session.add(ApiVersion(item_id=item.id, number=number, file_id=turn.candidate_id,
+    version = ApiVersion(item_id=item.id, number=number, file_id=turn.candidate_id,
         operator_id=user.id, kind='image_edit', text=turn.text, annotation_id=turn.annotation_id,
-        base_version=turn.base_version))
+        base_version=turn.base_version)
+    session.add(version)
+    session.flush()
+    from app.modules.management.api_stats.facts import record_action
+    record_action(session, task, 'adopt', version.id, user.id, channel='cli')
     item.result_id, item.current_version = turn.candidate_id, number
     item.revision_base_version = item.revision_source_id = item.revision_annotation_id = None
     item.revision_text = item.revision_operator_id = item.revision_snapshot = None
     item.error = item.next_attempt_at = item.result_url = item.result_bytes = None
     turn.status, turn.adopted_version = 'adopted', number
+    from app.modules.management.api_stats.facts import record_turn
+    record_turn(session, task, turn)
     emit(session, conversation, turn)
     touch(session, 'api_cli', conversation.id)
     session.add(ApiOperation(operator_id=user.id, key=key, payload_hash=digest, task_id=task.id))

@@ -4,6 +4,7 @@ from celery import Celery
 from app.db import worker_budget  # noqa: F401 - register prefork/budget signals
 
 from .config import get_api_settings
+from . import worker_health  # noqa: F401 - API-only consumer heartbeat
 
 celery_app = Celery('api_image_edits', broker=get_api_settings().broker_url)
 celery_app.conf.update(

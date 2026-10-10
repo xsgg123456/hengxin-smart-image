@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base, utcnow
 from app.resource_models import Timestamps
+from app.modules.management.api_stats.models import ApiUsageFact  # noqa: F401 - register durable facts
 
 
 class ApiFile(Timestamps, Base):
@@ -59,6 +60,8 @@ class ApiItem(Timestamps, Base):
     revision_text: Mapped[str | None] = mapped_column(Text)
     revision_snapshot: Mapped[dict | None] = mapped_column(JSON)
     revision_operator_id: Mapped[UUID | None] = mapped_column(ForeignKey('users.id'))
+    request_operator_id: Mapped[UUID | None] = mapped_column(Uuid)
+    request_is_retry: Mapped[bool | None] = mapped_column(Boolean)
     position: Mapped[int] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(20), default='queued')
     retries: Mapped[int] = mapped_column(Integer, default=0)

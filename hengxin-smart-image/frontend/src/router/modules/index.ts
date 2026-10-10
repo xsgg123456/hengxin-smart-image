@@ -1,4 +1,5 @@
 import type { AppRouteRecord } from '@/types/router'
+import { managementComponent } from '../management-preview'
 const fullWorkspaceRoles = ['super_admin', 'design_manager']
 const pages = [
   ['tasks', '任务中心', 'ri:time-line'],
@@ -36,7 +37,8 @@ export const routeModules: AppRouteRecord[] = [{
     { path: 'skills', title: 'Skill 管理', icon: 'ri:code-box-line', roles: ['super_admin'] },
     { path: 'settings', title: '系统配置', icon: 'ri:settings-3-line', roles: ['super_admin'] }
   ].map(({ path, title, icon, roles }) => ({
-    name: `HxAdmin${path}`, path, component: `/hengxin/admin/${path}`,
+    name: `HxAdmin${path}`, path, component: managementComponent(path, import.meta.env?.MODE,
+      typeof window === 'undefined' ? '' : window.location.search),
     meta: { title, icon, roles, keepAlive: false }
   }))
 }]

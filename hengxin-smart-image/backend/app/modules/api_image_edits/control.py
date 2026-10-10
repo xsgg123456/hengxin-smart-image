@@ -36,6 +36,8 @@ def resolve(session, user, task_id, confirmed):
         for attempt in attempts:
             attempt.state, attempt.error = 'failed', item.error
             attempt.completed_at, attempt.resolved_by = utcnow(), user.id
+            from app.modules.management.api_stats.facts import record_attempt
+            record_attempt(session, item, task, attempt)
         release_item(item)
     event(task, f'管理员 {user.name} 已确认 {len(unresolved)} 张图片的旧调用停止')
     refresh_task(session, task)

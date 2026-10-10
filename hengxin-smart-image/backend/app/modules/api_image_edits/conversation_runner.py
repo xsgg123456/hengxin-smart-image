@@ -20,6 +20,7 @@ from .conversation_models import ConversationTurn
 from .conversation_runtime import Monitor, claim, finish, locked, valid
 from .dimensions import normalize_result
 from .files import find_file, new_record, read_bytes
+from .execution_policy import CLI_MODEL, CLI_REASONING_EFFORT, CLI_USES_SKILLS
 
 
 class ConversationFailure(Exception):
@@ -127,7 +128,7 @@ def run_turn(job_id, factory=None, store=None):
                 session.expunge(turn)
             workspace = prepare_workspace(Path(settings.codex_execution_root) / 'api-edits',
                 conversation_id, turn_id, settings.codex_auth_file)
-            workspace.use_skill = False
+            workspace.use_skill = CLI_USES_SKILLS
             home = workspace.home / '.codex'
             if (home / 'sessions').is_symlink():
                 raise ValueError('Invalid session directory')
@@ -141,13 +142,15 @@ def run_turn(job_id, factory=None, store=None):
             monitor = Monitor(factory, job_id, token, workspace.control / 'events.jsonl', previous)
             def started(pid, boot, birth):
                 with factory.begin() as session:
-                    _, _, _, current, _ = locked(session, job_id)
+                    task, _, _, current, _ = locked(session, job_id)
                     current.process_identity = {'pid': pid, 'boot': boot, 'birth': birth,
                                                 'node': settings.worker_node_name}
+                    from app.modules.management.api_stats.facts import record_turn
+                    record_turn(session, task, current, spawned=True)
             args = ['exec', '--sandbox', 'workspace-write']
             args += (['resume', '--skip-git-repo-check', '--json', previous] if previous
                      else ['--skip-git-repo-check', '--json'])
-            args += ['--model', 'gpt-6-astra', '-c', 'model_reasoning_effort="high"', '-']
+            args += ['--model', CLI_MODEL, '-c', f'model_reasoning_effort="{CLI_REASONING_EFFORT}"', '-']
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
             with factory() as session:
                 if not covered(session, turn_id, 'cli', turn_id, 20 * 1024 * 1024):
