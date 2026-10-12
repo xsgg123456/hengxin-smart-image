@@ -229,3 +229,27 @@ def test_exit_zero_without_completed_stream_cannot_succeed(execution, monkeypatc
     runner.run(factory, job_id)
     with factory() as session:
         assert session.get(Job, job_id).status == 'failed'
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_real_usage_survives_failure_and_frozen_timeout_is_local(execution, monkeypatch, failure):
+    factory, new, settings = execution
+    original = settings.codex_timeout_seconds
+    timeouts = []
+    def execute(command, prompt, control, timeout, should_stop, started):
+        timeouts.append(timeout)
+        started(123, 'boot', '1')
+        events = [{'type': 'thread.started', 'thread_id': 'local'}, {'type': 'turn.completed',
+                  'usage': {'input_tokens': 10, 'output_tokens': 20}}]
+        (control / 'events.jsonl').write_text('\n'.join(json.dumps(e) for e in events))
+        return {'exit_code': 1 if failure else 0}
+    monkeypatch.setattr(runner, 'execute', execute)
+    identity = new({'runtime': {'timeoutSeconds': 120}})
+    runner.run(factory, identity)
+    legacy = new()
+    runner.run(factory, legacy)
+    assert timeouts == [120, original] and settings.codex_timeout_seconds == original
+    with factory() as session:
+        job = session.get(Job, identity)
+        assert job.usage == {'input_tokens': 10, 'output_tokens': 20}
+        assert job.status == ('failed' if failure else 'succeeded')

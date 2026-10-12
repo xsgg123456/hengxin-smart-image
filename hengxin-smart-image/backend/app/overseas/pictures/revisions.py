@@ -5,6 +5,8 @@ from app.overseas.execution.queue import enqueue
 from app.overseas.plans.service import complete
 from .review import mutation, replay
 from .queries import version
+from app.overseas.management.settings import freeze as freeze_settings
+from app.overseas.plans.snapshot import GENERATION_SKILL
 
 
 def validate_marks(body, original):
@@ -32,7 +34,8 @@ def revise(session, actor, picture_id, body, key):
     old = session.get(Job, picture.job_id)
     frozen = {k: getattr(original, k) for k in ('bucket', 'object_key', 'name', 'content_type',
               'size_bytes', 'checksum', 'width', 'height')}
-    job = enqueue(session, task.id, 'revision', f'revision:{uuid4()}', {**old.payload,
+    runtime = freeze_settings(session, 'revision', GENERATION_SKILL)
+    job = enqueue(session, task.id, 'revision', f'revision:{uuid4()}', {**old.payload, **runtime,
         'pictureId': str(picture.id), 'baseVersion': picture.version, 'position': picture.position,
         'original': frozen, 'note': body.note, 'marks': [m.model_dump() for m in body.marks]})
     picture.job_id, picture.approved_version = job.id, None

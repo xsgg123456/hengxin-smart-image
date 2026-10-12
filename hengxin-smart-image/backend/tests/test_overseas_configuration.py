@@ -145,7 +145,7 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     original_import = builtins.__import__
 
     def forbid_domestic_imports(name, *args, **kwargs):
-        shared_files = {'app.modules.files.delivery', 'app.modules.files.streaming',
+        shared_files = {'app.modules.skills.package_validator', 'app.modules.files.delivery', 'app.modules.files.streaming',
                         'app.modules.files.multipart', 'app.modules.files.validation'}
         assert name in shared_files or not name.startswith(('app.main', 'app.health', 'app.jobs', 'app.modules'))
         return original_import(name, *args, **kwargs)
@@ -154,6 +154,9 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     app = load_entry('overseas/main.py')['app']
     business_paths = {path for path in app.openapi()['paths'] if path.startswith('/api/')}
     assert business_paths == {
+        '/api/overseas/v1/management/usage', '/api/overseas/v1/management/jobs',
+        '/api/overseas/v1/management/skills', '/api/overseas/v1/management/skills/{identity}',
+        '/api/overseas/v1/management/skills/{identity}/versions', '/api/overseas/v1/management/settings',
         '/api/overseas/v1/health/live', '/api/overseas/v1/health/ready',
         '/api/overseas/v1/auth/identity/session', '/api/overseas/v1/auth/me',
         '/api/overseas/v1/auth/logout',

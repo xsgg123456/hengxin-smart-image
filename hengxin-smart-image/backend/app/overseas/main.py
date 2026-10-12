@@ -36,3 +36,5 @@ from app.overseas.pictures.router import router as pictures_router
 from app.overseas.archives.router import router as archives_router
 app.include_router(pictures_router)
 app.include_router(archives_router)
+from app.overseas.management.router import router as management_router
+app.include_router(management_router)

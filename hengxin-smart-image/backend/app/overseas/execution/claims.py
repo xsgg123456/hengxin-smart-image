@@ -7,6 +7,7 @@ from app.db.timestamps import utcnow
 from .models import ACTIVE, TERMINAL, Job, JobOutbox
 from .events import MESSAGES, record
 from .queue import lock_gate
+from app.overseas.management.models import Settings
 
 
 def locked_job(session, job_id, gate=True):
@@ -70,7 +71,10 @@ def claim(factory, job_id, admission=None):
             end(session, job, 'cancelled')
             return None
         occupied = session.scalar(select(func.count()).select_from(Job).where(Job.status.in_(ACTIVE)))
-        if (gate.paused or occupied >= min(5, get_settings().generation_concurrency)
+        config = session.get(Settings, 1)
+        capacity = (config.values.get('concurrency', 5) if config else 5)
+        if (gate.paused or (config and config.values.get('paused', False))
+                or occupied >= min(5, capacity, get_settings().generation_concurrency)
                 or (admission is not None and not admission())):
             return None
         job.claim_token, job.status = uuid4(), 'running'

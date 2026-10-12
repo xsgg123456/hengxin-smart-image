@@ -19,12 +19,14 @@ def main():
     parser.add_argument('--phase21', action='store_true')
     parser.add_argument('--phase22', action='store_true')
     parser.add_argument('--phase23', action='store_true')
+    parser.add_argument('--phase24', action='store_true')
     parser.add_argument('--origin')
     args = parser.parse_args()
+    args.phase23 = args.phase23 or args.phase24
     args.phase22 = args.phase22 or args.phase23
     args.phase21 = args.phase21 or args.phase22
     args.phase20 = args.phase20 or args.phase21
-    phase = '23' if args.phase23 else '22' if args.phase22 else '21' if args.phase21 else '20' if args.phase20 else '19' if args.phase19 else '18' if args.phase18 else '17'
+    phase = '24' if args.phase24 else '23' if args.phase23 else '22' if args.phase22 else '21' if args.phase21 else '20' if args.phase20 else '19' if args.phase19 else '18' if args.phase18 else '17'
     prefix = 'hx-p' + phase + '-' + secrets.token_hex(6)
     names = []
     environment = {k: v for k, v in os.environ.items() if not k.startswith(
@@ -75,6 +77,7 @@ def main():
                         *(['--phase21'] if args.phase21 else []),
                         *(['--phase22'] if args.phase22 else []),
                         *(['--phase23'] if args.phase23 else []),
+                        *(['--phase24'] if args.phase24 else []),
                         *(['--origin', args.origin] if args.origin else [])))
         if args.serve:
             print('LOCAL PORTS ' + docker('port', runner), flush=True)

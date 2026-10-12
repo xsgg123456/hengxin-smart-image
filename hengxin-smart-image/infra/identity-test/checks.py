@@ -273,6 +273,10 @@ def main():
             from phase23_checks import run as run_pictures
             run_pictures(context)
             print('PASS ALL Phase 23 real HTTP integration', flush=True)
+        if '--phase24' in sys.argv:
+            from phase24_checks import run as run_management
+            run_management(context)
+            print('PASS ALL Phase 24 real HTTP integration', flush=True)
         if '--serve' in sys.argv:
             if PROCESSES['identity'].poll() is not None:
                 start('identity', 'provider_app:app', 8010, identity_env)

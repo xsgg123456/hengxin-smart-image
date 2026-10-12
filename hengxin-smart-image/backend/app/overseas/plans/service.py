@@ -12,6 +12,7 @@ from app.overseas.tasks.service import lock_actor, record_change, request_record
 from .models import Plan
 from .schemas import validate_content
 from .snapshot import freeze, GENERATION_SKILL
+from app.overseas.management.settings import freeze as freeze_settings
 
 
 def latest(session, task_id):
@@ -113,9 +114,10 @@ def confirm(session, actor, task_id, plan_id, body, key):
     if job.status != 'succeeded':
         raise HTTPException(409, '分析尚未完成')
     content = validate_content(plan.content, [s['code'] for s in job.payload['task']['skus']])
+    runtime = freeze_settings(session, 'generation', GENERATION_SKILL)
     for index, sku in enumerate(content['skus']):
         generation_job = enqueue(session, task.id, 'generation', f'plan:{plan.id}:sku:{index}',
-            {**job.payload, 'skill': GENERATION_SKILL, 'plan': content, 'sku': sku, 'planVersion': plan.version})
+            {**job.payload, **runtime, 'plan': content, 'sku': sku, 'planVersion': plan.version})
         from app.overseas.generation.service import create_slots
         create_slots(session, task, plan, generation_job, sku)
     plan.status = 'confirmed'

@@ -7,7 +7,7 @@ import tempfile
 
 
 @contextmanager
-def configured_runner(settings, document, *, output_name='plan.json', files=None):
+def configured_runner(settings, document, *, output_name='plan.json', files=None, usage=None):
     from app.overseas.execution import runner
     old_command = runner.sandbox_command
     fields = ('enable_codex_executor', 'codex_binary', 'codex_auth_file', 'codex_execution_root')
@@ -38,7 +38,11 @@ for source_file in artifacts.rglob('*'):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source_file, target)
 print(json.dumps({'type':'thread.started','thread_id':'fixture-'+uuid.uuid4().hex}))
-print(json.dumps({'type':'turn.completed'}))
+event = {'type':'turn.completed'}
+usage = json.loads(sys.argv[5])
+if usage is not None:
+    event['usage'] = usage
+print(json.dumps(event))
 ''', encoding='utf-8')
         cli.chmod(0o700)
         auth = root / 'auth.json'
@@ -47,7 +51,7 @@ print(json.dumps({'type':'turn.completed'}))
         settings.codex_binary = str(cli)
         settings.codex_auth_file = str(auth)
         settings.codex_execution_root = str(root / 'execution')
-        runner.sandbox_command = lambda workspace, *args: [str(cli), str(workspace.work), str(payload), str(artifacts), output_name]
+        runner.sandbox_command = lambda workspace, *args: [str(cli), str(workspace.work), str(payload), str(artifacts), output_name, json.dumps(usage)]
         try:
             yield payload
         finally:

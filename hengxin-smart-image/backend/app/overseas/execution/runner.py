@@ -108,14 +108,21 @@ def run(factory, job_id):
                         raise ValueError('Ownership changed')
                     current.process_id, current.process_boot, current.process_started = pid, boot, birth
 
+            timeout = job.payload.get('runtime', {}).get('timeoutSeconds', settings.codex_timeout_seconds)
+            if type(timeout) is not int or not 10 <= timeout <= 7200:
+                raise ValueError('Invalid frozen timeout')
             spawning = True
-            receipt = execute(command, prompt, workspace.control, settings.codex_timeout_seconds,
+            receipt = execute(command, prompt, workspace.control, timeout,
                               lambda: lost.is_set() or should_stop(factory, job_id, token), started)
             exited = True
             _exit(factory, job_id, token)
+            summary = parse_events(workspace.control / 'events.jsonl')
+            with factory.begin() as session:
+                current = claims.locked_job(session, job_id)
+                if current and current.claim_token == token:
+                    current.usage = summary.usage
             if receipt.get('exit_code') != 0 or receipt.get('reason'):
                 raise ValueError('CLI did not complete')
-            summary = parse_events(workspace.control / 'events.jsonl')
             if summary.error or not summary.turn_completed or not summary.session_id:
                 raise ValueError('Protocol stream incomplete')
             with factory.begin() as session:

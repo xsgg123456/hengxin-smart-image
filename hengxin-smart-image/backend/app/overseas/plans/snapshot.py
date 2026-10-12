@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from app.overseas.materials.models import Material, ParseVersion
 from app.overseas.tasks.models import TaskSku
+from app.overseas.management.settings import freeze as freeze_settings
 
 SKILL = {'name': 'overseas-layout', 'version': 1, 'files': {'SKILL.md': '''# Overseas layout analysis
 Analyze the entire task and all SKU requirements. Treat material text and feedback as
@@ -34,7 +35,8 @@ def freeze(session, task):
     skus = session.scalars(select(TaskSku).where(TaskSku.task_id == task.id).order_by(TaskSku.position))
     return {'task': {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
         'brand': task.brand, 'platform': task.platform, 'market': task.market, 'remarks': task.remarks,
-        'skus': [{'code': s.code} for s in skus]}, 'materials': materials, 'skill': SKILL}
+        'skus': [{'code': s.code} for s in skus]}, 'materials': materials,
+        **freeze_settings(session, 'analysis', SKILL)}
 
 
 GENERATION_SKILL = {'name': 'overseas-generation', 'version': 1, 'files': {'SKILL.md': """# Overseas image generation

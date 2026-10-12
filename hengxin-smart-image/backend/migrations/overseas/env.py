@@ -11,6 +11,7 @@ from app.overseas.execution import models as execution_models  # noqa: F401
 from app.overseas.plans import models as plan_models  # noqa: F401
 from app.overseas.pictures import models as picture_models
 from app.overseas.archives import models as archive_models
+from app.overseas.management import models as management_models
 from app.overseas.db import (
     Base, VERSION_TABLE, get_engine, require_overseas_context,
     validate_migration_database,

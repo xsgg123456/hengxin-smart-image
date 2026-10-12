@@ -1,7 +1,7 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 23 已完成本地验收。** 海外图片生成、单图返工、版本审核及整套归档通过；后端完整2016通过/17既有宿主条件跳过，前端278通过，真实HTTP/浏览器及独立两阶段审查通过。证据见 docs/OVERSEAS-PHASE23-VALIDATION.md。用户授权连续完成Phase21–25，各阶段单独本地Git提交，不部署、不推送。
+> **当前状态：Phase 24 已完成本地验收。** 管理统计、监控、Skill及配置接入通过；后端完整2038通过/17既有宿主条件跳过，前端282通过，真实HTTP/五角色浏览器及独立两阶段审查通过。证据见 docs/OVERSEAS-PHASE24-VALIDATION.md。用户授权连续完成Phase21–25，各阶段单独本地Git提交，不部署、不推送。
 
 > **Phase19验收证据**：后端1870通过/17项既有宿主条件跳过；前端264项、类型、正式/预览构建、正式提交依赖隔离构建均通过。真实PG并发/迁移、三API两库HTTP、五角色/兼任/故障/窄屏和预览回归通过。最终独立Stage1/Stage2均PASS，快照 `f8ee28817724abffbbb55bbb9d5bbf107b65407a1e6abfe37a5b008be3269117`；证据 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE19-REVIEW-SNAPSHOT-20261012.md`。
 
@@ -165,11 +165,13 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 
 ## Phase 24：海外管理中心真实接入
 
+实施合同：[Phase24管理与配置](docs/OVERSEAS-PHASE24-CONTRACT.md)。Phase23已提交5868dc4；本阶段本地验收完成。
+
 **目标**：现有五页从内存预览切换到真实海外管理，不重造界面。
 
-- [ ] **24.1 统计与监控**：复用一期统计事实口径和监控表达，海外独立采集任务、执行、生成/返工、失败与审计；无真实Token/费用数据就标未提供，不用流程事件冒充模型调用。文件：`app/overseas/management/{facts,usage,monitor}.py`、`admin/OverseasActivity.vue`。
-- [ ] **24.2 Skill与配置**：复用一期Skill校验、版本冻结和配置校验，海外独立版本/默认绑定/CLI配置；5并发上限不可突破，不向前端回传认证秘密，不允许管理操作读写国内目录。文件：`app/overseas/management/{skills,settings}.py`、`admin/{OverseasSkills,OverseasSettings}.vue`。
-- [ ] **24.3 页面与权限收口**：成员页续接Phase18接口；移除正式入口的模拟adapter和角色切换，保留独立预览；主管只获矩阵允许的统计与业务能力，超级管理员维护配置。文件：`frontend/src/api/overseas/management.ts`、海外管理路由/菜单及现有管理组件。
+- [x] **24.1 统计与监控**：复用一期统计事实口径和监控表达，海外独立采集任务、执行、生成/返工、失败与审计；无真实Token/费用数据就标未提供，不用流程事件冒充模型调用。文件：`app/overseas/management/{facts,usage,monitor}.py`、`admin/OverseasActivity.vue`。
+- [x] **24.2 Skill与配置**：复用一期Skill校验、版本冻结和配置校验，海外独立版本/默认绑定/CLI配置；5并发上限不可突破，不向前端回传认证秘密，不允许管理操作读写国内目录。文件：`app/overseas/management/{skills,settings}.py`、`admin/{OverseasSkills,OverseasSettings}.vue`。
+- [x] **24.3 页面与权限收口**：成员页续接Phase18接口；移除正式入口的模拟adapter和角色切换，保留独立预览；主管只获矩阵允许的统计与业务能力，超级管理员维护配置。文件：`frontend/src/api/overseas/management.ts`、海外管理路由/菜单及现有管理组件。
 
 **验收**：五页真实持久化、刷新不丢；统计可对账；角色访问限制；配置修改只影响规定的新作业，不污染在途快照或国内配置；无秘密泄漏。
 
@@ -189,7 +191,7 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 - 每个Phase收尾：更新子任务状态、已变文件、测试命令及结果、失败或跳过项、审查报告/candidate、下一步唯一入口。测试/审查未完只能写“进行中未验收”。
 - 独立审查顺序：完成自检→`python .codex/hooks/harness.py review-prepare`→fresh `code-reviewer` 两阶段→修复及复核→`review-approve`→`review-status`。旧前端快照不可覆盖后端改动。
 - 中断交接必须先更新此文档，不依赖聊天摘要、存活子Agent或只存在output里的日志。旧计划 `docs/OVERSEAS-FULLSTACK-PLAN-20261012.md` 只作需求/复用背景，不再维护第二套进度。
-- **下一步唯一入口**：Phase24，按 docs/OVERSEAS-PHASE24-CONTRACT.md 接入真实统计、监控、Skill和配置，再完成Phase25。
+- **下一步唯一入口**：Phase25，按 docs/OVERSEAS-PHASE25-CONTRACT.md 完成全流程、隔离与备份恢复验收，并单独提交。
 
 ---
 
