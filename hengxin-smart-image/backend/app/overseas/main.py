@@ -25,3 +25,6 @@ app.include_router(auth_router)
 app.include_router(members_router)
 app.include_router(tasks_router)
 app.include_router(materials_router)
+
+from app.overseas.execution.router import router as execution_router
+app.include_router(execution_router)

@@ -25,6 +25,8 @@ try {
     else if (p.endsWith('/tickets')) body = { ticket: 'test' }
     else if (p === '/api/v1/auth/identity/session') status = 403
     else if (p.includes('/auth/')) body = { id: 'actor', name: '测试运营', status: 'active', roles: ['operator', 'design_manager'], capabilities: caps }
+    else if (p.endsWith('/jobs')) body = { items: [] }
+    else if (p.endsWith('/execution-events')) body = { items: [], cursor: Number(u.searchParams.get('after')) }
     else if (p.endsWith('/task-designers')) {
       if (mode === 'candidate-fail') { await route.abort(); return }
       const n = Number(u.searchParams.get('page')); queries.push(Object.fromEntries(u.searchParams))

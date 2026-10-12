@@ -1,0 +1,19 @@
+[Unit]
+Description=Hengxin overseas outbox and process reconciliation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hengxin-overseas
+WorkingDirectory=/opt/hengxin-overseas/backend
+EnvironmentFile=/etc/hengxin-overseas/worker.env
+Environment=HX_BUSINESS_CONTEXT=overseas
+Environment=OVERSEAS_WORKER_NODE_NAME=overseas-%H
+ExecStart=/opt/hengxin-overseas/backend/.venv/bin/python -m app.overseas.execution.outbox
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

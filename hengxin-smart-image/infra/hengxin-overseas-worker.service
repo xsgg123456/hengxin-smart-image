@@ -1,0 +1,23 @@
+[Unit]
+Description=Hengxin overseas isolated CLI worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hengxin-overseas
+WorkingDirectory=/opt/hengxin-overseas/backend
+EnvironmentFile=/etc/hengxin-overseas/worker.env
+Environment=HX_BUSINESS_CONTEXT=overseas
+Environment=OVERSEAS_WORKER_NODE_NAME=overseas-%H
+ExecStart=/opt/hengxin-overseas/backend/.venv/bin/celery -A app.overseas.execution.worker:celery_app worker --pool=prefork --concurrency=5 --queues=overseas.cli --loglevel=INFO --hostname=overseas@%H
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+MemoryMax=6G
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

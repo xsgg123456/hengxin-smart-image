@@ -16,6 +16,7 @@ from redis import Redis
 from sqlalchemy import create_engine, text
 
 DIRECTORY = Path(__file__).resolve().parent
+sys.path.insert(0, str(DIRECTORY.parents[1] / 'backend'))
 PYTHON = sys.executable
 ID = 'http://127.0.0.1:8010'
 ORIGIN = 'http://localhost:3013' if '--serve' in sys.argv else ID
@@ -233,7 +234,8 @@ def main():
             with ENGINES[kind].connect() as connection:
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
-                assert version == ('overseas_0005' if kind == 'overseas' else '0027'), version
+                from app.overseas.db import SCHEMA_REVISION
+                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0027'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)
@@ -259,6 +261,10 @@ def main():
             from phase20_checks import run as run_materials
             run_materials(context)
             print('PASS ALL Phase 20 real HTTP integration', flush=True)
+        if '--phase21' in sys.argv:
+            from phase21_checks import run as run_execution
+            run_execution(context)
+            print('PASS ALL Phase 21 real HTTP integration', flush=True)
         if '--serve' in sys.argv:
             if PROCESSES['identity'].poll() is not None:
                 start('identity', 'provider_app:app', 8010, identity_env)

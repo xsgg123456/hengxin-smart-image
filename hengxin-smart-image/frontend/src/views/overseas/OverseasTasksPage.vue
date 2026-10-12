@@ -21,6 +21,7 @@
           <ElButton v-if="detail.status === 'created' && detail.capabilities.includes('task.materials.submit')" class="hx-gap" type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="submitMaterials">提交补充资料</ElButton>
         </template>
       </OverseasTaskInfo>
+      <OverseasExecution v-if="detail" :key="`${detail.id}-${detail.version}`" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" />
     </template>
     <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
       <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /></template>
@@ -37,6 +38,7 @@ import { cleanDraft, createRequestKeys, emptyTaskDraft, taskError, taskStatuses,
 import OverseasCreate from './OverseasCreate.vue'
 import OverseasWorkspace from './OverseasWorkspace.vue'
 import OverseasTaskInfo from './OverseasTaskInfo.vue'
+import OverseasExecution from './OverseasExecution.vue'
 import DesignerPicker from './DesignerPicker.vue'
 import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
 import { readyMaterialIds, type Material, type MaterialsApi } from '@/api/overseas/materials'
