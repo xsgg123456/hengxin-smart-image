@@ -36,6 +36,7 @@ try {
       body = job()
     } else if (p.endsWith('/assignment')) { mode = 'denied'; caps = []; status = 403 }
     else if (p.endsWith('/task-designers')) body = { items: [{ id: 'd2', name: '另一设计', department: '海外' }], total: 1, page: 1, pageSize: 20 }
+    else if (p.endsWith('/pictures')) body = { items: [], taskVersion: 1 }
     else if (p.endsWith('/plans')) body = { items: [], taskVersion: 1 }
     else if (p.endsWith('/materials')) body = []
     else if (p.endsWith('/tasks/t1')) body = task()

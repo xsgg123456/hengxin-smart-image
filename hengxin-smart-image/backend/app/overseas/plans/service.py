@@ -114,8 +114,10 @@ def confirm(session, actor, task_id, plan_id, body, key):
         raise HTTPException(409, '分析尚未完成')
     content = validate_content(plan.content, [s['code'] for s in job.payload['task']['skus']])
     for index, sku in enumerate(content['skus']):
-        enqueue(session, task.id, 'generation', f'plan:{plan.id}:sku:{index}',
+        generation_job = enqueue(session, task.id, 'generation', f'plan:{plan.id}:sku:{index}',
             {**job.payload, 'skill': GENERATION_SKILL, 'plan': content, 'sku': sku, 'planVersion': plan.version})
+        from app.overseas.generation.service import create_slots
+        create_slots(session, task, plan, generation_job, sku)
     plan.status = 'confirmed'
     plan.updated_at = utcnow()
     task.status = 'generating'

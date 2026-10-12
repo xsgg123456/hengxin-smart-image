@@ -5,7 +5,6 @@ import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine, text
-from sqlalchemy.pool import StaticPool
 from starlette.concurrency import run_in_threadpool
 
 from app.http_timing import HttpTimingMiddleware, _work
@@ -15,9 +14,9 @@ def sql_count(response):
     return int(re.search(r'sql;desc="(\d+)"', response.headers['server-timing'])[1])
 
 
-def test_request_queries_include_threadpool_and_remain_isolated():
-    engine = create_engine('sqlite://', connect_args={'check_same_thread': False},
-                           poolclass=StaticPool)
+def test_request_queries_include_threadpool_and_remain_isolated(tmp_path):
+    # Concurrent requests require independent connections, not one StaticPool handle.
+    engine = create_engine('sqlite:///' + str(tmp_path / 'timing.db'))
     app = FastAPI()
     app.add_middleware(HttpTimingMiddleware)
 

@@ -31,3 +31,8 @@ app.include_router(execution_router)
 
 from app.overseas.plans.router import router as plans_router
 app.include_router(plans_router)
+
+from app.overseas.pictures.router import router as pictures_router
+from app.overseas.archives.router import router as archives_router
+app.include_router(pictures_router)
+app.include_router(archives_router)

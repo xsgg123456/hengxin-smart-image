@@ -22,6 +22,7 @@
         </template>
       </OverseasTaskInfo>
       <OverseasPlans v-if="detail" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasPictureResults v-if="detail" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
       <OverseasExecution v-if="detail" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
     </template>
     <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
@@ -41,6 +42,7 @@ import OverseasWorkspace from './OverseasWorkspace.vue'
 import OverseasTaskInfo from './OverseasTaskInfo.vue'
 import OverseasExecution from './OverseasExecution.vue'
 import OverseasPlans from './OverseasPlans.vue'
+import OverseasPictureResults from './OverseasPictureResults.vue'
 import DesignerPicker from './DesignerPicker.vue'
 import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
 import { readyMaterialIds, type Material, type MaterialsApi } from '@/api/overseas/materials'

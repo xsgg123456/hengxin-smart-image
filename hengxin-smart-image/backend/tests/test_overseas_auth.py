@@ -20,6 +20,8 @@ from app.overseas.db import Base
 from app.overseas.materials import models as material_models  # noqa: F401
 from app.overseas.tasks import models as task_models  # noqa: F401
 from app.overseas.plans import models as plan_models  # noqa: F401
+from app.overseas.pictures import models as picture_models
+from app.overseas.archives import models as archive_models
 from app.overseas.execution.models import ExecutionGate
 from test_overseas_configuration import FAKE_OVERSEAS
 

@@ -1,7 +1,7 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 22 已完成本地验收。** 资料自动分析、版本方案、修改确认与按SKU幂等入队通过；前端275项，后端全量1986通过/17既有宿主条件跳过/1旧路由白名单失败，修后相关31项通过。独立两阶段PASS，证据见 docs/OVERSEAS-PHASE22-VALIDATION.md。用户授权连续完成Phase21–25，各阶段验收后单独本地Git提交，不部署、不推送。
+> **当前状态：Phase 23 已完成本地验收。** 海外图片生成、单图返工、版本审核及整套归档通过；后端完整2016通过/17既有宿主条件跳过，前端278通过，真实HTTP/浏览器及独立两阶段审查通过。证据见 docs/OVERSEAS-PHASE23-VALIDATION.md。用户授权连续完成Phase21–25，各阶段单独本地Git提交，不部署、不推送。
 
 > **Phase19验收证据**：后端1870通过/17项既有宿主条件跳过；前端264项、类型、正式/预览构建、正式提交依赖隔离构建均通过。真实PG并发/迁移、三API两库HTTP、五角色/兼任/故障/窄屏和预览回归通过。最终独立Stage1/Stage2均PASS，快照 `f8ee28817724abffbbb55bbb9d5bbf107b65407a1e6abfe37a5b008be3269117`；证据 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE19-REVIEW-SNAPSHOT-20261012.md`。
 
@@ -153,11 +153,13 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 
 ## Phase 23：生图、返工、审核与归档
 
+实施合同：[Phase23图片与归档](docs/OVERSEAS-PHASE23-CONTRACT.md)。Phase22已提交cc32713；本阶段本地验收完成。
+
 **目标**：按SKU生成、单图返工、版本审核后整套归档。
 
-- [ ] **23.1 SKU生图与交付**：按确认方案拆作业，复用一期进程/输出验证/幂等交付；一个SKU失败不重跑成功SKU，结果关联方案版本。文件：`app/overseas/generation/{service,delivery}.py`、对应模型/迁移与测试。
-- [ ] **23.2 单图标注与版本**：复用AnnotationCanvas/现有海外Annotation、Pictures；后端保存标注底图版本和意见，返工生成新版本，拒绝旧底图覆盖。文件：`app/overseas/pictures/{models,revisions,router}.py`、`frontend/src/api/overseas/pictures.ts`、既有图片组件。
-- [ ] **23.3 审核与整套归档**：图片通过状态绑定版本，返工后重审目标图；整套全通过才冻结归档，支持品名→品牌→SKU检索及授权下载。文件：`app/overseas/{pictures/review.py,archives/}`、`views/overseas/OverseasArchive.vue`、对应测试。
+- [x] **23.1 SKU生图与交付**：按确认方案拆作业，复用一期进程/输出验证/幂等交付；一个SKU失败不重跑成功SKU，结果关联方案版本。文件：`app/overseas/generation/{service,delivery}.py`、对应模型/迁移与测试。
+- [x] **23.2 单图标注与版本**：复用AnnotationCanvas/现有海外Annotation、Pictures；后端保存标注底图版本和意见，返工生成新版本，拒绝旧底图覆盖。文件：`app/overseas/pictures/{models,revisions,router}.py`、`frontend/src/api/overseas/pictures.ts`、既有图片组件。
+- [x] **23.3 审核与整套归档**：图片通过状态绑定版本，返工后重审目标图；整套全通过才冻结归档，支持品名→品牌→SKU检索及授权下载。文件：`app/overseas/{pictures/review.py,archives/}`、`views/overseas/OverseasArchive.vue`、对应测试。
 
 **验收**：多SKU/部分失败恢复、单图版本历史、无关图片状态保留；设计主管与负责人竞争只接受合法版本；未全通过不归档；归档下载资源准确且无越权；正式图片不能被临时清理删除。
 
@@ -187,7 +189,7 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 - 每个Phase收尾：更新子任务状态、已变文件、测试命令及结果、失败或跳过项、审查报告/candidate、下一步唯一入口。测试/审查未完只能写“进行中未验收”。
 - 独立审查顺序：完成自检→`python .codex/hooks/harness.py review-prepare`→fresh `code-reviewer` 两阶段→修复及复核→`review-approve`→`review-status`。旧前端快照不可覆盖后端改动。
 - 中断交接必须先更新此文档，不依赖聊天摘要、存活子Agent或只存在output里的日志。旧计划 `docs/OVERSEAS-FULLSTACK-PLAN-20261012.md` 只作需求/复用背景，不再维护第二套进度。
-- **下一步唯一入口**：Phase23，按 docs/OVERSEAS-PHASE23-CONTRACT.md 完成生图、返工、审核与归档，再完成Phase24–25。
+- **下一步唯一入口**：Phase24，按 docs/OVERSEAS-PHASE24-CONTRACT.md 接入真实统计、监控、Skill和配置，再完成Phase25。
 
 ---
 

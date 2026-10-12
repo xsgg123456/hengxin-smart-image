@@ -24,6 +24,7 @@ try {
     else if (p.endsWith('/execution-events')) body = { items: events > Number(new URL(req.url()).searchParams.get('after')) ? [{ id: events, jobId: 'j1', status: 'succeeded', message: '分析完成', createdAt: '2026-10-12' }] : [], cursor: events }
     else if (p.endsWith('/jobs')) body = { items: [] }
     else if (p.endsWith('/materials')) body = []
+    else if (p.endsWith('/pictures')) body = { items: [], taskVersion: 1 }
     else if (p.endsWith('/plans')) { if (mode === 'denied') code = 403; if (mode === 'readfail') code = 500; body = { items, taskVersion: version } }
     else if (p.endsWith('/analysis') || p.endsWith('/confirm')) {
       calls.push({ p, body: req.postDataJSON(), key: req.headers()['idempotency-key'] })

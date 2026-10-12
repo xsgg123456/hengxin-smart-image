@@ -23,3 +23,6 @@ def execute_job(job_id):
 
 from app.overseas.plans.analysis import install
 install()
+
+from app.overseas.generation.delivery import install as install_generation
+install_generation()
