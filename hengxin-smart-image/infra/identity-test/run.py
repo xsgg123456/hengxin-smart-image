@@ -17,10 +17,12 @@ def main():
     parser.add_argument('--phase19', action='store_true')
     parser.add_argument('--phase20', action='store_true')
     parser.add_argument('--phase21', action='store_true')
+    parser.add_argument('--phase22', action='store_true')
     parser.add_argument('--origin')
     args = parser.parse_args()
+    args.phase21 = args.phase21 or args.phase22
     args.phase20 = args.phase20 or args.phase21
-    phase = '21' if args.phase21 else '20' if args.phase20 else '19' if args.phase19 else '18' if args.phase18 else '17'
+    phase = '22' if args.phase22 else '21' if args.phase21 else '20' if args.phase20 else '19' if args.phase19 else '18' if args.phase18 else '17'
     prefix = 'hx-p' + phase + '-' + secrets.token_hex(6)
     names = []
     environment = {k: v for k, v in os.environ.items() if not k.startswith(
@@ -69,6 +71,7 @@ def main():
                         *(['--phase19'] if args.phase19 else []),
                         *(['--phase20'] if args.phase20 else []),
                         *(['--phase21'] if args.phase21 else []),
+                        *(['--phase22'] if args.phase22 else []),
                         *(['--origin', args.origin] if args.origin else [])))
         if args.serve:
             print('LOCAL PORTS ' + docker('port', runner), flush=True)

@@ -20,3 +20,6 @@ celery_app.conf.update(
 @celery_app.task(name='hengxin.overseas.job')
 def execute_job(job_id):
     run(session_factory(), job_id)
+
+from app.overseas.plans.analysis import install
+install()

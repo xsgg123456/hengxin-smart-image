@@ -32,11 +32,11 @@ def run(h):
             task_id = UUID(task['id'])
             with factory.begin() as session:
                 job_id = queue.enqueue(session, task_id, 'analysis', str(uuid4()), {'input': 'test only'}).id
-            assert queue.dispatch_once(factory) == 1
+            assert queue.dispatch_once(factory) >= 1
             from redis import Redis
             redis = Redis.from_url(get_settings().redis_url)
             try:
-                assert redis.llen('overseas.cli') == 1
+                assert redis.llen('overseas.cli') >= 1
             finally:
                 redis.close()
             path = base + '/tasks/' + task['id']

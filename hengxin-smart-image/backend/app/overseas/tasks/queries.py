@@ -22,13 +22,14 @@ def get_task(session, task_id, lock=False):
 
 
 def summary(session, task, principal):
+    from app.overseas.plans.service import task_status
     creator = session.get(Member, task.created_by)
     designer = session.get(Member, task.designer_id)
     skus = session.scalars(select(TaskSku).where(TaskSku.task_id == task.id).order_by(TaskSku.position))
     return {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
             'brand': task.brand, 'platform': task.platform, 'market': task.market,
             'remarks': task.remarks, 'skus': [{'code': item.code} for item in skus],
-            'status': task.status, 'version': task.version, 'createdAt': task.created_at,
+            'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
             'updatedAt': task.updated_at, 'createdBy': {'id': str(creator.id), 'name': creator.name},
             'designer': {'id': str(designer.id), 'name': designer.name,
                          'status': designer.status, 'eligible': eligible(session, designer)},
@@ -60,7 +61,18 @@ def list_tasks(session, actor, search='', scope='all', status=None, page=1, page
     if scope == 'mine':
         filters.append(or_(Task.created_by == actor.id, Task.designer_id == actor.id))
     if status:
-        filters.append(Task.status == status)
+        from app.overseas.plans.models import Plan
+        from app.overseas.execution.models import Job
+        latest_id = select(Plan.job_id).where(Plan.task_id == Task.id).order_by(
+            Plan.version.desc()).limit(1).correlate(Task).scalar_subquery()
+        failed = select(Job.id).where(Job.id == latest_id,
+            Job.status.in_(('failed', 'cancelled'))).correlate(Task).exists()
+        if status == 'analysisFailed':
+            filters.extend([Task.status == 'analyzing', failed])
+        elif status == 'analyzing':
+            filters.extend([Task.status == 'analyzing', ~failed])
+        else:
+            filters.append(Task.status == status)
     if search:
         terms = [column.icontains(search, autoescape=True) for column in (Task.name, Task.product_name, Task.brand)]
         terms.append(select(TaskSku.id).where(TaskSku.task_id == Task.id,

@@ -21,7 +21,8 @@
           <ElButton v-if="detail.status === 'created' && detail.capabilities.includes('task.materials.submit')" class="hx-gap" type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="submitMaterials">提交补充资料</ElButton>
         </template>
       </OverseasTaskInfo>
-      <OverseasExecution v-if="detail" :key="`${detail.id}-${detail.version}`" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" />
+      <OverseasPlans v-if="detail" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasExecution v-if="detail" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
     </template>
     <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
       <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /></template>
@@ -39,6 +40,7 @@ import OverseasCreate from './OverseasCreate.vue'
 import OverseasWorkspace from './OverseasWorkspace.vue'
 import OverseasTaskInfo from './OverseasTaskInfo.vue'
 import OverseasExecution from './OverseasExecution.vue'
+import OverseasPlans from './OverseasPlans.vue'
 import DesignerPicker from './DesignerPicker.vue'
 import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
 import { readyMaterialIds, type Material, type MaterialsApi } from '@/api/overseas/materials'
@@ -48,7 +50,7 @@ const route = useRoute(), router = useRouter(), creating = computed(() => route.
 const canCreate = computed(() => props.capabilities.includes('task.create')), canRead = computed(() => props.capabilities.includes('task.read'))
 const draft = ref(emptyTaskDraft()), tasks = ref<TaskSummary[]>([]), detail = ref<TaskDetail>(), total = ref(0), page = ref(1)
 const search = ref(''), scope = ref('all'), status = ref(''), error = ref(''), busy = ref(false), saving = ref(false), assigning = ref(false), designerId = ref('')
-const panelEpoch = ref(0)
+const panelEpoch = ref(0), plansRefresh = ref(0)
 const materials = ref<Material[]>([]), materialsBusy = ref(false)
 const ready = computed(() => { try { readyMaterialIds(materials.value); return true } catch { return false } })
 const materialKeys = createRequestKeys()
@@ -65,6 +67,13 @@ async function load() {
     else { const value = await props.api.list({ search: search.value.trim(), scope: scope.value, status: status.value, page: page.value, pageSize: 20 }); if (current === generation) { tasks.value = value.items; total.value = value.total; if (!value.items.length && page.value > 1 && value.total > 0) page.value = Math.ceil(value.total / 20) } }
   } catch (reason) { if (current === generation) { total.value = 0; failed(reason) } }
   finally { if (current === generation) busy.value = false }
+}
+function updateDetail(value: TaskDetail) { if (detail.value?.id === value.id && value.version >= detail.value.version) detail.value = value }
+async function refreshDetail() {
+  const id = detail.value?.id, current = generation
+  if (!id) return
+  try { const value = await props.api.get(id); if (active && current === generation) { updateDetail(value); plansRefresh.value++ } }
+  catch (reason) { if (active && current === generation) failed(reason) }
 }
 async function create() {
   if (saving.value || materialsBusy.value || !ready.value || !canCreate.value) return

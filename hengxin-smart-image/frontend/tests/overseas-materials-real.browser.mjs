@@ -44,7 +44,7 @@ try {
   await upload(page, '竞品.csv', 'product,feature\nCase,<script>alert(1)</script>'); await page.getByText(/竞品.csv · 解析成功/).waitFor()
   await button(page, '预览资料').first().click(); await page.getByRole('tab', { name: '竞品分析表格' }).click(); await page.locator('.material-text').getByText('<script>alert(1)</script>', { exact: false }).waitFor()
   const download = page.waitForEvent('download'); await page.getByRole('tabpanel', { name: '竞品分析表格' }).getByRole('button', { name: '下载原件' }).click(); assert.equal((await download).suggestedFilename(), '竞品.csv'); await button(page, '关闭').click()
-  await button(page, '提交补充资料').click(); await page.getByText('图需已提交', { exact: true }).waitFor(); assert.equal(await button(page, '移除资料').count(), 0)
+  await button(page, '提交补充资料').click(); await page.getByText('分析中', { exact: true }).waitFor(); assert.equal(await button(page, '移除资料').count(), 0)
   const materials = await (await api(context, 'get', `/tasks/${task.id}/materials`)).json(); assert.equal(materials.length, 2); const id = materials.find(m => m.kind === 'competitor').id
   assert.equal((await api(context, 'delete', `/materials/${id}`)).status(), 409)
   assert.equal((await api(context, 'post', `/materials/${id}/retry`, {})).status(), 409)

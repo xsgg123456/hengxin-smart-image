@@ -34,7 +34,7 @@ def test_upgrade_0004_preserves_existing_tasks(disposable_databases):
             for table, rows in before.items():
                 if table != 'overseas_alembic_version':
                     assert after[table] == rows
-            assert after['overseas_alembic_version'] == [('overseas_0006',)]
+            assert after['overseas_alembic_version'] == [('overseas_0007',)]
             assert after['overseas_materials'] == after['overseas_material_versions'] == []
     finally:
         engine.dispose()

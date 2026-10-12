@@ -85,7 +85,7 @@ def run(h):
         h.expect(outsider.post(base + '/tasks', json=body, headers=key), 403)
         h.expect(operator.post(base + '/tasks', json={**body, 'materialIds': [failed['id']]}, headers=key), 422)
         result = h.expect(operator.post(base + '/tasks', json=body, headers=key), 201).json()
-        assert result['status'] == 'submitted'
+        assert result['status'] == 'analyzing'
         assert h.expect(operator.post(base + '/tasks', json=body, headers=key), 200).json()['id'] == result['id']
         materials = h.expect(old.get(base + '/tasks/' + result['id'] + '/materials'), 200).json()
         assert materials[0]['id'] == material['id']
@@ -113,7 +113,7 @@ def run(h):
         submit_body = {'materialIds': [spare['id']], 'version': saved['version']}
         h.expect(operator.post(submit_url, json={**submit_body, 'version': 99}, headers=key), 409)
         submitted = h.expect(operator.post(submit_url, json=submit_body, headers=key), 200).json()
-        assert submitted['status'] == 'submitted' and submitted['version'] == saved['version'] + 1
+        assert submitted['status'] == 'analyzing' and submitted['version'] == saved['version'] + 1
         assert h.expect(operator.post(submit_url, json=submit_body, headers=key), 200).json()['id'] == saved['id']
         document = BytesIO()
         with ZipFile(document, 'w') as archive:

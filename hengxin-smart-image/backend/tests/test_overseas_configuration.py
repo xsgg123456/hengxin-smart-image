@@ -167,6 +167,9 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/tasks/{task_id}/jobs',
         '/api/overseas/v1/tasks/{task_id}/execution-events',
         '/api/overseas/v1/jobs/{job_id}/cancel',
+        '/api/overseas/v1/tasks/{task_id}/plans',
+        '/api/overseas/v1/tasks/{task_id}/analysis',
+        '/api/overseas/v1/tasks/{task_id}/plans/{plan_id}/confirm',
     }
 
     @app.get('/test-internal-error', include_in_schema=False)

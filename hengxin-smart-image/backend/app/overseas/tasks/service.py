@@ -22,8 +22,9 @@ def require_designer(session, designer_id):
 
 def record_change(session, task, actor, kind, before=None):
     event = TaskEvent(task_id=task.id, kind=kind, actor_id=actor.id, actor_name=actor.name,
-                      title={'task.created': '提交图需' if task.status == 'submitted' else '保存图需', 'task.assigned': '改派设计',
-                             'task.materials_submitted': '提交资料'}[kind],
+                      title={'task.created': '提交图需' if task.status in ('submitted', 'analyzing') else '保存图需', 'task.assigned': '改派设计',
+                             'task.materials_submitted': '提交资料', 'task.analysis': '开始分析',
+                             'task.plan_confirmed': '确认方案'}[kind],
                       before_designer_id=before, after_designer_id=task.designer_id, version=task.version)
     session.add(event)
     session.flush()

@@ -8,6 +8,7 @@ from app.overseas.members import models as member_models  # noqa: F401
 from app.overseas.tasks import models as task_models  # noqa: F401
 from app.overseas.materials import models as material_models  # noqa: F401
 from app.overseas.execution import models as execution_models  # noqa: F401
+from app.overseas.plans import models as plan_models  # noqa: F401
 from app.overseas.db import (
     Base, VERSION_TABLE, get_engine, require_overseas_context,
     validate_migration_database,

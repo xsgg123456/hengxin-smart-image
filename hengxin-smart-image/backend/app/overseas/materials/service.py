@@ -74,7 +74,9 @@ def bind(session, actor, task, material_ids):
             raise HTTPException(422, '资料解析成功后才能提交')
     for record in records:
         record.task_id = task.id
-    task.status = 'submitted'
+    from app.overseas.plans.service import enqueue_analysis
+    session.flush()
+    enqueue_analysis(session, task)
 
 
 def submit(session, actor, task_id, body, key):

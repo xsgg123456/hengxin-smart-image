@@ -33,7 +33,8 @@ try {
       body = { items: mode === 'empty' ? [] : [{ id: `d${n}`, name: `设计${n === 1 ? '一' : '二'}`, department: '海外设计' }], total: mode === 'empty' ? 0 : 21, page: n, pageSize: 20 }
     } else if (p.endsWith('/assignment')) {
       if (mode === 'conflict') { version++; status = 409 } else { version++; body = { ...task(), designer: { id: 'd2', name: '设计二', status: 'active', eligible: true } } }
-    } else if (p.endsWith('/materials')) { body = req.method() === 'POST' ? material : [material] } else if (p.endsWith('/tasks') && req.method() === 'POST') {
+    } else if (p.endsWith('/plans')) body = { items: [], taskVersion: 1 }
+    else if (p.endsWith('/materials')) { body = req.method() === 'POST' ? material : [material] } else if (p.endsWith('/tasks') && req.method() === 'POST') {
       attempts++; keys.push(req.headers()['idempotency-key']); saved = req.postDataJSON()
       if (mode === 'unknown') { await route.abort(); return }
       body = task(); status = 201

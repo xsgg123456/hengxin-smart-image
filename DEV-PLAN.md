@@ -1,7 +1,7 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 21 已完成本地验收。** 海外独立五并发、事务队列、CLI隔离、取消恢复和真实执行进度通过；后端1953项、前端273项通过，17项既有宿主条件跳过。证据见 docs/OVERSEAS-PHASE21-VALIDATION.md。用户授权连续完成Phase21–25，各阶段验收后单独本地Git提交，不部署、不推送。
+> **当前状态：Phase 22 已完成本地验收。** 资料自动分析、版本方案、修改确认与按SKU幂等入队通过；前端275项，后端全量1986通过/17既有宿主条件跳过/1旧路由白名单失败，修后相关31项通过。独立两阶段PASS，证据见 docs/OVERSEAS-PHASE22-VALIDATION.md。用户授权连续完成Phase21–25，各阶段验收后单独本地Git提交，不部署、不推送。
 
 > **Phase19验收证据**：后端1870通过/17项既有宿主条件跳过；前端264项、类型、正式/预览构建、正式提交依赖隔离构建均通过。真实PG并发/迁移、三API两库HTTP、五角色/兼任/故障/窄屏和预览回归通过。最终独立Stage1/Stage2均PASS，快照 `f8ee28817724abffbbb55bbb9d5bbf107b65407a1e6abfe37a5b008be3269117`；证据 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE19-REVIEW-SNAPSHOT-20261012.md`。
 
@@ -66,7 +66,7 @@
 | 19 | T4 | 图需任务、指定设计与改派 | 已完成本地验收 | 18 |
 | 20 | T5 | 资料上传、解析与文件授权 | 已完成本地验收 | 18；最终关联验证依赖19 |
 | 21 | T6 | CLI 调度与海外独立5并发 | 已完成本地验收 | 19、20 |
-| 22 | T7 | 排版方案分析、修改与确认 | 未开始 | 21 |
+| 22 | T7 | 排版方案分析、修改与确认 | 进行中未验收 | 21 |
 | 23 | T8 | 生图、返工、审核与归档 | 未开始 | 22 |
 | 24 | T9 | 海外管理中心真实接入 | 未开始 | 18、21、23 |
 | 25 | T10 | 全流程联调与隔离验收 | 未开始 | 16–24 |
@@ -141,11 +141,13 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 
 ## Phase 22：排版方案分析、修改与确认
 
+实施合同：[Phase22方案与接口](docs/OVERSEAS-PHASE22-CONTRACT.md)。Phase21已提交0f68773。
+
 **目标**：资料生成可审阅方案，修改与确认有明确版本边界。
 
-- [ ] **22.1 整套分析协议**：提交有效资料后创建分析作业，按SKU输出结构化方案；复用CLI适配及Skill快照，对缺字段/错SKU/无产物拒绝交付。文件：`app/overseas/plans/{models,schemas,analysis}.py`、海外迁移。
-- [ ] **22.2 修改和确认事务**：保存方案版本及修改意见；重分析创建新版本；确认冻结资料/Skill/方案并幂等排入生图，不允许客户端跳状态。文件：`app/overseas/plans/{service,router}.py`、`tests/test_overseas_plans.py`。
-- [ ] **22.3 前端真实方案页**：直接续建 `OverseasDetail.vue`；方案展示/历史、失败重试、意见校验、确认冲突刷新，按负责人/主管能力开放。文件：`src/api/overseas/plans.ts`、既有方案组件。
+- [x] **22.1 整套分析协议**：提交有效资料后创建分析作业，按SKU输出结构化方案；复用CLI适配及Skill快照，对缺字段/错SKU/无产物拒绝交付。文件：`app/overseas/plans/{models,schemas,analysis}.py`、海外迁移。
+- [x] **22.2 修改和确认事务**：保存方案版本及修改意见；重分析创建新版本；确认冻结资料/Skill/方案并幂等排入生图，不允许客户端跳状态。文件：`app/overseas/plans/{service,router}.py`、`tests/test_overseas_plans.py`。
+- [x] **22.3 前端真实方案页**：沿用既有方案布局，在正式 `OverseasTasksPage.vue` 接入 `OverseasPlans.vue`；方案展示/历史、失败重试、意见校验、确认冲突刷新，按负责人/主管能力开放。专用预览 `OverseasDetail.vue` 保留。文件：`src/api/overseas/plans.ts`、既有方案组件。
 
 **验收**：只有负责人或设计主管可处理；旧版本、重复确认、分析中确认均被正确拒绝；方案不完整不可生图；一次确认只产生一组作业。
 
@@ -185,7 +187,7 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 - 每个Phase收尾：更新子任务状态、已变文件、测试命令及结果、失败或跳过项、审查报告/candidate、下一步唯一入口。测试/审查未完只能写“进行中未验收”。
 - 独立审查顺序：完成自检→`python .codex/hooks/harness.py review-prepare`→fresh `code-reviewer` 两阶段→修复及复核→`review-approve`→`review-status`。旧前端快照不可覆盖后端改动。
 - 中断交接必须先更新此文档，不依赖聊天摘要、存活子Agent或只存在output里的日志。旧计划 `docs/OVERSEAS-FULLSTACK-PLAN-20261012.md` 只作需求/复用背景，不再维护第二套进度。
-- **下一步唯一入口**：Phase22，按 docs/OVERSEAS-PHASE22-CONTRACT.md 接通整套资料分析、版本化方案、修改确认与按SKU生成入队；再依次完成Phase23–25。
+- **下一步唯一入口**：Phase23，按 docs/OVERSEAS-PHASE23-CONTRACT.md 完成生图、返工、审核与归档，再完成Phase24–25。
 
 ---
 

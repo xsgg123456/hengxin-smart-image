@@ -28,3 +28,6 @@ app.include_router(materials_router)
 
 from app.overseas.execution.router import router as execution_router
 app.include_router(execution_router)
+
+from app.overseas.plans.router import router as plans_router
+app.include_router(plans_router)

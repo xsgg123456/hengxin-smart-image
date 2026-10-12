@@ -16,7 +16,8 @@ def prepared(overseas, roles=('operator', 'design_manager')):
     client, factory, actor, designer = setup(overseas, roles)
     task = UUID(create(client, payload(designer)).json()['id'])
     with factory.begin() as session:
-        session.add(ExecutionGate(id=1))
+        if session.get(ExecutionGate, 1) is None:
+            session.add(ExecutionGate(id=1))
     return client, factory, task
 
 

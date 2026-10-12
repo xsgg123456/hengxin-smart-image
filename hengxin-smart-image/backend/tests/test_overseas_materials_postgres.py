@@ -6,6 +6,7 @@ from hashlib import sha256
 from fastapi import HTTPException
 import pytest
 from app.overseas.auth.models import Member
+from app.overseas.execution.models import ExecutionGate
 from app.overseas.materials import files, service
 from app.overseas.materials.models import Material, ParseVersion
 from app.overseas.materials.schemas import SubmitMaterials
@@ -30,6 +31,8 @@ def ready(factory, actor):
 
 @pytest.mark.parametrize('other', ['delete', 'retry', 'bind'])
 def test_binding_serializes_with_mutation(pg_factory, other):
+    with pg_factory.begin() as session:
+        session.add(ExecutionGate(id=1))
     actor, designer = member(pg_factory, 'operator'), member(pg_factory, 'designer')
     first = create(pg_factory, actor, designer, 'one')[1]
     second = create(pg_factory, actor, designer, 'two')[1]

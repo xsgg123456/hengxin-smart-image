@@ -20,7 +20,7 @@ import { ElMessageBox } from 'element-plus'
 import { IdentityError } from '@/api/identity/request'
 import { createExecutionApi, executionError, executionKinds, executionStatuses, type ExecutionEvent, type ExecutionJob } from '@/api/overseas/execution'
 const props = defineProps<{ taskId: string; canCancel: boolean }>()
-const emit = defineEmits<{ failure: [reason: unknown] }>()
+const emit = defineEmits<{ failure: [reason: unknown]; changed: [] }>()
 const api = createExecutionApi(), jobs = ref<ExecutionJob[]>([]), events = ref<ExecutionEvent[]>([])
 const error = ref(''), busy = ref(false), loaded = ref(false), stopping = ref(false)
 let epoch = 0, cursor = 0, alive = true, blocked = false, confirming = false, timer: ReturnType<typeof setTimeout> | undefined, controller: AbortController | undefined
@@ -39,7 +39,9 @@ async function poll() {
     const batch = await api.events(props.taskId, cursor, controller.signal)
     const next = await api.jobs(props.taskId, controller.signal)
     if (current !== epoch) return
+    const changed = loaded.value && (JSON.stringify(jobs.value) !== JSON.stringify(next) || batch.items.length > 0)
     jobs.value = next; events.value = [...events.value, ...batch.items]; cursor = batch.cursor; loaded.value = true; error.value = ''
+    if (changed) emit('changed')
   } catch (reason) { if (current === epoch) failed(reason) }
   finally { if (current === epoch) { busy.value = false; timer = setTimeout(poll, 2000) } }
 }
