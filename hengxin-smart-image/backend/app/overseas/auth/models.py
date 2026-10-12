@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint, Uuid
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.timestamps import Timestamps
@@ -24,6 +24,7 @@ class Member(Timestamps, Base):
     name: Mapped[str] = mapped_column(String(200))
     department: Mapped[str] = mapped_column(String(200), default='')
     status: Mapped[str] = mapped_column(String(20), default='pending')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
 
 
 class MemberRole(Timestamps, Base):

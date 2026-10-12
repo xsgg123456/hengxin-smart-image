@@ -1,5 +1,6 @@
 <template>
-  <div class="flex w-full h-screen overflow-auto">
+  <OverseasPortal v-if="overseas && member && !busy" :member="member" @member="member = $event" @switch="switchBusiness" @logout="logout" @failure="businessFailure" />
+  <div v-else class="flex w-full h-screen overflow-auto">
     <LoginLeftView />
     <div class="relative flex-1">
       <AuthTopBar />
@@ -10,13 +11,7 @@
         </h3>
         <p v-if="busy" role="status">正在验证企业身份与业务权限…</p>
         <ElAlert v-if="error" class="hx-gap" :title="error" type="warning" :closable="false" show-icon />
-        <template v-if="overseas && member && !busy">
-          <h3>海外业务</h3><p class="hx-gap">{{ member.name }}</p>
-          <p class="hx-gap">{{ member.roles?.map(role => roleNames[role] || role).join('、') }}</p>
-          <ElButton class="hx-gap" @click="switchBusiness">切换业务</ElButton>
-          <ElButton class="hx-gap" text @click="logout">退出登录</ElButton>
-        </template>
-        <BusinessEntry v-else-if="name" :identity="access" :states="states" :busy="busy" @enter="enter" @logout="logout" />
+        <BusinessEntry v-if="name" :identity="access" :states="states" :busy="busy" @enter="enter" @logout="logout" />
         <template v-else-if="!busy">
           <p class="sub-title">使用企业钉钉身份登录工作区</p>
           <ElButton class="w-full hx-gap" type="primary" :disabled="!config?.configured" @click="authorize">钉钉登录</ElButton>
@@ -32,6 +27,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import LoginLeftView from '@/components/core/views/login/LoginLeftView.vue'
 import AuthTopBar from '@/components/core/views/login/AuthTopBar.vue'
 import BusinessEntry from './BusinessEntry.vue'
+import OverseasPortal from '@/views/overseas/OverseasPortal.vue'
 import { identityApi, IdentityError, type IdentityConfig, type AccessResult, type Member } from '@/api/identity/auth'
 import { requestContainerAuthCode } from '@/api/hengxin/container-auth'
 import type { Business } from '@/api/identity/access'
@@ -42,10 +38,15 @@ const states = ref<Partial<Record<Business, AccessResult>>>({})
 const overseas = ref(window.location.hash.startsWith('#/overseas'))
 const access = computed(() => ({ authenticated: !!name.value, domestic: !busy.value && states.value.domestic?.state === 'allowed', overseas: !busy.value && states.value.overseas?.state === 'allowed' }))
 const hasFailure = computed(() => Object.values(states.value).some(v => v.state === 'error'))
-const roleNames: Record<string, string> = { operator: '运营', operator_manager: '运营主管', designer: '设计', design_manager: '设计主管', super_admin: '超级管理员' }
+function businessFailure(reason: unknown) {
+  ++generation; member.value = undefined; states.value = {}; busy.value = false
+  error.value = reason instanceof Error ? reason.message : '业务连接失败，请重新连接'
+  if (reason instanceof IdentityError && reason.status === 401) { name.value = ''; overseas.value = false }
+}
 let generation = 0
 async function load() {
   const epoch = ++generation
+  overseas.value = window.location.hash.startsWith('#/overseas')
   busy.value = true; error.value = ''; states.value = {}; member.value = undefined
   try {
     try { config.value = await identityApi.config() }
@@ -59,7 +60,10 @@ async function load() {
     const [domestic, foreign] = await Promise.all([identityApi.access('domestic'), identityApi.access('overseas')])
     if (epoch !== generation) return
     states.value = { domestic, overseas: foreign }
-    if (overseas.value && foreign.state === 'allowed') member.value = await identityApi.overseasMe()
+    if (overseas.value && foreign.state === 'allowed') {
+      const current = await identityApi.overseasMe()
+      if (epoch === generation) member.value = current
+    }
     else overseas.value = false
   } catch (reason) {
     if (epoch !== generation) return
@@ -81,10 +85,11 @@ async function authorize() {
 async function enter(business: Business) {
   if (!access.value[business]) return
   if (business === 'domestic') { legacySession(); return }
+  const epoch = ++generation
   busy.value = true; error.value = ''
-  try { member.value = await identityApi.overseasMe(); overseas.value = true; window.location.hash = '/overseas' }
-  catch (reason) { error.value = reason instanceof Error ? reason.message : '业务连接失败'; await load() }
-  finally { busy.value = false }
+  try { const current = await identityApi.overseasMe(); if (epoch !== generation) return; member.value = current; overseas.value = true; window.location.hash = '/overseas' }
+  catch (reason) { if (epoch === generation) { error.value = reason instanceof Error ? reason.message : '业务连接失败'; await load() } }
+  finally { if (epoch === generation) busy.value = false }
 }
 function switchBusiness() { overseas.value = false; member.value = undefined; window.location.hash = '/auth/business'; void load() }
 async function logout() {

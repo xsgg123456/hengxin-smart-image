@@ -13,7 +13,7 @@ for (const [domestic, overseas] of [[true, true], [false, true], [true, false], 
       if (String(url).endsWith('/tickets')) { tickets.set(body.business, `${body.business}-ticket`); return json({ ticket: `${body.business}-ticket` }) }
       const business = String(url).includes('/overseas/') ? 'overseas' : 'domestic'
       assert.equal(body.ticket, tickets.get(business))
-      return (business === 'domestic' ? domestic : overseas) ? json({ id: '1', name: '成员', status: 'active', role: 'operator', roles: ['designer'] }) : json({}, 403)
+      return (business === 'domestic' ? domestic : overseas) ? json({ id: '1', name: '成员', status: 'active', role: 'operator', roles: ['designer'], capabilities: ['task.read', 'task.design', 'stats.read'] }) : json({}, 403)
     })
     const [a, b] = await Promise.all([api.access('domestic'), api.access('overseas')])
     const identity = { authenticated: true, domestic: a.state === 'allowed', overseas: b.state === 'allowed' }

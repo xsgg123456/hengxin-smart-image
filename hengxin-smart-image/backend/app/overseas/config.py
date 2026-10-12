@@ -22,6 +22,8 @@ class OverseasSettings(Settings):
     generation_concurrency: int = Field(default=5, ge=1, le=5)
     db_application_name: str = Field(default='hx-overseas', pattern=r'^[a-z][a-z0-9-]{0,39}$')
     worker_node_name: str = 'overseas-worker-1'
+    bootstrap_admin_corp_id: str = ''
+    bootstrap_admin_user_ids: str = Field(default='', repr=False)
 
     @field_validator(
         'database_url', 'redis_url', 'minio_endpoint', 'minio_access_key',

@@ -1,10 +1,15 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 17 已完成本地验收。** 17.1统一身份解耦、17.2双业务独立会话、17.3正式双入口均完成；真实本地API/浏览器联调、一期回归及独立两阶段审查通过。下一步唯一入口为Phase18五角色与海外成员管理。真实钉钉及生产部署未验收；Phase16提交5e12c1e。
+> **当前状态：Phase 18 已完成本地验收。下一步是 Phase 19：图需任务、指定设计与改派。** 五角色策略、成员授权/启停/审计、既有成员页真实接入均已通过验证与独立两阶段审查。本轮按既有授权本地提交，不部署、不推送。
+
+> **本轮验收证据**：后端全量1812通过、17项既有宿主条件跳过；前端261项、类型、双构建、真实6身份/故障/预览浏览器通过。真实PG并发/迁移、三API两库联调、镜像构建通过。独立Stage1/Stage2均PASS，快照 `b28b81af2f3f97eff9b93dd8a298207fe57e54e1384165f4162a814a61d2921a`。证据入口 `docs/OVERSEAS-PHASE18-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE18-REVIEW-20261012.md`。
 
 ## 新窗口交接与当前事实
 
+- **Phase 18 接续事实**：海外schema为0003，国内仍0027；正式 `/overseas/admin/users` 仅海外超级管理员可访问。五角色及兼任通过 `app/overseas/permissions.py` 的能力/SQL范围/单条检查统一判断；Phase19应直接接入这些策略，不能复制或改用国内权限。成员API、并发授权锁、最后管理员保护、审计和显式初始化说明见 `docs/OVERSEAS-PHASE18-BACKEND.md`。初始管理员先经统一身份登记，再运行独立bootstrap，不在登录或启动自动提权。
+- **Phase 18 前端复用**：正式 `OverseasPortal` 复用 `OverseasShell` 和既有 `admin/OverseasMembers`；成员页用props adapter区分真实与预览，正式不导入模拟session。其余任务/管理页面仍是独立预览，Phase19开始接真实任务。前端验证详见 `hengxin-smart-image/frontend/PHASE18-MEMBERS.md`。
+- **本轮运行资源已清理**：本次3015真实联调服务、临时PG/Redis/三API和测试网络已停止/删除；原3012预览保留。新窗口需真实联调时运行 `infra/identity-test/run.py --phase18 --serve --origin <本地前端Origin>` 并按输出配置代理，不沿用已失效60070–60072端口。真实钉钉及生产环境尚未验收。
 - 工作区：`D:/Work_Project/hengxin-smart-image`。代码根目录：`hengxin-smart-image/`；下文 `backend/`、`frontend/`、`infra/` 均相对此目录。
 - **前端模拟预览已完成并曾通过审查**：统一登录样式、双业务入口、无颜色 SKU、六节点工作流和海外管理五页。证据：`docs/OVERSEAS-FRONTEND-REVISION-VALIDATION-20261012.md`、`docs/OVERSEAS-FRONTEND-REVISION-REVIEW-20261012.md`；当时 250 项前端测试、双构建、5+4+5 组浏览器验证通过。这些只证明当时的模拟前端，不能证明正式后端或本次新增配置代码已通过。
 - **预览仍需跟进**：现有模拟角色只有管理员/运营/设计，尚未实现正式五角色、多角色兼任、提交必选设计和真实业务会话；不得把预览管理员映射运营的体验逻辑带入正式授权。
@@ -25,7 +30,7 @@
 6. 品名、品牌、多 SKU，无颜色字段；图需文件/竞品表至少一份。流程：提交→AI分析→设计确认→AI生图→逐图审核→整套归档。无资料审核、退回运营或待分配环节。
 7. 方案修改意见触发重新分析；单图返工保留版本，只影响目标图片；全部 SKU 图片通过后才可整套归档。并发操作必须校验版本，重复请求不得重复执行。
 8. 按已提出的开发默认值实施：整套分析、按 SKU 生图、单图返工；超时/恢复沿用一期成熟机制；未知进程先核实不盲重试；正式资料/图片版本/成品先保留，自动清理关闭。保留期限、服务器配额、首个海外超级管理员在部署前确定，不阻塞本地开发。
-9. 本地开发已获授权；**最新授权恢复Phase 16开发，验收后自行Git提交**。不得把一期历史发布授权用于海外生产部署；生产迁移、真实收费调用、账号更换、清理启用另行确认。
+9. 本地开发及阶段验收后自行Git提交已获授权，用户本轮指定继续Phase18。不得把一期历史发布授权用于海外生产部署；生产迁移、真实收费调用、账号更换、清理启用另行确认。
 
 ## 复用清单与实施纪律
 
@@ -51,7 +56,7 @@
 |---|---|---|---|---|
 | 16 | T1 | 海外隔离基础与独立启动 | 已验收 | 无 |
 | 17 | T2 | 统一身份与双业务会话 | 已完成本地验收 | 16 |
-| 18 | T3 | 五角色与海外成员管理 | 未开始 | 17 |
+| 18 | T3 | 五角色与海外成员管理 | 已完成本地验收 | 17 |
 | 19 | T4 | 图需任务、指定设计与改派 | 未开始 | 18 |
 | 20 | T5 | 资料上传、解析与文件授权 | 未开始 | 18；最终关联验证依赖19 |
 | 21 | T6 | CLI 调度与海外独立5并发 | 未开始 | 19、20 |
@@ -86,9 +91,9 @@
 
 **目标**：后端统一授权策略，前端只展示服务端允许的能力。
 
-- [ ] **18.1 角色与范围策略**：复用Phase17已建的海外成员/多角色关系，新增五角色权限矩阵，列表查询、详情和动作共用范围约束，不重复建成员表。复用一期权限依赖机制，不扩大一期角色集合造成隐式授权。文件：`app/overseas/auth/models.py`、`app/overseas/permissions.py`、必要海外迁移、`tests/test_overseas_permissions.py`。
-- [ ] **18.2 成员维护接口**：海外成员查询、授予/移除角色、启停及审计；保护最后有效超级管理员，初始化管理员由独立配置显式指定。文件：`app/overseas/members/{router,service}.py`、`tests/test_overseas_members.py`。
-- [ ] **18.3 前端真实角色接入**：续建 `views/overseas/admin/OverseasMembers.vue`，复用ArtTable/表单；接五角色、多角色兼任、服务端能力菜单。模拟角色切换保留在专用预览，正式入口不允许自选提权。文件：`src/api/overseas/members.ts`、海外路由守卫、既有管理页面。
+- [x] **18.1 角色与范围策略**（本地验收通过）：复用Phase17海外成员/多角色关系与Depends模式，SQL列表和单条/动作共用scopes；auth/me及兑换返回capabilities。文件：`app/overseas/permissions.py`、`auth/{models,router}.py`、`tests/test_overseas_permissions.py`。真实任务路由在Phase19使用策略，本阶段未虚构任务API。
+- [x] **18.2 成员维护接口**（本地验收通过）：查询/详情/PATCH/审计、五角色授权、启停撤销会话、乐观版本、PG锁后再授权、最后有效管理员保护、显式bootstrap。文件：`app/overseas/members/`、`migrations/overseas/versions/overseas_0003.py`、四个`test_overseas_members*.py`、配置及Compose；0002历史定义冻结并验证存量升级。
+- [x] **18.3 前端真实角色接入**（本地验收通过）：续建Members，复用ArtTable/表单及Shell，五角色多选/只读身份/筛选分页/禁用确认/409刷新/失败关闭。文件：`src/api/overseas/members.ts`、`identity-main.ts`、`IdentityPortal.vue`、`OverseasPortal.vue`、`OverseasShell.vue`、`admin/OverseasMembers.vue`、`tests/overseas-members*`。正式菜单按后端能力，无模拟角色切换。
 
 **验收**：五角色动作与数据范围逐项测试；国内管理员无海外权限；普通成员不能提权；停用立即阻止新业务请求；前端隐藏与后端拒绝同时成立。
 

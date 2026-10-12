@@ -156,8 +156,10 @@
         />
 
         <!-- 用户头像、菜单 -->
-        <span class="hx-demo-badge">{{ isMockMode ? '前端预览 · 模拟数据' : '恒鑫智图工作区' }}</span><ElAvatar :size="32">{{ userStore.getUserInfo.userName?.slice(0, 1) }}</ElAvatar>
-        <HengxinLogout />
+        <slot name="account">
+          <span class="hx-demo-badge">{{ isMockMode ? '前端预览 · 模拟数据' : '恒鑫智图工作区' }}</span><ElAvatar :size="32">{{ userStore.getUserInfo.userName?.slice(0, 1) }}</ElAvatar>
+          <HengxinLogout />
+        </slot>
       </div>
     </div>
 

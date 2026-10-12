@@ -4,7 +4,8 @@ from app.modules.auth.dingtalk import DingTalkMember, DingTalkProviderError
 
 
 def exchange(code, settings):
-    if code not in {'both', 'domestic', 'overseas', 'neither'}:
+    from phase18_fixtures import CODES
+    if code not in {'both', 'domestic', 'overseas', 'neither', *CODES}:
         raise DingTalkProviderError('Unknown disposable test member')
     return DingTalkMember(code, '测试成员-' + code, 'test-union-' + code,
                          '测试部门', settings.dingtalk_corp_id)

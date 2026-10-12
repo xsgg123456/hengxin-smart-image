@@ -9,6 +9,7 @@ from app.db.session import get_session
 from app.overseas.auth.dependencies import CurrentMember, member_roles
 from app.overseas.auth.identity import bind_member
 from app.overseas.auth.sessions import COOKIE_PATH, SESSION_COOKIE, issue_session, revoke_session
+from app.overseas.permissions import capabilities
 
 router = APIRouter(prefix='/api/overseas/v1/auth', tags=['overseas-auth'])
 
@@ -18,11 +19,13 @@ class OverseasUser(BaseModel):
     name: str
     status: str
     roles: list[str]
+    capabilities: list[str]
 
 
 def describe(session, member):
+    roles = member_roles(session, member)
     return OverseasUser(id=str(member.id), name=member.name, status=member.status,
-                        roles=member_roles(session, member))
+                        roles=roles, capabilities=capabilities(roles))
 
 
 @router.post('/identity/session', response_model=OverseasUser, dependencies=[Depends(browser_request)])

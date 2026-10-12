@@ -50,7 +50,8 @@ def test_metadata_is_independent_and_does_not_import_domestic_models():
         [sys.executable, '-c',
          'import sys; from app.overseas.db import Base; '
          'from app.overseas.auth import models; '
-         'assert set(Base.metadata.tables)=={"overseas_members","overseas_member_roles","overseas_sessions"}; '
+         'from app.overseas.members import models as audits; '
+         'assert set(Base.metadata.tables)=={"overseas_members","overseas_member_roles","overseas_sessions","overseas_member_audits"}; '
          'assert "app.models" not in sys.modules; '
          'from app.models import Base as DomesticBase; '
          'assert Base.metadata is not DomesticBase.metadata'],
@@ -70,7 +71,7 @@ def test_revision_tree_has_only_overseas_revisions():
     script = ScriptDirectory.from_config(Config(str(BACKEND / 'alembic.overseas.ini')))
     assert script.get_heads() == [db.SCHEMA_REVISION]
     assert script.get_base() == 'overseas_0001'
-    assert len(list(script.walk_revisions())) == 2
+    assert len(list(script.walk_revisions())) == 3
 
 
 @pytest.mark.parametrize('context', ['domestic', 'invalid', ''])
@@ -160,6 +161,7 @@ def test_real_upgrades_are_repeatable_and_domestic_database_is_unchanged(disposa
         assert result.returncode == 0, result.stderr
         assert set(snapshot(overseas_url)[0]) == {
             db.VERSION_TABLE, 'overseas_members', 'overseas_member_roles', 'overseas_sessions',
+            'overseas_member_audits',
         }
         assert snapshot(overseas_url)[1][db.VERSION_TABLE] == [(db.SCHEMA_REVISION,)]
     assert snapshot(domestic_url) == before

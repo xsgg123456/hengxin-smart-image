@@ -2,13 +2,13 @@ import { createIdentityRequest, IdentityError, record } from './request'
 import type { Business } from './access'
 export { IdentityError }
 export interface IdentityConfig { configured: boolean; corpId: string; clientId: string }
-export interface Member { id: string; name: string; status: string; role?: string; roles?: string[] }
+export interface Member { id: string; name: string; status: string; role?: string; roles?: string[]; capabilities?: string[] }
 export type AccessResult = { state: 'allowed'; member: Member } | { state: 'denied' | 'error'; message: string }
 const isName = (v: unknown): v is { name: string } => record(v) && typeof v.name === 'string'
 const noContent = (v: unknown): v is undefined => v === undefined
 const base = '/api/identity/v1'
 const businessBase = (business: Business) => business === 'domestic' ? '/api/v1' : '/api/overseas/v1'
-const memberGuard = (business: Business) => (v: unknown): v is Member => record(v) && typeof v.id === 'string' && typeof v.name === 'string' && v.status === 'active' && (business === 'domestic' ? typeof v.role === 'string' : Array.isArray(v.roles) && v.roles.length > 0 && v.roles.every(x => typeof x === 'string'))
+const memberGuard = (business: Business) => (v: unknown): v is Member => record(v) && typeof v.id === 'string' && typeof v.name === 'string' && v.status === 'active' && (business === 'domestic' ? typeof v.role === 'string' : Array.isArray(v.roles) && v.roles.length > 0 && v.roles.every(x => typeof x === 'string') && Array.isArray(v.capabilities) && v.capabilities.every(x => typeof x === 'string'))
 export function createIdentityApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest(fetcher)
   return {

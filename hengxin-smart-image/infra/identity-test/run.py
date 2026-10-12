@@ -13,8 +13,11 @@ ROOT = Path(__file__).resolve().parents[2]
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--serve', action='store_true')
+    parser.add_argument('--phase18', action='store_true')
+    parser.add_argument('--origin')
     args = parser.parse_args()
-    prefix = 'hx-p17-' + secrets.token_hex(6)
+    phase = '18' if args.phase18 else '17'
+    prefix = 'hx-p' + phase + '-' + secrets.token_hex(6)
     names = []
     environment = {k: v for k, v in os.environ.items() if not k.startswith(
         ('IDENTITY_', 'OVERSEAS_', 'DATABASE_', 'REDIS_', 'MINIO_'))}
@@ -51,13 +54,15 @@ def main():
                 options.extend(('-p', f'127.0.0.1::{port}'))
         runner = start('runner', 'hx-management-test:local', options,
                        ('/app/.venv/bin/python', '/workspace/infra/identity-test/checks.py',
-                        *(['--serve'] if args.serve else [])))
+                        *(['--serve'] if args.serve else []),
+                        *(['--phase18'] if args.phase18 else []),
+                        *(['--origin', args.origin] if args.origin else [])))
         if args.serve:
             print('LOCAL PORTS ' + docker('port', runner), flush=True)
         status = subprocess.call(['docker', 'logs', '-f', runner])
         result = json.loads(docker('inspect', runner))[0]['State']
         if status or result['ExitCode']:
-            raise RuntimeError('Phase 17 integration failed')
+            raise RuntimeError('Phase ' + phase + ' integration failed')
     finally:
         for name in reversed(names):
             docker('rm', '-fv', name, check=False)

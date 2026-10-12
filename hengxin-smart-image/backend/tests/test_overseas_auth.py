@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -78,6 +78,7 @@ def test_authorized_member_gets_only_overseas_cookie_and_real_roles(overseas):
     response = login(client)
     assert response.status_code == 200
     assert response.json()['roles'] == ['designer', 'operator']
+    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'task.design', 'stats.read'}
     cookie = response.headers['set-cookie']
     assert cookie.startswith(SESSION_COOKIE + '=') and 'HttpOnly' in cookie
     assert 'Path=' + COOKIE_PATH in cookie and 'SameSite=lax' in cookie
@@ -166,3 +167,19 @@ def test_switch_identity_cannot_retain_another_members_business_session(overseas
     assertion['member'] = {**MEMBER, 'provider_user_id': 'pending-new-member'}
     assert login(client).status_code == 403
     assert client.get(COOKIE_PATH + '/auth/me').status_code == 401
+
+
+def test_existing_session_observes_role_changes_without_relogin(overseas):
+    client, factory, assertion = overseas
+    member_id = seed(factory, roles=('super_admin',))
+    assert login(client).status_code == 200
+    assert 'members.manage' in client.get(COOKIE_PATH + '/auth/me').json()['capabilities']
+    token = client.cookies.get(SESSION_COOKIE)
+    with factory.begin() as session:
+        session.execute(delete(MemberRole).where(MemberRole.user_id == member_id))
+        session.add(MemberRole(user_id=member_id, role='operator'))
+    response = client.get(COOKIE_PATH + '/auth/me')
+    assert response.status_code == 200
+    assert client.cookies.get(SESSION_COOKIE) == token
+    assert response.json()['roles'] == ['operator']
+    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'stats.read'}

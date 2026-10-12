@@ -19,6 +19,8 @@ DIRECTORY = Path(__file__).resolve().parent
 PYTHON = sys.executable
 ID = 'http://127.0.0.1:8010'
 ORIGIN = 'http://localhost:3013' if '--serve' in sys.argv else ID
+if '--origin' in sys.argv:
+    ORIGIN = sys.argv[sys.argv.index('--origin') + 1]
 PATH = '/api/identity/v1'
 BUSINESS = {'domestic': ('http://127.0.0.1:8008', '/api/v1/auth'),
             'overseas': ('http://127.0.0.1:8009', '/api/overseas/v1/auth')}
@@ -227,7 +229,7 @@ def main():
             with ENGINES[kind].connect() as connection:
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
-                assert version == ('overseas_0002' if kind == 'overseas' else '0027'), version
+                assert version == ('overseas_0003' if kind == 'overseas' else '0027'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)
@@ -237,8 +239,17 @@ def main():
         start('overseas', 'app.overseas.main:app', 8009, environment('overseas'))
         checks()
         print('PASS ALL Phase 17 real HTTP integration', flush=True)
-        if '--serve' in sys.argv:
+        if '--phase18' in sys.argv:
             start('identity', 'provider_app:app', 8010, identity_env)
+            from phase18_fixtures import prepare
+            from phase18_checks import run
+            context = sys.modules[__name__]
+            fixtures = prepare(context)
+            run(context, fixtures)
+            print('PASS ALL Phase 18 real HTTP integration', flush=True)
+        if '--serve' in sys.argv:
+            if PROCESSES['identity'].poll() is not None:
+                start('identity', 'provider_app:app', 8010, identity_env)
             def stop(signum, frame):
                 raise SystemExit(0)
             signal.signal(signal.SIGTERM, stop)

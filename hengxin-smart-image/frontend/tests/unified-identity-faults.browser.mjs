@@ -15,7 +15,7 @@ try {
     else if (path.endsWith('/tickets')) value = { ticket: 'one-use-ticket' }
     else if (path === '/api/v1/auth/identity/session') status = 403
     else if (path === '/api/overseas/v1/auth/identity/session' || path === '/api/overseas/v1/auth/me') {
-      status = unavailable ? 503 : 200; value = { id: 'test', name: '测试成员', status: 'active', roles: ['designer'] }
+      status = unavailable ? 503 : 200; value = { id: 'test', name: '测试成员', status: 'active', roles: ['designer'], capabilities: ['task.read', 'task.design', 'stats.read'] }
     } else if (path === '/api/identity/v1/logout') { status = logoutFailure ? 503 : 204; if (!logoutFailure) authenticated = false }
     else if (path.endsWith('/logout')) status = 204
     else throw new Error(`不应调用 ${path}`)
