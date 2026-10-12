@@ -2,14 +2,14 @@ export class IdentityError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) { super(message) }
 }
 export function createIdentityRequest(fetcher: typeof fetch = fetch) {
-  return async function request<T>(url: string, guard: (v: unknown) => v is T, body?: unknown, options?: { method?: 'GET' | 'POST' | 'PATCH'; params?: Record<string, string | number | undefined> }): Promise<T> {
+  return async function request<T>(url: string, guard: (v: unknown) => v is T, body?: unknown, options?: { method?: 'GET' | 'POST' | 'PATCH'; params?: Record<string, string | number | undefined>; idempotencyKey?: string }): Promise<T> {
     const query = new URLSearchParams()
     for (const [key, value] of Object.entries(options?.params || {})) if (value !== undefined && value !== '') query.set(key, String(value))
     if (query.size) url += `?${query}`
     let response: Response
     try {
       response = await fetcher(url, { method: options?.method || (body === undefined ? 'GET' : 'POST'), credentials: 'include',
-        headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json', 'X-HX-Request': '1' }) },
+        headers: { Accept: 'application/json', ...(options?.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json', 'X-HX-Request': '1' }) },
         body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10000) })
     } catch { throw new IdentityError(0, '服务连接失败，请稍后重试') }
     let value: unknown

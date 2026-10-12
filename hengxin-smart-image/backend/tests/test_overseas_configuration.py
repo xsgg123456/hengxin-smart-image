@@ -157,6 +157,8 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/auth/logout',
         '/api/overseas/v1/members', '/api/overseas/v1/members/{member_id}',
         '/api/overseas/v1/members/{member_id}/audit',
+        '/api/overseas/v1/tasks', '/api/overseas/v1/tasks/{task_id}',
+        '/api/overseas/v1/tasks/{task_id}/assignment', '/api/overseas/v1/task-designers',
     }
 
     @app.get('/test-internal-error', include_in_schema=False)

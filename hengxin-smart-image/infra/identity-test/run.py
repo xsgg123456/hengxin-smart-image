@@ -14,9 +14,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--serve', action='store_true')
     parser.add_argument('--phase18', action='store_true')
+    parser.add_argument('--phase19', action='store_true')
     parser.add_argument('--origin')
     args = parser.parse_args()
-    phase = '18' if args.phase18 else '17'
+    phase = '19' if args.phase19 else '18' if args.phase18 else '17'
     prefix = 'hx-p' + phase + '-' + secrets.token_hex(6)
     names = []
     environment = {k: v for k, v in os.environ.items() if not k.startswith(
@@ -56,6 +57,7 @@ def main():
                        ('/app/.venv/bin/python', '/workspace/infra/identity-test/checks.py',
                         *(['--serve'] if args.serve else []),
                         *(['--phase18'] if args.phase18 else []),
+                        *(['--phase19'] if args.phase19 else []),
                         *(['--origin', args.origin] if args.origin else [])))
         if args.serve:
             print('LOCAL PORTS ' + docker('port', runner), flush=True)

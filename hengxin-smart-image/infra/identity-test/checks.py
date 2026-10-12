@@ -229,7 +229,7 @@ def main():
             with ENGINES[kind].connect() as connection:
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
-                assert version == ('overseas_0003' if kind == 'overseas' else '0027'), version
+                assert version == ('overseas_0004' if kind == 'overseas' else '0027'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)
@@ -239,7 +239,7 @@ def main():
         start('overseas', 'app.overseas.main:app', 8009, environment('overseas'))
         checks()
         print('PASS ALL Phase 17 real HTTP integration', flush=True)
-        if '--phase18' in sys.argv:
+        if '--phase18' in sys.argv or '--phase19' in sys.argv:
             start('identity', 'provider_app:app', 8010, identity_env)
             from phase18_fixtures import prepare
             from phase18_checks import run
@@ -247,6 +247,10 @@ def main():
             fixtures = prepare(context)
             run(context, fixtures)
             print('PASS ALL Phase 18 real HTTP integration', flush=True)
+        if '--phase19' in sys.argv:
+            from phase19_checks import run as run_tasks
+            run_tasks(context, fixtures)
+            print('PASS ALL Phase 19 real HTTP integration', flush=True)
         if '--serve' in sys.argv:
             if PROCESSES['identity'].poll() is not None:
                 start('identity', 'provider_app:app', 8010, identity_env)

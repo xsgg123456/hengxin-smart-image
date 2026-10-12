@@ -1,15 +1,21 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 18 已完成本地验收。下一步是 Phase 19：图需任务、指定设计与改派。** 五角色策略、成员授权/启停/审计、既有成员页真实接入均已通过验证与独立两阶段审查。本轮按既有授权本地提交，不部署、不推送。
+> **当前状态：Phase 19 已完成本地验收。** 图需任务、多SKU、必选设计、范围查询及版本改派已接真实海外API。下一步执行Phase20资料上传、解析与文件授权；不跳过已有开发计划。验收后自行本地Git提交，不部署、不推送。
 
-> **本轮验收证据**：后端全量1812通过、17项既有宿主条件跳过；前端261项、类型、双构建、真实6身份/故障/预览浏览器通过。真实PG并发/迁移、三API两库联调、镜像构建通过。独立Stage1/Stage2均PASS，快照 `b28b81af2f3f97eff9b93dd8a298207fe57e54e1384165f4162a814a61d2921a`。证据入口 `docs/OVERSEAS-PHASE18-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE18-REVIEW-20261012.md`。
+> **Phase19验收证据**：后端1870通过/17项既有宿主条件跳过；前端264项、类型、正式/预览构建、正式提交依赖隔离构建均通过。真实PG并发/迁移、三API两库HTTP、五角色/兼任/故障/窄屏和预览回归通过。最终独立Stage1/Stage2均PASS，快照 `f8ee28817724abffbbb55bbb9d5bbf107b65407a1e6abfe37a5b008be3269117`；证据 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE19-REVIEW-SNAPSHOT-20261012.md`。
+
+> **Phase18历史验收证据**：后端全量1812通过、17项既有宿主条件跳过；前端261项、类型、双构建、真实6身份/故障/预览浏览器通过。真实PG并发/迁移、三API两库联调、镜像构建通过。独立Stage1/Stage2均PASS，快照 `b28b81af2f3f97eff9b93dd8a298207fe57e54e1384165f4162a814a61d2921a`。证据入口 `docs/OVERSEAS-PHASE18-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE18-REVIEW-20261012.md`。
 
 ## 新窗口交接与当前事实
 
+- **Phase19运行资源**：本轮3015、临时PG/Redis/三API及网络已清理，原3012与既有hx-management-pg-test保留。真实联调重新运行 `infra/identity-test/run.py --phase19 --serve --origin <本地前端Origin>`，不得复用过期64702–64704端口。隔离构建临时目录因自动审批拒绝清理而保留在output，详情见验收记录。
+
+- **Phase19当前实现（已验收）**：海外schema为0004，国内仍0027；正式 `/overseas/create`、`/overseas/tasks`、`/overseas/tasks/:id` 已接独立任务API。保存基础图需必须指定有效设计，状态为created；上传与完整提交准入留Phase20，不能将task.created出站事件直接当分析指令。复用Phase18权限与一期中立幂等原语。证据入口 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`。
+- **Phase19提交范围**：正式API、迁移、测试和必需共享任务组件进入本阶段提交。既有整套未跟踪模拟预览及本次兼容迁移留在原工作区，不混入此前未提交预览闭包；新窗口继续保留、先核对git status。正式代码不依赖该模拟入口，不能把干净checkout没有模拟预览误判为正式任务功能缺失。
 - **Phase 18 接续事实**：海外schema为0003，国内仍0027；正式 `/overseas/admin/users` 仅海外超级管理员可访问。五角色及兼任通过 `app/overseas/permissions.py` 的能力/SQL范围/单条检查统一判断；Phase19应直接接入这些策略，不能复制或改用国内权限。成员API、并发授权锁、最后管理员保护、审计和显式初始化说明见 `docs/OVERSEAS-PHASE18-BACKEND.md`。初始管理员先经统一身份登记，再运行独立bootstrap，不在登录或启动自动提权。
 - **Phase 18 前端复用**：正式 `OverseasPortal` 复用 `OverseasShell` 和既有 `admin/OverseasMembers`；成员页用props adapter区分真实与预览，正式不导入模拟session。其余任务/管理页面仍是独立预览，Phase19开始接真实任务。前端验证详见 `hengxin-smart-image/frontend/PHASE18-MEMBERS.md`。
-- **本轮运行资源已清理**：本次3015真实联调服务、临时PG/Redis/三API和测试网络已停止/删除；原3012预览保留。新窗口需真实联调时运行 `infra/identity-test/run.py --phase18 --serve --origin <本地前端Origin>` 并按输出配置代理，不沿用已失效60070–60072端口。真实钉钉及生产环境尚未验收。
+- **Phase18运行资源已清理**：该轮3015真实联调服务、临时PG/Redis/三API和测试网络已停止/删除；原3012预览保留。新窗口需真实联调时运行 `infra/identity-test/run.py --phase18 --serve --origin <本地前端Origin>` 并按输出配置代理，不沿用已失效60070–60072端口。真实钉钉及生产环境尚未验收。
 - 工作区：`D:/Work_Project/hengxin-smart-image`。代码根目录：`hengxin-smart-image/`；下文 `backend/`、`frontend/`、`infra/` 均相对此目录。
 - **前端模拟预览已完成并曾通过审查**：统一登录样式、双业务入口、无颜色 SKU、六节点工作流和海外管理五页。证据：`docs/OVERSEAS-FRONTEND-REVISION-VALIDATION-20261012.md`、`docs/OVERSEAS-FRONTEND-REVISION-REVIEW-20261012.md`；当时 250 项前端测试、双构建、5+4+5 组浏览器验证通过。这些只证明当时的模拟前端，不能证明正式后端或本次新增配置代码已通过。
 - **预览仍需跟进**：现有模拟角色只有管理员/运营/设计，尚未实现正式五角色、多角色兼任、提交必选设计和真实业务会话；不得把预览管理员映射运营的体验逻辑带入正式授权。
@@ -30,7 +36,7 @@
 6. 品名、品牌、多 SKU，无颜色字段；图需文件/竞品表至少一份。流程：提交→AI分析→设计确认→AI生图→逐图审核→整套归档。无资料审核、退回运营或待分配环节。
 7. 方案修改意见触发重新分析；单图返工保留版本，只影响目标图片；全部 SKU 图片通过后才可整套归档。并发操作必须校验版本，重复请求不得重复执行。
 8. 按已提出的开发默认值实施：整套分析、按 SKU 生图、单图返工；超时/恢复沿用一期成熟机制；未知进程先核实不盲重试；正式资料/图片版本/成品先保留，自动清理关闭。保留期限、服务器配额、首个海外超级管理员在部署前确定，不阻塞本地开发。
-9. 本地开发及阶段验收后自行Git提交已获授权，用户本轮指定继续Phase18。不得把一期历史发布授权用于海外生产部署；生产迁移、真实收费调用、账号更换、清理启用另行确认。
+9. 本地开发及阶段验收后自行Git提交已获授权，用户本轮指定继续Phase19。不得把一期历史发布授权用于海外生产部署；生产迁移、真实收费调用、账号更换、清理启用另行确认。
 
 ## 复用清单与实施纪律
 
@@ -57,7 +63,7 @@
 | 16 | T1 | 海外隔离基础与独立启动 | 已验收 | 无 |
 | 17 | T2 | 统一身份与双业务会话 | 已完成本地验收 | 16 |
 | 18 | T3 | 五角色与海外成员管理 | 已完成本地验收 | 17 |
-| 19 | T4 | 图需任务、指定设计与改派 | 未开始 | 18 |
+| 19 | T4 | 图需任务、指定设计与改派 | 已完成本地验收 | 18 |
 | 20 | T5 | 资料上传、解析与文件授权 | 未开始 | 18；最终关联验证依赖19 |
 | 21 | T6 | CLI 调度与海外独立5并发 | 未开始 | 19、20 |
 | 22 | T7 | 排版方案分析、修改与确认 | 未开始 | 21 |
@@ -101,9 +107,9 @@
 
 **目标**：运营能创建真实任务，设计只收到自己负责的任务。
 
-- [ ] **19.1 任务与SKU持久化**：任务/多SKU/版本/事件/负责人数据结构，必填与重复SKU校验，无颜色；复用一期幂等模式，任务创建与出站事件事务一致。文件：`app/overseas/tasks/{models,schemas,service}.py`、海外迁移、`tests/test_overseas_tasks.py`。
-- [ ] **19.2 查询与改派接口**：本人/主管范围分页查询、设计候选列表、合法设计绑定、改派版本校验及审计；负责人停用不能继续处理，允许主管改派接续；不重新启动在途作业。文件：`app/overseas/tasks/{queries,router,assignment}.py`、`tests/test_overseas_assignment.py`。
-- [ ] **19.3 前端任务接入**：沿用 `OverseasCreate.vue`、`OverseasWorkspace.vue`、`OverseasTaskInfo.vue`；新增必选设计控件，真实列表/详情/改派，空候选/失效候选/重复提交错误反馈。文件：`frontend/src/api/overseas/tasks.ts`、现有海外任务组件。
+- [x] **19.1 任务与SKU持久化**：任务/多SKU/版本/事件/负责人数据结构，必填与重复SKU校验，无颜色；复用一期幂等模式，任务创建与出站事件事务一致。文件：`app/overseas/tasks/{models,schemas,service}.py`、海外迁移、`tests/test_overseas_tasks.py`。
+- [x] **19.2 查询与改派接口**：本人/主管范围分页查询、设计候选列表、合法设计绑定、改派版本校验及审计；负责人停用不能继续处理，允许主管改派接续；不重新启动在途作业。文件：`app/overseas/tasks/{queries,router,assignment}.py`、`tests/test_overseas_assignment.py`。
+- [x] **19.3 前端任务接入**：沿用 `OverseasCreate.vue`、`OverseasWorkspace.vue`、`OverseasTaskInfo.vue`；新增必选设计控件，真实列表/详情/改派，空候选/失效候选/重复提交错误反馈。文件：`frontend/src/api/overseas/tasks.ts`、现有海外任务组件。
 
 **验收**：不选设计不可提交，停用/非设计候选拒绝；运营只看本人、设计只看分配本人、主管按矩阵查看；改派后原设计立即被拒；重复请求只建一套任务；不得用待分配绕过必选设计。带真实资料的提交在Phase20一并验收。
 

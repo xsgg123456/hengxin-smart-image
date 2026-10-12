@@ -12,6 +12,7 @@ get_settings()
 from app.overseas.health import router  # noqa: E402 - validate context before loading resources
 from app.overseas.auth.router import router as auth_router
 from app.overseas.members.router import router as members_router
+from app.overseas.tasks.router import router as tasks_router
 
 app = FastAPI(title='恒鑫智图 · 海外业务 API', version='0.1.0')
 register_errors(app)
@@ -21,3 +22,4 @@ app.add_middleware(HttpTimingMiddleware)
 app.include_router(router)
 app.include_router(auth_router)
 app.include_router(members_router)
+app.include_router(tasks_router)
