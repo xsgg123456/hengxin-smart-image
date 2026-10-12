@@ -17,9 +17,10 @@ try {
       page.on('request', req => paths.push(new URL(req.url()).pathname))
       await page.goto(`${base}/#/overseas`)
       await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
-      assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), role === 'admin' ? 1 : 0)
+      const identity = await (await context.request.get(`${base}/api/overseas/v1/auth/me`)).json()
+      assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), identity.capabilities.includes('stats.read') ? 1 : 0)
       assert.equal(await page.getByRole('radiogroup', { name: '体验角色' }).count(), 0)
-      assert.equal(await page.getByRole('menuitem', { name: '提交图需', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('menuitem', { name: '提交图需', exact: true }).count(), identity.capabilities.includes('task.create') ? 1 : 0)
       await page.goto(`${base}/#/overseas/admin/users`)
       if (role === 'admin') {
         await page.getByRole('heading', { name: '海外成员目录' }).waitFor()
@@ -62,7 +63,7 @@ try {
         await page.getByRole('dialog', { name: '编辑海外成员', exact: true }).waitFor({ state: 'hidden' })
         await page.screenshot({ path: '../../output/playwright/phase18/members-real-mobile.png', fullPage: true })
       } else {
-        await page.getByText('暂无成员管理权限', { exact: true }).waitFor()
+        await page.getByText('暂无此管理页面权限', { exact: true }).waitFor()
         assert.equal(await page.getByRole('button', { name: '编辑', exact: true }).count(), 0)
         assert.equal((await context.request.get(`${base}/api/overseas/v1/members`)).status(), 403)
       }

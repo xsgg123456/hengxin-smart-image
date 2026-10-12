@@ -1,7 +1,7 @@
-# 当前开发入口：海外二期（2026-10-12）
+# 当前开发入口：海外二期（2026-10-13）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 24 已完成本地验收。** 管理统计、监控、Skill及配置接入通过；后端完整2038通过/17既有宿主条件跳过，前端282通过，真实HTTP/五角色浏览器及独立两阶段审查通过。证据见 docs/OVERSEAS-PHASE24-VALIDATION.md。用户授权连续完成Phase21–25，各阶段单独本地Git提交，不部署、不推送。
+> **当前状态：Phase 21–25 已全部完成本地验收。** 后端2038通过/17项明确宿主条件跳过，前端282通过、类型及生产构建通过，七组真实API浏览器、资源双向隔离、对象及数据库备份恢复、独立两阶段审查均通过。证据见 docs/OVERSEAS-FULLSTACK-VALIDATION.md。各阶段独立本地Git提交；未部署、未推送，真实钉钉/收费模型及生产宿主专项仍待上线验收。
 
 > **Phase19验收证据**：后端1870通过/17项既有宿主条件跳过；前端264项、类型、正式/预览构建、正式提交依赖隔离构建均通过。真实PG并发/迁移、三API两库HTTP、五角色/兼任/故障/窄屏和预览回归通过。最终独立Stage1/Stage2均PASS，快照 `f8ee28817724abffbbb55bbb9d5bbf107b65407a1e6abfe37a5b008be3269117`；证据 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE19-REVIEW-SNAPSHOT-20261012.md`。
 
@@ -66,10 +66,10 @@
 | 19 | T4 | 图需任务、指定设计与改派 | 已完成本地验收 | 18 |
 | 20 | T5 | 资料上传、解析与文件授权 | 已完成本地验收 | 18；最终关联验证依赖19 |
 | 21 | T6 | CLI 调度与海外独立5并发 | 已完成本地验收 | 19、20 |
-| 22 | T7 | 排版方案分析、修改与确认 | 进行中未验收 | 21 |
-| 23 | T8 | 生图、返工、审核与归档 | 未开始 | 22 |
-| 24 | T9 | 海外管理中心真实接入 | 未开始 | 18、21、23 |
-| 25 | T10 | 全流程联调与隔离验收 | 未开始 | 16–24 |
+| 22 | T7 | 排版方案分析、修改与确认 | 已完成本地验收 | 21 |
+| 23 | T8 | 生图、返工、审核与归档 | 已完成本地验收 | 22 |
+| 24 | T9 | 海外管理中心真实接入 | 已完成本地验收 | 18、21、23 |
+| 25 | T10 | 全流程联调与隔离验收 | 已完成本地验收 | 16–24 |
 
 主链：16→17→18→19/20→21→22→23→24→25。19与20仅可在接口合同明确、文件所有权分开后并行；公共鉴权/表结构变更由主 Agent 统一。完成一个 Phase 后更新本节，再进入后继 Phase。
 
@@ -159,7 +159,7 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 
 - [x] **23.1 SKU生图与交付**：按确认方案拆作业，复用一期进程/输出验证/幂等交付；一个SKU失败不重跑成功SKU，结果关联方案版本。文件：`app/overseas/generation/{service,delivery}.py`、对应模型/迁移与测试。
 - [x] **23.2 单图标注与版本**：复用AnnotationCanvas/现有海外Annotation、Pictures；后端保存标注底图版本和意见，返工生成新版本，拒绝旧底图覆盖。文件：`app/overseas/pictures/{models,revisions,router}.py`、`frontend/src/api/overseas/pictures.ts`、既有图片组件。
-- [x] **23.3 审核与整套归档**：图片通过状态绑定版本，返工后重审目标图；整套全通过才冻结归档，支持品名→品牌→SKU检索及授权下载。文件：`app/overseas/{pictures/review.py,archives/}`、`views/overseas/OverseasArchive.vue`、对应测试。
+- [x] **23.3 审核与整套归档**：图片通过状态绑定版本，返工后重审目标图；整套全通过才冻结归档，支持品名→品牌→SKU检索及授权下载。文件：`app/overseas/{pictures/review.py,archives/}`、`views/overseas/OverseasArchivePage.vue`、对应测试。
 
 **验收**：多SKU/部分失败恢复、单图版本历史、无关图片状态保留；设计主管与负责人竞争只接受合法版本；未全通过不归档；归档下载资源准确且无越权；正式图片不能被临时清理删除。
 
@@ -169,19 +169,21 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 
 **目标**：现有五页从内存预览切换到真实海外管理，不重造界面。
 
-- [x] **24.1 统计与监控**：复用一期统计事实口径和监控表达，海外独立采集任务、执行、生成/返工、失败与审计；无真实Token/费用数据就标未提供，不用流程事件冒充模型调用。文件：`app/overseas/management/{facts,usage,monitor}.py`、`admin/OverseasActivity.vue`。
-- [x] **24.2 Skill与配置**：复用一期Skill校验、版本冻结和配置校验，海外独立版本/默认绑定/CLI配置；5并发上限不可突破，不向前端回传认证秘密，不允许管理操作读写国内目录。文件：`app/overseas/management/{skills,settings}.py`、`admin/{OverseasSkills,OverseasSettings}.vue`。
+- [x] **24.1 统计与监控**：复用一期统计事实口径和监控表达，海外独立采集任务、执行、生成/返工、失败与审计；无真实Token/费用数据就标未提供，不用流程事件冒充模型调用。文件：`app/overseas/management/{facts,usage,monitor}.py`、`admin/OverseasLiveActivity.vue`。
+- [x] **24.2 Skill与配置**：复用一期Skill校验、版本冻结和配置校验，海外独立版本/默认绑定/CLI配置；5并发上限不可突破，不向前端回传认证秘密，不允许管理操作读写国内目录。文件：`app/overseas/management/{skills,settings}.py`、`admin/{OverseasLiveSkills,OverseasLiveSettings}.vue`。
 - [x] **24.3 页面与权限收口**：成员页续接Phase18接口；移除正式入口的模拟adapter和角色切换，保留独立预览；主管只获矩阵允许的统计与业务能力，超级管理员维护配置。文件：`frontend/src/api/overseas/management.ts`、海外管理路由/菜单及现有管理组件。
 
 **验收**：五页真实持久化、刷新不丢；统计可对账；角色访问限制；配置修改只影响规定的新作业，不污染在途快照或国内配置；无秘密泄漏。
 
 ## Phase 25：全流程联调与隔离验收
 
+实施合同：[Phase25最终验收](docs/OVERSEAS-PHASE25-CONTRACT.md)。Phase24已提交e0c2acc；本阶段本地验收完成。跨阶段派生资源撤权、备份恢复、七组真实浏览器、资源隔离、全量回归及独立审查全部通过，证据见 docs/OVERSEAS-FULLSTACK-VALIDATION.md。
+
 **目标**：证明整套功能和隔离成立，给出可部署清单；不在此自动部署。
 
-- [ ] **25.1 五角色端到端**：真实本地API+独立测试库/桶/队列串联登录、选设计、资料、方案、生图、返工、改派、归档、管理，测试失败/空态/加载及宽窄屏。文件：`frontend/tests/overseas-*.browser.mjs`、`backend/tests/test_overseas_e2e.py`。
-- [ ] **25.2 隔离与竞争验收**：两个业务凭据互访拒绝、所有文件派生资源授权、事件流越权、并发5上限、失联/重复/取消/改派竞争；一期受影响能力全量回归。文件：`backend/tests/test_overseas_isolation.py`、`test_overseas_concurrency.py`、`infra/verify_overseas_local.py`。
-- [ ] **25.3 交付与部署准备**：记录备份恢复/资源配额/独立账号切换/初始管理员/保留策略待部署确认项；固定代码快照并独立两阶段审查，列清跳过项及真实外部能力未验范围。文件：`docs/OVERSEAS-FULLSTACK-VALIDATION.md`、`docs/OVERSEAS-RELEASE-CHECKLIST.md`、对应审查报告。
+- [x] **25.1 五角色端到端**：真实本地API+独立测试库/桶/队列串联登录、选设计、资料、方案、生图、返工、改派、归档、管理，测试失败/空态/加载及宽窄屏。文件：`frontend/tests/overseas-*.browser.mjs`、`infra/identity-test/phase25_checks.py`。
+- [x] **25.2 隔离与竞争验收**：两个业务凭据互访拒绝、所有文件派生资源授权、事件流越权、并发5上限、失联/重复/取消/改派竞争；一期受影响能力全量回归。文件：`backend/tests/test_overseas_concurrency.py`、`infra/overseas/verify_resources.py`、`infra/identity-test/{phase25_checks,object_restore,database_restore}.py`。
+- [x] **25.3 交付与部署准备**：记录备份恢复/资源配额/独立账号切换/初始管理员/保留策略待部署确认项；固定代码快照并独立两阶段审查，列清跳过项及真实外部能力未验范围。文件：`docs/OVERSEAS-FULLSTACK-VALIDATION.md`、`docs/OVERSEAS-RELEASE-CHECKLIST.md`、对应审查报告。
 
 **验收**：前后端测试、类型/编译构建、真实隔离功能验证及两阶段review全部符合要求；任何跳过项不得算通过；生产部署/生产迁移/真实收费验证需另获授权。
 
@@ -191,7 +193,7 @@ Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-2026101
 - 每个Phase收尾：更新子任务状态、已变文件、测试命令及结果、失败或跳过项、审查报告/candidate、下一步唯一入口。测试/审查未完只能写“进行中未验收”。
 - 独立审查顺序：完成自检→`python .codex/hooks/harness.py review-prepare`→fresh `code-reviewer` 两阶段→修复及复核→`review-approve`→`review-status`。旧前端快照不可覆盖后端改动。
 - 中断交接必须先更新此文档，不依赖聊天摘要、存活子Agent或只存在output里的日志。旧计划 `docs/OVERSEAS-FULLSTACK-PLAN-20261012.md` 只作需求/复用背景，不再维护第二套进度。
-- **下一步唯一入口**：Phase25，按 docs/OVERSEAS-PHASE25-CONTRACT.md 完成全流程、隔离与备份恢复验收，并单独提交。
+- **下一步唯一入口**：海外Phase16–25本地开发已结束。按 docs/OVERSEAS-RELEASE-CHECKLIST.md 做目标环境与真实外部能力验收；实际部署、生产迁移及收费验证需另获授权。
 
 ---
 

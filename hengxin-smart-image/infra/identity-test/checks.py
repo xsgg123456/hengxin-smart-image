@@ -216,6 +216,7 @@ def checks():
 
 
 def main():
+    phase25_validated = False
     identity_env = {'PATH': os.environ['PATH'], 'PYTHONPATH': '/workspace/backend:' + str(DIRECTORY),
         'PYTHONDONTWRITEBYTECODE': '1', 'IDENTITY_REDIS_URL': 'redis://redis:6379/0',
         'IDENTITY_PUBLIC_ORIGIN': ORIGIN, 'IDENTITY_DOMESTIC_SERVICE_KEY': KEYS['domestic'],
@@ -277,6 +278,11 @@ def main():
             from phase24_checks import run as run_management
             run_management(context)
             print('PASS ALL Phase 24 real HTTP integration', flush=True)
+        if '--phase25' in sys.argv:
+            from phase25_checks import run as run_final
+            run_final(context)
+            phase25_validated = True
+            print('PASS ALL Phase 25 cross-phase HTTP', flush=True)
         if '--serve' in sys.argv:
             if PROCESSES['identity'].poll() is not None:
                 start('identity', 'provider_app:app', 8010, identity_env)
@@ -287,14 +293,8 @@ def main():
             while True:
                 time.sleep(1)
     finally:
-        for process in PROCESSES.values():
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=10)
-        for engine in ENGINES.values():
-            engine.dispose()
-        REDIS.close()
+        from shutdown import finish
+        finish(PROCESSES, ENGINES, REDIS, restore_objects=phase25_validated)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': main()

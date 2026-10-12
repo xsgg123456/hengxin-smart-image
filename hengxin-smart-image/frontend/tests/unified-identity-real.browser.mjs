@@ -32,7 +32,9 @@ try {
         await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
         await page.reload()
         await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
-        assert.equal(await page.getByText('提交图需', { exact: true }).count(), 0, '正式入口不挂模拟任务')
+        const member = await (await context.request.get(`${base}/api/overseas/v1/auth/me`)).json()
+        assert.equal(await page.getByRole('menuitem', { name: '提交图需', exact: true }).count(), member.capabilities.includes('task.create') ? 1 : 0)
+        assert.equal(await page.getByRole('radiogroup', { name: '体验角色' }).count(), 0, '正式入口不得出现模拟角色切换')
         await page.getByRole('button', { name: '切换业务', exact: true }).click()
         await overseas.waitFor()
       }

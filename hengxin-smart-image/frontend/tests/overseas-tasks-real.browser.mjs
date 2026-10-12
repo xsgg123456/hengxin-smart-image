@@ -18,7 +18,7 @@ try {
     const member = await (await api(context, 'get', '/auth/me')).json(); sessions[role] = { context, page, member }
     assert.equal(await page.getByRole('menuitem', { name: '提交图需', exact: true }).count(), member.capabilities.includes('task.create') ? 1 : 0)
     assert.equal(await page.getByRole('menuitem', { name: '工作流任务', exact: true }).count(), 1)
-    assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), role === 'admin' ? 1 : 0)
+    assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), member.capabilities.includes('stats.read') ? 1 : 0)
     await page.goto(`${base}/#/overseas/create`)
     await (member.capabilities.includes('task.create') ? button(page, '提交图需') : page.getByText('暂无此功能权限')).waitFor()
   }
