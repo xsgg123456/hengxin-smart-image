@@ -20,14 +20,16 @@ try {
     assert.equal(await page.getByRole('menuitem', { name: '工作流任务', exact: true }).count(), 1)
     assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), role === 'admin' ? 1 : 0)
     await page.goto(`${base}/#/overseas/create`)
-    await (member.capabilities.includes('task.create') ? button(page, '保存图需') : page.getByText('暂无此功能权限')).waitFor()
+    await (member.capabilities.includes('task.create') ? button(page, '提交图需') : page.getByText('暂无此功能权限')).waitFor()
   }
   const { page: creator, context: operator } = sessions.operator, name = `浏览器真实图需-${Date.now()}`
   const input = label => creator.locator('.el-form-item').filter({ has: creator.locator('.el-form-item__label', { hasText: label }) }).locator('input')
   await input('任务名称').fill(name); await input('品名').fill('手机壳'); await input('品牌').fill('HX'); await input('目标站点').fill('美国')
   await creator.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('BROWSER-A'); await button(creator, '添加 SKU').click(); await creator.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('BROWSER-B')
   await creator.getByRole('textbox', { name: '搜索负责设计' }).fill('p18-designer'); await creator.waitForTimeout(400); await choose(creator, '测试成员-p18-designer')
-  await button(creator, '保存图需').click(); await creator.getByRole('heading', { name: '任务信息', exact: true }).waitFor(); const id = creator.url().split('/').pop()
+  assert.equal(await button(creator, '提交图需').isDisabled(), true)
+  await creator.locator('input[type=file][accept=".xls,.xlsx,.csv"]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature\ncase,clear') }); await creator.getByText(/竞品.csv · 解析成功/).waitFor()
+  await button(creator, '提交图需').click(); await creator.getByRole('heading', { name: '任务信息', exact: true }).waitFor(); const id = creator.url().split('/').pop()
   await creator.reload(); await creator.getByText('BROWSER-B', { exact: true }).waitFor(); assert.equal(await button(creator, '改派设计').count(), 0)
   const created = await (await api(operator, 'get', `/tasks/${id}`)).json(); assert.equal(created.skus.length, 2); assert.equal(created.designer.id, sessions.designer.member.id)
   for (const role of roles) {
@@ -48,7 +50,7 @@ try {
   const admin = sessions.admin.context, dualId = sessions.dual.member.id
   const member = await (await api(admin, 'get', `/members/${dualId}`)).json(); restored = member
   assert.equal((await api(admin, 'patch', `/members/${dualId}`, { roles: ['operator', 'designer'], status: 'active', version: member.version })).status(), 200)
-  const dualPage = sessions.dual.page; await dualPage.goto(`${base}/#/overseas/create`); await button(dualPage, '保存图需').waitFor(); const dual = await (await api(sessions.dual.context, 'get', '/auth/me')).json(); assert.ok(dual.capabilities.includes('task.create') && dual.capabilities.includes('task.design'))
+  const dualPage = sessions.dual.page; await dualPage.goto(`${base}/#/overseas/create`); await button(dualPage, '提交图需').waitFor(); const dual = await (await api(sessions.dual.context, 'get', '/auth/me')).json(); assert.ok(dual.capabilities.includes('task.create') && dual.capabilities.includes('task.design'))
   await mkdir('../../output/playwright/phase19', { recursive: true }); await manager.screenshot({ path: '../../output/playwright/phase19/task-real.png', fullPage: true })
   await manager.setViewportSize({ width: 390, height: 844 }); await button(manager, '改派设计').scrollIntoViewIfNeeded(); await manager.waitForTimeout(400); const overflow = await manager.evaluate(() => [...document.querySelectorAll('body *')].map(el => ({ tag: el.tagName, cls: el.className, right: el.getBoundingClientRect().right, width: el.getBoundingClientRect().width })).filter(x => x.right > innerWidth + 1 && x.width > 0)); assert.ok(await manager.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), JSON.stringify(overflow)); await manager.screenshot({ path: '../../output/playwright/phase19/task-real-mobile.png', fullPage: true })
   assert.deepEqual(errors, []); console.log('PASS real HTTP/DB browser: five roles+dual menus/direct links; multi-SKU create/reload; list scope; manager reassignment/audit; old designer immediate denied; new designer readable; 1366/390 screenshots')

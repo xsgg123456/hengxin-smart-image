@@ -33,7 +33,11 @@ def summary(session, task, principal):
             'designer': {'id': str(designer.id), 'name': designer.name,
                          'status': designer.status, 'eligible': eligible(session, designer)},
             'capabilities': [permission for permission in ('task.read', 'task.design', 'task.reassign')
-                             if can_access_task(principal, task.created_by, task.designer_id, permission)]}
+                             if can_access_task(principal, task.created_by, task.designer_id, permission)]
+                            + (['task.materials.submit'] if task.status == 'created'
+                               and scopes(principal.roles, 'task.create')
+                               and (task.created_by == principal.id or 'operator_manager' in principal.roles)
+                               else [])}
 
 
 def detail(session, task_id, actor, lock=False):

@@ -113,7 +113,7 @@ def run(h, fixtures):
         dual = create(clients['p18-dual'], dual_body, 'dual-create')
         h.expect(admin.patch(base + '/tasks/' + dual['id'] + '/assignment', json={
             'designerId': ids['p18-designer'], 'version': 1}, headers={'Idempotency-Key': 'dual-move'}), 200)
-        assert get(clients['p18-dual'], '/tasks/' + dual['id'])['capabilities'] == ['task.read']
+        assert get(clients['p18-dual'], '/tasks/' + dual['id'])['capabilities'] == ['task.read', 'task.materials.submit']
         grant(h, admin, ids['p18-dual'], ['operator'])
         print('PASS Phase19 assignment old/new access stale409 current replay disabled recovery multi-role', flush=True)
 

@@ -51,7 +51,7 @@ def test_create_replay_detail_and_outbox(overseas):
     assert data['name'] == '图需' and data['skus'] == [{'code': 'A'}, {'code': 'B'}]
     assert data['status'] == 'created' and data['version'] == 1
     assert data['createdBy']['id'] == str(actor) and data['designer']['eligible']
-    assert data['capabilities'] == ['task.read']
+    assert data['capabilities'] == ['task.read', 'task.materials.submit']
     assert data['events'][0]['kind'] == 'task.created'
     second = create(client, body)
     assert second.status_code == 200 and second.json() == data

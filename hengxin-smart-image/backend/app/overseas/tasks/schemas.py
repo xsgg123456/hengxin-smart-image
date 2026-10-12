@@ -23,6 +23,14 @@ class CreateTask(StrictBody):
     remarks: str = Field(default='', max_length=1000)
     skus: list[Sku] = Field(min_length=1, max_length=100)
     designerId: UUID
+    materialIds: list[UUID] | None = Field(default=None, min_length=1, max_length=2)
+
+    @field_validator('materialIds')
+    @classmethod
+    def unique_materials(cls, values):
+        if values is None or len(set(values)) != len(values):
+            raise ValueError('请提供一至两份不同资料，或省略资料字段')
+        return values
 
     @field_validator('platform', mode='before')
     @classmethod

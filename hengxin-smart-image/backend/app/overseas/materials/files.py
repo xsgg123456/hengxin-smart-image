@@ -1,0 +1,96 @@
+from hashlib import sha256
+from urllib.parse import quote
+from uuid import uuid4
+from fastapi import HTTPException
+from app.core.config import get_settings
+from app.db.timestamps import utcnow
+from app.modules.files.delivery import FileDelivery
+from app.modules.files.streaming import OwnedStreamResponse
+from app.overseas.tasks.service import lock_actor
+from .models import Material
+from . import parsers, service
+
+MAX_BYTES = 20 * 1024 * 1024
+
+
+def save_upload(session, store, actor, data, filename, kind):
+    name, content_type = parsers.validate_document(data, filename, kind)
+    actor = lock_actor(session, actor, 'task.create')
+    identifier = uuid4()
+    record = Material(id=identifier, owner_id=actor.id, kind=kind, name=name,
+                      bucket=get_settings().minio_bucket, object_key=f'materials/{identifier}',
+                      content_type=content_type, size_bytes=len(data), checksum=sha256(data).hexdigest(),
+                      status='staging', version=0)
+    session.add(record)
+    session.commit()
+    try:
+        store.put(record, data)
+    except Exception:
+        record.status = 'failed'
+        session.commit()
+        raise HTTPException(503, '资料存储暂时不可用，请重新上传') from None
+    # Revalidate after the staging commit before making the document visible.
+    lock_actor(session, actor, 'task.create')
+    record.status = 'ready'
+    service.parse_revision(session, record, data)
+    result = service.describe(session, record)
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        # Commit may already have succeeded: keep the original object.
+        raise HTTPException(503, '资料记录保存失败，请刷新后重试') from None
+    return result
+
+
+def retry(session, store, actor, material_id):
+    actor = lock_actor(session, actor, 'task.create')
+    record = service.find(session, material_id, lock=True)
+    service.owned(session, record, actor)
+    stream = None
+    try:
+        stream = store.open(FileDelivery.capture(record))
+        data = stream.read(MAX_BYTES + 1)
+    except Exception:
+        raise HTTPException(503, '资料暂时不可读取，请稍后重试') from None
+    finally:
+        if stream is not None:
+            try:
+                stream.close()
+            finally:
+                stream.release_conn()
+    if len(data) != record.size_bytes or sha256(data).hexdigest() != record.checksum:
+        raise HTTPException(503, '原件完整性校验失败，请联系管理员')
+    service.parse_revision(session, record, data)
+    result = service.describe(session, record)
+    session.commit()
+    return result
+
+
+def delete(session, store, actor, material_id):
+    actor = lock_actor(session, actor, 'task.create')
+    record = service.find(session, material_id, lock=True, deleted=True)
+    service.owned(session, record, actor)
+    record.deleted_at = record.deleted_at or utcnow()
+    delivery = FileDelivery.capture(record)
+    # Tombstone commit happens before deleting storage; never delete after an unknown commit.
+    session.commit()
+    try:
+        store.remove(delivery)
+    except Exception:
+        raise HTTPException(503, '资料已隐藏，原件清理失败，请再次删除重试') from None
+
+
+def content(session, store, actor, material_id, download):
+    record = FileDelivery.capture(service.readable(session, material_id, actor))
+    session.close()
+    try:
+        stream = store.open(record)
+    except Exception:
+        raise HTTPException(503, '资料暂时不可读取，请稍后重试') from None
+    disposition = 'inline' if record.content_type == 'application/pdf' and not download else 'attachment'
+    return OwnedStreamResponse(stream, media_type=record.content_type, headers={
+        'Content-Length': str(record.size_bytes),
+        'Content-Disposition': f"{disposition}; filename=\"document\"; filename*=UTF-8''{quote(record.name, safe='')}",
+        'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
+    })

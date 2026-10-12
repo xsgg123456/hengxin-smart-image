@@ -3,7 +3,7 @@
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
     <div class="layout-content"><div class="hx-page">
       <div v-if="!taskPage" class="hx-heading"><div><h1>{{ managing ? '用户与角色' : '海外业务' }}</h1><p>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
-      <OverseasTasksPage v-if="taskPage" :api="tasksAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+      <OverseasTasksPage v-if="taskPage" :api="tasksAdapter" :materials-api="materialsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasMembers v-else-if="managing && allowed" :key="refreshKey" :adapter="adapter" @failure="fail" />
       <ElCard v-else class="art-card"><h2>企业身份已连接</h2><p class="hx-gap">当前海外角色：{{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p><ElAlert v-if="managing" title="暂无成员管理权限" type="warning" :closable="false" /><ElButton v-if="allowed" type="primary" class="hx-gap" @click="router.push('/overseas/admin/users')">用户与角色</ElButton></ElCard>
     </div></div>
@@ -21,6 +21,7 @@ import type { AppRouteRecord } from '@/types/router'
 import OverseasShell from './OverseasShell.vue'
 import OverseasMembers from './admin/OverseasMembers.vue'
 import OverseasTasksPage from './OverseasTasksPage.vue'
+import { createMaterialsApi, type MaterialsApi } from '@/api/overseas/materials'
 import { createTasksApi, type TasksApi } from '@/api/overseas/tasks'
 const props = defineProps<{ member: Member }>()
 const emit = defineEmits<{ switch: []; logout: []; member: [member: Member]; failure: [reason: unknown] }>()
@@ -86,8 +87,18 @@ const tasksAdapter: TasksApi = {
   async list(query) { await taskAuthorize('task.read'); return tasksApi.list(query) },
   async get(id) { await taskAuthorize('task.read'); return tasksApi.get(id) },
   async create(draft, key) { await taskAuthorize('task.create'); return tasksApi.create(draft, key) },
+  async submitMaterials(id, ids, version, key) { await taskAuthorize('task.create'); return tasksApi.submitMaterials(id, ids, version, key) },
   async assign(id, designerId, version, key) { await taskAuthorize('task.reassign'); return tasksApi.assign(id, designerId, version, key) },
   async designers(query) { await taskAuthorize(route.path === '/overseas/create' ? 'task.create' : 'task.reassign'); return tasksApi.designers(query) }
+}
+const materialsApi = createMaterialsApi()
+const materialsAdapter: MaterialsApi = {
+  async upload(file, kind, progress, signal) { await taskAuthorize('task.create'); return materialsApi.upload(file, kind, progress, signal) },
+  async get(id) { await taskAuthorize('task.read'); return materialsApi.get(id) },
+  async list(id) { await taskAuthorize('task.read'); return materialsApi.list(id) },
+  async retry(id) { await taskAuthorize('task.create'); return materialsApi.retry(id) },
+  async remove(id) { await taskAuthorize('task.create'); return materialsApi.remove(id) },
+  async content(id, download, signal) { await taskAuthorize('task.read'); return materialsApi.content(id, download, signal) }
 }
 watch(() => useSettingStore().refresh, () => { refreshKey.value++ })
 onUnmounted(() => { active = false; menus.setMenuList([]); tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = [] })

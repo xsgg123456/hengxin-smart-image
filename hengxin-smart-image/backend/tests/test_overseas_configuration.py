@@ -145,7 +145,9 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     original_import = builtins.__import__
 
     def forbid_domestic_imports(name, *args, **kwargs):
-        assert not name.startswith(('app.main', 'app.health', 'app.jobs', 'app.modules'))
+        shared_files = {'app.modules.files.delivery', 'app.modules.files.streaming',
+                        'app.modules.files.multipart', 'app.modules.files.validation'}
+        assert name in shared_files or not name.startswith(('app.main', 'app.health', 'app.jobs', 'app.modules'))
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, '__import__', forbid_domestic_imports)
@@ -159,6 +161,9 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/members/{member_id}/audit',
         '/api/overseas/v1/tasks', '/api/overseas/v1/tasks/{task_id}',
         '/api/overseas/v1/tasks/{task_id}/assignment', '/api/overseas/v1/task-designers',
+        '/api/overseas/v1/materials', '/api/overseas/v1/materials/{material_id}',
+        '/api/overseas/v1/materials/{material_id}/content', '/api/overseas/v1/materials/{material_id}/retry',
+        '/api/overseas/v1/tasks/{task_id}/materials',
     }
 
     @app.get('/test-internal-error', include_in_schema=False)

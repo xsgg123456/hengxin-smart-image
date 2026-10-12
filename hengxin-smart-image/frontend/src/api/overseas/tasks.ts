@@ -1,7 +1,7 @@
 import { createIdentityRequest, record, IdentityError } from '../identity/request'
 import { STATUS_LABELS } from '../../views/overseas/types'
-export const taskStatuses = { created: '图需已保存', ...STATUS_LABELS }
-export interface TaskDraft { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[]; designerId: string }
+export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', ...STATUS_LABELS }
+export interface TaskDraft { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[]; designerId: string; materialIds?: string[] }
 export interface TaskSummary extends Omit<TaskDraft, 'designerId'> {
   id: string; status: keyof typeof taskStatuses; version: number; createdAt: string; updatedAt: string
   createdBy: { id: string; name: string }; designer: { id: string; name: string; status: string; eligible: boolean }; capabilities: string[]
@@ -15,6 +15,7 @@ export interface TasksApi {
   list(query: TaskQuery): Promise<Page<TaskSummary>>
   get(id: string): Promise<TaskDetail>
   create(draft: TaskDraft, key: string): Promise<TaskDetail>
+  submitMaterials(id: string, materialIds: string[], version: number, key: string): Promise<TaskDetail>
   assign(id: string, designerId: string, version: number, key: string): Promise<TaskDetail>
   designers(query: { search: string; page: number; pageSize: number }): Promise<Page<Designer>>
 }
@@ -39,8 +40,8 @@ function pageOf<T>(guard: (v: unknown) => v is T) {
 }
 export function taskError(reason: unknown) {
   if (reason instanceof IdentityError) {
-    if (reason.status === 409) return '任务已发生变化，请刷新后重新选择设计。'
-    if (reason.status === 422) return '图需信息或设计人选不符合要求，请检查后重试。'
+    if (reason.status === 409) return '任务或资料已发生变化，请刷新后重试。'
+    if (reason.status === 422) return '图需信息、资料或设计人选不符合要求，请检查后重试。'
     if (reason.status === 404) return '任务不存在或已不可访问。'
   }
   return reason instanceof Error ? reason.message : '请求失败，请重试'
@@ -51,13 +52,14 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
     list: query => request(base, pageOf(isTask), undefined, { params: { ...query } }),
     get: id => request(`${base}/${encodeURIComponent(id)}`, isTaskDetail),
     create: (draft, key) => request(base, isTaskDetail, cleanDraft(draft), { idempotencyKey: key }),
+    submitMaterials: (id, materialIds, version, key) => request(`${base}/${encodeURIComponent(id)}/materials`, isTaskDetail, { materialIds, version }, { idempotencyKey: key }),
     assign: (id, designerId, version, key) => request(`${base}/${encodeURIComponent(id)}/assignment`, isTaskDetail, { designerId, version }, { method: 'PATCH', idempotencyKey: key }),
     designers: query => request('/api/overseas/v1/task-designers', pageOf((v): v is Designer => record(v) && person(v) && text(v.department)), undefined, { params: { ...query } })
   }
 }
 export function emptyTaskDraft(): TaskDraft { return { name: '', productName: '', brand: '', platform: 'Amazon', market: '', remarks: '', skus: [{ code: '' }], designerId: '' } }
 export function cleanDraft(d: TaskDraft): TaskDraft {
-  return { name: d.name.trim(), productName: d.productName.trim(), brand: d.brand.trim(), platform: d.platform.trim(), market: d.market.trim(), remarks: d.remarks.trim(), skus: d.skus.map(s => ({ code: s.code.trim() })), designerId: d.designerId }
+  return { name: d.name.trim(), productName: d.productName.trim(), brand: d.brand.trim(), platform: d.platform.trim(), market: d.market.trim(), remarks: d.remarks.trim(), skus: d.skus.map(s => ({ code: s.code.trim() })), designerId: d.designerId, ...(d.materialIds ? { materialIds: [...d.materialIds] } : {}) }
 }
 export function validateDraft(d: TaskDraft) {
   if (![d.name, d.productName, d.brand, d.platform, d.market, d.designerId].every(v => v.trim())) throw Error('请填写必填信息并指定设计')

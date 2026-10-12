@@ -83,7 +83,7 @@ def test_old_designer_loses_access_or_only_retains_creator_read(overseas, creato
     result = client.get(ROOT + '/tasks/' + task['id'])
     assert result.status_code == (200 if creator_role else 403)
     if creator_role:
-        assert result.json()['capabilities'] == ['task.read']
+        assert result.json()['capabilities'] == ['task.read', 'task.materials.submit']
 
 
 def test_disabled_current_designer_can_be_replaced(overseas):

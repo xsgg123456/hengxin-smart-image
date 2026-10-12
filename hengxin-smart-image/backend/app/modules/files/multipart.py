@@ -16,11 +16,12 @@ class BodyTooLarge(MultiPartException):
     pass
 
 
-async def parse_upload(request: Request, limit=MAX_UPLOAD_BYTES):
+async def parse_upload(request: Request, limit=MAX_UPLOAD_BYTES, *, maximum=MAX_UPLOAD_BYTES, label='图片'):
     """Called only after identity dependencies; cap actual bytes even without a length."""
     if request.headers.get('content-type', '').split(';', 1)[0].strip().lower() != 'multipart/form-data':
-        raise HTTPException(422, '请使用 multipart/form-data 上传图片')
-    body_limit = min(limit, MAX_UPLOAD_BYTES) + 64 * 1024
+        raise HTTPException(422, f'请使用 multipart/form-data 上传{label}')
+    limit = min(limit, maximum)
+    body_limit = limit + 64 * 1024
     length = request.headers.get('content-length')
     if length is not None:
         try:
@@ -30,7 +31,7 @@ async def parse_upload(request: Request, limit=MAX_UPLOAD_BYTES):
         if size < 0:
             raise HTTPException(422, '无效的请求长度')
         if size > body_limit:
-            raise HTTPException(413, f'单张图片不能超过 {limit / 1024**2:g} MiB')
+            raise HTTPException(413, f'单个{label}不能超过 {limit / 1024**2:g} MiB')
 
     async def bounded_stream():
         total = 0
@@ -43,11 +44,11 @@ async def parse_upload(request: Request, limit=MAX_UPLOAD_BYTES):
     try:
         form = await MultiPartParser(request.headers, bounded_stream(), max_files=1, max_fields=0).parse()
     except BodyTooLarge:
-        raise HTTPException(413, f'单张图片不能超过 {limit / 1024**2:g} MiB') from None
+        raise HTTPException(413, f'单个{label}不能超过 {limit / 1024**2:g} MiB') from None
     except (MultiPartException, ValueError):
-        raise HTTPException(422, '请上传一个完整的图片文件') from None
+        raise HTTPException(422, f'请上传一个完整的{label}文件') from None
     file = form.get('file')
     if len(form.multi_items()) != 1 or not isinstance(file, UploadFile):
         await form.close()
-        raise HTTPException(422, '缺少图片文件 file')
+        raise HTTPException(422, f'缺少{label}文件 file')
     return form, file

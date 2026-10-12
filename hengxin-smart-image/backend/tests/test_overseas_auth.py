@@ -17,6 +17,8 @@ from app.db.timestamps import utcnow
 from app.overseas.auth.models import BusinessSession, Member, MemberRole
 from app.overseas.auth.sessions import COOKIE_PATH, SESSION_COOKIE
 from app.overseas.db import Base
+from app.overseas.materials import models as material_models  # noqa: F401
+from app.overseas.tasks import models as task_models  # noqa: F401
 from test_overseas_configuration import FAKE_OVERSEAS
 
 HEADERS = {'X-HX-Request': '1'}

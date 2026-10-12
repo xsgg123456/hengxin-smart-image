@@ -43,6 +43,10 @@ def environment(kind):
                   LOCAL_SKILL_ROOT='/tmp/local-skills', IDENTITY_SERVICE_URL=ID,
                   IDENTITY_PUBLIC_ORIGIN=ORIGIN, IDENTITY_SERVICE_KEY=KEYS[kind])
     env.update({prefix + k: v for k, v in values.items()})
+    if '--phase20' in sys.argv:
+        env.update({prefix + k: v for k, v in dict(
+            MINIO_ENDPOINT=kind + '-minio:9000', MINIO_ACCESS_KEY=kind + '-test',
+            MINIO_SECRET_KEY=kind + '-phase20-test-only', MINIO_BUCKET=kind + '-test').items()})
     return env
 
 
@@ -229,7 +233,7 @@ def main():
             with ENGINES[kind].connect() as connection:
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
-                assert version == ('overseas_0004' if kind == 'overseas' else '0027'), version
+                assert version == ('overseas_0005' if kind == 'overseas' else '0027'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)
@@ -239,7 +243,7 @@ def main():
         start('overseas', 'app.overseas.main:app', 8009, environment('overseas'))
         checks()
         print('PASS ALL Phase 17 real HTTP integration', flush=True)
-        if '--phase18' in sys.argv or '--phase19' in sys.argv:
+        if any(flag in sys.argv for flag in ('--phase18', '--phase19', '--phase20')):
             start('identity', 'provider_app:app', 8010, identity_env)
             from phase18_fixtures import prepare
             from phase18_checks import run
@@ -247,10 +251,14 @@ def main():
             fixtures = prepare(context)
             run(context, fixtures)
             print('PASS ALL Phase 18 real HTTP integration', flush=True)
-        if '--phase19' in sys.argv:
+        if '--phase19' in sys.argv or '--phase20' in sys.argv:
             from phase19_checks import run as run_tasks
             run_tasks(context, fixtures)
             print('PASS ALL Phase 19 real HTTP integration', flush=True)
+        if '--phase20' in sys.argv:
+            from phase20_checks import run as run_materials
+            run_materials(context)
+            print('PASS ALL Phase 20 real HTTP integration', flush=True)
         if '--serve' in sys.argv:
             if PROCESSES['identity'].poll() is not None:
                 start('identity', 'provider_app:app', 8010, identity_env)

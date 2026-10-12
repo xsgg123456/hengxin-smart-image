@@ -22,7 +22,8 @@ def require_designer(session, designer_id):
 
 def record_change(session, task, actor, kind, before=None):
     event = TaskEvent(task_id=task.id, kind=kind, actor_id=actor.id, actor_name=actor.name,
-                      title='保存图需' if kind == 'task.created' else '改派设计',
+                      title={'task.created': '提交图需' if task.status == 'submitted' else '保存图需', 'task.assigned': '改派设计',
+                             'task.materials_submitted': '提交资料'}[kind],
                       before_designer_id=before, after_designer_id=task.designer_id, version=task.version)
     session.add(event)
     session.flush()
@@ -38,7 +39,8 @@ def request_record(session, actor, operation, target, key, body_hash, task):
 
 def create_task(session, actor, body, key):
     actor = lock_actor(session, actor, 'task.create')
-    body_hash = fingerprint_payload(body.model_dump(mode='json'))
+    # Keep Phase19 request hashes replayable when materialIds was omitted.
+    body_hash = fingerprint_payload(body.model_dump(mode='json', exclude_none=True))
     previous = lookup_request(session, TaskRequest, actor.id, 'create', '', key, body_hash)
     if previous:
         result = detail(session, previous.task_id, actor, lock=True)
@@ -52,6 +54,9 @@ def create_task(session, actor, body, key):
     session.flush()
     session.add_all([TaskSku(task_id=task.id, code=item.code, code_key=item.code.casefold(), position=i)
                      for i, item in enumerate(body.skus)])
+    if body.materialIds is not None:
+        from app.overseas.materials.service import bind
+        bind(session, actor, task, body.materialIds)
     record_change(session, task, actor, 'task.created')
     request_record(session, actor, 'create', '', key, body_hash, task)
     session.flush()

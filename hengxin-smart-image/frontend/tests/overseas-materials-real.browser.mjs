@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdir } from 'node:fs/promises'
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3015', headers = { 'X-HX-Request': '1', Origin: base }
+assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
+const browser = await chromium.launch({ headless: true, channel: 'chromium' }), sessions = {}, errors = []
+const button = (page, name) => page.getByRole('button', { name, exact: true })
+async function api(context, method, path, data, key) { return context.request[method](`${base}/api/overseas/v1${path}`, { headers: { ...headers, ...(key ? { 'Idempotency-Key': key } : {}) }, data }) }
+async function upload(page, name, content, kind = 'competitor') { await page.locator(`input[type=file][accept="${kind === 'competitor' ? '.xls,.xlsx,.csv' : '.pdf,.docx'}"]`).setInputFiles({ name, mimeType: kind === 'competitor' ? 'text/csv' : 'application/pdf', buffer: Buffer.from(content) }) }
+async function unclipped(locator) {
+  await locator.scrollIntoViewIfNeeded()
+  const failures = await locator.evaluate(el => { const b = el.getBoundingClientRect(), out = []; for (let p = el.parentElement; p; p = p.parentElement) { const r = p.getBoundingClientRect(), s = getComputedStyle(p); if (/(auto|scroll|hidden|clip)/.test(s.overflowX) && (b.left < r.left - 1 || b.right > r.right + 1)) out.push(`${p.className}:x`); if (/(auto|scroll|hidden|clip)/.test(s.overflowY) && (b.top < r.top - 1 || b.bottom > r.bottom + 1)) out.push(`${p.className}:y`) } return out })
+  assert.deepEqual(failures, [])
+}
+try {
+  for (const role of ['operator', 'operator_manager', 'designer', 'design_manager', 'admin', 'operator2', 'designer2']) {
+    const context = await browser.newContext({ viewport: { width: 1366, height: 900 } })
+    assert.equal((await context.request.post(`${base}/api/identity/v1/dingtalk/container`, { headers, data: { code: `${role.endsWith('2') ? 'p19' : 'p18'}-${role}` } })).status(), 200)
+    const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.goto(`${base}/#/overseas`); await page.getByRole('heading', { name: '企业身份已连接' }).waitFor()
+    sessions[role] = { context, page, member: await (await api(context, 'get', '/auth/me')).json() }
+  }
+  const { page, context } = sessions.operator
+  const draft = { name: `资料补充-${Date.now()}`, productName: '手机壳', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'P20-A' }], designerId: sessions.designer.member.id }
+  const metadata = await api(context, 'post', '/tasks', draft, crypto.randomUUID()); assert.equal(metadata.status(), 201); const task = await metadata.json(); assert.equal(task.status, 'created')
+  await page.goto(`${base}/#/overseas/tasks/${task.id}`); await button(page, '提交补充资料').waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), true)
+  await upload(page, '旧资料.doc', 'legacy', 'requirement'); await page.getByText('暂不支持 DOC，请另存为 DOCX 或 PDF 后上传', { exact: true }).waitFor()
+  await upload(page, '损坏.pdf', '%PDF-1.4 broken', 'requirement'); await page.getByText(/损坏.pdf · 解析失败/).waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), true)
+  await button(page, '重试解析').click(); await page.getByText(/损坏.pdf · 解析失败 · 第 2 版/).waitFor()
+  await button(page, '预览资料').click(); await page.getByRole('dialog', { name: '图需资料预览' }).waitFor(); await page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: '解析版本' }) }).click(); await page.getByRole('option', { name: /第 1 版/ }).click(); await button(page, '关闭').click()
+  await button(page, '移除资料').click(); await button(page, '取消').click(); assert.equal(await page.getByText(/损坏.pdf · 解析失败/).count(), 1)
+  await button(page, '移除资料').click(); await button(page, '确认移除').click(); await page.getByText(/损坏.pdf · 解析失败/).waitFor({ state: 'detached' })
+  const pdf = execFileSync(process.env.PYTHON_EXE || (process.platform === 'win32' ? '../backend/.venv/Scripts/python.exe' : '../backend/.venv/bin/python'), ['-c', 'from tests.test_overseas_material_parsers import pdf; import sys; sys.stdout.buffer.write(pdf("Actual requirements for browser PDF preview"))'], { cwd: '../backend' })
+  await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '真实图需.pdf', mimeType: 'application/pdf', buffer: pdf }); await page.getByText(/真实图需.pdf · 解析成功/).waitFor()
+  await button(page, '预览资料').click(); await page.locator('.material-text').getByText('Actual requirements', { exact: false }).waitFor(); const opened = page.waitForEvent('popup'); await button(page, '预览原件').click(); const pdfPage = await opened
+  await pdfPage.waitForURL('blob:**'); await pdfPage.waitForTimeout(1500)
+  const viewer = pdfPage.frames().find(frame => frame.url().startsWith('chrome-extension://'))
+  assert.ok(viewer, '原件应加载Chromium原生PDF查看器')
+  await viewer.locator('embed').waitFor()
+  assert.equal(await viewer.locator('pdf-viewer').evaluate(el => el.documentDimensions?.pageDimensions?.length), 1, 'PDF查看器应成功解析1页原件')
+  assert.equal(await pdfPage.evaluate(() => window.opener), null)
+  await mkdir('../../output/playwright/phase20', { recursive: true }); await pdfPage.screenshot({ path: '../../output/playwright/phase20/pdf-preview.png', fullPage: true })
+  await button(page, '关闭').click(); assert.equal(pdfPage.isClosed(), true)
+  await upload(page, '竞品.csv', 'product,feature\nCase,<script>alert(1)</script>'); await page.getByText(/竞品.csv · 解析成功/).waitFor()
+  await button(page, '预览资料').first().click(); await page.getByRole('tab', { name: '竞品分析表格' }).click(); await page.locator('.material-text').getByText('<script>alert(1)</script>', { exact: false }).waitFor()
+  const download = page.waitForEvent('download'); await page.getByRole('tabpanel', { name: '竞品分析表格' }).getByRole('button', { name: '下载原件' }).click(); assert.equal((await download).suggestedFilename(), '竞品.csv'); await button(page, '关闭').click()
+  await button(page, '提交补充资料').click(); await page.getByText('图需已提交', { exact: true }).waitFor(); assert.equal(await button(page, '移除资料').count(), 0)
+  const materials = await (await api(context, 'get', `/tasks/${task.id}/materials`)).json(); assert.equal(materials.length, 2); const id = materials.find(m => m.kind === 'competitor').id
+  assert.equal((await api(context, 'delete', `/materials/${id}`)).status(), 409)
+  assert.equal((await api(context, 'post', `/materials/${id}/retry`, {})).status(), 409)
+  for (const role of Object.keys(sessions)) {
+    const allowed = !['operator2', 'designer2'].includes(role), result = await api(sessions[role].context, 'get', `/materials/${id}/content`)
+    assert.equal(result.status(), allowed ? 200 : 403, role)
+  }
+  const assignment = await api(sessions.design_manager.context, 'patch', `/tasks/${task.id}/assignment`, { designerId: sessions.designer2.member.id, version: 2 }, crypto.randomUUID()); assert.equal(assignment.status(), 200)
+  assert.equal((await api(sessions.designer.context, 'get', `/materials/${id}/content`)).status(), 403)
+  assert.equal((await api(sessions.designer2.context, 'get', `/materials/${id}/content`)).status(), 200)
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(500); await button(page, '预览资料').first().scrollIntoViewIfNeeded(); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+  await unclipped(page.getByText(/真实图需.pdf · 解析成功/)); await unclipped(page.getByText(/竞品.csv · 解析成功/)); await unclipped(button(page, '预览资料').first());
+  await mkdir('../../output/playwright/phase20', { recursive: true }); await page.screenshot({ path: '../../output/playwright/phase20/materials-real-mobile.png', fullPage: true })
+  assert.deepEqual(errors, []); console.log('PASS real materials: DOC refusal; failed PDF/retry versions; delete confirmation; actual PDF native viewer/no opener/close cleanup; CSV parse/text-safe/download; metadata supplement; frozen binding; five-role and reassignment authorization; narrow UI')
+} catch (error) { if (sessions.operator) console.error(await sessions.operator.page.locator('body').innerText()); throw error } finally { await browser.close() }

@@ -1,7 +1,7 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 19 已完成本地验收。** 图需任务、多SKU、必选设计、范围查询及版本改派已接真实海外API。下一步执行Phase20资料上传、解析与文件授权；不跳过已有开发计划。验收后自行本地Git提交，不部署、不推送。
+> **当前状态：Phase 20 已完成本地验收。** 真实资料上传、解析版本、原件预览、任务绑定及权限隔离已接通；后端1926项、前端270项及独立两阶段审查通过。下一步 Phase21 海外CLI调度；验收后自行本地Git提交，不部署、不推送。
 
 > **Phase19验收证据**：后端1870通过/17项既有宿主条件跳过；前端264项、类型、正式/预览构建、正式提交依赖隔离构建均通过。真实PG并发/迁移、三API两库HTTP、五角色/兼任/故障/窄屏和预览回归通过。最终独立Stage1/Stage2均PASS，快照 `f8ee28817724abffbbb55bbb9d5bbf107b65407a1e6abfe37a5b008be3269117`；证据 `docs/OVERSEAS-PHASE19-VALIDATION-20261012.md`，审查 `docs/reviews/OVERSEAS-PHASE19-REVIEW-SNAPSHOT-20261012.md`。
 
@@ -64,7 +64,7 @@
 | 17 | T2 | 统一身份与双业务会话 | 已完成本地验收 | 16 |
 | 18 | T3 | 五角色与海外成员管理 | 已完成本地验收 | 17 |
 | 19 | T4 | 图需任务、指定设计与改派 | 已完成本地验收 | 18 |
-| 20 | T5 | 资料上传、解析与文件授权 | 未开始 | 18；最终关联验证依赖19 |
+| 20 | T5 | 资料上传、解析与文件授权 | 已完成本地验收 | 18；最终关联验证依赖19 |
 | 21 | T6 | CLI 调度与海外独立5并发 | 未开始 | 19、20 |
 | 22 | T7 | 排版方案分析、修改与确认 | 未开始 | 21 |
 | 23 | T8 | 生图、返工、审核与归档 | 未开始 | 22 |
@@ -115,13 +115,17 @@
 
 ## Phase 20：资料上传、解析与文件授权
 
+实施合同、接口与有序验收以 [Phase20合同](docs/OVERSEAS-PHASE20-CONTRACT.md) 为准；原件与解析版本独立保存，资料提交不冒充AI执行。
+
 **目标**：真实资料可上传、解析、预览，并且任何访问都经过海外任务权限检查。
 
-- [ ] **20.1 海外文件服务**：复用 `modules/files` 的验证、流式传输和 `MinioStore`，注入海外记录/授权；上传所有权、未绑定资料与任务绑定在后端校验，禁止任意关联他人文件。文件：`app/overseas/materials/{models,files,router}.py`、公共文件方法必要适配、海外迁移。
-- [ ] **20.2 解析与版本**：图需PDF/DOC/DOCX、竞品XLS/XLSX/CSV按已有前端范围处理，先核查可复用解析能力；不支持的内容明确拒绝，不伪造成功。保存原件与解析版本，内容作为数据不作执行指令。文件：`app/overseas/materials/{parsers,service}.py`、`tests/test_overseas_materials.py`。
-- [ ] **20.3 资料前端与任务联调**：现有ElUpload/MaterialPreview改接真实上传进度、解析失败/重试/删除及原文件预览；至少一份有效资料才能进入分析。文件：`src/api/overseas/materials.ts`、`views/overseas/{OverseasCreate,OverseasMaterialPreview}.vue`。
+- [x] **20.1 海外文件服务**：复用 `modules/files` 的验证、流式传输和 `MinioStore`，注入海外记录/授权；上传所有权、未绑定资料与任务绑定在后端校验，禁止任意关联他人文件。文件：`app/overseas/materials/{models,files,router}.py`、公共文件方法必要适配、海外迁移。
+- [x] **20.2 解析与版本**：图需PDF/DOC/DOCX、竞品XLS/XLSX/CSV按已有前端范围处理，先核查可复用解析能力；不支持的内容明确拒绝，不伪造成功。保存原件与解析版本，内容作为数据不作执行指令。文件：`app/overseas/materials/{parsers,service}.py`、`tests/test_overseas_materials.py`。
+- [x] **20.3 资料前端与任务联调**：现有ElUpload/MaterialPreview改接真实上传进度、解析失败/重试/删除及原文件预览；至少一份有效资料才能进入分析。文件：`src/api/overseas/materials.ts`、`views/overseas/{OverseasCreate,OverseasMaterialPreview}.vue`。
 
 **验收**：类型/大小/空文件/解析失败处理；一份或两份资料均可；跨业务及跨任务读取/下载/缩略图/关联拒绝；删除不误伤已引用文件；一期文件回归通过。
+
+Phase20验收记录：[验证与边界](docs/OVERSEAS-PHASE20-VALIDATION-20261012.md)、[独立两阶段审查](docs/reviews/OVERSEAS-PHASE20-REVIEW-20261012.md)。
 
 ## Phase 21：CLI调度与海外独立5并发
 
