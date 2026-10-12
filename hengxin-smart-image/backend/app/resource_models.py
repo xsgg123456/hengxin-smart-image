@@ -6,11 +6,7 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, U
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base, utcnow
-
-
-class Timestamps:
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+from app.db.timestamps import Timestamps
 
 
 class UserRecord(Timestamps, Base):

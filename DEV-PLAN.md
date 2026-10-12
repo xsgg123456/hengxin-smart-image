@@ -1,18 +1,19 @@
 # 当前开发入口：海外二期（2026-10-12）
 
 > **新窗口先读本节，再执行下一步。** 本节是海外二期正式开发进度的唯一入口；下方一期及预览历史记录保留，不代表海外正式能力已完成。海外使用 Phase 16–25，承接一期 Phase 1–15。原 T1–T10 与这十个 Phase 顺序对应。
-> **当前状态：Phase 16 已验收，按用户授权完成本地 Git 提交。** 16.1配置入口、16.2独立迁移、16.3运行资源与就绪检查均通过测试与独立两阶段审查。下一步是 Phase 17，先读17.1与现有认证代码，不重做Phase16或前端预览。提交记录通过 `git log --grep="完成海外独立运行与资源隔离基础" -1` 查询。
+> **当前状态：Phase 17 已完成本地验收。** 17.1统一身份解耦、17.2双业务独立会话、17.3正式双入口均完成；真实本地API/浏览器联调、一期回归及独立两阶段审查通过。下一步唯一入口为Phase18五角色与海外成员管理。真实钉钉及生产部署未验收；Phase16提交5e12c1e。
 
 ## 新窗口交接与当前事实
 
 - 工作区：`D:/Work_Project/hengxin-smart-image`。代码根目录：`hengxin-smart-image/`；下文 `backend/`、`frontend/`、`infra/` 均相对此目录。
 - **前端模拟预览已完成并曾通过审查**：统一登录样式、双业务入口、无颜色 SKU、六节点工作流和海外管理五页。证据：`docs/OVERSEAS-FRONTEND-REVISION-VALIDATION-20261012.md`、`docs/OVERSEAS-FRONTEND-REVISION-REVIEW-20261012.md`；当时 250 项前端测试、双构建、5+4+5 组浏览器验证通过。这些只证明当时的模拟前端，不能证明正式后端或本次新增配置代码已通过。
 - **预览仍需跟进**：现有模拟角色只有管理员/运营/设计，尚未实现正式五角色、多角色兼任、提交必选设计和真实业务会话；不得把预览管理员映射运营的体验逻辑带入正式授权。
-- **Phase 16 已验收**：配置草稿已核查并续建独立数据库迁移、Compose资源、最小权限初始化、只读就绪探测；数据库/桶/Redis的双向凭据拒绝与依赖故障恢复均在独立临时环境实测。身份授权、业务API与Worker仍属于后续Phase。
-- **本轮证据**：后端全套1703通过/17跳过、前端250通过、类型检查通过、实际镜像构建成功、浏览器5+4+5组通过；独立审查复跑77项通过。详见 `docs/OVERSEAS-PHASE16-VALIDATION-20261012.md`。旧中断日志和首轮PID1测试容器失败不作为完成依据。
-- **审查凭据**：本轮候选快照 `2b819922af2b0630eee81560cbb10b047a297121abbc956f2395d6ea91f1cae8`；Stage 1 / Stage 2 均 PASS，报告 `docs/OVERSEAS-PHASE16-REVIEW-20261012.md`，通过review-approve登记本轮凭据；原前端快照不能替代本轮后端审查。
+- **Phase 16 已验收**：配置草稿已核查并续建独立数据库迁移、Compose资源、最小权限初始化、只读就绪探测；数据库/桶/Redis的双向凭据拒绝与依赖故障恢复均在独立临时环境实测。其中身份授权已在Phase17接通，业务API与Worker仍属于后续Phase。
+- **Phase 17 本轮证据**：后端完整回归1732通过/17个既有宿主条件跳过，前端258通过、类型与正式构建通过、后端镜像构建通过；真实三API/两库/Redis及四授权组合浏览器通过，既有预览5+4+5组通过。详见 `docs/OVERSEAS-PHASE17-VALIDATION-20261012.md`、`docs/OVERSEAS-PHASE17-INTEGRATION.md`；Phase16证据单独保留。
+- **Phase 17 审查凭据**：最终快照 `33d8fc0bc27548f2806c57cd747579570b78c5e12c2320f69e362812b98b07e8`，Stage1/Stage2均PASS，报告 `docs/reviews/OVERSEAS-PHASE17-REVIEW-20261012.md`；review-approve已登记。
+- **Phase 17 当前结构**：中立身份服务 `app.identity.main:app` + 独立Redis；国内0027增加身份绑定，海外0002建立成员/多角色关系/会话。复用钉钉provider与公共会话原语。正式前端 `/#/auth/business`、`/#/overseas` 仅身份/切换/退出，不接模拟任务；接入与同源代理见 `docs/OVERSEAS-PHASE17-RUNBOOK.md`。
 - 工作树有一期框架规则及本次预览的既存未提交变更，先 `git status --short` 核对，不批量回滚。`.agents/skills/dev-builder/SKILL.md` 是更早已有改动，不属于本次配置草稿。
-- 未部署生产、未执行生产迁移、未配置真实海外凭据、未调用收费模型、未开启自动清理。用户已授权本Phase验收后本地Git提交；不推送。现有前端预览与技能文件改动保持原样，不混入本Phase代码提交。本地预览地址为 `http://127.0.0.1:3012/overseas-preview.html`；跨窗口后先检查服务是否仍在，不能假定进程存在。
+- 未部署生产、未执行生产迁移、未配置真实海外凭据、未调用收费模型、未开启自动清理。用户已授权本Phase验收后本地Git提交；不推送。既有预览与技能改动保留；Phase17提交只纳入身份模块及正式入口所需共享BusinessEntry/Vite适配，不混入模拟业务。本地预览地址为 `http://127.0.0.1:3012/overseas-preview.html`；跨窗口后先检查服务是否仍在，不能假定进程存在。
 
 ## 已确认需求与开发边界
 
@@ -49,7 +50,7 @@
 | Phase | 原任务 | 目标 | 当前状态 | 前置 |
 |---|---|---|---|---|
 | 16 | T1 | 海外隔离基础与独立启动 | 已验收 | 无 |
-| 17 | T2 | 统一身份与双业务会话 | 未开始 | 16 |
+| 17 | T2 | 统一身份与双业务会话 | 已完成本地验收 | 16 |
 | 18 | T3 | 五角色与海外成员管理 | 未开始 | 17 |
 | 19 | T4 | 图需任务、指定设计与改派 | 未开始 | 18 |
 | 20 | T5 | 资料上传、解析与文件授权 | 未开始 | 18；最终关联验证依赖19 |
@@ -75,9 +76,9 @@
 
 **目标**：一次钉钉身份认证后按业务权限进入，只有海外权限也能登录。
 
-- [ ] **17.1 身份与业务授权解耦**：复用 `backend/app/modules/auth/dingtalk.py` 的企业校验及换码逻辑，把身份确认从一期用户角色检查中分离；保留一期既有授权语义和回调安全校验。相关文件：`modules/auth/{dingtalk,router,sessions}.py`、`app/overseas/auth/identity.py`。
-- [ ] **17.2 海外独立会话**：在海外库维护成员映射和业务会话，通过可校验身份结果建立海外会话，明确过期/撤销/全局退出/单业务停用；不能以国内cookie或前端传入角色放行。文件：`app/overseas/auth/{models,sessions,dependencies,router}.py`、海外迁移、`tests/test_overseas_auth.py`。
-- [ ] **17.3 正式前端登录接入**：直接复用既有登录页、AuthTopBar、BusinessEntry；显示双入口，无权限禁用；正确处理未授权/失效/退出/已有会话，不在正式入口放模拟配置。文件：`frontend/src/api/auth.ts`、`src/views/auth/`、`src/api/overseas/auth.ts`、对应路由与守卫。
+- [x] **17.1 身份与业务授权解耦**（本地验收通过）：复用 `backend/app/modules/auth/dingtalk.py` 的企业校验及换码逻辑，把身份确认从一期用户角色检查中分离；保留一期既有授权语义和回调安全校验。相关文件：`app/identity/`、`modules/auth/{dingtalk,dingtalk_members,identity_bridge,sessions}.py`、`app/core/browser_auth.py`、`app/overseas/auth/identity.py`、`infra/compose.identity.yaml`。
+- [x] **17.2 海外独立会话**（本地验收通过）：在海外库维护成员映射和业务会话，通过可校验身份结果建立海外会话，明确过期/撤销/全局退出/单业务停用；不能以国内cookie或前端传入角色放行。文件：`app/overseas/auth/{models,sessions,dependencies,router}.py`、海外迁移、`tests/test_overseas_auth.py`。
+- [x] **17.3 正式前端登录接入**（本地验收通过）：直接复用既有登录页、AuthTopBar、BusinessEntry；显示双入口，无权限禁用；正确处理未授权/失效/退出/已有会话，不在正式入口放模拟配置。文件：`frontend/src/api/identity/`、`src/views/auth/{IdentityPortal,BusinessEntry,dingtalk-login}.vue`、`src/{main,domestic-main,identity-main}.ts`、`HengxinLogout.vue`、统一身份单测和两组浏览器脚本。
 
 **验收**：国内单授权、海外单授权、双授权、无业务权限四场景；篡改/重放/过期凭据拒绝；海外停用不误停国内；一期登录回归；本地替身与真实钉钉验收分别记录，未实测真实认证不得宣称上线可用。
 
@@ -85,7 +86,7 @@
 
 **目标**：后端统一授权策略，前端只展示服务端允许的能力。
 
-- [ ] **18.1 角色与范围策略**：新增海外成员/多角色关系、五角色权限矩阵，列表查询、详情和动作共用范围约束。复用一期权限依赖机制，不扩大一期角色集合造成隐式授权。文件：`app/overseas/{models,permissions}.py`、海外迁移、`tests/test_overseas_permissions.py`。
+- [ ] **18.1 角色与范围策略**：复用Phase17已建的海外成员/多角色关系，新增五角色权限矩阵，列表查询、详情和动作共用范围约束，不重复建成员表。复用一期权限依赖机制，不扩大一期角色集合造成隐式授权。文件：`app/overseas/auth/models.py`、`app/overseas/permissions.py`、必要海外迁移、`tests/test_overseas_permissions.py`。
 - [ ] **18.2 成员维护接口**：海外成员查询、授予/移除角色、启停及审计；保护最后有效超级管理员，初始化管理员由独立配置显式指定。文件：`app/overseas/members/{router,service}.py`、`tests/test_overseas_members.py`。
 - [ ] **18.3 前端真实角色接入**：续建 `views/overseas/admin/OverseasMembers.vue`，复用ArtTable/表单；接五角色、多角色兼任、服务端能力菜单。模拟角色切换保留在专用预览，正式入口不允许自选提权。文件：`src/api/overseas/members.ts`、海外路由守卫、既有管理页面。
 
@@ -167,7 +168,7 @@
 - 每个Phase收尾：更新子任务状态、已变文件、测试命令及结果、失败或跳过项、审查报告/candidate、下一步唯一入口。测试/审查未完只能写“进行中未验收”。
 - 独立审查顺序：完成自检→`python .codex/hooks/harness.py review-prepare`→fresh `code-reviewer` 两阶段→修复及复核→`review-approve`→`review-status`。旧前端快照不可覆盖后端改动。
 - 中断交接必须先更新此文档，不依赖聊天摘要、存活子Agent或只存在output里的日志。旧计划 `docs/OVERSEAS-FULLSTACK-PLAN-20261012.md` 只作需求/复用背景，不再维护第二套进度。
-- **下一步唯一入口**：Phase 17.1，先读取现有钉钉认证/会话与本节合同，拆除国内角色作为统一身份前提的耦合；继续复用现有前后端。Phase16已验收，无需重建配置或资源。Phase17–25尚未开始；业务权限隔离与5并发调度仍需按后续Phase实测。
+- **下一步唯一入口**：Phase18.1，先读五角色需求与Phase17合同/验收，再复用现有海外成员、角色关系和会话实现权限范围策略；随后18.2成员维护/初始化管理员及18.3真实前端成员接入。Phase16/17本地验收完成，Phase18–25未开始；任务、文件和5并发调度按后续Phase验证。
 
 ---
 

@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     dev_user_name: str = '本地联调用户'
     dev_user_role: Literal['super_admin', 'design_manager', 'designer', 'operator'] = 'operator'
     auth_session_ttl_seconds: int = Field(default=28800, ge=300, le=604800)
+    identity_service_url: str = ''
+    identity_service_key: str = Field(default='', repr=False)
+    identity_public_origin: str = ''
     dingtalk_corp_id: str = ''
     dingtalk_client_id: str = ''
     dingtalk_agent_id: str = ''
@@ -61,6 +64,20 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_environment(self):
+        if bool(self.identity_service_url) != bool(self.identity_service_key):
+            raise ValueError('Identity service URL and key must be configured together')
+        if self.identity_service_key and len(self.identity_service_key) < 32:
+            raise ValueError('Identity service key must have at least 32 characters')
+        if self.identity_service_url:
+            from urllib.parse import urlsplit
+            for value in (self.identity_service_url, self.identity_public_origin):
+                parsed = urlsplit(value)
+                if (parsed.scheme not in ('http', 'https') or not parsed.netloc
+                        or parsed.username or parsed.password or parsed.query or parsed.fragment
+                        or parsed.path not in ('', '/')):
+                    raise ValueError('Identity service and public origins must be valid HTTP origins')
+            if self.app_env == 'production' and not self.identity_public_origin.startswith('https://'):
+                raise ValueError('Production identity public origin must use HTTPS')
         if self.enable_codex_executor:
             if self.enable_fixture_executor:
                 raise ValueError('Choose only one generation executor')

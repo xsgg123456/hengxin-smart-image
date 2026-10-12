@@ -4,6 +4,7 @@ from fastapi import Cookie, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.browser_auth import require_identity_session
 from app.db.session import get_session
 from app.modules.auth.sessions import SESSION_COOKIE, resolve_session
 from app.resource_models import UserRecord
@@ -24,6 +25,7 @@ def get_current_user(identity_id=Depends(get_identity_id), session: Session = De
         auth_session = resolve_session(session, identity_id)
         if auth_session is None:
             raise HTTPException(401, '登录身份无效或已过期')
+        require_identity_session(auth_session.identity_session_id)
         identity_id = auth_session.user_id
     user = session.get(UserRecord, identity_id)
     if user is None:

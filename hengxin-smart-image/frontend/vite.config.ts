@@ -10,7 +10,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import tailwindcss from '@tailwindcss/vite'
 // import { visualizer } from 'rollup-plugin-visualizer'
 
-export default ({ mode }: { mode: string }) => {
+export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPreview?: boolean }) => {
   const root = process.cwd()
   const env = {
     VITE_VERSION: 'hx-frontend-1',
@@ -38,6 +38,8 @@ export default ({ mode }: { mode: string }) => {
       port: Number(VITE_PORT),
       watch: { ignored: ['**/dist-demo/**'] },
       proxy: mode === 'demo' ? undefined : {
+        '/api/identity/v1': { target: env.VITE_IDENTITY_PROXY_URL || 'http://127.0.0.1:8010', changeOrigin: true },
+        '/api/overseas/v1': { target: env.VITE_OVERSEAS_PROXY_URL || 'http://127.0.0.1:8009', changeOrigin: true },
         '/api': {
           target: VITE_API_PROXY_URL,
           changeOrigin: true
@@ -83,17 +85,17 @@ export default ({ mode }: { mode: string }) => {
       // 自动按需导入 API
       AutoImport({
         imports: ['vue', 'vue-router', 'pinia', '@vueuse/core'],
-        dts: 'src/types/import/auto-imports.d.ts',
+        dts: isolatedPreview ? false : 'src/types/import/auto-imports.d.ts',
         resolvers: [ElementPlusResolver()],
         eslintrc: {
-          enabled: true,
+          enabled: !isolatedPreview,
           filepath: './.auto-import.json',
           globalsPropValue: true
         }
       }),
       // 自动按需导入组件
       Components({
-        dts: 'src/types/import/components.d.ts',
+        dts: isolatedPreview ? false : 'src/types/import/components.d.ts',
         resolvers: [ElementPlusResolver()]
       }),
       // 按需定制主题配置

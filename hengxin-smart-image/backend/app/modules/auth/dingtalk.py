@@ -1,25 +1,16 @@
 """DingTalk OAuth and enterprise-member mapping for Phase 12.2."""
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import json
 import logging
-from secrets import token_urlsafe
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
-from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.models import utcnow
-from app.modules.auth.models import AuthLoginStateRecord, UserIdentityRecord
-from app.modules.auth.sessions import issue_session
-from app.resource_models import UserRecord
 
 logger = logging.getLogger(__name__)
 LOGIN_STATE_TTL = timedelta(minutes=10)
@@ -101,12 +92,13 @@ def configured_admin_user_ids(settings: Settings | None = None) -> frozenset[str
     )
 
 
-def browser_authorize_url(state: str, settings: Settings | None = None) -> str:
+def browser_authorize_url(state: str, settings: Settings | None = None,
+                          redirect_uri: str | None = None) -> str:
     value = settings or get_settings()
     if not is_configured(value):
         raise DingTalkProviderError('DingTalk is not configured')
     query = urlencode({
-        'redirect_uri': callback_url(value),
+        'redirect_uri': redirect_uri or callback_url(value),
         'client_id': value.dingtalk_client_id,
         'response_type': 'code',
         'scope': 'openid corpid',
@@ -129,16 +121,8 @@ def _request_json(url: str, method: str = 'GET', body: dict[str, Any] | None = N
             result = json.loads(response.read().decode('utf-8'))
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
         status = getattr(error, 'code', '')
-        detail = ''
-        if isinstance(error, HTTPError):
-            try:
-                detail = error.read().decode('utf-8', errors='replace')[:300]
-            except OSError:
-                detail = ''
-        logger.warning(
-            'DingTalk provider request failed method=%s path=%s status=%s detail=%s',
-            method, urlsplit(url).path, status, detail,
-        )
+        logger.warning('DingTalk provider request failed method=%s path=%s status=%s',
+                       method, urlsplit(url).path, status)
         raise DingTalkProviderError('DingTalk authorization service is unavailable') from error
     if not isinstance(result, dict):
         raise DingTalkProviderError('DingTalk returned an invalid response')
@@ -216,8 +200,7 @@ def exchange_container_code(code: str, settings: Settings | None = None) -> Ding
     result = mapped.get('result')
     if str(mapped.get('errcode')) != '0' or not isinstance(result, dict):
         logger.warning(
-            'DingTalk getuserinfo failed errcode=%s errmsg=%s',
-            mapped.get('errcode'), mapped.get('errmsg'),
+            'DingTalk getuserinfo failed errcode=%s', mapped.get('errcode'),
         )
         raise DingTalkProviderError('Enterprise member mapping failed')
     provider_user_id = _first_string(result, 'userid')
@@ -231,8 +214,7 @@ def exchange_container_code(code: str, settings: Settings | None = None) -> Ding
     employee = detail.get('result')
     if str(detail.get('errcode')) != '0' or not isinstance(employee, dict):
         logger.warning(
-            'DingTalk user get failed errcode=%s errmsg=%s',
-            detail.get('errcode'), detail.get('errmsg'),
+            'DingTalk user get failed errcode=%s', detail.get('errcode'),
         )
         raise DingTalkProviderError('Enterprise member verification failed')
     if employee.get('userid') != provider_user_id:
@@ -256,63 +238,24 @@ def _first_string(values: dict[str, Any], *keys: str) -> str | None:
     return None
 
 
-def _hash_state(state: str) -> str:
-    return sha256(state.encode('utf-8')).hexdigest()
+def create_login_state(session, return_path: str) -> str:
+    from app.modules.auth.dingtalk_members import create_login_state as create
+    return create(session, return_path)
 
 
-def create_login_state(session: Session, return_path: str) -> str:
-    state = token_urlsafe(32)
-    session.add(AuthLoginStateRecord(
-        state_hash=_hash_state(state), return_path=safe_return_path(return_path),
-        expires_at=utcnow() + LOGIN_STATE_TTL,
-    ))
-    session.flush()
-    return state
+def consume_login_state(session, state: str) -> str:
+    from app.modules.auth.dingtalk_members import consume_login_state as consume
+    return consume(session, state)
 
 
-def consume_login_state(session: Session, state: str) -> str:
-    record = session.scalar(select(AuthLoginStateRecord).where(
-        AuthLoginStateRecord.state_hash == _hash_state(state),
-    ).with_for_update())
-    current = datetime.now(timezone.utc)
-    expires_at = record.expires_at if record else None
-    if expires_at is not None and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if record is None or record.consumed_at is not None or expires_at <= current:
-        raise HTTPException(400, '登录状态无效或已过期')
-    record.consumed_at = utcnow()
-    return safe_return_path(record.return_path)
+def authenticate_member(session, member: DingTalkMember):
+    from app.modules.auth.dingtalk_members import authenticate_member as authenticate
+    return authenticate(session, member, get_settings())
 
 
-def authenticate_member(session: Session, member: DingTalkMember) -> tuple[UserRecord, str]:
-    settings = get_settings()
-    identity = session.scalar(select(UserIdentityRecord).where(
-        UserIdentityRecord.provider == 'dingtalk',
-        UserIdentityRecord.corp_id == member.corp_id,
-        UserIdentityRecord.provider_user_id == member.provider_user_id,
-    ))
-    if identity is None:
-        user = UserRecord(
-            name=member.name, role=None, status='pending', identity_source='dingtalk',
-        )
-        if member.provider_user_id in configured_admin_user_ids(settings):
-            user.role, user.status = 'super_admin', 'active'
-        session.add(user)
-        session.flush()
-        session.add(UserIdentityRecord(
-            user_id=user.id, provider='dingtalk', corp_id=member.corp_id,
-            provider_user_id=member.provider_user_id, union_id=member.union_id,
-            department=member.department,
-        ))
-    else:
-        user = session.get(UserRecord, identity.user_id)
-        if user is None:
-            raise HTTPException(401, '登录身份无效')
-        user.name = member.name
-        identity.union_id = member.union_id
-        identity.department = member.department
-    if user.status == 'disabled':
-        raise DingTalkAccountError('ACCOUNT_DISABLED', '账号已禁用，请联系超级管理员')
-    if user.status != 'active' or user.role not in ('super_admin', 'design_manager', 'designer', 'operator'):
-        raise DingTalkAccountError('AUTH_PENDING', '账号待授权，请联系超级管理员分配角色')
-    return user, issue_session(session, user.id)
+def __getattr__(name):
+    # Preserve legacy callers without importing domestic ORM in the identity process.
+    if name in ('AuthLoginStateRecord', 'UserIdentityRecord', '_hash_state'):
+        from app.modules.auth import dingtalk_members
+        return getattr(dingtalk_members, name)
+    raise AttributeError(name)

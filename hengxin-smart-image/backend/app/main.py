@@ -15,6 +15,7 @@ from app.health import router as health_router
 from app.jobs import router as jobs_router
 from app.modules.auth.dev_identity import seed_dev_identity
 from app.modules.auth.router import router as auth_router
+from app.modules.auth.identity_bridge import router as identity_bridge_router
 from app.modules.files.router import router as files_router
 from app.modules.files.downloads import router as downloads_router
 from app.modules.templates.router import router as templates_router
@@ -48,6 +49,7 @@ app.add_middleware(HttpTimingMiddleware)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(identity_bridge_router)
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(downloads_router, prefix="/api/v1")
 app.include_router(templates_router, prefix="/api/v1")

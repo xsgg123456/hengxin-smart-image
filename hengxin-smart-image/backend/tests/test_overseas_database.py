@@ -49,7 +49,9 @@ def test_metadata_is_independent_and_does_not_import_domestic_models():
     result = subprocess.run(
         [sys.executable, '-c',
          'import sys; from app.overseas.db import Base; '
-         'assert not Base.metadata.tables; assert "app.models" not in sys.modules; '
+         'from app.overseas.auth import models; '
+         'assert set(Base.metadata.tables)=={"overseas_members","overseas_member_roles","overseas_sessions"}; '
+         'assert "app.models" not in sys.modules; '
          'from app.models import Base as DomesticBase; '
          'assert Base.metadata is not DomesticBase.metadata'],
         cwd=BACKEND, text=True, capture_output=True, timeout=30,
@@ -64,11 +66,11 @@ def test_existing_pool_is_reused():
     assert db.get_session is session.get_session
 
 
-def test_revision_tree_has_only_overseas_initial_revision():
+def test_revision_tree_has_only_overseas_revisions():
     script = ScriptDirectory.from_config(Config(str(BACKEND / 'alembic.overseas.ini')))
     assert script.get_heads() == [db.SCHEMA_REVISION]
-    assert script.get_base() == db.SCHEMA_REVISION
-    assert len(list(script.walk_revisions())) == 1
+    assert script.get_base() == 'overseas_0001'
+    assert len(list(script.walk_revisions())) == 2
 
 
 @pytest.mark.parametrize('context', ['domestic', 'invalid', ''])
@@ -104,7 +106,7 @@ def test_offline_sql_contains_only_overseas_version_table():
     assert result.returncode == 0, result.stderr
     assert 'CREATE TABLE overseas_alembic_version' in result.stdout
     assert 'CREATE TABLE alembic_version' not in result.stdout
-    assert result.stdout.count('CREATE TABLE') == 1
+    assert 'CREATE TABLE overseas_members' in result.stdout
 
 
 @pytest.fixture
@@ -156,9 +158,10 @@ def test_real_upgrades_are_repeatable_and_domestic_database_is_unchanged(disposa
     for _ in range(2):
         result = migrate(env)
         assert result.returncode == 0, result.stderr
-        assert snapshot(overseas_url) == (
-            [db.VERSION_TABLE], {db.VERSION_TABLE: [(db.SCHEMA_REVISION,)]},
-        )
+        assert set(snapshot(overseas_url)[0]) == {
+            db.VERSION_TABLE, 'overseas_members', 'overseas_member_roles', 'overseas_sessions',
+        }
+        assert snapshot(overseas_url)[1][db.VERSION_TABLE] == [(db.SCHEMA_REVISION,)]
     assert snapshot(domestic_url) == before
     refused = migrate(migration_environment(domestic_url))
     assert refused.returncode != 0
@@ -167,9 +170,7 @@ def test_real_upgrades_are_repeatable_and_domestic_database_is_unchanged(disposa
     refused = migrate(migration_environment(overseas_url, 'domestic'), 'alembic.ini')
     assert refused.returncode != 0
     assert 'Overseas migration marker found' in refused.stderr
-    assert snapshot(overseas_url) == (
-        [db.VERSION_TABLE], {db.VERSION_TABLE: [(db.SCHEMA_REVISION,)]},
-    )
+    assert snapshot(overseas_url)[1][db.VERSION_TABLE] == [(db.SCHEMA_REVISION,)]
 
 
 @pytest.mark.integration

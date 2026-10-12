@@ -105,6 +105,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { identityApi, IdentityError } from '@/api/identity/auth';
 import { isMockMode } from "@/api/hengxin/client";
 import { bootstrap, retryBootstrap } from "@/api/hengxin/bootstrap";
 import {
@@ -138,6 +139,7 @@ const container = ref(/DingTalk/i.test(navigator.userAgent));
 const busy = ref(false);
 const config = ref<DingTalkAuthConfig>();
 const configError = ref("");
+const unified = ref(false);
 const labels: Record<LoginScenario, string> = {
   success: "正常登录",
   authorizing: "授权中",
@@ -164,7 +166,13 @@ const message = computed(
 onMounted(async () => {
   if (isMockMode) return;
   try {
-    config.value = await getDingTalkConfig();
+    try {
+      const value = await identityApi.config();
+      config.value = { ...value, callbackPath: '' }; unified.value = true;
+    } catch (reason) {
+      if (!(reason instanceof IdentityError) || reason.status !== 404) throw reason;
+      config.value = await getDingTalkConfig();
+    }
     if (!config.value.configured)
       configError.value = "钉钉认证尚未配置，请联系管理员完成企业应用配置。";
   } catch (error) {
@@ -203,10 +211,16 @@ async function authorize() {
     state.value = "authorizing";
     try {
       if (!container.value) {
-        startBrowserAuthorization(destination());
+        if (unified.value) window.location.assign('/api/identity/v1/dingtalk/authorize');
+        else startBrowserAuthorization(destination());
         return;
       }
       const code = await requestContainerAuthCode(authConfig);
+      if (unified.value) {
+        await identityApi.container(code);
+        window.location.assign('/?workspace=identity#/auth/business');
+        return;
+      }
       await loginByContainer(code);
       state.value = "success";
       await retryBootstrap.run();

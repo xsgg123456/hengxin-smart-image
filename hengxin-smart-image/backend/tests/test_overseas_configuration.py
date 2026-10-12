@@ -151,7 +151,11 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     monkeypatch.setattr(builtins, '__import__', forbid_domestic_imports)
     app = load_entry('overseas/main.py')['app']
     business_paths = {path for path in app.openapi()['paths'] if path.startswith('/api/')}
-    assert business_paths == {'/api/overseas/v1/health/live', '/api/overseas/v1/health/ready'}
+    assert business_paths == {
+        '/api/overseas/v1/health/live', '/api/overseas/v1/health/ready',
+        '/api/overseas/v1/auth/identity/session', '/api/overseas/v1/auth/me',
+        '/api/overseas/v1/auth/logout',
+    }
 
     @app.get('/test-internal-error', include_in_schema=False)
     def fail():

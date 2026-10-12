@@ -10,6 +10,7 @@ if get_business_context() != 'overseas':
 
 get_settings()
 from app.overseas.health import router  # noqa: E402 - validate context before loading resources
+from app.overseas.auth.router import router as auth_router
 
 app = FastAPI(title='恒鑫智图 · 海外业务 API', version='0.1.0')
 register_errors(app)
@@ -17,3 +18,4 @@ app.add_middleware(HttpTimingMiddleware)
 
 
 app.include_router(router)
+app.include_router(auth_router)
