@@ -1,0 +1,140 @@
+name: hengxin-overseas
+
+x-image: &image
+  image: ${OVERSEAS_APP_IMAGE:-hengxin-smart-image-backend:overseas-local}
+  build:
+    context: ..
+    dockerfile: infra/Dockerfile.backend
+  networks: [overseas]
+
+x-config: &config
+  HX_BUSINESS_CONTEXT: overseas
+  OVERSEAS_APP_ENV: ${OVERSEAS_APP_ENV:-development}
+  OVERSEAS_DATABASE_URL: postgresql+psycopg://overseas_app:${OVERSEAS_APP_PASSWORD:?required}@overseas-postgres:5432/${OVERSEAS_POSTGRES_DB:-hengxin_overseas}
+  OVERSEAS_REDIS_URL: redis://:${OVERSEAS_REDIS_PASSWORD:?required}@overseas-redis:6379/0
+  OVERSEAS_MINIO_ENDPOINT: overseas-minio:9000
+  OVERSEAS_MINIO_ACCESS_KEY: ${OVERSEAS_MINIO_ACCESS_KEY:?required}
+  OVERSEAS_MINIO_SECRET_KEY: ${OVERSEAS_MINIO_SECRET_KEY:?required}
+  OVERSEAS_MINIO_BUCKET: ${OVERSEAS_MINIO_BUCKET:-hengxin-overseas}
+  OVERSEAS_MINIO_SECURE: 'false'
+  OVERSEAS_CODEX_EXECUTION_ROOT: /var/lib/hengxin-overseas/execution
+  OVERSEAS_SKILL_INSTALL_ROOT: /var/lib/hengxin-overseas/skills
+  OVERSEAS_LOCAL_SKILL_ROOT: /var/lib/hengxin-overseas/local-skills
+  OVERSEAS_GENERATION_CONCURRENCY: '5'
+  OVERSEAS_ENABLE_CODEX_EXECUTOR: 'false'
+  OVERSEAS_ENABLE_FIXTURE_EXECUTOR: 'false'
+  OVERSEAS_ENABLE_TEST_JOBS: 'false'
+  OVERSEAS_ENABLE_DEV_IDENTITY: 'false'
+  OVERSEAS_CLI_RETENTION_ENABLED: 'false'
+
+services:
+  overseas-postgres:
+    image: postgres:16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+    environment:
+      POSTGRES_DB: ${OVERSEAS_POSTGRES_DB:-hengxin_overseas}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${OVERSEAS_POSTGRES_PASSWORD:?required}
+    networks: [overseas]
+    volumes: [overseas_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  pg-bootstrap:
+    image: postgres:16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+    environment:
+      OVERSEAS_POSTGRES_DB: ${OVERSEAS_POSTGRES_DB:-hengxin_overseas}
+      OVERSEAS_POSTGRES_PASSWORD: ${OVERSEAS_POSTGRES_PASSWORD:?required}
+      OVERSEAS_OWNER_PASSWORD: ${OVERSEAS_OWNER_PASSWORD:?required}
+      OVERSEAS_APP_PASSWORD: ${OVERSEAS_APP_PASSWORD:?required}
+    networks: [overseas]
+    volumes: ['./overseas/bootstrap-postgres.sh:/bootstrap.sh:ro']
+    entrypoint: ['sh', '/bootstrap.sh']
+    depends_on:
+      overseas-postgres: {condition: service_healthy}
+  overseas-redis:
+    image: redis:8.8-alpine@sha256:8096655e437712b07503796fb64d81359256cfcff0ab29d95a7da72863786efb
+    environment:
+      REDIS_PASSWORD: ${OVERSEAS_REDIS_PASSWORD:?required}
+    command: ['sh', '-c', 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    networks: [overseas]
+    volumes: [overseas_redis:/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  overseas-minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${OVERSEAS_MINIO_ROOT_USER:?required}
+      MINIO_ROOT_PASSWORD: ${OVERSEAS_MINIO_ROOT_PASSWORD:?required}
+    networks: [overseas]
+    volumes: [overseas_minio:/data]
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  minio-bootstrap:
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    environment:
+      OVERSEAS_MINIO_ROOT_USER: ${OVERSEAS_MINIO_ROOT_USER:?required}
+      OVERSEAS_MINIO_ROOT_PASSWORD: ${OVERSEAS_MINIO_ROOT_PASSWORD:?required}
+      OVERSEAS_MINIO_ACCESS_KEY: ${OVERSEAS_MINIO_ACCESS_KEY:?required}
+      OVERSEAS_MINIO_SECRET_KEY: ${OVERSEAS_MINIO_SECRET_KEY:?required}
+      OVERSEAS_MINIO_BUCKET: ${OVERSEAS_MINIO_BUCKET:-hengxin-overseas}
+    networks: [overseas]
+    volumes: ['./overseas/bootstrap-minio.sh:/bootstrap.sh:ro']
+    entrypoint: ['sh', '/bootstrap.sh']
+    depends_on:
+      overseas-minio: {condition: service_healthy}
+  migrate:
+    <<: *image
+    environment:
+      <<: *config
+      OVERSEAS_DATABASE_URL: postgresql+psycopg://overseas_owner:${OVERSEAS_OWNER_PASSWORD:?required}@overseas-postgres:5432/${OVERSEAS_POSTGRES_DB:-hengxin_overseas}
+    command: ['alembic', '-c', 'alembic.overseas.ini', 'upgrade', 'head']
+    depends_on:
+      pg-bootstrap: {condition: service_completed_successfully}
+  roots-init:
+    image: ${OVERSEAS_APP_IMAGE:-hengxin-smart-image-backend:overseas-local}
+    user: '0:0'
+    network_mode: none
+    command: ['sh', '-c', 'chown 10001:10001 /var/lib/hengxin-overseas/execution /var/lib/hengxin-overseas/skills /var/lib/hengxin-overseas/local-skills']
+    volumes:
+      - overseas_execution:/var/lib/hengxin-overseas/execution
+      - overseas_skills:/var/lib/hengxin-overseas/skills
+      - overseas_local_skills:/var/lib/hengxin-overseas/local-skills
+  api:
+    <<: *image
+    init: true
+    environment: *config
+    command: ['uvicorn', 'app.overseas.main:app', '--host', '0.0.0.0', '--port', '8000']
+    ports: ['127.0.0.1:${OVERSEAS_API_PORT:-18008}:8000']
+    volumes:
+      - overseas_execution:/var/lib/hengxin-overseas/execution
+      - overseas_skills:/var/lib/hengxin-overseas/skills
+      - overseas_local_skills:/var/lib/hengxin-overseas/local-skills
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      minio-bootstrap: {condition: service_completed_successfully}
+      overseas-redis: {condition: service_healthy}
+      roots-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/overseas/v1/health/ready", timeout=8)']
+      interval: 5s
+      timeout: 10s
+      retries: 12
+
+networks:
+  overseas:
+volumes:
+  overseas_postgres:
+  overseas_redis:
+  overseas_minio:
+  overseas_execution:
+  overseas_skills:
+  overseas_local_skills:

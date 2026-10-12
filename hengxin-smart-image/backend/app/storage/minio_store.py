@@ -19,15 +19,15 @@ class MinioStore:
     FAILED_CHECK_SECONDS = 2
     _initialization_lock = Lock()
 
-    def __init__(self):
+    def __init__(self, *, http_client=None):
         settings = get_settings()
         self.client = Minio(
             settings.minio_endpoint, access_key=settings.minio_access_key,
             secret_key=settings.minio_secret_key, secure=settings.minio_secure,
-            http_client=PoolManager(timeout=Timeout(connect=3, read=30), retries=False),
+            http_client=http_client or PoolManager(timeout=Timeout(connect=3, read=30), retries=False),
         )
 
-    def ensure_private(self, bucket, *, force=True):
+    def ensure_private(self, bucket, *, force=True, create_missing=True):
         # Explicit checks remain forceful. Object operations merge concurrent checks
         # per bucket, and never reuse an expired success while verification runs.
         with self._initialization_lock:
@@ -41,15 +41,20 @@ class MinioStore:
                 return
             state[2] = False
             try:
-                self._check_private(bucket)
+                if create_missing:
+                    self._check_private(bucket)
+                else:
+                    self._check_private(bucket, create_missing=False)
             except Exception:
                 state[1] = monotonic() + self.FAILED_CHECK_SECONDS
                 logger.warning('File bucket privacy verification failed: %s', bucket)
                 raise
             state[1], state[2] = monotonic() + self.PRIVATE_CHECK_SECONDS, True
 
-    def _check_private(self, bucket):
+    def _check_private(self, bucket, *, create_missing=True):
         if not self.client.bucket_exists(bucket):
+            if not create_missing:
+                raise RuntimeError('File bucket has not been initialized')
             try:
                 self.client.make_bucket(bucket)
             except S3Error as error:

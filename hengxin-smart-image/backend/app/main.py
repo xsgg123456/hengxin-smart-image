@@ -2,7 +2,11 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
 
-from app.core.config import get_settings
+from app.core.config import get_business_context, get_settings
+
+if get_business_context() != 'domestic':
+    raise RuntimeError('Domestic entry requires HX_BUSINESS_CONTEXT=domestic')
+
 from app.contracts.router import router as contracts_router
 from app.contracts.business import ApiErrorBody
 from app.errors import register_errors

@@ -1,4 +1,10 @@
 from alembic import context
+from sqlalchemy import inspect
+
+from app.core.config import get_business_context
+
+if get_business_context() != 'domestic':
+    raise RuntimeError('Domestic migrations require HX_BUSINESS_CONTEXT=domestic')
 
 from app.db.session import get_engine
 from app.models import Base
@@ -26,7 +32,9 @@ if context.is_offline_mode():
     with context.begin_transaction():
         context.run_migrations()
 else:
-    with get_engine().connect() as connection:
+    with get_engine().begin() as connection:
+        if inspect(connection).has_table('overseas_alembic_version', schema='public'):
+            raise RuntimeError('Overseas migration marker found; domestic migration refused')
         context.configure(connection=connection, target_metadata=Base.metadata)
         with context.begin_transaction():
             context.run_migrations()

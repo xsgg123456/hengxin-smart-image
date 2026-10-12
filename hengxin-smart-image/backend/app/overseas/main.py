@@ -1,0 +1,19 @@
+"""Overseas ASGI entry; liveness does not certify dependency readiness."""
+from fastapi import FastAPI
+
+from app.core.config import get_business_context, get_settings
+from app.errors import register_errors
+from app.http_timing import HttpTimingMiddleware
+
+if get_business_context() != 'overseas':
+    raise RuntimeError('Overseas entry requires HX_BUSINESS_CONTEXT=overseas')
+
+get_settings()
+from app.overseas.health import router  # noqa: E402 - validate context before loading resources
+
+app = FastAPI(title='恒鑫智图 · 海外业务 API', version='0.1.0')
+register_errors(app)
+app.add_middleware(HttpTimingMiddleware)
+
+
+app.include_router(router)

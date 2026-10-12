@@ -1,4 +1,5 @@
 from functools import lru_cache
+import os
 from typing import Literal
 from uuid import UUID
 
@@ -86,6 +87,16 @@ class Settings(BaseSettings):
         return self
 
 
+def get_business_context() -> Literal['domestic', 'overseas']:
+    context = os.environ.get('HX_BUSINESS_CONTEXT', 'domestic')
+    if context not in ('domestic', 'overseas'):
+        raise ValueError('HX_BUSINESS_CONTEXT must be domestic or overseas')
+    return context
+
+
 @lru_cache
 def get_settings() -> Settings:
+    if get_business_context() == 'overseas':
+        from app.overseas.config import load_overseas_settings
+        return load_overseas_settings()
     return Settings()
