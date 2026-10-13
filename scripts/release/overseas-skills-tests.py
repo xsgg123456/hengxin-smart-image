@@ -1,6 +1,7 @@
 """Deployment must prove one read-only catalog under both actual runtimes."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
@@ -27,6 +28,45 @@ def test_overlay_replaces_only_local_skills_with_read_only_bind():
     mount = s.overlay()
     assert mount == dict(type='bind', source=str(s.ROOT), target=str(s.ROOT), read_only=True,
                          bind={'create_host_path': False})
+
+
+@pytest.mark.skipif(os.name != 'posix' or getattr(os, 'geteuid', lambda: -1)() != 0,
+                   reason='real production POSIX root ownership and umask required')
+@pytest.mark.parametrize('existing', [False, True])
+def test_install_catalog_is_traversable_under_private_deployer_umask(tmp_path, monkeypatch, existing):
+    root = tmp_path / 'catalog'
+    root.mkdir()
+    releases = root / 'releases'
+    if existing:
+        releases.mkdir(mode=0o700)
+    monkeypatch.setattr(s, 'ROOT', root)
+    def installed(*args):
+        assert releases.stat().st_mode & 0o777 == 0o755
+        # The installer can create the catalog without loosening unrelated private files.
+        private = tmp_path / 'private'
+        private.mkdir()
+        assert private.stat().st_mode & 0o777 == 0o700
+        return dict(release=s.RELEASE, packages=14, files=181)
+    monkeypatch.setattr(s, 'invoke', installed)
+    previous = os.umask(0o077)
+    try:
+        s.install(SimpleNamespace(private=lambda *args: None), tmp_path, tmp_path, tmp_path)
+    finally:
+        os.umask(previous)
+
+
+@pytest.mark.skipif(os.name != 'posix' or getattr(os, 'geteuid', lambda: -1)() != 0,
+                   reason='POSIX symlink safety')
+def test_install_does_not_chmod_linked_release_directory(tmp_path, monkeypatch):
+    root, outside = tmp_path / 'catalog', tmp_path / 'private'
+    root.mkdir()
+    outside.mkdir(mode=0o700)
+    (root / 'releases').symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(s, 'ROOT', root)
+    monkeypatch.setattr(s, 'invoke', lambda *args: pytest.fail('must not invoke installer'))
+    with pytest.raises(AssertionError):
+        s.install(SimpleNamespace(private=lambda *args: None), tmp_path, tmp_path, tmp_path)
+    assert outside.stat().st_mode & 0o777 == 0o700
 
 
 @pytest.mark.parametrize('defect', ('none', 'different_inode', 'writable', 'old_volume', 'missing_files', 'root_probe'))

@@ -79,6 +79,11 @@ def install(r, work, target, backup):
     # Exact confirmed directory only; package contents are published by the validated installer.
     os.chown(ROOT, 0, 0)
     ROOT.chmod(0o755)
+    releases = ROOT / 'releases'
+    releases.mkdir(exist_ok=True, mode=0o755)
+    assert releases.is_dir() and not releases.is_symlink() and releases.stat().st_uid == 0
+    # The deployer's umask is 077; workers must still traverse this public catalog.
+    releases.chmod(0o755)
     result = invoke(target, ['-m', 'app.overseas.management.skill_install', 'install',
                              '--bundle', str(bundle(work))])
     assert result['release'] == RELEASE and result['packages'] == 14 and result['files'] == 181

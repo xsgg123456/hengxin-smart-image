@@ -1,6 +1,6 @@
 # 海外完整 Skill 运维入口
 
-本文件说明离线安装和校验，不表示生产已经安装。安装不注册虚构业务用户，不写国内或海外业务表，不执行包内脚本，不调用生图。
+本文件说明离线安装和校验。2026-10-13生产14包安装及API/native/真实worker沙箱验证已完成，证据见 `OVERSEAS-DELETE-SKILLS-PRODUCTION-20261013.md`。安装不注册虚构业务用户，不写国内或海外业务表，不执行包内脚本，不调用生图。
 
 ## 目录与冻结
 
@@ -55,6 +55,8 @@ python -m app.overseas.management.skill_probe
 API容器与native分别运行verify，比较输出的`directoryIdentity.device/inode`一致，证明实际共享同一目录。native probe必须以真实海外worker用户执行，输出uid须为该用户；不得仅以root探测代替。发布drain及重启由主Agent按既有运维流程处理。
 
 预期probe结果：packages=14、files=181，每条readOnly=true。还需使用有效海外身份确认管理页与工作台名称一致、两份沃尔玛同时存在。
+
+首次生产切换实测：发布进程的 umask 077 将新建 releases 父目录限制为700，真实worker探针拒绝放行。已核实该目录为海外专用、root所有、无链接后改为755，重新执行API/native/sandbox全量校验通过并恢复入口。发布运维脚本需在调用安装器前显式确保 ROOT/releases 为root所有的755目录，不能只依赖mkdir的mode参数；已有非目录或链接必须拒绝。该修正仅作用于公共Skill发布目录，备份、凭据及任务私有目录继续保持原有保护。
 
 此验证证明目录、选择及隔离加载；不证明字体已齐全或真实成图质量合格。原14包未带字体，生产字体、文档/图片工具仍须单独核查并记录。
 

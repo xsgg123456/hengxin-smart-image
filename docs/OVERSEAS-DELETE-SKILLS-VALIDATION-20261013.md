@@ -1,6 +1,6 @@
 # 海外删除、归档保护与已安装Skill验收
 
-状态：开发、本地测试与独立两阶段审查完成；生产发布和线上验收待执行。
+状态：开发、测试、独立两阶段审查、生产发布与线上验收完成。业务版本为 0.2.28，发布提交 `3a060c8cebcebe876931b3b1c636ecb6bc2fb9b5`；生产细节见 `OVERSEAS-DELETE-SKILLS-PRODUCTION-20261013.md`。
 
 ## 已取得证据
 
@@ -15,13 +15,16 @@
 - 前端现有生产依赖审计：0 critical，36 high / 34 moderate / 1 low（`pnpm audit --prod --audit-level critical`退出0）。本轮未改依赖版本与锁文件；这些历史依赖告警未在本轮升级修复，不能宣称全仓无漏洞。
 - 最终Linux完整后端：1951通过、166显式外部环境依赖跳过，15条现有弃用/SQLAlchemy警告，239.39秒；0失败。日志`output/delete-skills-backend-final.log`。海外PG依赖部分已在独立真实PG集合70项补跑通过，真实模型生成不在本轮收费验收范围。
 
-## 未完成验证
+## 最终审查与生产验证
 
 - 独立审查 Stage 1 / Stage 2 PASS，候选 `643bdd423c44876e69ad4fce7d4bdd005a45965cefc5c9d81eabd0f4e518c781` 已按协议批准。报告 `docs/reviews/OVERSEAS-DELETE-SKILLS-FINAL-20261013.md`。reviewer 独立44项专项、54项发布测试、113文件语法编译、前端类型及新页与邻居实际视觉核对通过。
-- 从受审提交打包、生产14包安装、真实Worker sandbox、线上页面视觉验收。
+- 从受审提交打包，1408文件、8,574,604字节，所有包内文件与提交逐字节一致。生产镜像内测试1845通过、167显式跳过、1排除；日志 `output/release/overseas-20261013-3a060c8/installation-tests.log`。
+- 生产14包181文件安装完成；API/native/真实uid999 sandbox目录device/inode完全一致，逐包只读检查通过，模型调用0。证据 `output/release/overseas-20261013-3a060c8/SKILLS_VERIFIED.json`。
+- 线上管理页实际显示14项、名称/描述两列、没有添加入口，沃尔玛原版与新版同时存在。任务列表仍为原有2条，删除确认要求完整名称；空名称确认按钮禁用，取消后原任务保留。成品库正常显示0套。截图在同发布目录 `screenshots/`。
+- 初次切换被真实worker探针发现公共Skill父目录权限700而阻止放行；仅修正该root所有的无链接目录为755后，全量复验成功，海外入口恢复，国内及身份容器不变。发布脚本永久修正新增3项真实Linux root权限测试，相关发布回归57通过；候选 `deac809ca46f4033c0ad7acd4ae1acfd3c525e9618ffbeacbd86974e4831f0c5` 两阶段审查通过并批准，报告 `reviews/OVERSEAS-SKILL-DIRECTORY-MODE-20261013.md`。
 
 所有业务删除测试均在一次性隔离环境，测试图片由本地PIL生成，模型调用为0。生产未创建删除测试任务，未删除用户真实任务。
 # 归档改派权限复核
 
-首轮独立审查发现归档负责人未随任务改派更新，已在持有 Task 行锁的改派事务内同步 Archive.designer_id。新增真实 HTTP 的原负责人/中间负责人/最终负责人列表、详情、原图、ZIP 权限与字节验证，覆盖删除前后、幂等重放、事务失败回滚；旧版工作流归档同样覆盖改派后删除下载。真实 PostgreSQL 验证改派与删除竞争的两种顺序，删除保留最后合法负责人。专项 51 项通过，原始日志 `output/archive-assignment-regression-20261013.log`。首轮失败报告保留，新候选重新执行两阶段审查，未通过前不部署。
+首轮独立审查发现归档负责人未随任务改派更新，已在持有 Task 行锁的改派事务内同步 Archive.designer_id。新增真实 HTTP 的原负责人/中间负责人/最终负责人列表、详情、原图、ZIP 权限与字节验证，覆盖删除前后、幂等重放、事务失败回滚；旧版工作流归档同样覆盖改派后删除下载。真实 PostgreSQL 验证改派与删除竞争的两种顺序，删除保留最后合法负责人。专项 51 项通过，原始日志 `output/archive-assignment-regression-20261013.log`。首轮失败报告保留，新候选重新通过两阶段审查后才部署。
 
