@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 
 spec = importlib.util.spec_from_file_location('member_runtime', Path(__file__).with_name('member-release-runtime.py'))
 m = importlib.util.module_from_spec(spec)
@@ -95,10 +96,17 @@ def frontend(source, manifest, public=True):
         assert hashlib.sha256(get(base + '/' + name)).hexdigest() == expected, 'Public frontend asset mismatch'
 
 
-def closed():
-    for path in ('/api/v1/auth/me', '/api/overseas/v1/auth/me', '/api/identity/v1/me',
-                 '/api/v1/api-image-edits/tasks/0/items/0/conversation/events/'):
-        assert status(m.r.ORIGIN + path) == '503', 'Public intake is not closed: ' + path
+def closed(timeout=30):
+    paths = ('/api/v1/auth/me', '/api/overseas/v1/auth/me', '/api/identity/v1/me',
+             '/api/v1/api-image-edits/tasks/0/items/0/conversation/events/')
+    deadline = time.monotonic() + timeout
+    while True:
+        observed = {path: status(m.r.ORIGIN + path) for path in paths}
+        if all(code == '503' for code in observed.values()):
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError('Public intake is not closed: ' + repr(observed))
+        time.sleep(1)
 
 
 def proxy():
