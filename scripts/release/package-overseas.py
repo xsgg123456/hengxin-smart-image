@@ -87,7 +87,7 @@ def audit_asset(name, raw, pdfjs):
     """Only exact files shipped by pinned pdfjs-dist may bypass generic asset suffixes."""
     plain = name.removesuffix('.gz')
     resource = re.fullmatch(r'frontend/dist/pdfjs-6\.4\.299/(cmaps/[\w.-]+\.bcmap|standard_fonts/[\w.-]+\.(?:pfb|ttf)|wasm/[\w.-]+\.(?:wasm|js))', plain)
-    worker = re.fullmatch(r'frontend/dist/assets/pdf\.worker\.min-[A-Za-z0-9_-]+\.mjs', plain)
+    worker = re.fullmatch(r'frontend/dist/assets/pdf\.worker\.min-[A-Za-z0-9_-]+\.js', plain)
     if not resource and not worker:
         return m.audit_asset(name, raw)
     no_symlink(pdfjs)

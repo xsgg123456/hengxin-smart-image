@@ -17,7 +17,11 @@ export function pdfAssets(): Plugin {
   }
   return {
     name: 'local-pdf-assets',
-    config: () => ({ define: { __PDF_ASSET_BASE__: JSON.stringify('/' + prefix) } }),
+    config: () => ({
+      define: { __PDF_ASSET_BASE__: JSON.stringify('/' + prefix) },
+      // Production nginx maps .js to JavaScript; its default MIME table lacks .mjs.
+      build: { rollupOptions: { output: { assetFileNames: asset => asset.names.includes('pdf.worker.min.mjs') ? 'assets/pdf.worker.min-[hash].js' : 'assets/[name]-[hash][extname]' } } }
+    }),
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const path = (req.url || '').split('?')[0].replace(/^\//, ''), bytes = files.get(path)

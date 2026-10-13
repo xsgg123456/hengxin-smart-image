@@ -23,8 +23,20 @@ def validate(work, release):
 
 
 def build(work, source, image):
-    r.run('docker', 'build', '-t', image, '-f', str(source / 'infra/Dockerfile.backend'), str(source))
+    r.run('docker', 'build', '--no-cache', '-t', image, '-f', str(source / 'infra/Dockerfile.backend'), str(source))
     identity = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True)
+    expected = {name.removeprefix('backend/'): digest for name, digest in
+                json.loads((source / 'release.json').read_text())['files'].items()
+                if name.startswith('backend/')}
+    if not expected:
+        raise ValueError('No backend files in release manifest')
+    verify = ('import hashlib,json,pathlib,sys; expected=json.load(sys.stdin); '
+              'bad=[name for name,digest in expected.items() '
+              'if hashlib.sha256((pathlib.Path("/app")/name).read_bytes()).hexdigest()!=digest]; '
+              'print("IMAGE_SOURCE_HASHES", len(expected), "PASS" if not bad else bad); '
+              'sys.exit(bool(bad))')
+    subprocess.run(['docker', 'run', '--rm', '-i', '--network', 'none', '--entrypoint', 'python',
+                    identity, '-c', verify], input=json.dumps(expected), text=True, check=True)
     ignored = ('test_local_codex', 'test_local_codex_control', 'test_local_codex_ports', 'test_phase11a_checks', 'test_phase11a_environment', 'test_phase11a_supervisor')
     args = ['-m', 'pytest', '-q', *('--ignore=tests/' + n + '.py' for n in ignored),
             '--deselect=tests/test_contracts.py::test_top_level_fields_match_frontend_interfaces']

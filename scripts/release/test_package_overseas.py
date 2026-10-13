@@ -85,7 +85,7 @@ def test_source_scan_rejects_embedded_credentials():
     ('cmaps/Adobe-Japan1.bcmap', 'pdfjs-6.4.299/cmaps/Adobe-Japan1.bcmap'),
     ('standard_fonts/FoxitSans.pfb', 'pdfjs-6.4.299/standard_fonts/FoxitSans.pfb'),
     ('wasm/openjpeg.wasm', 'pdfjs-6.4.299/wasm/openjpeg.wasm'),
-    ('build/pdf.worker.min.mjs', 'assets/pdf.worker.min-HASH123.mjs')])
+    ('build/pdf.worker.min.mjs', 'assets/pdf.worker.min-HASH123.js')])
 def test_pdfjs_resources_require_exact_version_and_bytes(tmp_path, resource, asset):
     (tmp_path / 'package.json').write_text('{"version":"6.4.299"}')
     path = tmp_path / resource

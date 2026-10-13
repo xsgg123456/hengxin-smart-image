@@ -195,3 +195,20 @@ def test_changed_installation_image_blocks_prepare_and_deploy(cutover, action):
     assert len(c.events) == 1
     assert c.events[0][:4] == ('run', 'docker', 'image', 'inspect')
     d.s.setup.assert_not_called()
+
+
+def test_build_blocks_installation_when_image_bytes_differ(tmp_path, monkeypatch):
+    import subprocess
+    (tmp_path / 'release.json').write_text(json.dumps({'files': {'backend/app/main.py': 'expected'}}))
+    calls = []
+    monkeypatch.setattr(d.r, 'run', lambda *args, **kwargs: calls.append(args) or 'sha256:image')
+    def mismatch(args, **kwargs):
+        assert '-i' in args and '-c' in args
+        assert json.loads(kwargs['input']) == {'app/main.py': 'expected'}
+        raise subprocess.CalledProcessError(1, args)
+    monkeypatch.setattr(d.subprocess, 'run', mismatch)
+    with pytest.raises(subprocess.CalledProcessError):
+        d.build(tmp_path, tmp_path, 'test-image')
+    assert '--no-cache' in calls[0]
+    assert not (tmp_path / 'INSTALL_TEST_IMAGE_ID').exists()
+    assert not (tmp_path / 'installation-tests.log').exists()
