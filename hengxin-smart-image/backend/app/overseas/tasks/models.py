@@ -19,6 +19,7 @@ class Task(Timestamps, Base):
     remarks: Mapped[str] = mapped_column(Text, default='')
     created_by: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'), index=True)
     designer_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'), index=True)
+    workflow: Mapped[str] = mapped_column(String(20), default='legacy', server_default='legacy')
     status: Mapped[str] = mapped_column(String(40), default='created')
     version: Mapped[int] = mapped_column(Integer, default=1)
     requirements_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')

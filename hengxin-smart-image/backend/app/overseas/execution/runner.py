@@ -87,13 +87,15 @@ def run(factory, job_id):
             if version.returncode or version.stdout.strip() != f'codex-cli {settings.codex_version}':
                 raise ValueError('CLI version mismatch')
             # Separate job homes avoid parallel SKU jobs sharing writable sessions.
-            workspace = prepare_workspace(settings.codex_execution_root, job.id, token,
-                                          settings.codex_auth_file)
+            workspace = (handler.workspace(factory, job, token, settings) if hasattr(handler, 'workspace')
+                         else prepare_workspace(settings.codex_execution_root, job.id, token,
+                                                settings.codex_auth_file))
             materials.prepare(job, workspace)
             prompt = handler.prepare(job, workspace)
             if not isinstance(prompt, str) or not prompt.strip():
                 raise ValueError('Empty protocol prompt')
-            args = ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '-']
+            args = (handler.arguments(workspace) if hasattr(handler, 'arguments') else
+                    ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '-'])
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
             with factory.begin() as session:
                 current = claims.locked_job(session, job_id)
@@ -111,12 +113,21 @@ def run(factory, job_id):
             timeout = job.payload.get('runtime', {}).get('timeoutSeconds', settings.codex_timeout_seconds)
             if type(timeout) is not int or not 10 <= timeout <= 7200:
                 raise ValueError('Invalid frozen timeout')
+            def monitor():
+                if hasattr(handler, 'poll'):
+                    handler.poll(factory, job, token, workspace)
+                return lost.is_set() or should_stop(factory, job_id, token)
+
+            if hasattr(handler, 'before_execute'):
+                handler.before_execute(factory, job, token)
             spawning = True
             receipt = execute(command, prompt, workspace.control, timeout,
-                              lambda: lost.is_set() or should_stop(factory, job_id, token), started)
+                              monitor, started)
             exited = True
             _exit(factory, job_id, token)
-            summary = parse_events(workspace.control / 'events.jsonl')
+            if hasattr(handler, 'poll'):
+                handler.poll(factory, job, token, workspace)
+            summary = parse_events(workspace.control / 'events.jsonl', getattr(workspace, 'previous_session', None))
             with factory.begin() as session:
                 current = claims.locked_job(session, job_id)
                 if current and current.claim_token == token:

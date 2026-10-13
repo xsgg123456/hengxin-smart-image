@@ -23,6 +23,7 @@ class SkillVersion(Timestamps, Base):
     skill_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_skills.id'))
     version: Mapped[int] = mapped_column(Integer)
     files: Mapped[dict] = mapped_column(JSON)
+    assets: Mapped[dict] = mapped_column(JSON, default=dict, server_default='{}')
 
 
 class Settings(Timestamps, Base):

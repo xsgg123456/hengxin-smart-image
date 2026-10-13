@@ -103,7 +103,7 @@ async function enter(business: Business) {
   if (business === 'domestic') { legacySession(); return }
   const epoch = ++generation
   busy.value = true; error.value = ''
-  try { const current = await identityApi.overseasMe(); if (epoch !== generation) return; member.value = current; overseas.value = true; window.location.hash = '/overseas' }
+  try { const current = await identityApi.overseasMe(); if (epoch !== generation) return; member.value = current; overseas.value = true; window.location.hash = '/overseas/tasks' }
   catch (reason) { if (epoch === generation) { error.value = reason instanceof Error ? reason.message : '业务连接失败'; await load() } }
   finally { if (epoch === generation) busy.value = false }
 }

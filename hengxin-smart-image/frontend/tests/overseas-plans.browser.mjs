@@ -52,6 +52,6 @@ try {
   items = [plan(5, 'uncertain')]; await visit(); await page.getByText('分析结果尚未确认，请联系管理员核实，切勿重复提交。').waitFor(); assert.equal(await button('重试分析').count(), 0)
   items = []; status = 'created'; await visit(); await page.getByText('暂无图片排版方案。').waitFor(); mode = 'readfail'; await button('刷新方案').click(); await page.getByText('服务暂不可用，请重试').waitFor(); mode = 'normal'; await button('刷新方案').click(); await page.getByText('暂无图片排版方案。').waitFor()
   caps = ['task.read']; status = 'plan'; items = [plan(2)]; await visit(); await page.getByText('当前为只读视角，方案处理需由负责设计或设计主管操作。').waitFor(); assert.equal(await button('确认方案，开始生图').count(), 0)
-  mode = 'denied'; await button('刷新方案').click(); await page.getByRole('heading', { name: '企业身份已连接' }).waitFor(); assert.equal(await page.locator('.plans-panel').count(), 0)
+  mode = 'denied'; await button('刷新方案').click(); await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await page.locator('.plans-panel').count(), 0)
   assert.deepEqual(errors, []); console.log('PASS plans: history; SKU; feedback; conflict refresh; unknown same-key retry; execution refresh preserves edits; confirm; failed retry; uncertain; empty; read failure; narrow clipping; readonly; revoke')
 } catch (e) { console.error(await page.locator('body').innerText()); throw e } finally { await browser.close() }

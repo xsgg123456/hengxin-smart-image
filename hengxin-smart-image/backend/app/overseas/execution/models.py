@@ -8,7 +8,7 @@ from app.overseas.db import Base
 from app.overseas.auth import models as member_models  # noqa: F401 - standalone worker metadata
 from app.overseas.tasks import models as task_models  # noqa: F401
 
-KINDS = ('analysis', 'reanalysis', 'generation', 'revision')
+KINDS = ('analysis', 'reanalysis', 'generation', 'revision', 'studio')
 ACTIVE = ('running', 'collecting', 'cancelling', 'uncertain')
 TERMINAL = ('succeeded', 'failed', 'cancelled')
 
@@ -23,7 +23,7 @@ class ExecutionGate(Timestamps, Base):
 class Job(Timestamps, Base):
     __tablename__ = 'overseas_jobs'
     __table_args__ = (CheckConstraint('version >= 1'),
-        CheckConstraint("kind IN ('analysis','reanalysis','generation','revision')"),
+        CheckConstraint("kind IN ('analysis','reanalysis','generation','revision','studio')"),
         CheckConstraint("status IN ('queued','running','collecting','cancelling','uncertain','succeeded','failed','cancelled')"))
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)

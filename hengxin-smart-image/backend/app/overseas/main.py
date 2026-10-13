@@ -38,3 +38,6 @@ app.include_router(pictures_router)
 app.include_router(archives_router)
 from app.overseas.management.router import router as management_router
 app.include_router(management_router)
+
+from app.overseas.studio.router import router as studio_router
+app.include_router(studio_router)

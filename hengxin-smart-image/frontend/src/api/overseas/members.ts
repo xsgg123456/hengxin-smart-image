@@ -18,7 +18,7 @@ export interface MembersAdapter {
 }
 export function isOverseasMember(v: unknown): v is OverseasMember {
   return record(v) && typeof v.id === 'string' && typeof v.name === 'string' && typeof v.department === 'string'
-    && Array.isArray(v.roles) && v.roles.every(r => typeof r === 'string' && Object.hasOwn(memberRoles, r))
+    && Array.isArray(v.roles) && v.roles.length <= 1 && (v.status !== 'active' || v.roles.length === 1) && v.roles.every(r => typeof r === 'string' && Object.hasOwn(memberRoles, r))
     && ['active', 'pending', 'disabled'].includes(String(v.status)) && Number.isInteger(v.version) && Number(v.version) >= 1
     && typeof v.createdAt === 'string' && typeof v.updatedAt === 'string'
 }
@@ -29,7 +29,10 @@ export function createMembersApi(fetcher: typeof fetch = fetch): MembersAdapter 
       && Number.isInteger(v.total) && Number(v.total) >= 0 && Number.isInteger(v.page) && Number(v.page) > 0
       && Number.isInteger(v.pageSize) && Number(v.pageSize) > 0, undefined, { params: { ...query } }),
     get: id => request(`${base}/${encodeURIComponent(id)}`, isOverseasMember),
-    save: member => request(`${base}/${encodeURIComponent(member.id)}`, isOverseasMember,
+    save: member => {
+      if (!isOverseasMember(member)) return Promise.reject(new Error('成员必须符合单角色规则'))
+      return request(`${base}/${encodeURIComponent(member.id)}`, isOverseasMember,
       { roles: [...new Set(member.roles)], status: member.status, version: member.version }, { method: 'PATCH' })
+    }
   }
 }

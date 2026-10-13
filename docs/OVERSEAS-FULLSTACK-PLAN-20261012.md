@@ -9,7 +9,7 @@
 - 统一钉钉企业身份认证；国内和海外授权/会话独立，只有海外权限也能完成身份登录。
 - 同机独立服务、数据库/凭据、私有图片存储/凭据、队列/缓存及执行目录；国内超级管理员不继承海外权限。
 - 海外CLI独立最多5个执行作业，分析/生图/返工共享海外额度；人工审核不占名额。账号暂可相同，认证配置和可写会话目录独立；日后只换海外账号。
-- 五角色：operator运营（本人提交），operator_manager运营主管（全部海外运营任务/统计），designer设计（分配本人），design_manager设计主管（全部海外设计任务、代处理及改派），super_admin超级管理员（全部海外数据及成员/配置/改派）。暂不分团队。多角色可兼任，业务动作取明确角色授权，超级管理员不自动具备提交/审核动作。
+- 五角色：operator运营（本人提交），operator_manager运营主管（全部海外运营任务/统计），designer设计（分配本人），design_manager设计主管（全部海外设计任务、代处理及改派），super_admin超级管理员（全部海外数据及成员/配置/改派）。暂不分团队。2026-10-13更新：每人只能一个角色，超级管理员拥有全部海外查看和操作权限，包括提交及审核；正式实现待同步。
 - 运营提交必须指定已启用设计人员，图需文件/竞品表至少一份，多SKU无颜色。设计主管/超级管理员可改派并留审计，原设计撤权，执行中作业不因改派自动重启。
 - 六节点运营提交→AI分析→设计确认→AI生图→逐图审核→归档，不含资料审核/退回运营/待分配。修改意见重新分析，单图返工只影响目标图片，全SKU通过才能整套归档。
 - 默认整套分析、按SKU生图、单图返工；任务/方案/图片/执行版本分别记录，幂等和乐观并发防重复/覆盖。超时沿用一期机制，未知进程先核实不得盲重试。正式资料/成品/版本保留，自动清理默认关闭。
@@ -26,7 +26,7 @@
 |---|---|---|---|
 |T1|独立配置/启动入口、同机隔离运行清单；缺海外配置拒绝启动，不回退国内环境；独立DB/存储/队列的隔离集成验收|core/config、db/session、MinioStore、错误与计时中间件|backend/app/overseas/{config,main}.py；core/config.py；infra/compose.overseas.yaml、.env.overseas.example；tests/test_overseas_configuration.py；无依赖|
 |T2|统一身份认证后双业务会话；海外单独授权用户可登录，国内cookie不能直接访问海外|auth/dingtalk、sessions及现有登录页/BusinessEntry|backend/app/modules/auth/{dingtalk,router,sessions}.py；app/overseas/auth/；frontend/src/api/auth.ts、views/auth/；依赖T1|
-|T3|五角色与兼任、成员启停、接口/查询/文件权限共用策略；越权拒绝、主管全域、超级管理员管理权限|一期权限依赖、用户管理表格与表单|app/overseas/{models,permissions,members}.py；migrations/overseas/；frontend/src/views/overseas/admin/及overseas-preview/access.ts；依赖T2|
+|T3|五种单角色、超级管理员全权限、成员启停、接口/查询/文件权限共用策略；越权拒绝、主管全域、超级管理员管理权限|一期权限依赖、用户管理表格与表单|app/overseas/{models,permissions,members}.py；migrations/overseas/；frontend/src/views/overseas/admin/及overseas-preview/access.ts；依赖T2|
 |T4|真实图需提交/列表/详情，多SKU、必选设计，主管改派及审计，重放幂等|现有OverseasCreate/Workspace/TaskInfo、一期幂等策略|app/overseas/tasks/；frontend/src/views/overseas/{OverseasCreate,OverseasWorkspace,OverseasTaskInfo}.vue；frontend/src/api/overseas/；依赖T3|
 |T5|上传/解析PDF、Word、Excel等，至少一份资料；原件/解析版本保存，文件读取按所属任务授权|files验证/流式传输、MinioStore、前端ElUpload/资料预览|app/overseas/materials/；app/modules/files可注入公共方法；frontend/src/views/overseas/OverseasMaterialPreview.vue；依赖T3，可与T4并行|
 |T6|海外CLI专用队列，集群总并发≤5，排队/取消/失联恢复/事件流；同账号也不串会话|一期执行门闩、租约/outbox、workspace/process、事件输出/容量预留|app/overseas/execution/；app/execution/公共可注入接口；infra海外worker配置；依赖T1/T4/T5|

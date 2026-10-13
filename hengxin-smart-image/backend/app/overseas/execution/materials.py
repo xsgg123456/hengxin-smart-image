@@ -2,6 +2,11 @@
 import json
 import re
 from pathlib import PurePosixPath
+from hashlib import sha256
+from types import SimpleNamespace
+from app.overseas.management.schemas import validate_files
+from app.modules.skills.package_validator import MAX_TOTAL, MAX_ZIP
+from app.storage.minio_store import get_store
 
 
 def prepare(job, workspace):
@@ -18,6 +23,10 @@ def prepare(job, workspace):
             or not isinstance(files, dict) or not files.get('SKILL.md')):
         raise ValueError('Invalid frozen Skill')
     workspace.skill_name = name
+    assets = skill.get('assets') or {}
+    if set(files) & set(assets):
+        raise ValueError('Duplicate frozen Skill resource')
+    validate_files({**files, **{path: 'resource' for path in assets}})
     root = workspace.work / 'skills' / name
     for relative, content in files.items():
         path = PurePosixPath(relative)
@@ -28,4 +37,23 @@ def prepare(job, workspace):
         target = root.joinpath(*path.parts)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding='utf-8')
+    total = sum(len(content.encode('utf-8')) for content in files.values())
+    for relative, asset in assets.items():
+        expected = asset['sizeBytes']
+        if not isinstance(expected, int) or not 0 <= expected <= MAX_ZIP:
+            raise ValueError('Invalid frozen Skill resource size')
+        total += expected
+        if total > MAX_TOTAL:
+            raise ValueError('Frozen Skill exceeds size limit')
+        response = get_store().open(SimpleNamespace(bucket=asset['bucket'], object_key=asset['objectKey']))
+        try:
+            content = response.read(expected + 1)
+        finally:
+            response.close()
+            response.release_conn()
+        if len(content) != expected or sha256(content).hexdigest() != asset['checksum']:
+            raise ValueError('Frozen Skill resource integrity mismatch')
+        target = root.joinpath(*PurePosixPath(relative).parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
     workspace.local_skill = root

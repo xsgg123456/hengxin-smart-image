@@ -19,6 +19,10 @@ def read(session, actor, clauses):
     for kind, count in counts:
         if kind in ('generation', 'revision'):
             result[kind + 'Images'] = count
+    from app.overseas.studio.models import Picture, Turn
+    studio_images = session.scalar(select(func.count()).select_from(Picture).join(
+        Turn, Turn.id == Picture.turn_id).where(Turn.job_id.in_(ids)))
+    result['generationImages'] += studio_images
     executed = [job for job in jobs if job.execution_count > 0]
     for name, field in (('inputTokens', 'input_tokens'), ('outputTokens', 'output_tokens')):
         counters = [token(job, field) for job in executed]

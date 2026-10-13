@@ -66,6 +66,8 @@ def active_admin_ids(session):
 
 
 def write_change(session, member, roles, status, actor_id, action):
+    if len(roles) > 1 or (status == 'active' and len(roles) != 1):
+        raise ValueError('启用成员必须且只能有一个角色')
     before = snapshot(session, member)
     session.execute(delete(MemberRole).where(MemberRole.user_id == member.id))
     session.add_all([MemberRole(user_id=member.id, role=role) for role in roles])

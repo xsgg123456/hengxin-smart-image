@@ -21,7 +21,7 @@ def add_member(factory, status='pending', roles=(), name='待授权成员', depa
 
 
 def payload(version=1, roles=None, status='active'):
-    return {'roles': roles if roles is not None else ['operator', 'designer'],
+    return {'roles': roles if roles is not None else ['designer'],
             'status': status, 'version': version}
 
 
@@ -37,21 +37,21 @@ def test_admin_search_detail_activation_and_audit(overseas):
     assert response.json()['items'][0]['id'] == str(target)
     assert client.get(URL + '/' + str(other)).json()['department'] == '国内'
     result = client.patch(URL + '/' + str(target), headers=HEADERS,
-                          json=payload(roles=['operator', 'designer', 'operator']))
+                          json=payload(roles=['designer']))
     assert result.status_code == 200
-    assert result.json()['roles'] == ['designer', 'operator']
+    assert result.json()['roles'] == ['designer']
     assert result.json()['version'] == 2
     audit = client.get(URL + '/' + str(target) + '/audit').json()['items']
     assert len(audit) == 1 and audit[0]['actorId'] == str(admin_id)
     assert audit[0]['before'] == {'status': 'pending', 'roles': [], 'version': 1}
-    assert audit[0]['after'] == {'status': 'active', 'roles': ['designer', 'operator'], 'version': 2}
+    assert audit[0]['after'] == {'status': 'active', 'roles': ['designer'], 'version': 2}
     assert client.get(URL, params={'role': 'designer'}).json()['total'] == 1
     assert client.get(URL, params={'search': '%'}).json()['total'] == 0
     assert client.get(URL + '/' + str(uuid4())).status_code == 404
     assert client.patch(URL + '/' + str(uuid4()), headers=HEADERS, json=payload()).status_code == 404
 
 
-@pytest.mark.parametrize('roles', [(r,) for r in ROLES if r != 'super_admin'] + [(), ('operator', 'designer')])
+@pytest.mark.parametrize('roles', [(r,) for r in ROLES if r != 'super_admin'] + [()])
 def test_ordinary_or_roleless_cannot_manage(overseas, roles):
     client, factory, _ = overseas
     member_id = seed(factory, roles=roles)
@@ -62,7 +62,7 @@ def test_ordinary_or_roleless_cannot_manage(overseas, roles):
                         json=payload(roles=['super_admin'])).status_code in (401, 403)
 
 
-@pytest.mark.parametrize('body', [payload(roles=[]), payload(roles=['unknown']),
+@pytest.mark.parametrize('body', [payload(roles=[]), payload(roles=['unknown']), payload(roles=['operator', 'designer']), payload(roles=['designer', 'designer']),
     payload(version=0), payload(version=True), payload(version='1'),
     payload(status='pending'), {**payload(), 'name': '伪造姓名'}])
 def test_strict_input(overseas, body):
@@ -105,7 +105,7 @@ def test_roles_change_invalidates_old_admin_session_without_relogin(overseas):
     login(client)
     assert client.patch(URL + '/' + str(member_id), headers=HEADERS, json=payload()).status_code == 200
     assert client.get(URL).status_code == 403
-    assert client.get(COOKIE_PATH + '/auth/me').json()['roles'] == ['designer', 'operator']
+    assert client.get(COOKIE_PATH + '/auth/me').json()['roles'] == ['designer']
 
 
 def test_audit_failure_rolls_back_roles_status_and_version(overseas, monkeypatch):

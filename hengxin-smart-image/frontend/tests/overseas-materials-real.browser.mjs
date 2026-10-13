@@ -17,7 +17,7 @@ try {
   for (const role of ['operator', 'operator_manager', 'designer', 'design_manager', 'admin', 'operator2', 'designer2']) {
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 } })
     assert.equal((await context.request.post(`${base}/api/identity/v1/dingtalk/container`, { headers, data: { code: `${role.endsWith('2') ? 'p19' : 'p18'}-${role}` } })).status(), 200)
-    const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.goto(`${base}/#/overseas`); await page.getByRole('heading', { name: '企业身份已连接' }).waitFor()
+    const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.goto(`${base}/#/overseas`); await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
     sessions[role] = { context, page, member: await (await api(context, 'get', '/auth/me')).json() }
   }
   const { page, context } = sessions.operator

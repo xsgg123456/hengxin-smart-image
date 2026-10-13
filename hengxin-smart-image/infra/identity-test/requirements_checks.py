@@ -110,7 +110,7 @@ def run(h, fixtures):
 
         task, body, materials = create('真实HTTP：退回修改与审核通过')
         request = {'decision': 'approve', 'comment': '', 'version': task['version']}
-        for client in (operator, outsider, other_design, admin):
+        for client in (operator, outsider, other_design):
             post(client, task, '/requirements-review', request, status=403)
         post(designer, task, '/analysis', {'version': 1}, status=409)
         with h.ENGINES['overseas'].connect() as connection:
@@ -135,12 +135,17 @@ def run(h, fixtures):
             return post(designer, task, '/requirements-review', decision, 'approve-once').json()
         with ThreadPoolExecutor(2) as pool:
             decisions = list(pool.map(concurrent, (1, 2)))
-        assert decisions[0] == decisions[1] and decisions[0]['status'] == 'analyzing'
+        assert decisions[0] == decisions[1] and decisions[0]['status'] == 'studio'
         with h.ENGINES['overseas'].connect() as connection:
             jobs = connection.execute(text('SELECT status,payload FROM overseas_jobs')).all()
-            assert len(jobs) == 1 and jobs[0].status == 'queued'
-            assert {item['id'] for item in jobs[0].payload['materials']} == set(resubmission['materialIds'])
-            assert connection.execute(text('SELECT count(*) FROM overseas_job_outbox')).scalar_one() == 1
+            assert len(jobs) == 0
+            assert connection.execute(text('SELECT count(*) FROM overseas_job_outbox')).scalar_one() == 0
+        admin_task, _, _ = create('管理员可直接审核')
+        admin_approved = post(admin, admin_task, '/requirements-review',
+            {'decision': 'approve', 'version': admin_task['version']}).json()
+        assert admin_approved['status'] == 'studio'
+        from studio_checks import check_queued_studio
+        check_queued_studio(h, designer, other_design, base, task, replacement)
         preview_pdf, _, _ = create('待审核：PDF分页与竞品表格')
         preview_word, _, _ = create('待审核：Word安全阅读', ('修订图需.docx', '竞品更新.csv'))
         returned, _, _ = create('退回运营：可修改并重新提交')
@@ -150,5 +155,5 @@ def run(h, fixtures):
             'returnedTask': returned['id'], 'approvedTask': task['id'], 'designerId': ids['p18-designer']}, ensure_ascii=False), flush=True)
     assert domestic_snapshot(h) == domestic_before
     print('PASS real PDF/DOCX/XLSX/CSV original bytes; pending no AI; roles; reject/resubmit; '
-          'concurrent idempotent approval one queued job; old evidence authorization; domestic unchanged', flush=True)
+          'concurrent idempotent approval opens studio without execution; old evidence authorization; domestic unchanged', flush=True)
     print('READY requirements browser codes: p18-operator p18-designer p18-design_manager p18-admin', flush=True)

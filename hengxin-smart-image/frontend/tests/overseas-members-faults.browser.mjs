@@ -80,7 +80,7 @@ try {
   await page.locator(`#${roleList}`).getByRole('option', { name: '运营主管', exact: true }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '保存成员', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' }); assert.deepEqual(member.roles, ['designer', 'operator_manager'])
+  await dialog.waitFor({ state: 'hidden' }); assert.deepEqual(member.roles, ['operator_manager'])
   mode = 'conflict'
   await page.getByRole('button', { name: '编辑', exact: true }).click()
   await page.getByRole('button', { name: '保存成员', exact: true }).click()
@@ -120,7 +120,7 @@ try {
   }
   capabilities = []
   await page.getByRole('button', { name: '编辑', exact: true }).click()
-  await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
+  await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
   assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), 0)
   assert.equal(calls.some(p => p.startsWith('/api/v1/') && !p.endsWith('/auth/identity/session')), false)
   assert.deepEqual(errors, [])

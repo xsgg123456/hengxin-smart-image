@@ -44,3 +44,19 @@ test('统计监控编码时间、任务和分页；页面按能力放行',async(
   assert.equal(managementCapability('usage'),'stats.read'); assert.equal(managementCapability('monitor'),'stats.read')
   assert.equal(managementCapability('skills'),'skills.manage'); assert.equal(managementCapability('settings'),'settings.manage')
 })
+
+test('完整Skill上传保留文件并使用受保护multipart接口', async () => {
+  const file = new File([new Uint8Array([0,255,1])], 'pack.zip', {type:'application/zip'})
+  const api = createManagementApi(async (url, options) => {
+    const parsed = new URL(String(url),'http://test')
+    assert.equal(parsed.pathname,'/api/overseas/v1/management/skill-packages')
+    assert.equal(parsed.searchParams.get('identity'),'a/b')
+    assert.equal(parsed.searchParams.get('version'),'1')
+    assert.equal(options?.credentials,'include')
+    assert.equal((options?.headers as Record<string,string>)['X-HX-Request'],'1')
+    assert.ok(options?.body instanceof FormData)
+    assert.deepEqual(new Uint8Array(await (options.body.get('file') as File).arrayBuffer()),new Uint8Array([0,255,1]))
+    return json(skill)
+  })
+  await api.uploadPackage(file,'layout','analysis','a/b',1)
+})

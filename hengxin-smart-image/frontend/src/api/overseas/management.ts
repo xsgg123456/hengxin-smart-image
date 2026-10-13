@@ -8,7 +8,7 @@ export interface ManagementQuery { from: string; to: string; taskId: string; kin
 export interface Usage { jobs: number; queued: number; running: number; uncertain: number; succeeded: number; failed: number; cancelled: number; generationImages: number; revisionImages: number; inputTokens: number | null; outputTokens: number | null; cost: number | null }
 export interface Job { id: string; taskId: string; taskName: string; kind: string; status: string; executionCount: number; imageCount: number; inputTokens: number | null; outputTokens: number | null; createdAt: string; startedAt: string | null; completedAt: string | null; error: string | null }
 export interface Jobs { items: Job[]; total: number; page: number; pageSize: number }
-export interface SkillVersion { version: number; files: Record<string,string>; createdAt: string }
+export interface SkillVersion { version: number; files: Record<string,string>; assetNames?: string[]; createdAt: string }
 export interface Skill { id: string; name: string; stage: Stage; enabled: boolean; version: number; currentVersion: number; versions: SkillVersion[] }
 export interface Settings { version: number; paused: boolean; concurrency: number; timeoutSeconds: number; defaults: Record<Stage,string | null>; autoCleanup: false }
 const count = (v: unknown) => Number.isInteger(v) && Number(v) >= 0
@@ -21,6 +21,19 @@ export function isSettings(v: unknown): v is Settings { return record(v) && posi
 export function createManagementApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest(fetcher), base = '/api/overseas/v1/management'
   return {
+    uploadPackage: async (file: File, name: string, stage: Stage, identity?: string, version?: number): Promise<Skill> => {
+      const query = new URLSearchParams({name, stage})
+      if (identity && version !== undefined) { query.set('identity', identity); query.set('version', String(version)) }
+      const body = new FormData(); body.append('file', file)
+      let response: Response
+      try { response = await fetcher(base + '/skill-packages?' + query, {method:'POST', credentials:'include', headers:{'X-HX-Request':'1',Accept:'application/json'}, body, signal:AbortSignal.timeout(120000)}) }
+      catch { throw new IdentityError(0, '连接中断，发布结果未知，请刷新核实') }
+      let value: unknown
+      try { value = await response.json() } catch { value = undefined }
+      if (!response.ok) throw new IdentityError(response.status, response.status === 422 ? 'Skill ZIP无效，请检查文件结构及大小' : response.status === 403 ? '暂无权限' : 'Skill发布失败，请刷新核实')
+      if (!isSkill(value)) throw new IdentityError(0, '发布响应异常，请刷新核实')
+      return value
+    },
     usage: (query: ManagementQuery) => request(base + '/usage', isUsage, undefined, { params: { ...query } }),
     jobs: (query: ManagementQuery) => request(base + '/jobs', isJobs, undefined, { params: { ...query } }),
     skills: () => request(base + '/skills', (v): v is { items: Skill[] } => record(v) && Array.isArray(v.items) && v.items.every(isSkill)),

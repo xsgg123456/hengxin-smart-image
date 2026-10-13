@@ -12,7 +12,7 @@ from test_overseas_auth import overseas, HEADERS
 from test_overseas_tasks import setup, create, payload, add_member
 
 
-def prepared(overseas, roles=('operator', 'design_manager')):
+def prepared(overseas, roles=('super_admin',)):
     client, factory, actor, designer = setup(overseas, roles)
     task = UUID(create(client, payload(designer)).json()['id'])
     with factory.begin() as session:
@@ -107,10 +107,14 @@ def test_dispatch_failure_rollback_and_repeat_delivery(overseas):
 
 
 def test_queries_resume_sanitization_revocation_and_cancel_conflict(overseas):
-    client, factory, task = prepared(overseas, roles=('operator', 'designer'))
+    client, factory, task = prepared(overseas)
     with factory.begin() as session:
         from app.overseas.auth.models import Member
         session.get(Task, task).designer_id = session.scalar(select(Member.id).where(Member.provider_user_id == 'member-1'))
+    from test_overseas_assignment import change_roles
+    with factory() as session:
+        actor = session.get(Task, task).designer_id
+    change_roles(factory, actor, ('designer',))
     identity = enqueue(factory, task)
     base = f'/api/overseas/v1/tasks/{task}'
     first = client.get(base + '/execution-events').json()

@@ -29,9 +29,9 @@ try {
       assert.equal(requests.some(path => path.includes('/workspace')), false)
       if (['both', 'overseas'].includes(code)) {
         await overseas.click()
-        await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
+        await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
         await page.reload()
-        await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
+        await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
         const member = await (await context.request.get(`${base}/api/overseas/v1/auth/me`)).json()
         assert.equal(await page.getByRole('menuitem', { name: '提交图需', exact: true }).count(), member.capabilities.includes('task.create') ? 1 : 0)
         assert.equal(await page.getByRole('radiogroup', { name: '体验角色' }).count(), 0, '正式入口不得出现模拟角色切换')

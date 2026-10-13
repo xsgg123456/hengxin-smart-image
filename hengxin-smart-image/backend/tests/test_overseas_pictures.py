@@ -149,7 +149,7 @@ def test_marks_roles_stale_versions_and_storage_integrity(materials, monkeypatch
     assert action(client, a, '/revisions', version, 'empty', note=' ', marks=[]).status_code == 422
     assert action(client, a, '/approve', version - 1, 'stale').status_code == 409
     change_roles(factory, actor, ('super_admin',))
-    assert action(client, a, '/approve', version, 'admin').status_code == 403
+    assert action(client, a, '/approve', version, 'admin').status_code == 200
     change_roles(factory, actor, ('design_manager',))
     with factory() as session:
         record = session.scalar(select(PictureVersion))

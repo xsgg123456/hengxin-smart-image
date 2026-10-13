@@ -44,7 +44,7 @@ def history(session, actor, task_id):
 
 
 def enqueue_analysis(session, task, feedback=''):
-    if not task.requirements_approved or task.status in ('created', 'pending_review', 'returned'):
+    if task.workflow != 'legacy' or not task.requirements_approved or task.status in ('created', 'pending_review', 'returned'):
         raise HTTPException(409, '设计审核通过后才能开始分析')
     previous = latest(session, task.id)
     if previous:

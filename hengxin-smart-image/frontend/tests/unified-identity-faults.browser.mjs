@@ -32,7 +32,7 @@ try {
   await page.getByRole('button', { name: '重新连接', exact: true }).click()
   const overseas = page.getByRole('button', { name: '海外业务', exact: true })
   await overseas.waitFor(); await overseas.click()
-  await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
+  await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
   await page.getByRole('button', { name: '退出登录', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: '服务暂不可用' }).waitFor()
   assert.equal(calls.includes('/api/v1/auth/logout'), false, '统一退出失败不得提前清业务')

@@ -19,7 +19,7 @@
           <p class="review-meta">确认需求清楚、资料完整后通过。退回时请说明需要补充的内容。</p>
           <ElForm label-position="top"><ElFormItem label="审核意见（通过可不填，退回必填）"><ElInput v-model="comment" aria-label="图需审核意见" type="textarea" :rows="3" maxlength="2000" :disabled="saving" placeholder="请说明需要补充或调整的内容" /></ElFormItem></ElForm>
           <ElAlert v-if="error" :title="error" type="error" :closable="false" />
-          <div class="decision-footer"><small>审核通过前，不启动 AI 分析或生图</small><div><ElButton type="danger" plain :disabled="saving" @click="decide('reject')">退回运营修改</ElButton><ElButton type="primary" :loading="saving" @click="decide('approve')">审核通过，进入 AI 分析</ElButton></div></div>
+          <div class="decision-footer"><small>审核通过前，不启动 AI 分析或生图</small><div><ElButton type="danger" plain :disabled="saving" @click="decide('reject')">退回运营修改</ElButton><ElButton type="primary" :loading="saving" @click="decide('approve')">{{ task.workflow === 'studio' ? '审核通过，进入工作台' : '审核通过，进入 AI 分析' }}</ElButton></div></div>
         </template>
         <p v-else class="review-meta">{{ task.status === 'returned' ? '已退回运营，修改完成后需重新提交设计审核。' : '等待有权处理此任务的设计审核。' }}</p>
         <ElButton v-if="task.capabilities.includes('task.requirements.resubmit')" type="primary" @click="$emit('edit')">修改图需并重新提交</ElButton>
@@ -30,7 +30,7 @@
         <div v-for="event in task.events" :key="event.id" class="history"><span>{{ event.title }}</span><small>{{ event.actorName }} · {{ formatTaskTime(event.at) }}</small></div>
       </ElCard>
     </div>
-    <ElCard class="art-card review-panel review-side" shadow="never"><h2>工作流进度</h2><ElSteps direction="vertical" :active="task.status === 'returned' ? 0 : 1" :space="96" finish-status="success"><ElStep v-for="(stage, i) in STAGES" :key="stage" :title="stage" :description="descriptions[i]" /></ElSteps><p class="side-note">通过 → AI 排版分析<br />退回 → 运营修改并重新提交<br />重新提交 → 回到设计审核</p></ElCard>
+    <ElCard class="art-card review-panel review-side" shadow="never"><h2>工作流进度</h2><ElSteps direction="vertical" :active="task.status === 'returned' ? 0 : 1" :space="96" finish-status="success"><ElStep v-for="(stage, i) in stages" :key="stage" :title="stage" :description="descriptions[i]" /></ElSteps><p class="side-note">通过 → {{ task.workflow === 'studio' ? 'AI 设计工作台' : 'AI 排版分析' }}<br />退回 → 运营修改并重新提交<br />重新提交 → 回到设计审核</p></ElCard>
   </div>
 </template>
 <script setup lang="ts">
@@ -48,6 +48,7 @@ const comment = ref(''), error = ref(''), saving = ref(false), keys = createRequ
 let active = true
 const canReview = computed(() => props.task.status === 'pending_review' && props.task.capabilities.includes('task.requirements.review'))
 const facts = computed(() => [['品名', props.task.productName], ['品牌', props.task.brand], ['平台 / 站点', `${props.task.platform} · ${props.task.market}`], ['提交人', props.task.createdBy.name], ['负责设计', props.task.designer.name], ['提交时间', formatTaskTime(props.task.createdAt)]])
+const stages = computed(() => props.task.workflow === 'studio' ? ['运营提交图需', '设计人工审核', 'AI 设计工作台', '归档成品库'] : STAGES)
 const descriptions = ['核对商品信息与图需资料', '核对需求是否清晰、资料是否完整', '仅在设计审核通过后启动', '确认排版和各张图片方案', '按已确认方案执行', '检查结果，按需修改', '全部 SKU 通过后整套归档']
 async function decide(decision: 'approve' | 'reject') {
   if (saving.value || !canReview.value) return
@@ -56,7 +57,7 @@ async function decide(decision: 'approve' | 'reject') {
   if (decision === 'reject' && !note) { error.value = '请填写退回原因，便于运营修改。'; return }
   saving.value = true
   try {
-    await ElMessageBox.confirm(decision === 'approve' ? '通过后将进入 AI 排版分析；后续仍需确认方案才会生图。' : '运营将看到退回原因，修改后需重新提交设计审核。', decision === 'approve' ? '确认通过图需审核？' : '退回运营修改？', { confirmButtonText: '确认', cancelButtonText: '取消', type: decision === 'reject' ? 'warning' : 'info' })
+    await ElMessageBox.confirm(decision === 'approve' ? (task.workflow === 'studio' ? '通过后进入 AI 设计工作台，等待设计师发送要求后才开始执行。' : '通过后将进入 AI 排版分析；后续仍需确认方案才会生图。') : '运营将看到退回原因，修改后需重新提交设计审核。', decision === 'approve' ? '确认通过图需审核？' : '退回运营修改？', { confirmButtonText: '确认', cancelButtonText: '取消', type: decision === 'reject' ? 'warning' : 'info' })
     if (!active || props.task.id !== task.id || props.task.version !== task.version || !canReview.value) return
     const body = { id: task.id, decision, comment: note, version: task.version }
     const result = await props.api.reviewRequirements(task.id, decision, note, task.version, keys.for(body))

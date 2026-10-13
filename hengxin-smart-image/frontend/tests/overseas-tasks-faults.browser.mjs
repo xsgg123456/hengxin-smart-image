@@ -74,7 +74,7 @@ try {
   mode = 'empty'; await button('刷新任务').click(); await page.getByText('暂无匹配任务，请提交图需或清空筛选').waitFor(); await unclipped(page.getByText('暂无匹配任务，请提交图需或清空筛选'))
   await page.setViewportSize({ width: 390, height: 844 }); await unclipped(button('刷新任务')); await unclipped(page.getByText('暂无匹配任务，请提交图需或清空筛选'))
   mode = 'normal'; await button('提交图需').click(); await unclipped(button('提交图需')); await unclipped(button('刷新设计人选'))
-  await button('返回任务列表').click(); await button('查看详情').waitFor(); mode = '403'; caps = []; await button('刷新任务').click(); await page.getByRole('heading', { name: '企业身份已连接' }).waitFor(); assert.equal(await page.getByText('真实多SKU任务', { exact: true }).count(), 0)
+  await button('返回任务列表').click(); await button('查看详情').waitFor(); mode = '403'; caps = []; await button('刷新任务').click(); await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await page.getByText('真实多SKU任务', { exact: true }).count(), 0)
   mode = 'empty'; caps = ['task.read']; await page.goto(`${base}/#/overseas/tasks`); await page.reload(); await page.getByText('暂无匹配任务，请清空筛选或联系运营').waitFor(); assert.equal(await button('提交图需').count(), 0); assert.equal(await page.getByText('暂无匹配任务，请提交图需或清空筛选').count(), 0); await unclipped(page.getByText('暂无匹配任务，请清空筛选或联系运营'))
   mode = '401'; await page.reload(); await page.getByText('身份已失效，请重新登录').waitFor(); assert.equal(await button('查看详情').count(), 0);
   assert.deepEqual(errors, []); console.log('PASS task browser: candidates empty/failure/page; multi-SKU; uncertain retry; detail; assignment 409; list pagination/search/error/empty; narrow ancestor clipping; revoke')

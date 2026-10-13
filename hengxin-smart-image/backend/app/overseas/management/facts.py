@@ -11,7 +11,7 @@ from app.overseas.tasks.models import Task
 
 def filters(from_: datetime | None = Query(None, alias='from'),
             to: datetime | None = None, taskId: UUID | None = None,
-            kind: Literal['analysis', 'reanalysis', 'generation', 'revision'] | None = None,
+            kind: Literal['analysis', 'reanalysis', 'generation', 'revision', 'studio'] | None = None,
             status: Literal['queued', 'running', 'collecting', 'cancelling', 'uncertain',
                             'succeeded', 'failed', 'cancelled'] | None = None):
     start = from_.replace(tzinfo=timezone.utc) if from_ and not from_.tzinfo else from_
@@ -40,5 +40,10 @@ def token(job, field):
 
 
 def image_counts(session, ids):
-    return dict(session.execute(select(PictureVersion.job_id, func.count()).where(
+    counts = dict(session.execute(select(PictureVersion.job_id, func.count()).where(
         PictureVersion.job_id.in_(ids)).group_by(PictureVersion.job_id)).all())
+    from app.overseas.studio.models import Picture, Turn
+    for job_id, count in session.execute(select(Turn.job_id, func.count()).join(
+            Picture, Picture.turn_id == Turn.id).where(Turn.job_id.in_(ids)).group_by(Turn.job_id)):
+        counts[job_id] = counts.get(job_id, 0) + count
+    return counts

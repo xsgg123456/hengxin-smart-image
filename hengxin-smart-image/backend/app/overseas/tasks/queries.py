@@ -6,7 +6,7 @@ from app.overseas.members.service import roles_for
 from app.overseas.permissions import can_access_task, principal_for, require_task_access, scopes, task_filter
 from .models import Task, TaskEvent, TaskSku, RequirementsReview
 
-DESIGN_ROLES = ('designer', 'design_manager')
+DESIGN_ROLES = ('designer', 'design_manager', 'super_admin')
 
 
 def eligible(session, member):
@@ -29,7 +29,7 @@ def summary(session, task, principal):
     return {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
             'brand': task.brand, 'platform': task.platform, 'market': task.market,
             'remarks': task.remarks, 'skus': [{'code': item.code} for item in skus],
-            'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
+            'workflow': task.workflow, 'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
             'updatedAt': task.updated_at, 'createdBy': {'id': str(creator.id), 'name': creator.name},
             'designer': {'id': str(designer.id), 'name': designer.name,
                          'status': designer.status, 'eligible': eligible(session, designer)},
@@ -37,13 +37,13 @@ def summary(session, task, principal):
                              if can_access_task(principal, task.created_by, task.designer_id, permission)]
                             + (['task.materials.submit'] if task.status == 'created'
                                and scopes(principal.roles, 'task.create')
-                               and (task.created_by == principal.id or 'operator_manager' in principal.roles)
+                               and (task.created_by == principal.id or bool(principal.roles & {'operator_manager', 'super_admin'}))
                                else [])
                             + (['task.requirements.review'] if task.status == 'pending_review'
                                and can_access_task(principal, task.created_by, task.designer_id, 'task.design') else [])
                             + (['task.requirements.resubmit'] if task.status == 'returned'
                                and scopes(principal.roles, 'task.create')
-                               and (task.created_by == principal.id or 'operator_manager' in principal.roles) else [])}
+                               and (task.created_by == principal.id or bool(principal.roles & {'operator_manager', 'super_admin'})) else [])}
 
 
 def detail(session, task_id, actor, lock=False):

@@ -5,10 +5,10 @@
       <template #after><OverseasMaterialsPanel :key="panelEpoch" v-model="materials" :api="materialsApi" :editable="canCreate" :disabled="saving" @busy="materialsBusy = $event" @failure="failure" /><ElAlert v-if="error" :title="error" type="error" :closable="false" /><div class="hx-filter"><ElButton type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="create">提交图需</ElButton></div></template>
     </OverseasCreate>
     <template v-else-if="detailId">
-      <div v-if="!editingRequirements" class="hx-heading"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail">{{ taskStatuses[detail.status] }}</p></div><ElButton @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div>
+      <div v-if="!editingRequirements" class="hx-heading" :class="{ 'studio-task-heading': studio }"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail && !studio">{{ taskStatuses[detail.status] }}</p></div><div class="studio-actions"><ElButton v-if="studio" size="small" :loading="busy" @click="load">刷新任务详情</ElButton><ElButton :size="studio ? 'small' : 'default'" @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div></div>
       <p v-if="busy" role="status">正在加载任务…</p>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
-      <ElButton v-if="!editingRequirements" :loading="busy" @click="load">刷新任务详情</ElButton>
+      <ElButton v-if="!editingRequirements && !studio" :loading="busy" @click="load">刷新任务详情</ElButton>
       <OverseasRequirementsResubmit v-if="detail && preReview && editingRequirements" :key="detail.id" :task="detail" :materials="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @close="editingRequirements = false" @changed="requirementsChanged" />
       <OverseasRequirementsReview v-else-if="detail && preReview" :key="detail.id" :task="detail" :files="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @edit="editingRequirements = true" @changed="requirementsChanged">
         <template #assignment>
@@ -18,7 +18,9 @@
           </div>
         </template>
       </OverseasRequirementsReview>
-      <OverseasTaskInfo v-if="detail && !preReview" :task="detail" class="hx-gap">
+      <div v-if="detail && studio" class="hx-filter studio-task-meta"><span>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · {{ detail.market }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
+      <OverseasStudio :actor-id="actorId" v-if="detail && studio" :key="detail.id" :task="detail" :materials-api="materialsApi" @failure="failure" @changed="refreshDetail" />
+      <OverseasTaskInfo v-if="detail && !preReview && !studio" :task="detail" class="hx-gap">
         <template #assignment>
           <div v-if="detail.capabilities.includes('task.reassign')" class="hx-gap">
             <ElButton v-if="!assigning" @click="assigning = true">改派设计</ElButton>
@@ -30,9 +32,9 @@
           <ElButton v-if="detail.status === 'created' && detail.capabilities.includes('task.materials.submit')" class="hx-gap" type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="submitMaterials">提交补充资料</ElButton>
         </template>
       </OverseasTaskInfo>
-      <OverseasPlans v-if="detail && !preReview" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
-      <OverseasPictureResults v-if="detail && !preReview" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
-      <OverseasExecution v-if="detail && !preReview" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
+      <OverseasPlans v-if="detail && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasPictureResults v-if="detail && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasExecution v-if="detail && !preReview && !studio" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
     </template>
     <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
       <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /></template>
@@ -56,8 +58,9 @@ import OverseasPlans from './OverseasPlans.vue'
 import OverseasPictureResults from './OverseasPictureResults.vue'
 import DesignerPicker from './DesignerPicker.vue'
 import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
+import OverseasStudio from './studio/OverseasStudio.vue'
 import { readyMaterialIds, type Material, type MaterialsApi } from '@/api/overseas/materials'
-const props = defineProps<{ api: TasksApi; materialsApi: MaterialsApi; capabilities: string[]; refresh: number }>()
+const props = defineProps<{ actorId: string; api: TasksApi; materialsApi: MaterialsApi; capabilities: string[]; refresh: number }>()
 const emit = defineEmits<{ failure: [reason: unknown] }>()
 const route = useRoute(), router = useRouter(), creating = computed(() => route.path === '/overseas/create'), detailId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
 const canCreate = computed(() => props.capabilities.includes('task.create')), canRead = computed(() => props.capabilities.includes('task.read'))
@@ -65,6 +68,7 @@ const draft = ref(emptyTaskDraft()), tasks = ref<TaskSummary[]>([]), detail = re
 const search = ref(''), scope = ref('all'), status = ref(''), error = ref(''), busy = ref(false), saving = ref(false), assigning = ref(false), designerId = ref('')
 const editingRequirements = ref(false)
 const preReview = computed(() => detail.value && ['pending_review', 'returned'].includes(detail.value.status))
+const studio = computed(() => detail.value?.workflow === 'studio' && ['studio', 'completed'].includes(detail.value.status))
 const panelEpoch = ref(0), plansRefresh = ref(0)
 const materials = ref<Material[]>([]), materialsBusy = ref(false)
 const ready = computed(() => { try { readyMaterialIds(materials.value); return true } catch { return false } })
@@ -74,6 +78,7 @@ let generation = 0, timer: ReturnType<typeof setTimeout> | undefined, active = t
 function failure(reason: unknown) { ++generation; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; total.value = 0; emit('failure', reason) }
 function failed(reason: unknown) { error.value = taskError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) failure(reason) }
 async function load() {
+  if (detail.value?.id === detailId.value && studio.value && canRead.value) { await refreshDetail(); return }
   editingRequirements.value = false
   const current = ++generation; panelEpoch.value++; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; busy.value = false; error.value = ''; assigning.value = false; designerId.value = ''
   if (creating.value || !canRead.value) return
@@ -136,4 +141,7 @@ onUnmounted(() => { active = false; materials.value = []; ++generation; clearTim
 <style scoped>
 .hx-heading { flex-wrap: wrap; }
 .hx-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.studio-task-heading { margin-bottom: 4px; gap: 8px; }
+.studio-task-heading h1 { font-size: 20px; margin: 0; }
+.studio-task-meta { margin-bottom: 6px; gap: 8px; font-size: 12px; color: var(--art-gray-600); }
 </style>

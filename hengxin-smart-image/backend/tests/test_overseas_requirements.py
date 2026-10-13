@@ -26,12 +26,12 @@ def review(client, task, decision='approve', comment='', key='review'):
                 {'version': task['version'], 'decision': decision, 'comment': comment}, key)
 
 
-def test_pending_blocks_ai_and_approve_enqueues_once(materials):
+def test_pending_blocks_ai_and_approve_opens_studio_without_job(materials):
     client, factory, actor, _, _ = materials
     task, material = pending(materials)
     assert task['status'] == 'pending_review' and task['requirementsReviews'] == []
     assert 'task.requirements.review' not in task['capabilities']
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     current = client.get(ROOT + '/tasks/' + task['id']).json()
     assert 'task.requirements.review' in current['capabilities']
     assert post(client, task, '/analysis', {'version': 1}).status_code == 409
@@ -41,7 +41,7 @@ def test_pending_blocks_ai_and_approve_enqueues_once(materials):
     approved = review(client, task)
     assert approved.status_code == 200, approved.text
     result = approved.json()
-    assert result['status'] == 'analyzing' and result['version'] == 2
+    assert result['status'] == 'studio' and result['version'] == 2
     assert 'task.requirements.review' not in result['capabilities']
     item = result['requirementsReviews'][0]
     assert item['decision'] == 'approve' and item['actorId'] == str(actor) and item['version'] == 1
@@ -50,11 +50,12 @@ def test_pending_blocks_ai_and_approve_enqueues_once(materials):
     assert review(client, task, comment='different').status_code == 409
     assert review(client, result, key='duplicate').status_code == 409
     with factory() as session:
-        for model in (Job, JobOutbox, Plan, RequirementsReview):
-            assert session.scalar(select(func.count()).select_from(model)) == 1
+        for model in (Job, JobOutbox, Plan):
+            assert session.scalar(select(func.count()).select_from(model)) == 0
+        assert session.scalar(select(func.count()).select_from(RequirementsReview)) == 1
 
 
-@pytest.mark.parametrize('roles', [('operator',), ('super_admin',), ('designer',)])
+@pytest.mark.parametrize('roles', [('operator',), ('designer',)])
 def test_review_requires_design_scope(materials, roles):
     client, factory, actor, _, _ = materials
     task, _ = pending(materials)
@@ -65,7 +66,7 @@ def test_review_requires_design_scope(materials, roles):
 def test_reject_resubmit_replace_and_preserve_evidence(materials):
     client, factory, actor, designer, _ = materials
     task, original = pending(materials)
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     assert review(client, task, 'reject', '   ').status_code == 422
     stale = {**task, 'version': 2}
     assert review(client, stale, 'reject', '补全').status_code == 409
@@ -95,9 +96,8 @@ def test_reject_resubmit_replace_and_preserve_evidence(materials):
     assert approved.status_code == 200, approved.text
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(Material)) == 2
-        frozen = session.scalar(select(Job)).payload
-        assert [item['id'] for item in frozen['materials']] == [newer['id']]
-        assert frozen['task']['skus'] == [{'code': 'NEW'}]
+        assert session.scalar(select(Job)) is None
+        assert session.get(Task, UUID(task['id'])).material_ids == [newer['id']]
     change_roles(factory, actor, ('designer',))
     assert client.get(path + '/content').status_code == 403
 
@@ -105,10 +105,10 @@ def test_reject_resubmit_replace_and_preserve_evidence(materials):
 def test_resubmit_authority_and_retained_materials(materials):
     client, factory, actor, designer, _ = materials
     task, original = pending(materials)
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     returned = review(client, task, 'reject', '补充').json()
     body = {**payload(designer), 'version': returned['version'], 'materialIds': [original['id']]}
-    for roles in (('designer',), ('super_admin',)):
+    for roles in (('designer',),):
         change_roles(factory, actor, roles)
         assert post(client, task, '/resubmit', body).status_code == 403
     other = add_member(factory, ('operator',))
@@ -127,7 +127,7 @@ def test_resubmit_rejects_foreign_and_failed_materials_atomically(materials):
     failed = upload(client, b'%PDF-invalid', 'bad.pdf', 'requirement').json()
     foreign = upload(client).json()
     second = create(client, {**payload(designer), 'materialIds': [foreign['id']]}, 'second').json()
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     review(client, task, 'reject', '补充')
     body = {**payload(designer), 'version': 2, 'name': '不能写入', 'materialIds': [failed['id']]}
     assert post(client, task, '/resubmit', body).status_code == 422
@@ -162,14 +162,14 @@ def test_resubmit_keep_one_replace_other_and_assignment_permission(materials, mo
     requirement = upload(client, b'%PDF-test', 'requirements.pdf', 'requirement').json()
     competitor = upload(client).json()
     task = create(client, {**payload(designer), 'materialIds': [requirement['id'], competitor['id']]}).json()
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     review(client, task, 'reject', '替换竞品')
     replacement = upload(client).json()
     another_designer = add_member(factory)
     body = {**payload(designer), 'version': 2, 'materialIds': [requirement['id'], replacement['id']]}
     change_roles(factory, actor, ('operator',))
     assert post(client, task, '/resubmit', {**body, 'designerId': str(another_designer)}).status_code == 403
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     response = post(client, task, '/resubmit', {**body, 'designerId': str(another_designer)})
     assert response.status_code == 200, response.text
     event = response.json()['events'][-1]

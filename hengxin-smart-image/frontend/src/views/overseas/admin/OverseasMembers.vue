@@ -2,7 +2,7 @@
   <ElCard class="art-card hx-section hx-admin-table-card">
     <div class="hx-admin-section-head">
       <div><span class="hx-admin-kicker">MEMBER ACCESS</span><h2>海外成员目录</h2>
-        <p>{{ adapter.preview ? '配置仅用于本地管理交互预览。' : '成员身份来自企业钉钉，姓名只读；可兼任多个海外角色。' }}</p></div>
+        <p>{{ adapter.preview ? '配置仅用于本地管理交互预览。' : '成员身份来自企业钉钉，姓名只读；每位成员仅分配一个海外角色。' }}</p></div>
       <ElButton v-if="adapter.preview" type="primary" @click="edit()">新增成员</ElButton>
     </div>
     <div class="hx-filter">
@@ -24,7 +24,7 @@
   <ElDialog v-model="open" :title="form.id ? '编辑海外成员' : '新增海外成员'" width="min(480px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
     <ElForm label-position="top" @submit.prevent="save">
       <ElFormItem label="姓名" required><ElInput v-model="form.name" aria-label="成员姓名" :readonly="!adapter.preview" maxlength="40" /></ElFormItem>
-      <ElFormItem label="海外业务角色" required><ElSelect v-model="form.roles" multiple :multiple-limit="adapter.preview ? 1 : 0" aria-label="海外业务角色" :disabled="saving || conflict"><ElOption v-for="(label,key) in roleOptions" :key="key" :label="label" :value="key" /></ElSelect></ElFormItem>
+      <ElFormItem label="海外业务角色" required><ElSelect v-model="selectedRole" clearable aria-label="海外业务角色" :disabled="saving || conflict"><ElOption v-for="(label,key) in roleOptions" :key="key" :label="label" :value="key" /></ElSelect></ElFormItem>
       <ElFormItem label="账号启用"><ElSwitch :model-value="form.status === 'active'" aria-label="账号启用" :disabled="saving || conflict" @change="form.status = $event ? 'active' : 'disabled'" /><span v-if="form.status === 'pending'" class="hx-muted">待授权，请明确启用或禁用</span></ElFormItem>
     </ElForm>
     <ElAlert v-if="formError" :title="formError" type="error" :closable="false" />
@@ -46,6 +46,7 @@ const statuses = { active: '启用', pending: '待授权', disabled: '禁用' }
 const roleOptions = computed(() => props.adapter.preview ? { operator: '运营', designer: '设计', super_admin: '管理员' } : memberRoles)
 const blank = (): OverseasMember => ({ id: '', name: '', department: '', roles: ['operator'], status: 'active', version: 1, createdAt: '', updatedAt: '' })
 const form = reactive(blank())
+const selectedRole = computed<MemberRole | ''>({ get: () => form.roles[0] ?? '', set: role => { form.roles = role ? [role] : [] } })
 let generation = 0, active = true, confirmingDisable = false, originalStatus: MemberStatus = 'active'
 function failure(reason: unknown) {
   if (!active) return
@@ -72,7 +73,7 @@ async function refreshEdit() { await edit({ ...form }); }
 async function save() {
   if (saving.value || conflict.value) return
   formError.value = ''
-  if (form.status === 'pending' || (form.status === 'active' && !form.roles.length)) { formError.value = '请选择启用或禁用；启用成员至少需要一个角色'; return }
+  if (form.status === 'pending' || (form.status === 'active' && !form.roles.length)) { formError.value = '请选择启用或禁用；启用成员必须选择一个角色'; return }
   saving.value = true
   try {
     if (form.status === 'disabled' && originalStatus !== 'disabled') {

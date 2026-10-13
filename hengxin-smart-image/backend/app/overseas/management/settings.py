@@ -66,5 +66,23 @@ def freeze(session, stage, builtin):
         record = selected(session, identity, stage)
         version = session.scalar(select(SkillVersion).where(SkillVersion.skill_id == record.id,
                                                            SkillVersion.version == record.current_version))
-        skill = {'id': str(record.id), 'name': record.name, 'version': version.version, 'files': version.files}
+        skill = {'id': str(record.id), 'name': record.name, 'version': version.version, 'files': version.files, 'assets': version.assets or {}}
+    return {'skill': skill, 'runtime': {'timeoutSeconds': config['timeoutSeconds']}}
+
+
+def freeze_selected(session, identity):
+    """Freeze the designer-selected version without imposing legacy stage routing."""
+    lock_gate(session)
+    config = values(session)
+    skill = None
+    if identity:
+        record = session.get(Skill, UUID(str(identity)))
+        if record is None or not record.enabled:
+            raise HTTPException(422, '所选 Skill 已停用或不存在，请重新选择')
+        version = session.scalar(select(SkillVersion).where(SkillVersion.skill_id == record.id,
+                                                           SkillVersion.version == record.current_version))
+        if version is None:
+            raise HTTPException(409, 'Skill 版本缺失，请联系管理员')
+        skill = {'id': str(record.id), 'name': record.name, 'version': version.version,
+                 'files': version.files, 'assets': version.assets or {}}
     return {'skill': skill, 'runtime': {'timeoutSeconds': config['timeoutSeconds']}}

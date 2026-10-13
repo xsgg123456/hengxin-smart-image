@@ -30,7 +30,7 @@ class Member(Timestamps, Base):
 class MemberRole(Timestamps, Base):
     __tablename__ = 'overseas_member_roles'
     __table_args__ = (
-        UniqueConstraint('user_id', 'role', name='uq_overseas_member_role'),
+        UniqueConstraint('user_id', name='uq_overseas_member_single_role'),
         CheckConstraint("role IN ('operator','operator_manager','designer','design_manager','super_admin')"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)

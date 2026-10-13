@@ -5,7 +5,7 @@ from app.core.config import get_settings
 from app.overseas.auth.models import Member
 from app.overseas.db import require_overseas_context, session_factory
 from app.overseas.members.models import MemberAudit
-from app.overseas.members.service import active_admin_ids, lock_permissions, roles_for, write_change
+from app.overseas.members.service import active_admin_ids, lock_permissions, write_change
 
 
 def bootstrap_admins(session, corp_id: str, user_ids: str):
@@ -29,7 +29,7 @@ def bootstrap_admins(session, corp_id: str, user_ids: str):
     if admins:
         raise ValueError('已有有效海外超级管理员，拒绝初始化')
     for member in members:
-        write_change(session, member, sorted(set(roles_for(session, member.id)) | {'super_admin'}),
+        write_change(session, member, ['super_admin'],
                      'active', None, 'bootstrap')
     session.commit()
     return len(members)

@@ -24,8 +24,10 @@ class Principal:
 def scopes(roles, permission):
     """Unknown roles/permissions never grant access, even alongside a valid role."""
     roles = frozenset(roles)
-    if not roles or not roles <= set(ROLES) or permission not in CAPABILITIES:
+    if len(roles) != 1 or not roles <= set(ROLES) or permission not in CAPABILITIES:
         return frozenset()
+    if 'super_admin' in roles:
+        return frozenset(('all',))
     if permission in ('task.read', 'stats.read'):
         if roles & MANAGERS:
             return frozenset(('all',))

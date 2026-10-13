@@ -74,7 +74,7 @@ def test_invalid_body_is_atomic(overseas, change):
     assert counts(factory) == [0] * 5
 
 
-@pytest.mark.parametrize('roles,status', [(('operator',), 'active'), (('super_admin',), 'active'),
+@pytest.mark.parametrize('roles,status', [(('operator',), 'active'), (('operator_manager',), 'active'),
                                           (('designer',), 'disabled'), ((), 'active')])
 def test_invalid_candidate(overseas, roles, status):
     client, factory, _, _ = setup(overseas)
@@ -95,8 +95,7 @@ def test_missing_candidate_and_key_and_browser_protection(overseas):
 
 
 @pytest.mark.parametrize('roles,allowed', [(('operator',), True), (('operator_manager',), True),
-    (('designer',), False), (('design_manager',), False), (('super_admin',), False),
-    (('super_admin', 'operator'), True)])
+    (('designer',), False), (('design_manager',), False), (('super_admin',), True)])
 def test_create_role_matrix(overseas, roles, allowed):
     client, factory, _, designer = setup(overseas, roles)
     assert create(client, payload(designer)).status_code == (201 if allowed else 403)
@@ -108,7 +107,7 @@ def test_candidate_search_pagination_and_minimal_fields(overseas):
     add_member(factory, ('super_admin',), name='不可选')
     add_member(factory, ('designer',), 'disabled', name='不可选')
     pages = [client.get(ROOT + f'/task-designers?page={page}&pageSize=1').json() for page in (1, 2)]
-    assert pages[0]['total'] == pages[1]['total'] == 2
+    assert pages[0]['total'] == pages[1]['total'] == 3
     assert pages[0]['items'][0]['id'] != pages[1]['items'][0]['id']
     assert set(pages[0]['items'][0]) == {'id', 'name', 'department'}
     assert client.get(ROOT + '/task-designers?search=主管').json()['total'] == 1

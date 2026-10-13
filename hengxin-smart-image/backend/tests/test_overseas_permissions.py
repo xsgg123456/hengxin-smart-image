@@ -15,7 +15,7 @@ from app.overseas.permissions import (
     ('operator_manager', {'task.read', 'task.create', 'stats.read'}),
     ('designer', {'task.read', 'task.design', 'stats.read'}),
     ('design_manager', {'task.read', 'task.design', 'task.reassign', 'stats.read'}),
-    ('super_admin', {'task.read', 'task.reassign', 'stats.read', 'members.manage',
+    ('super_admin', {'task.create', 'task.design', 'task.read', 'task.reassign', 'stats.read', 'members.manage',
                      'skills.manage', 'settings.manage'}),
 ])
 def test_five_role_capabilities(role, expected):
@@ -31,15 +31,12 @@ def test_empty_unknown_and_domestic_roles_do_not_grant_access(roles):
     assert error.value.status_code == 403
 
 
-def test_super_admin_does_not_implicitly_become_operator_or_designer():
-    uid = uuid4()
-    admin = Principal(uid, frozenset(('super_admin',)))
-    assert not can_access_task(admin, uid, uid, 'task.create')
-    assert not can_access_task(admin, uid, uid, 'task.design')
-    combined = Principal(uid, frozenset(('super_admin', 'designer', 'operator')))
-    assert can_access_task(combined, uuid4(), uid, 'task.design')
-    assert not can_access_task(combined, uid, uuid4(), 'task.design')
-    assert can_access_task(combined, uid, uid, 'task.create')
+def test_super_admin_has_all_capabilities_without_assignment():
+    from app.overseas.permissions import CAPABILITIES
+    admin = Principal(uuid4(), frozenset(('super_admin',)))
+    assert set(capabilities(admin.roles)) == set(CAPABILITIES)
+    for permission in CAPABILITIES:
+        assert can_access_task(admin, uuid4(), uuid4(), permission)
 
 
 ROLES = ('operator', 'operator_manager', 'designer', 'design_manager', 'super_admin')
@@ -69,11 +66,13 @@ def test_sql_list_detail_and_actions_share_real_ownership_scope(roles):
                         ({1, 4} if 'operator' in roles else set()) |
                         ({2, 4} if 'designer' in roles else set()))
                 elif action == 'task.design':
-                    expected = {1, 2, 3, 4} if 'design_manager' in roles else (
+                    expected = {1, 2, 3, 4} if any(r in roles for r in ('design_manager', 'super_admin')) else (
                         {2, 4} if 'designer' in roles else set())
                 else:
                     expected = {1, 2, 3, 4} if any(r in roles for r in (
                         'design_manager', 'super_admin')) else set()
+                if len(roles) != 1:
+                    expected = set()
                 visible = set(connection.scalars(select(tasks.c.id).where(task_filter(
                     principal, tasks.c.created_by, tasks.c.designer_id, action))))
                 assert visible == expected

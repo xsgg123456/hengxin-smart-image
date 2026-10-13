@@ -14,7 +14,7 @@ try {
   for (const role of roles) {
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 } })
     const auth = await context.request.post(`${base}/api/identity/v1/dingtalk/container`, { headers, data: { code: `${role.endsWith('2') ? 'p19' : 'p18'}-${role}` } }); assert.equal(auth.status(), 200)
-    const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.goto(`${base}/#/overseas`); await page.getByRole('heading', { name: '企业身份已连接' }).waitFor()
+    const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.goto(`${base}/#/overseas`); await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
     const member = await (await api(context, 'get', '/auth/me')).json(); sessions[role] = { context, page, member }
     assert.equal(await page.getByRole('menuitem', { name: '提交图需', exact: true }).count(), member.capabilities.includes('task.create') ? 1 : 0)
     assert.equal(await page.getByRole('menuitem', { name: '工作流任务', exact: true }).count(), 1)
@@ -36,7 +36,7 @@ try {
     const { page, context } = sessions[role]; await page.goto(`${base}/#/overseas/tasks/${id}`)
     const canRead = ['operator', 'operator_manager', 'designer', 'design_manager', 'admin'].includes(role)
     if (canRead) { await page.getByRole('heading', { name: '任务信息', exact: true }).waitFor(); assert.equal(await button(page, '改派设计').count(), ['design_manager', 'admin'].includes(role) ? 1 : 0) }
-    else { await page.getByRole('heading', { name: '企业身份已连接' }).waitFor(); assert.equal(await page.getByText(name, { exact: true }).count(), 0) }
+    else { await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await page.getByText(name, { exact: true }).count(), 0) }
     const response = await api(context, 'get', `/tasks/${id}`); assert.equal(response.status(), canRead ? 200 : 403)
     const list = await (await api(context, 'get', `/tasks?search=${encodeURIComponent(name)}`)).json(); assert.equal(list.total, canRead ? 1 : 0)
   }
@@ -44,7 +44,7 @@ try {
   await button(manager, '改派设计').click(); await manager.getByRole('textbox', { name: '搜索负责设计' }).fill('p19-designer2'); await manager.waitForTimeout(400); await choose(manager, '测试成员-p19-designer2')
   await button(manager, '确认改派').click(); await manager.getByText('负责设计：测试成员-p19-designer2', { exact: false }).waitFor()
   const changed = await (await api(managerContext, 'get', `/tasks/${id}`)).json(); assert.equal(changed.version, 2); assert.equal(changed.events.length, 2)
-  const oldPage = sessions.designer.page; await button(oldPage, '刷新任务详情').click(); await oldPage.getByRole('heading', { name: '企业身份已连接' }).waitFor(); assert.equal(await oldPage.getByText(name, { exact: true }).count(), 0)
+  const oldPage = sessions.designer.page; await button(oldPage, '刷新任务详情').click(); await oldPage.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await oldPage.getByText(name, { exact: true }).count(), 0)
   const newPage = sessions.designer2.page; await newPage.goto(`${base}/#/overseas/tasks/${id}`); await newPage.getByRole('heading', { name: '任务信息', exact: true }).waitFor()
   // 兼任运营与设计仍以服务端能力/范围为准。
   const admin = sessions.admin.context, dualId = sessions.dual.member.id

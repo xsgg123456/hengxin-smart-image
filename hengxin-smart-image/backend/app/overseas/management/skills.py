@@ -4,6 +4,7 @@ from app.db.timestamps import utcnow
 from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
 from .models import Audit, Skill, SkillVersion
+from .schemas import validate_files
 
 
 def describe(session, skill):
@@ -11,7 +12,7 @@ def describe(session, skill):
                               .order_by(SkillVersion.version.desc()))
     return {'id': str(skill.id), 'name': skill.name, 'stage': skill.stage, 'enabled': skill.enabled,
         'version': skill.version, 'currentVersion': skill.current_version,
-        'versions': [{'version': v.version, 'files': v.files, 'createdAt': v.created_at} for v in versions]}
+        'versions': [{'version': v.version, 'files': v.files, 'assetNames': sorted((v.assets or {}).keys()), 'createdAt': v.created_at} for v in versions]}
 
 
 def list_skills(session):
@@ -45,7 +46,19 @@ def mutate(session, actor, body, identity=None, publish=False):
             skill.enabled = body.enabled
         action = 'skill.publish' if publish else 'skill.update'
     if identity is None or publish:
-        session.add(SkillVersion(skill_id=skill.id, version=skill.current_version, files=body.files))
+        previous_assets = {}
+        if publish:
+            previous_version = session.scalar(select(SkillVersion).where(
+                SkillVersion.skill_id == skill.id, SkillVersion.version == skill.current_version - 1))
+            previous_assets = previous_version.assets if previous_version else {}
+        assets = getattr(body, 'assets', previous_assets) or {}
+        try:
+            if set(body.files) & set(assets):
+                raise ValueError('duplicate resource')
+            validate_files({**body.files, **{path: 'resource' for path in assets}})
+        except ValueError:
+            raise HTTPException(422, 'Skill文字与资源文件路径冲突或无效') from None
+        session.add(SkillVersion(skill_id=skill.id, version=skill.current_version, files=body.files, assets=assets))
     session.add(Audit(actor_id=actor.id, action=action, target=str(skill.id), before=before,
         after={'version': skill.version, 'currentVersion': skill.current_version, 'enabled': skill.enabled}))
     session.flush()

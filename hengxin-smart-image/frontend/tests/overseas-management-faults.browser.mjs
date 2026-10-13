@@ -96,6 +96,6 @@ try {
   await page.getByRole('combobox',{name:'整套分析默认 Skill',exact:true}).press('Enter');await page.getByRole('option',{name:'内置协议 Skill',exact:true}).click()
   await page.getByRole('button',{name:'保存配置',exact:true}).click();await page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/management/settings'));assert.equal(settings.defaults.analysis,null)
   await page.setViewportSize({width:390,height:844});await unclipped(page.getByRole('button',{name:'保存配置',exact:true}));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))
-  caps=['stats.read'];await page.getByRole('button',{name:'刷新配置',exact:true}).click();await page.getByRole('heading',{name:'海外业务',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'保存配置',exact:true}).count(),0)
+  caps=['stats.read'];await page.getByRole('button',{name:'刷新配置',exact:true}).click();await page.locator('.hx-page').filter({hasText:/工作流任务|暂无此功能权限/}).first().waitFor();assert.equal(await page.getByRole('button',{name:'保存配置',exact:true}).count(),0)
   assert.deepEqual(errors,[]);console.log('PASS management: five roles, scope gates, filters/page/empty/error, settings persistence/409, Skill publish/history/unknown/toggle/default, narrow viewport, revoke')
 }finally{await context.close();await browser.close()}

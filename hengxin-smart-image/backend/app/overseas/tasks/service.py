@@ -53,7 +53,7 @@ def create_task(session, actor, body, key):
     require_designer(session, body.designerId)
     task = Task(name=body.name, product_name=body.productName, brand=body.brand,
                 platform=body.platform, market=body.market, remarks=body.remarks,
-                created_by=actor.id, designer_id=body.designerId, status='created', version=1)
+                created_by=actor.id, designer_id=body.designerId, status='created', version=1, workflow='studio')
     session.add(task)
     session.flush()
     session.add_all([TaskSku(task_id=task.id, code=item.code, code_key=item.code.casefold(), position=i)

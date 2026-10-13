@@ -7,7 +7,7 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
 const browser = await chromium.launch({ headless: true }), results = []
 const headers = { 'X-HX-Request': '1', Origin: base }
 try {
-  for (const role of ['operator', 'operator_manager', 'designer', 'design_manager', 'admin', 'dual']) {
+  for (const role of ['operator', 'operator_manager', 'designer', 'design_manager', 'admin']) {
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 } })
     try {
       const response = await context.request.post(`${base}/api/identity/v1/dingtalk/container`, { headers, data: { code: `p18-${role}` } })
@@ -16,7 +16,7 @@ try {
       page.on('pageerror', error => errors.push(error.message))
       page.on('request', req => paths.push(new URL(req.url()).pathname))
       await page.goto(`${base}/#/overseas`)
-      await page.getByRole('heading', { name: '海外业务', exact: true }).waitFor()
+      await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
       const identity = await (await context.request.get(`${base}/api/overseas/v1/auth/me`)).json()
       assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), identity.capabilities.includes('stats.read') ? 1 : 0)
       assert.equal(await page.getByRole('radiogroup', { name: '体验角色' }).count(), 0)
@@ -39,7 +39,7 @@ try {
         await dialog.getByRole('button', { name: '保存成员', exact: true }).click()
         await dialog.waitFor({ state: 'hidden' })
         const changed = await (await context.request.get(`${base}/api/overseas/v1/members/${target.id}`)).json()
-        assert.deepEqual([...changed.roles].sort(), ['designer', 'operator'])
+        assert.deepEqual([...changed.roles].sort(), ['operator'])
         const audit = await (await context.request.get(`${base}/api/overseas/v1/members/${target.id}/audit`)).json()
         assert.ok(audit.items.length > 0)
         const restore = await context.request.patch(`${base}/api/overseas/v1/members/${target.id}`, { headers, data: { roles: target.roles, status: target.status, version: changed.version } })

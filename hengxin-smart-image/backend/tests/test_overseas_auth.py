@@ -22,6 +22,7 @@ from app.overseas.tasks import models as task_models  # noqa: F401
 from app.overseas.plans import models as plan_models  # noqa: F401
 from app.overseas.pictures import models as picture_models
 from app.overseas.archives import models as archive_models
+from app.overseas.studio import models as studio_models
 from app.overseas.execution.models import ExecutionGate
 from test_overseas_configuration import FAKE_OVERSEAS
 
@@ -82,11 +83,11 @@ def login(client, **extra):
 
 def test_authorized_member_gets_only_overseas_cookie_and_real_roles(overseas):
     client, factory, assertion = overseas
-    seed(factory, roles=('designer', 'operator'))
+    seed(factory, roles=('designer',))
     response = login(client)
     assert response.status_code == 200
-    assert response.json()['roles'] == ['designer', 'operator']
-    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'task.design', 'stats.read'}
+    assert response.json()['roles'] == ['designer']
+    assert set(response.json()['capabilities']) == {'task.read', 'task.design', 'stats.read'}
     cookie = response.headers['set-cookie']
     assert cookie.startswith(SESSION_COOKIE + '=') and 'HttpOnly' in cookie
     assert 'Path=' + COOKIE_PATH in cookie and 'SameSite=lax' in cookie

@@ -154,6 +154,16 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     app = load_entry('overseas/main.py')['app']
     business_paths = {path for path in app.openapi()['paths'] if path.startswith('/api/')}
     assert business_paths == {
+        '/api/overseas/v1/management/skill-packages',
+        '/api/overseas/v1/tasks/{task_id}/studio',
+        '/api/overseas/v1/tasks/{task_id}/studio/events',
+        '/api/overseas/v1/tasks/{task_id}/studio/turns',
+        '/api/overseas/v1/tasks/{task_id}/studio/turns/{turn_id}/cancel',
+        '/api/overseas/v1/tasks/{task_id}/studio/archive',
+        '/api/overseas/v1/tasks/{task_id}/studio/complete',
+        '/api/overseas/v1/tasks/{task_id}/studio/files',
+        '/api/overseas/v1/tasks/{task_id}/studio/files/{file_id}/content',
+        '/api/overseas/v1/tasks/{task_id}/studio/pictures/{picture_id}/content',
         '/api/overseas/v1/management/usage', '/api/overseas/v1/management/jobs',
         '/api/overseas/v1/management/skills', '/api/overseas/v1/management/skills/{identity}',
         '/api/overseas/v1/management/skills/{identity}/versions', '/api/overseas/v1/management/settings',

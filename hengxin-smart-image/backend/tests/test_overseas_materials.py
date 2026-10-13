@@ -159,7 +159,7 @@ def test_reassignment_revokes_previous_designer(materials):
     change_roles(factory, actor, ('designer',))
     path = ROOT + '/materials/' + data['id']
     assert client.get(path + '/content').status_code == 200
-    change_roles(factory, actor, ('designer', 'design_manager'))
+    change_roles(factory, actor, ('design_manager',))
     assert assign(client, task['id'], designer).status_code == 200
     change_roles(factory, actor, ('designer',))
     assert client.get(path).status_code == 403

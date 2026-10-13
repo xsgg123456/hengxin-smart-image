@@ -11,7 +11,7 @@ from test_overseas_management import MANAGE, config, skill
 
 def test_confirmation_uses_new_binding_retry_keeps_old_revision_uses_current(materials, monkeypatch, tmp_path):
     client, factory, actor, task = prepared(materials, monkeypatch)
-    change_roles(factory, actor, ('super_admin', 'design_manager', 'operator'))
+    change_roles(factory, actor, ('super_admin',))
     generation = skill(client, 'generation', 'new-generation')
     revision = skill(client, 'revision', 'new-revision')
     body = config(client, timeoutSeconds=120, defaults={

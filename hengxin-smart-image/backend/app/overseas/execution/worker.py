@@ -26,3 +26,6 @@ install()
 
 from app.overseas.generation.delivery import install as install_generation
 install_generation()
+
+from app.overseas.studio.execution import install as install_studio
+install_studio()

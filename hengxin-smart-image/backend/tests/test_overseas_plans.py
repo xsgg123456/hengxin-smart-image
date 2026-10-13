@@ -23,7 +23,9 @@ def prepared(materials, monkeypatch):
     client, factory, actor, designer, _ = materials
     material = upload(client).json()['id']
     task = create(client, {**payload(designer), 'materialIds': [material]}).json()
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).workflow = 'legacy'
+    change_roles(factory, actor, ('super_admin',))
     response = post(client, task, '/requirements-review', {'version': task['version'], 'decision': 'approve'}, 'review')
     assert response.status_code == 200, response.text
     return client, factory, actor, response.json()
@@ -95,7 +97,7 @@ def test_reanalysis_feedback_history_stale_and_failed_retry(materials, monkeypat
     assert len(plans(client, task)) == 3
 
 
-@pytest.mark.parametrize('roles', [('operator',), ('super_admin',), ('designer',)])
+@pytest.mark.parametrize('roles', [('operator',), ('designer',)])
 def test_business_roles_not_admin_and_not_unassigned_designer(materials, monkeypatch, roles):
     client, factory, actor, task = prepared(materials, monkeypatch)
     plan = plans(client, task)[0]
@@ -126,7 +128,9 @@ def test_enqueue_failure_rolls_back_approval(materials, monkeypatch):
     monkeypatch.setattr(parsers, 'parse_document', lambda *_: 'parsed')
     material = upload(client).json()['id']
     task = create(client, {**payload(designer), 'materialIds': [material]}).json()
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).workflow = 'legacy'
+    change_roles(factory, actor, ('super_admin',))
     def fail(*args, **kwargs):
         queue.enqueue(*args, **kwargs)
         raise RuntimeError('atomic fault')
@@ -147,8 +151,9 @@ def test_legacy_submitted_task_can_start_and_missing_materials_rejected(material
     monkeypatch.setattr(parsers, 'parse_document', lambda *_: 'legacy full text')
     material = upload(client).json()['id']
     task = create(client, payload(designer)).json()
-    change_roles(factory, actor, ('operator', 'design_manager'))
+    change_roles(factory, actor, ('super_admin',))
     with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).workflow = 'legacy'
         session.get(Task, UUID(task['id'])).status = 'submitted'
         session.get(Task, UUID(task['id'])).requirements_approved = True
     assert post(client, task, '/analysis', {'version': 1}).status_code == 422

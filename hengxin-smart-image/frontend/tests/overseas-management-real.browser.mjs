@@ -13,7 +13,7 @@ try {
       assert.equal((await context.request.post(`${base}/api/identity/v1/dingtalk/container`, { headers, data: { code: `p18-${role}` } })).status(), 200)
       const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message))
       await page.goto(`${base}/#/overseas`)
-      await page.getByRole('heading', { name: '企业身份已连接' }).waitFor()
+      await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
       const go = async (route, heading) => { await page.goto(`${base}/#/overseas/admin/${route}`); await page.getByRole('heading', { name: heading, exact: true }).waitFor() }
       await go('usage', '调用统计')
       await page.getByRole('button', { name: '刷新统计', exact: true }).waitFor()

@@ -3,7 +3,7 @@
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
     <div class="layout-content"><div class="hx-page">
       <div v-if="!taskPage && !archivePage" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
-      <OverseasTasksPage v-if="taskPage" :api="tasksAdapter" :materials-api="materialsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+      <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasArchivePage v-else-if="archivePage && member.capabilities?.includes('task.read')" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasLiveManagement v-else-if="managementPage && managementPage !== 'users' && managementAllowed" :key="managementPage + refreshKey" :page="managementPage" :api="managementAdapter" @failure="managementFailure" />
       <OverseasMembers v-else-if="managing && allowed" :key="refreshKey" :adapter="adapter" @failure="fail" />
@@ -39,22 +39,23 @@ const taskPage = computed(() => /^\/overseas\/(create|tasks)(\/|$)/.test(route.p
 const archivePage = computed(() => route.path === '/overseas/archive')
 const refreshKey = ref(0)
 let active = true
-const home: AppRouteRecord = { path: '/overseas', name: 'overseas-home', component: () => import('./OverseasPortal.vue'), meta: { title: '海外业务', icon: 'ri:home-line' } }
+
 watch(() => props.member.capabilities?.join(','), () => {
   const taskMenus: AppRouteRecord[] = []
   for (const [cap, path, title, icon] of [['task.create', '/overseas/create', '提交图需', 'ri:add-circle-line'], ['task.read', '/overseas/tasks', '工作流任务', 'ri:task-line'], ['task.read', '/overseas/archive', '成品库', 'ri:folder-check-line']]) if (props.member.capabilities?.includes(cap)) taskMenus.push({ path, name: path.split('/').pop(), component: () => import('./OverseasTasksPage.vue'), meta: { title, icon } })
   const adminMenus: AppRouteRecord[] = (Object.entries(managementPages) as [ManagementPage,string][]).filter(([page]) => props.member.capabilities?.includes(managementCapability(page))).map(([page,title]) => ({ path: '/overseas/admin/' + page, name: 'overseas-' + page, component: () => import('./admin/OverseasLiveManagement.vue'), meta: { title, icon: 'ri:settings-3-line' } }))
-  menus.setMenuList([home, ...taskMenus, ...(adminMenus.length ? [{ path: '/overseas/admin', name: 'overseas-admin', meta: { title: '管理中心', icon: 'ri:settings-3-line' }, children: adminMenus }] : [])])
+  menus.setMenuList([...taskMenus, ...(adminMenus.length ? [{ path: '/overseas/admin', name: 'overseas-admin', meta: { title: '管理中心', icon: 'ri:settings-3-line' }, children: adminMenus }] : [])])
+  menus.setHomePath('/overseas/tasks')
   tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = []
 }, { immediate: true, flush: 'sync' })
 watch(() => [route.path, props.member.capabilities?.join(',')], () => {
   const page = managementAllowed.value ? managementPage.value : undefined
   tabs.opened = []; tabs.current = {}
-  tabs.openTab({ title: archivePage.value ? '成品库' : taskPage.value ? String(route.meta.title || '工作流任务') : page ? managementPages[page] : '海外业务', path: archivePage.value ? '/overseas/archive' : taskPage.value ? route.path : page ? '/overseas/admin/' + page : '/overseas', name: String(route.name || 'overseas-home'), keepAlive: false })
+  tabs.openTab({ title: archivePage.value ? '成品库' : taskPage.value ? String(route.meta.title || '工作流任务') : page ? managementPages[page] : '工作流任务', path: archivePage.value ? '/overseas/archive' : taskPage.value ? route.path : page ? '/overseas/admin/' + page : '/overseas/tasks', name: String(route.name || 'overseas-tasks'), keepAlive: false })
 }, { immediate: true })
 function fail(reason: unknown) {
   if (!active) return
-  menus.setMenuList([home])
+  menus.setMenuList([])
   // 已成功刷新到无管理能力的身份，保留真实身份首页。
   if (reason instanceof IdentityError && reason.status === 403 && !allowed.value) return
   emit('failure', reason)
@@ -120,6 +121,7 @@ async function managementCall<T>(cap: string, action: () => Promise<T>, write = 
   catch (reason) { await managementFailure(reason); throw reason }
 }
 const managementAdapter: ManagementApi = {
+  uploadPackage: (file, name, stage, identity, version) => managementCall('skills.manage', () => managementApi.uploadPackage(file,name,stage,identity,version), true),
   usage: query => managementCall('stats.read', () => managementApi.usage(query)),
   jobs: query => managementCall('stats.read', () => managementApi.jobs(query)),
   skills: () => managementCall('skills.manage', () => managementApi.skills()),

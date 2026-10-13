@@ -19,7 +19,7 @@ def find(session, material_id, *, lock=False, deleted=False):
 
 
 def owned(session, record, actor):
-    if record.owner_id != actor.id:
+    if record.owner_id != actor.id and 'super_admin' not in principal_for(session, actor).roles:
         raise HTTPException(403, '只能操作自己的未提交资料')
     if record.task_id:
         raise HTTPException(409, '已提交资料不可修改或删除')
@@ -87,7 +87,7 @@ def submit(session, actor, task_id, body, key):
     previous = lookup_request(session, TaskRequest, actor.id, 'materials', str(task_id), key, body_hash)
     task = get_task(session, task_id, lock=True)
     principal = principal_for(session, actor)
-    if task.created_by != actor.id and 'operator_manager' not in principal.roles:
+    if task.created_by != actor.id and not principal.roles & {'operator_manager', 'super_admin'}:
         raise HTTPException(403, '只能为本人创建的任务提交资料')
     if previous:
         result = detail(session, task.id, actor)

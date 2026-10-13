@@ -17,7 +17,7 @@ def mutation(session, actor, task_id, body, key, operation, permission):
     principal = principal_for(session, actor)
     if permission == 'task.design':
         require_task_access(principal, task.created_by, task.designer_id, permission)
-    elif task.created_by != actor.id and 'operator_manager' not in principal.roles:
+    elif task.created_by != actor.id and not principal.roles & {'operator_manager', 'super_admin'}:
         raise HTTPException(403, '只能修改本人创建的图需')
     if not previous and task.version != body.version:
         raise HTTPException(409, '任务已被修改，请刷新后重试')
@@ -59,7 +59,9 @@ def review(session, actor, task_id, body, key):
             'materialIds': list(task.material_ids or [])}))
     task.requirements_approved = body.decision == 'approve'
     task.status = 'submitted' if task.requirements_approved else 'returned'
-    if task.requirements_approved:
+    if task.requirements_approved and task.workflow == 'studio':
+        task.status = 'studio'
+    elif task.requirements_approved:
         from app.overseas.plans.service import enqueue_analysis
         enqueue_analysis(session, task)
     return finish(session, actor, task, 'requirements_review', key, digest,

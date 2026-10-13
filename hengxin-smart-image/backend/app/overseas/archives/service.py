@@ -69,6 +69,19 @@ def download(session, store, actor, archive_id):
     try:
         with ZipFile(output, 'w', ZIP_STORED) as zipped:
             for index, identity in enumerate(record.versions):
+                if identity.startswith('studio:'):
+                    from app.overseas.studio.models import Picture as StudioPicture
+                    from app.overseas.studio.files import read as read_studio
+                    item = session.get(StudioPicture, UUID(identity.split(':', 1)[1]))
+                    if not item or item.task_id != task.id or not item.sku:
+                        raise HTTPException(503, '归档版本关联异常')
+                    safe_sku = ''.join(c if c.isalnum() or c in '-_' else '_' for c in item.sku)[:80]
+                    extension = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[item.content_type]
+                    total_bytes += item.size_bytes
+                    if total_bytes > 1024 * 1024 * 1024:
+                        raise HTTPException(413, '归档超过1 GiB限制')
+                    zipped.writestr(f'{index + 1:03d}_{safe_sku}{extension}', read_studio(store, item))
+                    continue
                 item = session.get(PictureVersion, UUID(identity))
                 picture = session.get(Picture, item.picture_id) if item else None
                 if not picture or picture.task_id != task.id:

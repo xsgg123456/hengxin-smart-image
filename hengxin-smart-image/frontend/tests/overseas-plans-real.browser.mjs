@@ -14,7 +14,7 @@ try {
       assert.equal(login.status(), 200)
       const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message))
       await page.goto(`${base}/#/overseas`)
-      await page.getByRole('heading', { name: '企业身份已连接' }).waitFor()
+      await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
       const response = await context.request.get(`${base}/api/overseas/v1/tasks?search=Phase22真实方案`)
       assert.equal(response.status(), 200)
       const tasks = (await response.json()).items

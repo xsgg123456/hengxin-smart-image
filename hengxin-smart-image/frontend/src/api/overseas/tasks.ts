@@ -1,8 +1,9 @@
 import { createIdentityRequest, record, IdentityError } from '../identity/request'
 import { STATUS_LABELS } from '../../views/overseas/types'
-export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', ...STATUS_LABELS }
+export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', ...STATUS_LABELS }
 export interface TaskDraft { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[]; designerId: string; materialIds?: string[] }
 export interface TaskSummary extends Omit<TaskDraft, 'designerId'> {
+  workflow?: 'legacy' | 'studio'
   id: string; status: keyof typeof taskStatuses; version: number; createdAt: string; updatedAt: string
   createdBy: { id: string; name: string }; designer: { id: string; name: string; status: string; eligible: boolean }; capabilities: string[]
 }
@@ -28,6 +29,7 @@ const person = (v: unknown) => record(v) && text(v.id) && text(v.name)
 export function isTask(v: unknown): v is TaskSummary {
   return record(v) && ['id', 'name', 'productName', 'brand', 'platform', 'market', 'remarks', 'createdAt', 'updatedAt'].every(k => text(v[k]))
     && text(v.status) && Object.hasOwn(taskStatuses, v.status) && positive(v.version)
+    && (v.workflow === undefined || v.workflow === 'legacy' || v.workflow === 'studio')
     && Array.isArray(v.skus) && v.skus.length > 0 && v.skus.every(s => record(s) && text(s.code))
     && person(v.createdBy) && person(v.designer) && record(v.designer) && text(v.designer.status) && typeof v.designer.eligible === 'boolean'
     && Array.isArray(v.capabilities) && v.capabilities.every(text)

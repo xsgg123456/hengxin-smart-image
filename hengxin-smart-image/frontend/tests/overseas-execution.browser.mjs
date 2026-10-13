@@ -57,15 +57,9 @@ try {
   await mkdir('../../output/playwright/phase21', { recursive: true }); await page.screenshot({ path: '../../output/playwright/phase21/execution-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(700); await unclipped(warning); await unclipped(button('刷新执行状态')); await page.screenshot({ path: '../../output/playwright/phase21/execution-mobile.png' })
   await button('返回任务列表').click(); const before = reads; await page.waitForTimeout(2300); assert.equal(reads, before)
-  await button('查看详情').click(); await warning.waitFor(); await button('改派设计').click(); await page.locator('input[aria-label="负责设计"]:not([disabled])').waitFor(); await page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: '负责设计', exact: true }) }).click(); await page.getByRole('option', { name: '另一设计 · 海外', exact: true }).click(); await button('确认改派').click(); await page.getByRole('heading', { name: '企业身份已连接' }).waitFor(); assert.equal(await warning.count(), 0)
+  await button('查看详情').click(); await warning.waitFor(); await button('改派设计').click(); await page.locator('input[aria-label="负责设计"]:not([disabled])').waitFor(); await page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: '负责设计', exact: true }) }).click(); await page.getByRole('option', { name: '另一设计 · 海外', exact: true }).click(); await button('确认改派').click(); await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await warning.count(), 0)
   mode = 'normal'; caps = ['task.read']; await page.goto(`${base}/#/overseas/tasks/t1`); await page.reload(); await warning.waitFor(); state = 'running'; eventId++; await button('刷新执行状态').click(); assert.equal(await button('停止执行').count(), 0)
-  mode = 'denied'; caps = []; await page.getByRole('heading', { name: '企业身份已连接' }).waitFor(); assert.equal(await page.locator('.execution-panel').count(), 0)
+  mode = 'denied'; caps = []; await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await page.locator('.execution-panel').count(), 0)
   mode = 'normal'; caps = ['task.read']; await page.goto(`${base}/#/overseas/tasks/t1`); await page.reload(); await button('刷新执行状态').waitFor(); mode = '401'; await page.getByText('身份已失效，请重新登录').waitFor(); assert.equal(await page.locator('.execution-panel').count(), 0)
   assert.deepEqual(errors, []); console.log('PASS execution: empty; cursor resume; cancel confirmation/conflict/success; uncertain; narrow clipping; route cleanup; reassign/revoke; 401/403; read-only')
 } catch (error) { console.error(await page.locator('body').innerText()); console.error({ errors, mode, cursors }); throw error } finally { await browser.close() }
-
-
-
-
-
-

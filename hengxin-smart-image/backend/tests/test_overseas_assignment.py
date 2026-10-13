@@ -18,7 +18,7 @@ def change_roles(factory, actor, roles):
 
 
 def test_assignment_replay_preserves_current_state_and_atomic_audit(overseas):
-    client, factory, actor, first = setup(overseas, ('operator', 'design_manager'))
+    client, factory, actor, first = setup(overseas, ('super_admin',))
     task = create(client, payload(first)).json()
     second, third = add_member(factory), add_member(factory)
     result = assign(client, task['id'], second)
@@ -50,8 +50,7 @@ def test_assignment_role_matrix(overseas, roles, allowed):
 
 
 @pytest.mark.parametrize('roles,expected', [(('operator',), 1), (('operator_manager',), 3),
-    (('designer',), 1), (('design_manager',), 3), (('super_admin',), 3),
-    (('operator', 'designer'), 2)])
+    (('designer',), 1), (('design_manager',), 3), (('super_admin',), 3)])
 def test_scopes_filter_before_paging_search_and_detail(overseas, roles, expected):
     client, factory, actor, designer = setup(overseas)
     own = create(client, payload(designer), 'own').json()
@@ -75,11 +74,11 @@ def test_scopes_filter_before_paging_search_and_detail(overseas, roles, expected
 
 @pytest.mark.parametrize('creator_role', [False, True])
 def test_old_designer_loses_access_or_only_retains_creator_read(overseas, creator_role):
-    client, factory, actor, designer = setup(overseas, ('operator', 'designer', 'design_manager'))
+    client, factory, actor, designer = setup(overseas, ('super_admin',))
     task = create(client, payload(actor)).json()
     assert 'task.design' in task['capabilities']
     assert assign(client, task['id'], designer).status_code == 200
-    change_roles(factory, actor, ('operator', 'designer') if creator_role else ('designer',))
+    change_roles(factory, actor, ('operator',) if creator_role else ('designer',))
     result = client.get(ROOT + '/tasks/' + task['id'])
     assert result.status_code == (200 if creator_role else 403)
     if creator_role:
@@ -87,7 +86,7 @@ def test_old_designer_loses_access_or_only_retains_creator_read(overseas, creato
 
 
 def test_disabled_current_designer_can_be_replaced(overseas):
-    client, factory, _, designer = setup(overseas, ('operator', 'design_manager'))
+    client, factory, _, designer = setup(overseas, ('super_admin',))
     task = create(client, payload(designer)).json()
     with factory.begin() as session:
         session.get(Member, designer).status = 'disabled'
@@ -98,7 +97,7 @@ def test_disabled_current_designer_can_be_replaced(overseas):
 
 def test_assignment_fault_rolls_back_task_event_and_outbox(overseas, monkeypatch):
     from app.overseas.tasks import assignment
-    client, factory, _, designer = setup(overseas, ('operator', 'design_manager'))
+    client, factory, _, designer = setup(overseas, ('super_admin',))
     task = create(client, payload(designer)).json()
     original = assignment.request_record
 
@@ -115,7 +114,7 @@ def test_assignment_fault_rolls_back_task_event_and_outbox(overseas, monkeypatch
 
 @pytest.mark.parametrize('roles,status', [(('operator',), 'active'), (('designer',), 'disabled')])
 def test_assignment_invalid_candidate_keeps_state(overseas, roles, status):
-    client, factory, _, designer = setup(overseas, ('operator', 'design_manager'))
+    client, factory, _, designer = setup(overseas, ('super_admin',))
     task = create(client, payload(designer)).json()
     invalid = add_member(factory, roles, status)
     assert assign(client, task['id'], invalid).status_code == 422
@@ -126,7 +125,7 @@ def test_assignment_invalid_candidate_keeps_state(overseas, roles, status):
 
 def test_new_designer_reads_after_assignment_and_loses_access_after_next(overseas):
     from test_overseas_auth import login, MEMBER
-    client, factory, _, designer = setup(overseas, ('operator', 'design_manager'))
+    client, factory, _, designer = setup(overseas, ('super_admin',))
     task = create(client, payload(designer)).json()
     next_designer = add_member(factory)
     assert assign(client, task['id'], next_designer).status_code == 200
