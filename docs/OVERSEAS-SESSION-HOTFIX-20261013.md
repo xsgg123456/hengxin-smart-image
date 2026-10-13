@@ -14,3 +14,13 @@
 - 最新前端292项测试通过，包括6项重验控制器测试及4项编译真实IdentityPortal.vue、以Vue renderer挂载的生命周期测试：focus+visibility去重、等待时原组件不卸载、body锁定、有效同身份草稿保留、401/403/503清业务、晚返回不恢复旧身份。测试对子页面和IO替身，不冒充真实浏览器焦点事件。
 - 正式构建31.42s通过、类型检查通过、6入口CSS回归通过、4发布测试通过。日志`output/overseas-session-hotfix-{build,typecheck,tests}.log`。
 - 正式dist浏览器成员列表和弹窗无部门，搜索提示只显示姓名，拥有提交能力的fixture侧栏显示提交图需。截图`output/session-hotfix-members-dialog.jpg`。IAB自动切换标签未观察到可验证的focus请求，因此该动作不作为重验测试证据，重验路径以上述真实组件事件测试为依据。
+
+## 生产发布
+
+- 最终两阶段审查均PASS，候选b3cddd7cba1ae500a7cf89b7eb76c8670bc8973a15f6893377db737084d4588b；代码提交03b7e13。
+- 已部署frontend-session-20261013-03b7e13，前端0.2.24；620项归档条目，4778719字节，隐私检查PASS；SHA256：119675cdb54b858d4629cf66a69db4386277b944efaa1f6c9390cb9baaf43d48。
+- 备份/opt/hengxin-backups/frontend-session-20261013-03b7e13；公网HTML与入口哈希匹配、43项CSS哈希匹配，国内/海外健康与身份配置接口通过。仅更新前端静态文件。
+- 正式浏览器张帅身份显示五角色，侧栏出现提交图需；成员列表只有姓名、海外角色、状态、操作，无部门。
+- 正式成员编辑弹窗已目视验证：无部门，张帅五角色完整；取消退出未修改成员。截图output/session-hotfix-production-members.jpg。
+- 正式张帅账号可打开提交图需完整表单，布局正常，未实际创建任务或触发付费模型；截图output/session-hotfix-production-create.jpg。窗口重验行为由前述组件生命周期测试覆盖，未声称生产故障注入。
+- 用户同意将正式页面分支、构建样式与生产截图核验写入release-builder规范，已同步技能。
