@@ -14,6 +14,24 @@ b = m.module('member-release-backup')
 v = m.module('member-release-verify')
 
 
+def test_live_mount_order_does_not_report_drift_but_all_fields_still_matter(monkeypatch):
+    original = {'Id': 'same-container', 'Mounts': [
+        {'Destination': '/data', 'Source': '/existing/data', 'RW': True, 'Type': 'bind'},
+        {'Destination': '/skills', 'Source': '/existing/skills', 'RW': False, 'Type': 'bind'}]}
+    response = copy.deepcopy(original)
+    monkeypatch.setattr(m, 'run', lambda *args, **kwargs: json.dumps([response]))
+    baseline = m.live('api')
+    response['Mounts'].reverse()
+    assert m.live('api') == baseline
+    for field, value in (('Source', '/different'), ('RW', True), ('Type', 'volume')):
+        response = copy.deepcopy(original)
+        response['Mounts'][1][field] = value
+        assert m.live('api') != baseline
+    response = copy.deepcopy(original)
+    response['Mounts'].pop()
+    assert m.live('api') != baseline
+
+
 def test_edge_closure_overrides_domestic_regex_and_is_idempotent():
     original = '''server {
     ssl_prefer_server_ciphers off;

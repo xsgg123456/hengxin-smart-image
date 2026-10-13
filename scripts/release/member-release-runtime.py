@@ -32,7 +32,10 @@ def digest(path):
 
 
 def live(name):
-    return json.loads(run('docker', 'inspect', name, capture=True))[0]
+    result = json.loads(run('docker', 'inspect', name, capture=True))[0]
+    # Docker may return the same mounts in a different order on each inspect.
+    result['Mounts'] = sorted(result['Mounts'], key=lambda mount: mount['Destination'])
+    return result
 
 
 def container(group, service):
