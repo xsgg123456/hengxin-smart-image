@@ -15,6 +15,7 @@ node_modules/
 dist/
 dist-preview/
 dist-demo/
+dist-overseas/
 output/
 output/playwright/
 .playwright-cli/

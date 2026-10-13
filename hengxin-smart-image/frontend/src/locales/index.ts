@@ -58,6 +58,8 @@ export const languageOptions = [
  * @returns 语言设置，如果获取失败则返回默认语言
  */
 const getDefaultLanguage = (): LanguageEnum => {
+  // 独立业务预览复用展示组件，但不读取一期持久化用户对象。
+  if (import.meta.env.VITE_ISOLATED_PREVIEW === 'true') return LanguageEnum.ZH
   // 尝试从版本化的存储中获取语言设置
   try {
     const storageKey = storageKeyManager.getStorageKey('user')

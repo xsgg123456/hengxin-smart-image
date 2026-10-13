@@ -7,6 +7,8 @@
     "pnpm": "10.33.4"
   },
   "scripts": {
+    "dev:overseas": "vite --config vite.overseas.config.ts --mode demo --port 3012",
+    "build:overseas": "vue-tsc --noEmit && vite build --config vite.overseas.config.ts --mode demo",
     "dev:demo": "vite --mode demo --port 3010",
     "build:demo": "vue-tsc --noEmit && vite build --mode demo --outDir dist-demo",
     "serve:demo": "vite preview --outDir dist-demo --host 127.0.0.1 --port 3010 --strictPort",
