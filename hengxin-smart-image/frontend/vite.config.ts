@@ -67,6 +67,8 @@ export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPrevi
       minify: 'terser',
       terserOptions: {
         compress: {
+          // 保留动态入口的独立预加载调用，防止合并后CSS依赖只绑定到一个分支。
+          conditionals: false,
           // 生产环境去除 console
           drop_console: true,
           // 生产环境去除 debugger
