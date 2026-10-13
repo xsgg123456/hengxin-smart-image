@@ -85,7 +85,7 @@ class StudioProtocol:
             return
         with factory.begin() as session:
             current = claims.locked_job(session, job.id)
-            if not current or current.claim_token != token:
+            if not claims.valid(current, token):
                 return
             conversation = session.get(Conversation, UUID(job.payload['conversationId']))
             if conversation.session_id and conversation.session_id != summary.session_id:
@@ -107,10 +107,11 @@ class StudioProtocol:
             from hashlib import sha256
             extension = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[image.content_type]
             row = dict(id=str(identity), name=f'{identity}{extension}', bucket=get_settings().minio_bucket,
-                object_key=f'studio/pictures/{identity}', content_type=image.content_type,
+                object_key=f'studio/pictures/{job.task_id}/{identity}', content_type=image.content_type,
                 size_bytes=len(image.data), checksum=sha256(image.data).hexdigest(),
                 width=image.width, height=image.height)
-            store.put(SimpleNamespace(**row), image.data)
+            from app.overseas.execution.objects import put
+            put(store, row, image.data)
             outputs.append(row)
             from urllib.parse import quote
             url = f'/api/overseas/v1/tasks/{job.task_id}/studio/pictures/{identity}/content'

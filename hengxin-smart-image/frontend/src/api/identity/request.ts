@@ -2,7 +2,7 @@ export class IdentityError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) { super(message) }
 }
 export function createIdentityRequest(fetcher: typeof fetch = fetch) {
-  return async function request<T>(url: string, guard: (v: unknown) => v is T, body?: unknown, options?: { method?: 'GET' | 'POST' | 'PATCH'; params?: Record<string, string | number | undefined>; idempotencyKey?: string; timeoutMs?: number }): Promise<T> {
+  return async function request<T>(url: string, guard: (v: unknown) => v is T, body?: unknown, options?: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; params?: Record<string, string | number | undefined>; idempotencyKey?: string; timeoutMs?: number }): Promise<T> {
     const query = new URLSearchParams()
     for (const [key, value] of Object.entries(options?.params || {})) if (value !== undefined && value !== '') query.set(key, String(value))
     if (query.size) url += `?${query}`

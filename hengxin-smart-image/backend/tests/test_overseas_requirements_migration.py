@@ -25,6 +25,8 @@ def test_0009_upgrade_preserves_tasks_jobs_and_materials(disposable_databases):
             connection.execute(metadata.tables['overseas_members'].insert().values(id=actor,
                 corp_id='test', provider_user_id='legacy', name='旧成员', department='', status='active',
                 version=1, created_at=now, updated_at=now))
+            connection.execute(metadata.tables['overseas_member_roles'].insert().values(id=uuid4(),
+                user_id=actor, role='designer', created_at=now, updated_at=now))
             for state, identity in ids.items():
                 connection.execute(metadata.tables['overseas_tasks'].insert().values(id=identity,
                     name=state, product_name='商品', brand='品牌', platform='Amazon', market='US', remarks='',

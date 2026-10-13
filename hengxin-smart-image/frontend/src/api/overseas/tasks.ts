@@ -1,9 +1,12 @@
 import { createIdentityRequest, record, IdentityError } from '../identity/request'
 import { STATUS_LABELS } from '../../views/overseas/types'
-export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', ...STATUS_LABELS }
+export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', deleting: '正在删除', delete_failed: '删除失败', deleted: '已删除', ...STATUS_LABELS }
+export interface TaskDeletion { taskId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
 export interface TaskDraft { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[]; designerId: string; materialIds?: string[] }
 export interface TaskSummary extends Omit<TaskDraft, 'designerId'> {
   workflow?: 'legacy' | 'studio'
+  deletionStatus?: 'deleting' | 'delete_failed' | null
+  deletionError?: string | null
   id: string; status: keyof typeof taskStatuses; version: number; createdAt: string; updatedAt: string
   createdBy: { id: string; name: string }; designer: { id: string; name: string; status: string; eligible: boolean }; capabilities: string[]
 }
@@ -16,6 +19,8 @@ export interface TaskQuery { search: string; scope: string; status: string; page
 export interface TasksApi {
   list(query: TaskQuery): Promise<Page<TaskSummary>>
   get(id: string): Promise<TaskDetail>
+  remove(id: string, version: number, confirmationName: string): Promise<TaskDeletion>
+  deletion(id: string): Promise<TaskDeletion>
   create(draft: TaskDraft, key: string): Promise<TaskDetail>
   submitMaterials(id: string, materialIds: string[], version: number, key: string): Promise<TaskDetail>
   assign(id: string, designerId: string, version: number, key: string): Promise<TaskDetail>
@@ -30,10 +35,16 @@ export function isTask(v: unknown): v is TaskSummary {
   return record(v) && ['id', 'name', 'productName', 'brand', 'platform', 'market', 'remarks', 'createdAt', 'updatedAt'].every(k => text(v[k]))
     && text(v.status) && Object.hasOwn(taskStatuses, v.status) && positive(v.version)
     && (v.workflow === undefined || v.workflow === 'legacy' || v.workflow === 'studio')
+    && (v.deletionStatus === undefined || v.deletionStatus === null || v.deletionStatus === 'deleting' || v.deletionStatus === 'delete_failed')
+    && (v.deletionError === undefined || v.deletionError === null || text(v.deletionError))
     && Array.isArray(v.skus) && v.skus.length > 0 && v.skus.every(s => record(s) && text(s.code))
     && person(v.createdBy) && person(v.designer) && record(v.designer) && text(v.designer.status) && typeof v.designer.eligible === 'boolean'
     && Array.isArray(v.capabilities) && v.capabilities.every(text)
 }
+export function isTaskDeletion(v: unknown): v is TaskDeletion {
+  return record(v) && text(v.taskId) && ['deleting', 'delete_failed', 'deleted'].includes(String(v.status)) && (v.error === null || text(v.error))
+}
+export const taskDeletionActive = (task: TaskSummary) => !!task.deletionStatus || ['deleting', 'delete_failed', 'deleted'].includes(task.status)
 export function isTaskDetail(v: unknown): v is TaskDetail {
   return isTask(v) && record(v) && Array.isArray(v.events) && v.events.every(e => record(e)
     && ['id', 'kind', 'actorId', 'actorName', 'title', 'at', 'afterDesignerId'].every(k => text(e[k]))
@@ -60,6 +71,8 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
   return {
     list: query => request(base, pageOf(isTask), undefined, { params: { ...query } }),
     get: id => request(`${base}/${encodeURIComponent(id)}`, isTaskDetail),
+    remove: (id, version, confirmationName) => request(`${base}/${encodeURIComponent(id)}`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id, { version, confirmationName }, { method: 'DELETE' }),
+    deletion: id => request(`${base}/${encodeURIComponent(id)}/deletion`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id),
     create: (draft, key) => request(base, isTaskDetail, cleanDraft(draft), { idempotencyKey: key }),
     submitMaterials: (id, materialIds, version, key) => request(`${base}/${encodeURIComponent(id)}/materials`, isTaskDetail, { materialIds, version }, { idempotencyKey: key }),
     assign: (id, designerId, version, key) => request(`${base}/${encodeURIComponent(id)}/assignment`, isTaskDetail, { designerId, version }, { method: 'PATCH', idempotencyKey: key }),

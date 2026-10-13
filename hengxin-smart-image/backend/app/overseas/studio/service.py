@@ -67,7 +67,7 @@ def send(session, actor, task_id, body, key):
             skus=list(session.scalars(select(TaskSku.code).where(TaskSku.task_id == task.id))))})
     skill = frozen.get('skill')
     session.add(Turn(id=turn_id, task_id=task.id, conversation_id=channel.id, job_id=job.id,
-        actor_id=actor.id, text=body.text, skill_name=skill['name'] if skill else None,
+        actor_id=actor.id, text=body.text, skill_name=skill.get('displayName', skill['name']) if skill else None,
         attachment_ids=body.attachmentIds, reference_ids=[str(v) for v in body.referencePictureIds]))
     return finish(session, actor, task, key, digest, 'studio_send')
 
@@ -82,7 +82,7 @@ def cancel(session, actor, task_id, turn_id, version):
     return queries.view(session, actor, task.id)
 
 
-def archive(session, actor, task_id, body, key):
+def archive(session, actor, task_id, body, key, store):
     actor, task, digest, previous = mutate(session, actor, task_id, body, key, 'studio_archive')
     if previous:
         return replay(session, actor, task)
@@ -103,6 +103,9 @@ def archive(session, actor, task_id, body, key):
         if identity not in versions:
             versions.append(identity)
     record.versions = versions
+    from app.overseas.archives.snapshot import protect
+    session.flush()
+    protect(session, store, record, task)
     return finish(session, actor, task, key, digest, 'studio_archive')
 
 

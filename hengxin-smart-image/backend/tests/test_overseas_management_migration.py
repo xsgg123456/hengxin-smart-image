@@ -3,6 +3,7 @@ import sys
 from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy import MetaData, Table, create_engine, inspect, text
+from app.overseas.db import SCHEMA_REVISION
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
@@ -12,7 +13,7 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
     command = [sys.executable, '-m', 'alembic', '-c', 'alembic.overseas.ini', 'upgrade', 'overseas_0008']
     result = subprocess.run(command, cwd=BACKEND, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    from app.overseas.auth.models import Member
+    from app.overseas.auth.models import Member, MemberRole
     from app.overseas.tasks.models import Task
     from app.overseas.execution.models import Job
     actor, task, job = uuid4(), uuid4(), uuid4()
@@ -21,6 +22,7 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
         with engine.begin() as connection:
             connection.execute(Member.__table__.insert().values(id=actor, corp_id='legacy',
                 provider_user_id='legacy', name='legacy', status='active'))
+            connection.execute(MemberRole.__table__.insert().values(user_id=actor, role='designer'))
             connection.execute(Table('overseas_tasks', MetaData(), autoload_with=connection).insert().values(id=task, name='legacy', product_name='p',
                 brand='b', market='US', platform='Amazon', created_by=actor, designer_id=actor,
                 remarks='', status='created', version=1, created_at=datetime.now(timezone.utc),
@@ -34,14 +36,14 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
         result = migrate(env)
         assert result.returncode == 0, result.stderr
     after = snapshot(overseas)
-    assert after[1]['overseas_alembic_version'] == [('overseas_0010',)]
+    assert after[1]['overseas_alembic_version'] == [(SCHEMA_REVISION,)]
     assert len(after[1]['overseas_settings']) == 1
     assert snapshot(domestic) == domestic_before
     for name, rows in before[1].items():
         if name == 'overseas_jobs':
             assert after[1][name] == [(*row, None) for row in rows]
         elif name == 'overseas_tasks':
-            assert after[1][name] == [(*row, False, None) for row in rows]
+            assert after[1][name] == [(*row, False, None, 'legacy') for row in rows]
         elif name != 'overseas_alembic_version':
             assert after[1][name] == rows
     engine = create_engine(overseas)
@@ -62,6 +64,6 @@ def test_complete_offline_sql_executes_on_empty_postgres(disposable_databases):
             connection.commit()
         with engine.connect() as connection:
             assert connection.execute(text('SELECT version FROM overseas_settings')).scalar_one() == 1
-            assert connection.execute(text('SELECT version_num FROM overseas_alembic_version')).scalar_one() == 'overseas_0010'
+            assert connection.execute(text('SELECT version_num FROM overseas_alembic_version')).scalar_one() == SCHEMA_REVISION
     finally:
         engine.dispose()

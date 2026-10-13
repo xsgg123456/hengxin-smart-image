@@ -66,7 +66,8 @@ def claim(factory, job_id, admission=None):
             mark_uncertain(session, job)
         if job.status != 'queued':
             return None
-        if job.cancel_requested:
+        from app.overseas.tasks.models import TaskDeletion
+        if job.cancel_requested or session.get(TaskDeletion, job.task_id):
             job.process_exited = True  # A queued job has never started a process.
             end(session, job, 'cancelled')
             return None

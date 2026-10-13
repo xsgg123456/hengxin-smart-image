@@ -6,7 +6,7 @@
       <ElFormItem label="暂停接纳执行"><ElSwitch v-model="form.paused" aria-label="暂停接纳执行" /></ElFormItem>
       <ElFormItem label="任务并发上限（1–5）"><ElInputNumber v-model="form.concurrency" aria-label="任务并发上限" :min="1" :max="5" :precision="0" /></ElFormItem>
       <ElFormItem label="新作业执行时限（秒，10–7200）"><ElInputNumber v-model="form.timeoutSeconds" aria-label="执行时限" :min="10" :max="7200" :precision="0" /></ElFormItem>
-      <ElFormItem v-for="(label,stage) in stages" :key="stage" :label="label + '默认 Skill'"><ElSelect v-model="form.defaults[stage]" :aria-label="label + '默认 Skill'"><ElOption :value="BUILTIN_SKILL" label="内置协议 Skill" /><ElOption v-for="skill in skills.filter(s => s.enabled && s.stage === stage)" :key="skill.id" :value="skill.id" :label="skill.name" /><ElOption v-if="missing(stage)" :value="form.defaults[stage] || ''" label="当前绑定已停用或不可用，请重新选择" disabled /></ElSelect></ElFormItem>
+      <ElFormItem v-for="(label,stage) in stages" :key="stage" :label="label + '默认 Skill'"><ElSelect v-model="form.defaults[stage]" :aria-label="label + '默认 Skill'"><ElOption :value="BUILTIN_SKILL" label="内置协议 Skill" /><ElOption v-for="skill in skills" :key="skill.id" :value="skill.id" :label="skill.displayName" /><ElOption v-if="missing(stage)" :value="form.defaults[stage] || ''" label="当前绑定不可用，请重新选择" disabled /></ElSelect></ElFormItem>
       <ElFormItem label="自动清理"><ElTag type="info">关闭（只读）</ElTag></ElFormItem>
       <div class="hx-admin-toolbar-actions hx-gap"><ElButton :disabled="!saved" @click="restore">重置未保存修改</ElButton><ElButton type="primary" :loading="saving" :disabled="blocked" @click="save">保存配置</ElButton></div>
       <p class="hx-footnote" role="status">{{ dirty ? '有未保存修改' : '当前配置已保存' }} · 版本 {{ form.version }}</p>
@@ -28,7 +28,7 @@ let active = true
 const copy = (v: Settings | SettingsForm): SettingsForm => ({ ...v, defaults: { analysis: v.defaults.analysis ?? BUILTIN_SKILL, generation: v.defaults.generation ?? BUILTIN_SKILL, revision: v.defaults.revision ?? BUILTIN_SKILL } })
 const toSettings = (v: SettingsForm): Settings => ({ ...v, defaults: { analysis: v.defaults.analysis === BUILTIN_SKILL ? null : v.defaults.analysis, generation: v.defaults.generation === BUILTIN_SKILL ? null : v.defaults.generation, revision: v.defaults.revision === BUILTIN_SKILL ? null : v.defaults.revision } })
 const dirty = computed(() => JSON.stringify(form.value) !== JSON.stringify(saved.value))
-const missing = (stage: Stage) => !!form.value?.defaults[stage] && form.value.defaults[stage] !== BUILTIN_SKILL && !skills.value.some(s => s.id === form.value?.defaults[stage] && s.enabled && s.stage === stage)
+const missing = (stage: Stage) => !!form.value?.defaults[stage] && form.value.defaults[stage] !== BUILTIN_SKILL && !skills.value.some(s => s.id === form.value?.defaults[stage])
 function restore() { if (saved.value) form.value = copy(saved.value); error.value = ''; blocked.value = false }
 function failure(reason: unknown) { if (reason instanceof IdentityError && [401,403].includes(reason.status)) { form.value = undefined; saved.value = undefined; skills.value = []; emit('failure',reason) } }
 async function load(preserve = false) {

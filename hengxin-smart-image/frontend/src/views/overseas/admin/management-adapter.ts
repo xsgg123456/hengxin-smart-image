@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import type { Task } from "../types";
+import type { Skill } from "../../../api/overseas/management";
 
 export type ManagementPage =
   | "usage"
@@ -15,18 +16,6 @@ export interface Member {
   role: keyof typeof roles;
   enabled: boolean;
 }
-export interface Skill {
-  id: string;
-  name: string;
-  stage: "analysis" | "generation" | "revision";
-  content: string;
-  enabled: boolean;
-}
-export const stages = {
-  analysis: "排版分析",
-  generation: "图片生成",
-  revision: "单图返工",
-};
 export const members = reactive<Member[]>([]);
 export const skills = reactive<Skill[]>([]);
 export const defaultSettings = () => ({
@@ -60,29 +49,6 @@ export function saveMember(input: Member) {
   )
     throw new Error("同部门已存在同名成员");
   upsert(members, value);
-}
-export function saveSkill(input: Skill) {
-  const value = {
-    ...input,
-    name: input.name.trim(),
-    content: input.content.trim(),
-  };
-  if (
-    !value.name ||
-    value.name.length > 60 ||
-    !value.content ||
-    value.content.length > 8000
-  )
-    throw new Error("请填写名称（1–60 字）和指令内容（1–8000 字）");
-  if (!(value.stage in stages)) throw new Error("请选择工作流阶段");
-  if (
-    skills.some(
-      (s) =>
-        s.id !== value.id && s.name.toLowerCase() === value.name.toLowerCase(),
-    )
-  )
-    throw new Error("Skill 名称不能重复");
-  upsert(skills, value);
 }
 function upsert<T extends { id: string }>(list: T[], value: T) {
   if (!value.id) {

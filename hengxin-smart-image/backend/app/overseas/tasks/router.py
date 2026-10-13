@@ -7,7 +7,7 @@ from app.db.session import get_session
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.permissions import authorize_member
 from . import assignment, queries, service, requirements
-from .schemas import Assignment, CreateTask, RequirementsReview, ResubmitTask
+from .schemas import Assignment, CreateTask, RequirementsReview, ResubmitTask, DeleteTask
 
 router = APIRouter(prefix='/api/overseas/v1', tags=['overseas-tasks'])
 Database = Annotated[Session, Depends(get_session)]
@@ -38,6 +38,18 @@ def designers(actor: CurrentMember, session: Database, search: str = Query('', m
 @router.get('/tasks/{task_id}')
 def detail(task_id: UUID, actor: CurrentMember, session: Database):
     return queries.detail(session, task_id, actor)
+
+
+@router.delete('/tasks/{task_id}', dependencies=[Depends(browser_request)])
+def delete_task(task_id: UUID, body: DeleteTask, actor: CurrentMember, session: Database):
+    from . import deletion
+    return deletion.request(session, actor, task_id, body)
+
+
+@router.get('/tasks/{task_id}/deletion')
+def deletion_status(task_id: UUID, actor: CurrentMember, session: Database):
+    from . import deletion
+    return deletion.status(session, actor, task_id)
 
 
 @router.patch('/tasks/{task_id}/assignment', dependencies=[Depends(browser_request)])

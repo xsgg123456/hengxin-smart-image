@@ -13,8 +13,9 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.26'
+VERSION = '0.2.28'
 EXACT = m.EXACT | {
+    'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
     'backend/migrations/overseas/script.py.mako',
     'infra/compose.overseas.yaml', 'infra/compose.identity.yaml',
@@ -28,6 +29,7 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-verify.py', 'scripts/release/overseas-services.py',
     'scripts/release/overseas-topology.py',
     'scripts/release/overseas-update-deploy.py', 'scripts/release/overseas-update-runtime.py',
+    'scripts/release/overseas-skills-runtime.py',
     'frontend/dist/index.html',
     'backend/migrations/env.py', 'backend/migrations/overseas/env.py',
     'backend/migrations/versions/0027_identity_session_binding.py',
@@ -35,6 +37,12 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/migrations/overseas/versions/0010_requirements_review.py',
     'backend/migrations/overseas/versions/0011_single_member_role.py',
     'backend/migrations/overseas/versions/0012_studio.py',
+    'backend/migrations/overseas/versions/0013_task_deletion_archives.py',
+    'backend/app/overseas/tasks/cleanup.py',
+    'backend/app/overseas/tasks/deletion.py',
+    'backend/app/overseas/archives/snapshot.py',
+    'backend/app/overseas/management/installed_catalog.py',
+    'backend/app/overseas/management/skill_install.py',
     'backend/app/overseas/studio/router.py',
     'backend/app/main.py', 'backend/app/identity/main.py',
     'backend/app/overseas/main.py', 'backend/app/overseas/execution/worker.py',
@@ -159,7 +167,7 @@ def build(repo):
     validate(files)
     release = 'overseas-20261013-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0027', overseasMigration='overseas_0012', frontendVersion=VERSION,
+                    migration='0027', overseasMigration='overseas_0013', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

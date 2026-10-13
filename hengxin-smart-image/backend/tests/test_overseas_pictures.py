@@ -108,7 +108,8 @@ def test_partial_retry_revision_history_review_archive(materials, monkeypatch, t
         assert len(zipped.namelist()) == 2
         assert [zipped.read(name) for name in zipped.namelist()] == [png(), png(color='blue')]
     with factory() as session:
-        stored = session.scalar(select(PictureVersion).where(PictureVersion.version == 2))
+        from app.overseas.archives.models import ArchiveAsset
+        stored = session.scalar(select(ArchiveAsset).where(ArchiveAsset.position == 1))
         object_key = stored.object_key
     materials[-1].data[object_key] = b'corrupted archived object'
     assert client.get(ROOT + '/archives/' + archives['items'][0]['id'] + '/download').status_code == 503

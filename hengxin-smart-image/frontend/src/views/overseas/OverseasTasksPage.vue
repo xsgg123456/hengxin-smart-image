@@ -9,8 +9,9 @@
       <p v-if="busy" role="status">正在加载任务…</p>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
       <ElButton v-if="!editingRequirements && !studio" :loading="busy" @click="load">刷新任务详情</ElButton>
-      <OverseasRequirementsResubmit v-if="detail && preReview && editingRequirements" :key="detail.id" :task="detail" :materials="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @close="editingRequirements = false" @changed="requirementsChanged" />
-      <OverseasRequirementsReview v-else-if="detail && preReview" :key="detail.id" :task="detail" :files="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @edit="editingRequirements = true" @changed="requirementsChanged">
+      <ElAlert v-if="detail && deleting" :title="detail.deletionError || (detail.status === 'delete_failed' ? '删除未完成，可重试；已归档成品保留。' : '正在删除任务，业务操作已停止。已归档成品保留。')" type="warning" :closable="false" class="hx-gap"><OverseasTaskDelete :task="detail" :api="api" @changed="deletionChanged" @failure="failure" /></ElAlert>
+      <OverseasRequirementsResubmit v-if="detail && !deleting && preReview && editingRequirements" :key="detail.id" :task="detail" :materials="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @close="editingRequirements = false" @changed="requirementsChanged" />
+      <OverseasRequirementsReview v-else-if="detail && !deleting && preReview" :key="detail.id" :task="detail" :files="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @edit="editingRequirements = true" @changed="requirementsChanged">
         <template #assignment>
           <div v-if="detail.capabilities.includes('task.reassign')" class="hx-gap">
             <ElButton v-if="!assigning" @click="assigning = true">改派设计</ElButton>
@@ -18,9 +19,9 @@
           </div>
         </template>
       </OverseasRequirementsReview>
-      <div v-if="detail && studio" class="hx-filter studio-task-meta"><span>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · {{ detail.market }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
-      <OverseasStudio :actor-id="actorId" v-if="detail && studio" :key="detail.id" :task="detail" :materials-api="materialsApi" @failure="failure" @changed="refreshDetail" />
-      <OverseasTaskInfo v-if="detail && !preReview && !studio" :task="detail" class="hx-gap">
+      <div v-if="detail && !deleting && studio" class="hx-filter studio-task-meta"><span>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · {{ detail.market }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
+      <OverseasStudio :actor-id="actorId" v-if="detail && !deleting && studio" :key="detail.id" :task="detail" :materials-api="materialsApi" @failure="failure" @changed="refreshDetail" />
+      <OverseasTaskInfo v-if="detail && !deleting && !preReview && !studio" :task="detail" class="hx-gap">
         <template #assignment>
           <div v-if="detail.capabilities.includes('task.reassign')" class="hx-gap">
             <ElButton v-if="!assigning" @click="assigning = true">改派设计</ElButton>
@@ -32,24 +33,27 @@
           <ElButton v-if="detail.status === 'created' && detail.capabilities.includes('task.materials.submit')" class="hx-gap" type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="submitMaterials">提交补充资料</ElButton>
         </template>
       </OverseasTaskInfo>
-      <OverseasPlans v-if="detail && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
-      <OverseasPictureResults v-if="detail && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
-      <OverseasExecution v-if="detail && !preReview && !studio" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
+      <OverseasPlans v-if="detail && !deleting && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasPictureResults v-if="detail && !deleting && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasExecution v-if="detail && !deleting && !preReview && !studio" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
     </template>
     <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
       <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /></template>
+      <template #action="{ row }"><OverseasTaskDelete :key="row.id" :task="row" :api="api" @changed="deletionChanged" @failure="failure" /></template>
       <template #pagination><ElPagination v-if="!busy && !error" class="hx-gap" layout="prev, pager, next" :current-page="page" :page-size="20" :total="total" :disabled="busy" @current-change="page = $event" /></template>
     </OverseasWorkspace>
     <ElAlert v-else title="暂无此功能权限" type="warning" :closable="false" />
   </div>
 </template>
 <script setup lang="ts">
+import { ElMessage } from 'element-plus'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'
-import { cleanDraft, createRequestKeys, emptyTaskDraft, taskError, taskStatuses, validateDraft, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import { cleanDraft, createRequestKeys, emptyTaskDraft, taskError, taskStatuses, taskDeletionActive, type TaskDeletion, validateDraft, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
 import OverseasRequirementsReview from './OverseasRequirementsReview.vue'
 import OverseasRequirementsResubmit from './OverseasRequirementsResubmit.vue'
+import OverseasTaskDelete from './OverseasTaskDelete.vue'
 import OverseasCreate from './OverseasCreate.vue'
 import OverseasWorkspace from './OverseasWorkspace.vue'
 import OverseasTaskInfo from './OverseasTaskInfo.vue'
@@ -67,6 +71,7 @@ const canCreate = computed(() => props.capabilities.includes('task.create')), ca
 const draft = ref(emptyTaskDraft()), tasks = ref<TaskSummary[]>([]), detail = ref<TaskDetail>(), total = ref(0), page = ref(1)
 const search = ref(''), scope = ref('all'), status = ref(''), error = ref(''), busy = ref(false), saving = ref(false), assigning = ref(false), designerId = ref('')
 const editingRequirements = ref(false)
+const deleting = computed(() => !!detail.value && taskDeletionActive(detail.value))
 const preReview = computed(() => detail.value && ['pending_review', 'returned'].includes(detail.value.status))
 const studio = computed(() => detail.value?.workflow === 'studio' && ['studio', 'completed'].includes(detail.value.status))
 const panelEpoch = ref(0), plansRefresh = ref(0)
@@ -84,16 +89,30 @@ async function load() {
   if (creating.value || !canRead.value) return
   busy.value = true
   try {
-    if (detailId.value) { const value = await props.api.get(detailId.value); if (current === generation) { const files = await props.materialsApi.list(value.id); if (current === generation) { detail.value = value; materials.value = files } } }
+    if (detailId.value) { const value = await props.api.get(detailId.value); if (current === generation) { const files = taskDeletionActive(value) ? [] : await props.materialsApi.list(value.id); if (current === generation) { detail.value = value; materials.value = files } } }
     else { const value = await props.api.list({ search: search.value.trim(), scope: scope.value, status: status.value, page: page.value, pageSize: 20 }); if (current === generation) { tasks.value = value.items; total.value = value.total; if (!value.items.length && page.value > 1 && value.total > 0) page.value = Math.ceil(value.total / 20) } }
   } catch (reason) { if (current === generation) { total.value = 0; failed(reason) } }
   finally { if (current === generation) busy.value = false }
+}
+function deletionChanged(value: TaskDeletion) {
+  if (value.status === 'deleted') {
+    const visible = tasks.value.some(task => task.id === value.taskId)
+    tasks.value = tasks.value.filter(task => task.id !== value.taskId)
+    if (visible) { total.value = Math.max(0, total.value - 1); if (!tasks.value.length) void load() }
+    ElMessage.success('任务已永久删除，已归档成品保留')
+    if (detailId.value === value.taskId) void router.push('/overseas/tasks')
+    return
+  }
+  for (const task of [...tasks.value, ...(detail.value ? [detail.value] : [])]) if (task.id === value.taskId) {
+    task.status = value.status; task.deletionStatus = value.status; task.deletionError = value.error
+    task.capabilities = task.capabilities.filter(capability => ['task.read', 'task.delete'].includes(capability))
+  }
 }
 function updateDetail(value: TaskDetail) { if (detail.value?.id === value.id && value.version >= detail.value.version) detail.value = value }
 async function requirementsChanged(value: TaskDetail) {
   updateDetail(value); editingRequirements.value = false
   const current = generation
-  try { const files = await props.materialsApi.list(value.id); if (active && current === generation && detail.value?.id === value.id) materials.value = files }
+  try { const files = taskDeletionActive(value) ? [] : await props.materialsApi.list(value.id); if (active && current === generation && detail.value?.id === value.id) materials.value = files }
   catch (reason) { if (active && current === generation) failed(reason) }
 }
 async function refreshDetail() {

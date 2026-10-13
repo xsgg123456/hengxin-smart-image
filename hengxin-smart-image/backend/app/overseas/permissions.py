@@ -10,7 +10,7 @@ from app.db.session import get_session
 from app.overseas.auth.dependencies import get_current_member, member_roles
 from app.overseas.auth.models import Member, ROLES
 
-CAPABILITIES = ('task.read', 'task.create', 'task.design', 'task.reassign',
+CAPABILITIES = ('task.read', 'task.create', 'task.design', 'task.reassign', 'task.delete',
                 'stats.read', 'members.manage', 'skills.manage', 'settings.manage')
 MANAGERS = frozenset(('operator_manager', 'design_manager', 'super_admin'))
 

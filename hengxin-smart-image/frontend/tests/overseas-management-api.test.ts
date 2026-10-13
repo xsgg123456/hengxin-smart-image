@@ -3,14 +3,14 @@ import assert from 'node:assert/strict'
 import { createManagementApi, isUsage, isJobs, isSkill, isSettings, managementCapability, type Settings } from '../src/api/overseas/management'
 import { IdentityError } from '../src/api/identity/auth'
 const settings: Settings = {version:1,paused:false,concurrency:5,timeoutSeconds:60,defaults:{analysis:null,generation:null,revision:null},autoCleanup:false}
-const skill = {id:'a/b',name:'layout',stage:'analysis',enabled:true,version:1,currentVersion:1,versions:[{version:1,files:{'SKILL.md':'instructions'},createdAt:'2026-10-12'}]}
+const skill = {id:'a/b',name:'layout',displayName:'排版分析',description:'按资料分析完整商品套图'}
 const usage = {jobs:1,queued:0,running:0,uncertain:1,succeeded:0,failed:0,cancelled:0,generationImages:0,revisionImages:0,inputTokens:null,outputTokens:null,cost:null}
 const json = (v:unknown,status=200) => new Response(JSON.stringify(v),{status})
 test('管理数据拒绝虚假金额、缺失字段、非法范围和格式', () => {
   assert.equal(isUsage(usage),true)
   for (const v of [{...usage,cost:0},{...usage,inputTokens:-1},{...usage,uncertain:undefined}]) assert.equal(isUsage(v),false)
   assert.equal(isSkill(skill),true)
-  for (const v of [{...skill,stage:'wallpaper'},{...skill,versions:[{version:1,files:{},createdAt:''}]}]) assert.equal(isSkill(v),false)
+  for (const v of [{...skill,displayName:undefined},{...skill,description:null},{...skill,id:''}]) assert.equal(isSkill(v),false)
   assert.equal(isSettings(settings),true)
   for (const v of [{...settings,concurrency:6},{...settings,timeoutSeconds:9},{...settings,autoCleanup:true},{...settings,defaults:{analysis:null}}]) assert.equal(isSettings(v),false)
   assert.equal(isJobs({items:[],total:0,page:1,pageSize:20}),true)
@@ -25,15 +25,14 @@ test('配置写入只发送白名单字段，不传清理或环境配置', async
   })
   await api.saveSettings(settings)
 })
-test('Skill版本发布编码ID且携带乐观版本；失败不自动重复请求', async () => {
-  let calls=0
-  const api=createManagementApi(async(url,options)=>{
-    calls++; assert.equal(url,'/api/overseas/v1/management/skills/a%2Fb/versions')
-    assert.deepEqual(JSON.parse(String(options?.body)),{version:1,files:{'SKILL.md':'new'}})
-    return json({detail:'conflict'},409)
+test('Skill 目录只读、真实中文描述，不再暴露网页写方法', async () => {
+  let calls = 0
+  const api = createManagementApi(async (url, options) => {
+    calls++; assert.equal(url, '/api/overseas/v1/management/skills'); assert.equal(options?.method, 'GET')
+    return json({items:[skill]})
   })
-  await assert.rejects(api.publish('a/b',1,{'SKILL.md':'new'}),(e:unknown)=>e instanceof IdentityError && e.status===409)
-  assert.equal(calls,1)
+  assert.deepEqual((await api.skills()).items,[skill]); assert.equal(calls,1)
+  for (const name of ['createSkill','publish','toggle','uploadPackage']) assert.equal(name in api,false)
 })
 test('统计监控编码时间、任务和分页；页面按能力放行',async()=>{
   const api=createManagementApi(async(url)=>{
@@ -45,18 +44,7 @@ test('统计监控编码时间、任务和分页；页面按能力放行',async(
   assert.equal(managementCapability('skills'),'skills.manage'); assert.equal(managementCapability('settings'),'settings.manage')
 })
 
-test('完整Skill上传保留文件并使用受保护multipart接口', async () => {
-  const file = new File([new Uint8Array([0,255,1])], 'pack.zip', {type:'application/zip'})
-  const api = createManagementApi(async (url, options) => {
-    const parsed = new URL(String(url),'http://test')
-    assert.equal(parsed.pathname,'/api/overseas/v1/management/skill-packages')
-    assert.equal(parsed.searchParams.get('identity'),'a/b')
-    assert.equal(parsed.searchParams.get('version'),'1')
-    assert.equal(options?.credentials,'include')
-    assert.equal((options?.headers as Record<string,string>)['X-HX-Request'],'1')
-    assert.ok(options?.body instanceof FormData)
-    assert.deepEqual(new Uint8Array(await (options.body.get('file') as File).arrayBuffer()),new Uint8Array([0,255,1]))
-    return json(skill)
-  })
-  await api.uploadPackage(file,'layout','analysis','a/b',1)
+test('目录错误和权限拒绝如实返回，不造空成功', async () => {
+  for(const status of [401,403,500]) await assert.rejects(createManagementApi(async()=>json({},status)).skills(),(error:unknown)=>error instanceof IdentityError && error.status===status)
+  await assert.rejects(createManagementApi(async()=>json({items:[{name:'missing'}]})).skills(),/格式错误/)
 })

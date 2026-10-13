@@ -1,18 +1,10 @@
-"""Accept a complete Skill ZIP without executing package contents."""
-from hashlib import sha256
+"""Legacy package reader retained only for old snapshot validation tests."""
 from io import BytesIO
 from pathlib import PurePosixPath
 from stat import S_IFMT, S_IFREG, S_IFDIR
-from types import SimpleNamespace
-from uuid import uuid4
-from zipfile import ZipFile, BadZipFile
-from zlib import error as ZlibError
-from fastapi import HTTPException
-from app.core.config import get_settings
-from app.overseas.tasks.service import lock_actor
+from zipfile import ZipFile
 from app.modules.skills.package_validator import MAX_FILES, MAX_TOTAL, MAX_ZIP
-from .schemas import validate_files, SkillCreate
-from .skills import mutate
+from .schemas import validate_files
 
 TEXT = {'.md', '.txt', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.toml', '.html', '.css', '.sh', '.ps1', '.csv'}
 
@@ -58,26 +50,3 @@ def unpack(data):
             assets[path] = content
     validate_files(text)
     return text, assets
-
-
-def import_package(session, store, actor, data, name, stage, identity=None, version=None):
-    lock_actor(session, actor, 'skills.manage')
-    try:
-        files, resources = unpack(data)
-        body = SkillCreate(name=name, stage=stage, files=files)
-    except (ValueError, BadZipFile, RuntimeError, NotImplementedError, ZlibError, EOFError):
-        raise HTTPException(422, 'Skill包无效：需要单个含非空SKILL.md的安全ZIP及UTF-8文本文件') from None
-    assets = {}
-    # Immutable object keys make retry and version publication independent.
-    # Unknown DB commit outcomes must not delete potentially referenced objects.
-    for path, content in resources.items():
-        record = SimpleNamespace(bucket=get_settings().minio_bucket,
-            object_key=f'skill-assets/{uuid4()}', content_type='application/octet-stream')
-        try:
-            store.put(record, content)
-        except Exception:
-            raise HTTPException(503, 'Skill资源存储失败，请稍后重试') from None
-        assets[path] = {'bucket': record.bucket, 'objectKey': record.object_key,
-                        'checksum': sha256(content).hexdigest(), 'sizeBytes': len(content)}
-    payload = SimpleNamespace(name=body.name, stage=body.stage, files=files, assets=assets, version=version)
-    return mutate(session, actor, payload, identity, publish=identity is not None)

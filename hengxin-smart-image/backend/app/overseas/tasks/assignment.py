@@ -1,7 +1,9 @@
 from fastapi import HTTPException
+from sqlalchemy import update
 from app.core.idempotency import fingerprint_payload, lookup_request
 from app.db.timestamps import utcnow
 from app.overseas.permissions import principal_for, require_task_access
+from app.overseas.archives.models import Archive
 from .models import TaskRequest
 from .queries import detail, get_task
 from .service import lock_actor, record_change, request_record, require_designer
@@ -24,6 +26,9 @@ def assign(session, actor, task_id, body, key):
         raise HTTPException(409, '该成员已经是当前负责人')
     before = task.designer_id
     task.designer_id = body.designerId
+    # The parent lock also serializes archiving and deletion; transfer access atomically.
+    session.execute(update(Archive).where(Archive.task_id == task.id)
+        .values(designer_id=body.designerId))
     task.version += 1
     task.updated_at = utcnow()
     record_change(session, task, actor, 'task.assigned', before)

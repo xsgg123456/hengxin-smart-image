@@ -3,6 +3,7 @@ import subprocess
 import sys
 from uuid import uuid4
 from sqlalchemy import create_engine, text
+from app.overseas.db import SCHEMA_REVISION
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
@@ -19,6 +20,8 @@ def test_upgrade_0004_preserves_existing_tasks(disposable_databases):
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO overseas_members (id,corp_id,provider_user_id,name,department,status,version,created_at,updated_at) "
                 "VALUES (:id,'test','preserved','保留成员','设计','active',1,now(),now())"), {'id': actor})
+            connection.execute(text("INSERT INTO overseas_member_roles (id,user_id,role,created_at,updated_at) "
+                "VALUES (:id,:user,'designer',now(),now())"), {'id': uuid4(), 'user': actor})
             connection.execute(text("INSERT INTO overseas_tasks (id,name,product_name,brand,platform,market,remarks,created_by,designer_id,status,version,created_at,updated_at) "
                 "VALUES (:id,'旧图需','产品','品牌','Amazon','美国','备注',:actor,:actor,'created',1,now(),now())"),
                 {'id': task, 'actor': actor})
@@ -33,10 +36,10 @@ def test_upgrade_0004_preserves_existing_tasks(disposable_databases):
             after = snapshot(overseas_url)[1]
             for table, rows in before.items():
                 if table == 'overseas_tasks':
-                    assert after[table] == [(*row, False, None) for row in rows]
+                    assert after[table] == [(*row, False, None, 'legacy') for row in rows]
                 elif table != 'overseas_alembic_version':
                     assert after[table] == rows
-            assert after['overseas_alembic_version'] == [('overseas_0010',)]
+            assert after['overseas_alembic_version'] == [(SCHEMA_REVISION,)]
             assert after['overseas_materials'] == after['overseas_material_versions'] == []
     finally:
         engine.dispose()

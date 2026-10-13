@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3015'
@@ -42,14 +43,10 @@ try {
       }
       body=settings
     } else if(p.endsWith('/management/skills')){
-      if(r.method()==='POST'){
-        writes++; const draft=r.postDataJSON();const s={id:'s1',name:draft.name,stage:draft.stage,enabled:true,version:1,currentVersion:1,versions:[{version:1,files:draft.files,createdAt:'2026-10-12'}]};skills.push(s);body=s
-      }else body={items:skills}
-    } else if(p.endsWith('/versions')){
-      writes++;const draft=r.postDataJSON(),s=skills[0]
-      if(mode==='conflict'){s.version++;status=409}
-      else{s.version++;s.currentVersion++;s.versions.push({version:s.currentVersion,files:draft.files,createdAt:'2026-10-13'});body=s;if(mode==='unknown'){await route.abort();return}}
-    }else if(p.endsWith('/management/skills/s1')){writes++;skills[0]={...skills[0],...r.postDataJSON(),version:skills[0].version+1};body=skills[0]}
+      assert.equal(r.method(),'GET')
+      if(mode==='skill-error'){await route.abort();return}
+      body={items:skills}
+    }
     else throw Error('Unexpected '+p)
     await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)})
   })
@@ -79,23 +76,26 @@ try {
   await page.reload();await page.getByRole('spinbutton',{name:'任务并发上限',exact:true}).waitFor();assert.equal(await page.getByRole('spinbutton',{name:'任务并发上限',exact:true}).inputValue(),'3')
   mode='conflict';await page.getByRole('spinbutton',{name:'任务并发上限',exact:true}).fill('2');await page.getByRole('button',{name:'保存配置',exact:true}).click();await page.getByText('配置已变化，已刷新版本并保留草稿；请核对后保存',{exact:true}).waitFor();assert.equal(await page.getByRole('spinbutton',{name:'任务并发上限',exact:true}).inputValue(),'2')
   mode='';await page.getByRole('button',{name:'保存配置',exact:true}).click();await page.getByText('当前配置已保存',{exact:false}).waitFor();assert.equal(settings.concurrency,2)
-  await go('skills');await page.getByRole('button',{name:'添加 Skill',exact:true}).click()
-  await page.getByRole('textbox',{name:'Skill 名称',exact:true}).fill('layout');await page.getByRole('textbox',{name:'指令内容',exact:true}).fill('version one');await page.getByRole('button',{name:'发布 Skill',exact:true}).click();await page.getByRole('dialog').waitFor({state:'hidden'})
-  await page.getByRole('button',{name:'发布新版本',exact:true}).click();await page.getByRole('textbox',{name:'指令内容',exact:true}).fill('version two');mode='conflict'
-  await page.getByRole('button',{name:'发布 Skill',exact:true}).click();await page.getByText('版本已变化，草稿保留；请刷新核实后再发布',{exact:true}).waitFor()
-  assert.equal(await page.getByRole('textbox',{name:'指令内容',exact:true}).inputValue(),'version two')
-  mode='';await page.getByRole('button',{name:'刷新核实并保留草稿',exact:true}).click();await page.getByText('最新版本已核实，草稿保留；请核对后发布',{exact:true}).waitFor()
-  mode='unknown';const before=writes
-  await page.getByRole('button',{name:'发布 Skill',exact:true}).click();await page.getByRole('button',{name:'刷新核实并保留草稿',exact:true}).waitFor();assert.equal(writes,before+1);assert.equal(await page.getByRole('button',{name:'发布 Skill',exact:true}).isEnabled(),false)
-  mode='';await page.getByRole('button',{name:'刷新核实并保留草稿',exact:true}).click();await page.getByText('服务端已存在相同内容版本，无需重复发布。请关闭表单查看历史版本。',{exact:true}).waitFor();assert.equal(writes,before+1)
-  await page.getByRole('button',{name:'取消',exact:true}).click();await page.getByRole('button',{name:'历史版本',exact:true}).click()
-  await page.getByRole('button',{name:/版本 1/}).click();await page.getByText('version one',{exact:true}).waitFor();await page.keyboard.press('Escape');await page.locator('.el-drawer').waitFor({state:'hidden'})
-  await page.getByRole('button',{name:'停用',exact:true}).click();await page.getByRole('button',{name:'确认停用',exact:true}).click();await page.getByRole('button',{name:'启用',exact:true}).waitFor();assert.equal(skills[0].enabled,false)
-  await page.getByRole('button',{name:'启用',exact:true}).click();await page.getByRole('button',{name:'停用',exact:true}).waitFor()
-  await go('settings');await page.getByRole('combobox',{name:'整套分析默认 Skill',exact:true}).press('Enter');await page.getByRole('option',{name:'layout',exact:true}).click();await page.getByRole('button',{name:'保存配置',exact:true}).click();await page.getByText('配置已保存',{exact:true}).waitFor();assert.equal(settings.defaults.analysis,'s1')
+  await go('skills');await page.getByText('暂无已安装 Skill',{exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'添加 Skill',exact:true}).count(),0)
+  skills=[{id:'s1',name:'layout',displayName:'沃尔玛新品主图 · 原版',description:'完整说明：'+ '按真实参考图制作。'.repeat(60)},{id:'s2',name:'layout-new',displayName:'沃尔玛新品主图 · 新版（9.27）',description:'新版差异描述'}]
+  await page.getByRole('button',{name:'刷新 Skill',exact:true}).click();await page.getByText(skills[1].displayName,{exact:true}).waitFor()
+  assert.equal(await page.getByRole('columnheader').count(),2)
+  await page.getByRole('textbox',{name:'搜索 Skill',exact:true}).fill('新版差异');await page.getByText(skills[1].displayName,{exact:true}).waitFor();assert.equal(await page.getByText(skills[0].displayName,{exact:true}).count(),0)
+  await page.getByRole('textbox',{name:'搜索 Skill',exact:true}).fill('不匹配');await page.getByText('暂无匹配的 Skill，请调整搜索',{exact:true}).waitFor()
+  await page.getByRole('textbox',{name:'搜索 Skill',exact:true}).fill('')
+  mode='skill-error';await page.getByRole('button',{name:'刷新 Skill',exact:true}).click();await page.getByText('服务连接失败，请稍后重试',{exact:true}).waitFor();assert.equal(await page.getByText('暂无已安装 Skill',{exact:true}).count(),0)
+  mode='';await page.getByRole('button',{name:'刷新 Skill',exact:true}).click();await page.getByText(skills[0].displayName,{exact:true}).waitFor()
+  await page.setViewportSize({width:390,height:844});await unclipped(page.getByRole('button',{name:'刷新 Skill',exact:true}));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))
+  const longDescription = page.getByText(skills[0].description,{exact:true})
+  assert.equal(await longDescription.innerText(),skills[0].description)
+  assert.deepEqual(await longDescription.evaluate(el=>{const failures=[];for(let p=el;p&&p.tagName!=='TABLE';p=p.parentElement){if(p.scrollHeight>p.clientHeight+1&&getComputedStyle(p).overflowY==='hidden')failures.push(p.tagName)}return failures}),[])
+  await mkdir('../../output/playwright/delete-skills',{recursive:true});await page.screenshot({path:'../../output/playwright/delete-skills/skills-long-description-mobile.png',fullPage:true,animations:'disabled'})
+  await page.setViewportSize({width:1280,height:900})
+  await go('settings');await page.getByRole('combobox',{name:'整套分析默认 Skill',exact:true}).press('Enter');await page.getByRole('option',{name:'沃尔玛新品主图 · 原版',exact:true}).click();const savedSkill=page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/management/settings'));await page.getByRole('button',{name:'保存配置',exact:true}).click();await savedSkill;assert.equal(settings.defaults.analysis,'s1')
   await page.getByRole('combobox',{name:'整套分析默认 Skill',exact:true}).press('Enter');await page.getByRole('option',{name:'内置协议 Skill',exact:true}).click()
   await page.getByRole('button',{name:'保存配置',exact:true}).click();await page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/management/settings'));assert.equal(settings.defaults.analysis,null)
   await page.setViewportSize({width:390,height:844});await unclipped(page.getByRole('button',{name:'保存配置',exact:true}));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))
   caps=['stats.read'];await page.getByRole('button',{name:'刷新配置',exact:true}).click();await page.locator('.hx-page').filter({hasText:/工作流任务|暂无此功能权限/}).first().waitFor();assert.equal(await page.getByRole('button',{name:'保存配置',exact:true}).count(),0)
-  assert.deepEqual(errors,[]);console.log('PASS management: five roles, scope gates, filters/page/empty/error, settings persistence/409, Skill publish/history/unknown/toggle/default, narrow viewport, revoke')
+  assert.deepEqual(errors,[]);console.log('PASS management: five roles, scope gates, filters/page/empty/error, settings persistence/409, Skill read-only/search/empty/error/default, narrow viewport, revoke')
 }finally{await context.close();await browser.close()}

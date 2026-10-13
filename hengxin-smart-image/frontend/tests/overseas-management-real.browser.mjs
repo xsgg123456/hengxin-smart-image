@@ -5,7 +5,6 @@ const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3016'
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(base).hostname))
 const browser = await chromium.launch({ headless: true }), errors = []
 const headers = { 'X-HX-Request': '1', Origin: base }
-const skillName = 'phase24-browser-' + Date.now()
 try {
   for (const role of ['admin', 'operator', 'designer', 'operator_manager', 'design_manager']) {
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 } })
@@ -32,24 +31,11 @@ try {
       await go('monitor', '执行监控')
       if (role === 'admin') {
         await go('skills', 'Skill 管理')
-        await page.getByRole('button', { name: '添加 Skill', exact: true }).click()
-        await page.getByLabel('Skill 名称', { exact: true }).fill(skillName)
-        await page.getByLabel('指令内容', { exact: true }).fill('# Browser Skill v1\nUse frozen task inputs.')
-        await page.getByRole('button', { name: '发布 Skill', exact: true }).click()
-        const row = page.getByRole('row').filter({ hasText: skillName })
-        await row.waitFor()
-        await row.getByRole('button', { name: '发布新版本', exact: true }).click()
-        await page.getByLabel('指令内容', { exact: true }).fill('# Browser Skill v2\nRespect image dimensions.')
-        await page.getByRole('button', { name: '发布 Skill', exact: true }).click()
-        await page.getByRole('dialog').waitFor({ state: 'hidden' })
-        await row.getByRole('button', { name: '历史版本', exact: true }).click()
-        await page.getByText('Skill 历史版本', { exact: true }).waitFor()
-        await page.getByRole('button', { name: /版本 1/ }).click()
-        await page.getByText('# Browser Skill v1\nUse frozen task inputs.', { exact: true }).waitFor()
-        await page.keyboard.press('Escape')
-        await row.getByRole('button', { name: '停用', exact: true }).click()
-        await page.getByRole('button', { name: '确认停用', exact: true }).click()
-        await row.getByRole('button', { name: '启用', exact: true }).waitFor()
+        await page.getByRole('button', { name: '刷新 Skill', exact: true }).waitFor()
+        const catalog = await (await context.request.get(`${base}/api/overseas/v1/management/skills`)).json()
+        for (const skill of catalog.items) await page.getByText(skill.displayName, { exact: true }).waitFor()
+        assert.equal(await page.getByRole('button', { name: '添加 Skill', exact: true }).count(), 0)
+        assert.equal(await page.getByRole('columnheader', { name: '描述', exact: true }).count(), 1)
         await go('settings', '系统配置')
         await page.getByLabel('执行时限', { exact: true }).waitFor()
         const settingsResponse = await context.request.get(`${base}/api/overseas/v1/management/settings`)

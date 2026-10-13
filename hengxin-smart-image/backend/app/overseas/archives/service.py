@@ -1,22 +1,22 @@
 from tempfile import SpooledTemporaryFile
+from urllib.parse import quote
 from starlette.responses import StreamingResponse
-from uuid import UUID
 from zipfile import ZipFile, ZIP_STORED
 from fastapi import HTTPException, Response
 from sqlalchemy import select, func, or_
-from app.overseas.tasks.models import Task, TaskSku
-from app.overseas.tasks.queries import get_task, detail
+from app.overseas.tasks.models import Task
+from app.overseas.tasks.queries import detail
 from app.overseas.permissions import principal_for, require_task_access, task_filter
 from app.overseas.execution.models import Job, TERMINAL
 from app.overseas.execution.queue import lock_gate
 from app.overseas.plans.service import mutation, complete
 from app.overseas.pictures.queries import slots, version
-from app.overseas.pictures.models import PictureVersion, Picture
-from app.overseas.pictures.files import read
-from .models import Archive
+from app.overseas.studio.files import read
+from .models import Archive, ArchiveAsset
+from .snapshot import protect, metadata, assets
 
 
-def archive(session, actor, task_id, body, key):
+def archive(session, actor, task_id, body, key, store):
     target = str(task_id)
     actor, task, digest, previous = mutation(session, actor, task_id, body, key, 'archived', target)
     if previous:
@@ -29,69 +29,90 @@ def archive(session, actor, task_id, body, key):
     if (task.status == 'archived' or active or not pictures
             or any(not p.version or p.approved_version != p.version for p in pictures)):
         raise HTTPException(409, '全部当前图片通过且所有执行已结束后才能归档')
-    session.add(Archive(task_id=task.id, versions=[str(version(session, p).id) for p in pictures]))
+    record = Archive(task_id=task.id, versions=[str(version(session, p).id) for p in pictures])
+    session.add(record)
+    session.flush()
+    protect(session, store, record, task)
     task.status = 'archived'
     return complete(session, actor, task, 'archived', target, key, digest)
 
 
+def dto(record):
+    return dict(id=str(record.id), taskId=str(record.task_id) if record.task_id else None,
+        sourceDeleted=record.task_id is None, productName=record.product_name, brand=record.brand,
+        platform=record.platform, skus=record.skus or [], pictureCount=len(record.versions),
+        createdAt=record.created_at)
+
+
 def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20):
     principal = principal_for(session, actor)
-    filters = [task_filter(principal, Task.created_by, Task.designer_id)]
-    for field, value in ((Task.product_name, product), (Task.brand, brand)):
+    filters = [task_filter(principal, Archive.created_by, Archive.designer_id)]
+    for field, value in ((Archive.product_name, product), (Archive.brand, brand)):
         if value:
             filters.append(field.icontains(value, autoescape=True))
-    sku_match = lambda value: select(TaskSku.id).where(TaskSku.task_id == Task.id,
-        TaskSku.code.icontains(value, autoescape=True)).exists()
+    sku_match = lambda value: Archive.sku_search.icontains(value, autoescape=True)
     if sku:
         filters.append(sku_match(sku))
     if search:
-        filters.append(or_(Task.product_name.icontains(search, autoescape=True),
-                           Task.brand.icontains(search, autoescape=True), sku_match(search)))
-    query = select(Archive, Task).join(Task, Task.id == Archive.task_id).where(*filters)
-    total = session.scalar(select(func.count()).select_from(query.subquery()))
-    rows = session.execute(query.order_by(Archive.created_at.desc(), Archive.id)
+        filters.append(or_(Archive.product_name.icontains(search, autoescape=True),
+                           Archive.brand.icontains(search, autoescape=True), sku_match(search)))
+    total = session.scalar(select(func.count()).select_from(Archive).where(*filters))
+    rows = session.scalars(select(Archive).where(*filters).order_by(Archive.created_at.desc(), Archive.id)
                            .offset((page - 1) * page_size).limit(page_size))
-    items = [{'id': str(a.id), 'taskId': str(t.id), 'productName': t.product_name, 'brand': t.brand,
-              'skus': [{'code': code} for code in session.scalars(select(TaskSku.code)
-                       .where(TaskSku.task_id == t.id).order_by(TaskSku.position))],
-              'pictureCount': len(a.versions), 'createdAt': a.created_at} for a, t in rows]
-    return {'items': items, 'total': total, 'page': page, 'pageSize': page_size}
+    return {'items': [dto(row) for row in rows], 'total': total, 'page': page, 'pageSize': page_size}
 
 
-def download(session, store, actor, archive_id):
+def access(session, actor, archive_id, store):
     record = session.get(Archive, archive_id)
     if not record:
         raise HTTPException(404, '归档不存在')
-    task = get_task(session, record.task_id)
-    require_task_access(principal_for(session, actor), task.created_by, task.designer_id)
+    # Parent first: serializes legacy upgrade, deletion and studio append.
+    task = session.scalar(select(Task).where(Task.id == record.task_id).with_for_update()) if record.task_id else None
+    record = session.scalar(select(Archive).where(Archive.id == archive_id)
+        .with_for_update().execution_options(populate_existing=True))
+    if record.created_by is None and task:
+        metadata(session, record, task)
+    require_task_access(principal_for(session, actor), record.created_by, record.designer_id)
+    protect(session, store, record, task)
+    return record
+
+
+def view(session, store, actor, archive_id):
+    record = access(session, actor, archive_id, store)
+    result = {**dto(record), 'pictures': [dict(id=str(row.id), name=row.name, sku=row.sku,
+        width=row.width, height=row.height, contentType=row.content_type, sizeBytes=row.size_bytes,
+        url=f'/api/overseas/v1/archives/{record.id}/pictures/{row.id}/content') for row in assets(session, record)]}
+    session.commit()
+    return result
+
+
+def content(session, store, actor, archive_id, picture_id):
+    record = access(session, actor, archive_id, store)
+    row = session.get(ArchiveAsset, picture_id)
+    if not row or row.archive_id != record.id:
+        raise HTTPException(404, '归档图片不存在')
+    data = read(store, row)
+    response = Response(data, media_type=row.content_type, headers={
+        'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': "inline; filename*=UTF-8''" + quote(row.name, safe='')})
+    session.commit()
+    return response
+
+
+def download(session, store, actor, archive_id):
+    record = access(session, actor, archive_id, store)
     output = SpooledTemporaryFile(max_size=8 * 1024 * 1024)
     total_bytes = 0
     try:
         with ZipFile(output, 'w', ZIP_STORED) as zipped:
-            for index, identity in enumerate(record.versions):
-                if identity.startswith('studio:'):
-                    from app.overseas.studio.models import Picture as StudioPicture
-                    from app.overseas.studio.files import read as read_studio
-                    item = session.get(StudioPicture, UUID(identity.split(':', 1)[1]))
-                    if not item or item.task_id != task.id or not item.sku:
-                        raise HTTPException(503, '归档版本关联异常')
-                    safe_sku = ''.join(c if c.isalnum() or c in '-_' else '_' for c in item.sku)[:80]
-                    extension = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[item.content_type]
-                    total_bytes += item.size_bytes
-                    if total_bytes > 1024 * 1024 * 1024:
-                        raise HTTPException(413, '归档超过1 GiB限制')
-                    zipped.writestr(f'{index + 1:03d}_{safe_sku}{extension}', read_studio(store, item))
-                    continue
-                item = session.get(PictureVersion, UUID(identity))
-                picture = session.get(Picture, item.picture_id) if item else None
-                if not picture or picture.task_id != task.id:
-                    raise HTTPException(503, '归档版本关联异常')
-                safe_sku = ''.join(c if c.isalnum() or c in '-_' else '_' for c in picture.sku)[:80]
-                extension = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[item.content_type]
-                total_bytes += item.size_bytes
+            for index, row in enumerate(assets(session, record)):
+                safe_sku = ''.join(c if c.isalnum() or c in '-_' else '_' for c in row.sku)[:80]
+                extension = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}[row.content_type]
+                total_bytes += row.size_bytes
                 if total_bytes > 1024 * 1024 * 1024:
                     raise HTTPException(413, '归档超过1 GiB限制')
-                zipped.writestr(f'{index + 1:03d}_{safe_sku}_{picture.position + 1}{extension}', read(store, item))
+                zipped.writestr(f'{index + 1:03d}_{safe_sku}{extension}', read(store, row))
+        session.commit()
     except Exception:
         output.close()
         raise

@@ -5,7 +5,8 @@ from app.core.config import get_settings
 from app.db.timestamps import utcnow
 from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
-from .models import Audit, Settings, Skill, SkillVersion
+from .models import Audit, Settings, Skill
+from .installed_catalog import freeze as freeze_installed
 
 STAGES = ('analysis', 'generation', 'revision')
 
@@ -20,12 +21,10 @@ def values(session):
         'defaults': {stage: config.get('defaults', {}).get(stage) for stage in STAGES}, 'autoCleanup': False}
 
 
-def selected(session, identity, stage):
-    skill = session.scalar(select(Skill).where(Skill.id == UUID(str(identity)))
-                           .execution_options(populate_existing=True))
-    if skill is None or not skill.enabled or skill.stage != stage:
-        raise HTTPException(422, '默认 Skill 必须存在、启用并匹配执行阶段')
-    return skill
+def selected(session, identity, stage=None):
+    # Old configured UUIDs are resolved by name, but only when truly installed.
+    legacy = session.get(Skill, UUID(str(identity)))
+    return freeze_installed(identity, legacy.name if legacy else None)
 
 
 def save(session, actor, body):
@@ -57,32 +56,16 @@ def save(session, actor, body):
 
 
 def freeze(session, stage, builtin):
-    # All writers and frozen reads share the existing gate. Lock order remains task -> gate -> job.
     lock_gate(session)
     config = values(session)
     identity = config['defaults'][stage]
-    skill = builtin
-    if identity:
-        record = selected(session, identity, stage)
-        version = session.scalar(select(SkillVersion).where(SkillVersion.skill_id == record.id,
-                                                           SkillVersion.version == record.current_version))
-        skill = {'id': str(record.id), 'name': record.name, 'version': version.version, 'files': version.files, 'assets': version.assets or {}}
+    skill = selected(session, identity, stage) if identity else builtin
     return {'skill': skill, 'runtime': {'timeoutSeconds': config['timeoutSeconds']}}
 
 
 def freeze_selected(session, identity):
-    """Freeze the designer-selected version without imposing legacy stage routing."""
+    """Freeze an immutable complete installation, preserving old queued payloads."""
     lock_gate(session)
     config = values(session)
-    skill = None
-    if identity:
-        record = session.get(Skill, UUID(str(identity)))
-        if record is None or not record.enabled:
-            raise HTTPException(422, '所选 Skill 已停用或不存在，请重新选择')
-        version = session.scalar(select(SkillVersion).where(SkillVersion.skill_id == record.id,
-                                                           SkillVersion.version == record.current_version))
-        if version is None:
-            raise HTTPException(409, 'Skill 版本缺失，请联系管理员')
-        skill = {'id': str(record.id), 'name': record.name, 'version': version.version,
-                 'files': version.files, 'assets': version.assets or {}}
+    skill = selected(session, identity) if identity else None
     return {'skill': skill, 'runtime': {'timeoutSeconds': config['timeoutSeconds']}}

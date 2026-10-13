@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.overseas.tasks.queries import get_task
 from app.overseas.permissions import principal_for, require_task_access
 from app.overseas.materials.models import Material
-from app.overseas.management.models import Skill
+from app.overseas.management.installed_catalog import listing
 from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
 from .models import Turn, Upload, Picture
 
@@ -77,8 +77,7 @@ def view(session, actor, task_id):
     uploads = session.scalars(select(Upload).where(Upload.task_id == task.id).order_by(Upload.created_at))
     return dict(taskId=str(task.id), completed=task.status == 'completed', turns=turns,
         materials=[asset(row, 'task') for row in materials] + [asset(row, 'upload') for row in uploads],
-        skills=[dict(id=str(s.id), name=s.name, version=s.current_version) for s in
-                session.scalars(select(Skill).where(Skill.enabled.is_(True)).order_by(Skill.name))],
+        skills=listing(),
         activeTurnId=active)
 
 

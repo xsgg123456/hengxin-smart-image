@@ -1,8 +1,8 @@
-"""Forward-only overseas 0012 cutover; failure keeps overseas closed, never downgrades data.
+"""Forward-only overseas 0013 cutover; failure keeps overseas closed, never downgrades data.
 
 Run build, prepare, deploy in order. A failed deploy requires operator inspection.
-After 0011/0012, do not restart the old API/worker against single-role members
-or studio sessions. Recovery is a reviewed forward fix; restoring the dump requires
+After 0013, do not restart the old API/worker against independent archives
+or pending deletions. Recovery is a reviewed forward fix; restoring the dump requires
 separate authorization and proof no post-backup business writes will be discarded.
 """
 import importlib.util
@@ -15,13 +15,14 @@ import sys
 spec = importlib.util.spec_from_file_location('overseas_update_runtime', Path(__file__).with_name('overseas-update-runtime.py'))
 r = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(r)
+skills = r.module('overseas-skills-runtime')
 
 
 def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
-    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.26'
-    assert manifest['overseasMigration'] == 'overseas_0012' and manifest['migration'] == '0027'
+    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.28'
+    assert manifest['overseasMigration'] == 'overseas_0013' and manifest['migration'] == '0027'
     r.r.hashes(source, manifest)
     return source, manifest, 'hengxin-smart-image-backend:' + release
 
@@ -35,8 +36,8 @@ def untouched():
 def prepare(work, source, manifest, image):
     identity = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True)
     assert (work / 'INSTALL_TEST_IMAGE_ID').read_text() == identity
-    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0010'
-    assert json.loads((r.APP / 'frontend/package.json').read_text())['version'] == '0.2.25'
+    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0012'
+    assert json.loads((r.APP / 'frontend/package.json').read_text())['version'] == '0.2.27'
     assert not (work / 'PREPARED').exists()
     # Refuse overwriting shared unhashed assets used by the previous frontend.
     for file in (source / 'frontend/dist').rglob('*'):
@@ -47,9 +48,11 @@ def prepare(work, source, manifest, image):
     data = r.topology()
     r.private(work / 'old-topology.json', data)
     r.private(work / 'untouched.json', untouched())
-    r.private(work / 'update-overlay.json', {'services': {name: {'image': identity, 'pull_policy': 'never'} for name in ('api', 'migrate')}})
+    r.private(work / 'update-overlay.json', {'services': {name: {'image': identity,
+        'pull_policy': 'never', 'volumes': [skills.overlay()]} for name in ('api', 'migrate')}})
     r.compose(data, 'config', '--quiet', overlay=work / 'update-overlay.json')
     target = r.prepare_native(source, manifest['release'])
+    skills.preflight(r, work, target)
     r.private(work / 'native-target', str(target))
     r.private(work / 'PREPARED', identity)
 
@@ -67,7 +70,7 @@ def public_verify(source):
 def deploy(work, source, manifest, image):
     identity = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True)
     assert (work / 'PREPARED').read_text() == (work / 'INSTALL_TEST_IMAGE_ID').read_text() == identity
-    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0010'
+    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0012'
     data = json.loads((work / 'old-topology.json').read_text())
     assert r.topology() == data and untouched() == json.loads((work / 'untouched.json').read_text())
     r.roles_migratable()
@@ -86,11 +89,13 @@ def deploy(work, source, manifest, image):
         r.run('systemctl', 'stop', r.UNITS[0])
         assert r.pending() == 0
         r.backup(work, backup, data)
+        target = Path((work / 'native-target').read_text())
+        skills.install(r, work, target, backup)
         r.private(backup / 'edge.conf', edge.decode())
         # Mark before invoking migration: even a partially successful migration forbids old code.
         r.private(work / 'MIGRATION_STARTED', 'Forward-only; never auto-restore old business runtime')
         r.compose(data, 'run', '--rm', '--no-deps', 'migrate', overlay=overlay)
-        assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0012'
+        assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0013'
         r.switch_native(Path((work / 'native-target').read_text()))
         r.compose(data, 'up', '-d', '--no-deps', '--wait', '--wait-timeout', '180', 'api', overlay=overlay)
         r.run('systemctl', 'start', *r.UNITS)
@@ -99,6 +104,7 @@ def deploy(work, source, manifest, image):
         r.run('docker', 'exec', r.r.PREFIX + 'web-1', 'nginx', '-s', 'reload')
         r.r.publish(source)
         r.verify(source, manifest, identity)
+        skills.verify(r, work, target)
         assert untouched() == json.loads((work / 'untouched.json').read_text())
         # Validate the proxy route before restoring public overseas intake.
         r.run('curl', '--retry', '10', '--retry-delay', '2', '--retry-connrefused', '-fsS', '-H', 'Host: zhitu.qhhengxin.top', '-o', '/dev/null', 'http://127.0.0.1:18080/api/overseas/v1/health/ready')
@@ -108,7 +114,7 @@ def deploy(work, source, manifest, image):
         r.private(r.APP / 'OVERSEAS_RELEASE.json', manifest)
         r.private(r.APP / 'FRONTEND_RELEASE.json', manifest)
         r.private(work / 'verification.json', {'release': manifest['release'], 'image': identity,
-                  'migration': 'overseas_0012', 'domesticIdentityUnchanged': True, 'backup': str(backup)})
+                  'migration': 'overseas_0013', 'domesticIdentityUnchanged': True, 'backup': str(backup)})
         print('OVERSEAS_UPDATE_COMPLETE ' + manifest['release'], flush=True)
     except BaseException:
         # Never stop an executor here: drain failure can mean a paid subprocess is alive.

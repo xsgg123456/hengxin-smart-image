@@ -1,0 +1,72 @@
+[
+  {
+    "displayName": "亚马逊主图产品替换 · 1600×1600",
+    "source": "亚马逊更换产品（颜色）SKILLS/主图1600 SKILLS/amazon-main-image-product-swap",
+    "name": "amazon-main-image-product-swap-1600"
+  },
+  {
+    "displayName": "亚马逊主图产品替换 · 1250×1600",
+    "source": "亚马逊更换产品（颜色）SKILLS/主图1250 SKILLS/amazon-main-image-product-swap",
+    "name": "amazon-main-image-product-swap-1250"
+  },
+  {
+    "displayName": "亚马逊 A+ 产品替换",
+    "source": "亚马逊更换产品（颜色）SKILLS/A+ SKILLS/amazon-aplus-product-swap",
+    "name": "amazon-aplus-product-swap"
+  },
+  {
+    "displayName": "OUTON Wayfair 新品主图",
+    "source": "Wayfair新品（灯具家居）套图测试SKILLS/单主图的SKILLS/wayfair-new-product-image-set",
+    "name": "wayfair-new-product-image-set-main"
+  },
+  {
+    "displayName": "OUTON Wayfair 新品主图与 A+",
+    "source": "Wayfair新品（灯具家居）套图测试SKILLS/全套图含A+SKILLS/wayfair-new-product-image-set",
+    "name": "wayfair-new-product-image-set-main-aplus"
+  },
+  {
+    "displayName": "海外多平台图片产品替换",
+    "source": "多平台替换产品SKILLS/overseas-product-image-swap",
+    "name": "overseas-product-image-swap"
+  },
+  {
+    "displayName": "沃尔玛新品主图 · 原版",
+    "source": "沃尔玛新品（灯具家居）套图测试SKILLS/主图SKILLS/walmart-new-product-image-set",
+    "name": "walmart-new-product-image-set-original"
+  },
+  {
+    "displayName": "沃尔玛新品主图 · 新版（9.27）",
+    "source": "沃尔玛新品（灯具家居）套图测试SKILLS/新版修改过后9.27/walmart-new-product-image-set",
+    "name": "walmart-new-product-image-set-revised-0927"
+  },
+  {
+    "displayName": "BELEEV 亚马逊户外新品主图",
+    "source": "亚马逊（户外）新品套图SKILLS/主图SKILLS/beleev-amazon-image-set",
+    "name": "beleev-amazon-image-set"
+  },
+  {
+    "displayName": "BELEEV 亚马逊户外新品 A+",
+    "source": "亚马逊（户外）新品套图SKILLS/A+SKILLS/beleev-amazon-aplus",
+    "name": "beleev-amazon-aplus"
+  },
+  {
+    "displayName": "OUTONLIFE 亚马逊家居新品主图",
+    "source": "亚马逊（家居）新品套图SKILLS/主图SKILLS/outonlife-amazon-image-set",
+    "name": "outonlife-amazon-image-set"
+  },
+  {
+    "displayName": "OUTONLIFE 亚马逊家居新品 A+",
+    "source": "亚马逊（家居）新品套图SKILLS/A+SKILLS/amazon-outonlife-new-product-aplus",
+    "name": "amazon-outonlife-new-product-aplus"
+  },
+  {
+    "displayName": "OUTON 亚马逊灯具新品主图",
+    "source": "亚马逊灯具品牌套图SKILLS/主图SKILLS/amazon-new-product-image-set",
+    "name": "amazon-new-product-image-set"
+  },
+  {
+    "displayName": "OUTON 亚马逊灯具新品 A+",
+    "source": "亚马逊灯具品牌套图SKILLS/A+电脑+手机SKILLS/amazon-new-product-aplus",
+    "name": "amazon-new-product-aplus"
+  }
+]

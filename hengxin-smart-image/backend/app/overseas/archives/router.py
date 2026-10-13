@@ -11,8 +11,9 @@ router = APIRouter(prefix='/api/overseas/v1', tags=['overseas-archives'])
 
 
 @router.post('/tasks/{task_id}/archive', dependencies=[Depends(browser_request)])
-def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: Database, idempotency_key: Key):
-    return service.archive(session, actor, task_id, body, idempotency_key)
+def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: Database, idempotency_key: Key,
+            store=Depends(get_store)):
+    return service.archive(session, actor, task_id, body, idempotency_key, store)
 
 
 @router.get('/archives')
@@ -26,3 +27,13 @@ def listing(actor: CurrentMember, session: Database, product: str = Query('', ma
 @router.get('/archives/{archive_id}/download')
 def download(archive_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
     return service.download(session, store, actor, archive_id)
+
+
+@router.get('/archives/{archive_id}')
+def detail(archive_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
+    return service.view(session, store, actor, archive_id)
+
+
+@router.get('/archives/{archive_id}/pictures/{picture_id}/content')
+def content(archive_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
+    return service.content(session, store, actor, archive_id, picture_id)

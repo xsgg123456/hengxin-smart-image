@@ -29,16 +29,22 @@ def plan_pg(pg_factory):
     with factory.begin() as session:
         session.add(ExecutionGate(id=1))
     task = create(factory, operator, designer, 'new')[1]
+    with factory.begin() as session:
+        # These contention tests exercise retained legacy jobs, not new studio tasks.
+        session.get(Task, UUID(task['id'])).workflow = 'legacy'
     material, _ = ready(factory, operator)
     with factory() as session:
         materials_service.submit(session, session.get(Member, operator), UUID(task['id']),
             SubmitMaterials(version=1, materialIds=[material]), 'submit')
     with factory() as session:
-        review(session, session.get(Member, designer), UUID(task['id']),
-               RequirementsReview(version=2, decision='approve'), 'review')
+        approved = review(session, session.get(Member, designer), UUID(task['id']),
+                          RequirementsReview(version=2, decision='approve'), 'review')
+        assert approved['status'] == 'analyzing' and approved['version'] == 3
     with factory() as session:
         plan = session.scalar(select(Plan))
+        assert plan is not None and plan.status == 'pending'
         job = session.get(Job, plan.job_id)
+        assert job.kind == 'analysis' and job.status == 'queued'
         content = {'skus': [{'code': sku['code'], 'pictures': [{'title': 'title', 'description': 'full',
             'prompt': 'full prompt', 'width': 1024, 'height': 1024}]} for sku in job.payload['task']['skus']]}
         identity = plan.job_id

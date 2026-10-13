@@ -229,6 +229,9 @@ def main():
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)
         seed()
+        if '--delete-skills' in sys.argv:
+            from installed_skill_checks import prepare as prepare_skills
+            prepare_skills(sys.modules[__name__])
         start('identity', 'provider_app:app', 8010, identity_env)
         start('domestic', 'app.main:app', 8008, environment('domestic'))
         start('overseas', 'app.overseas.main:app', 8009, environment('overseas'))
@@ -255,6 +258,10 @@ def main():
             from requirements_checks import run as run_requirements
             run_requirements(context, fixtures)
             print('PASS ALL requirements review real HTTP integration', flush=True)
+        if '--delete-skills' in sys.argv:
+            from delete_skills_checks import run as run_delete_skills
+            run_delete_skills(context)
+            print('PASS ALL delete/archive/installed Skills real HTTP integration', flush=True)
         if '--phase21' in sys.argv:
             from phase21_checks import run as run_execution
             run_execution(context)

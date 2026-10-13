@@ -1,8 +1,9 @@
+import { isSkill, type Skill } from './management'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export interface Asset { id: string; name: string; contentType: string; sizeBytes: number; url: string; source: 'task' | 'upload' }
 export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean }
 export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; createdAt: string }
-export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: { id: string; name: string; version: number }[]; activeTurnId: string | null }
+export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null }
 export interface StudioEvent { id: number; turnId: string; kind: string; text: string; createdAt: string }
 export interface TurnInput { text: string; skillId: string | null; attachmentIds: string[]; referencePictureIds: string[] }
 const root = '/api/overseas/v1', base = (id: string) => `${root}/tasks/${encodeURIComponent(id)}/studio`
@@ -17,7 +18,7 @@ export function isAsset(v: unknown, taskId: string): v is Asset {
 export function isStudio(v: unknown, taskId: string): v is Studio {
   return record(v) && v.taskId === taskId && typeof v.completed === 'boolean' && (v.activeTurnId === null || string(v.activeTurnId))
     && Array.isArray(v.materials) && v.materials.every(a => isAsset(a, taskId))
-    && Array.isArray(v.skills) && v.skills.every(s => record(s) && string(s.id) && string(s.name) && integer(s.version))
+    && Array.isArray(v.skills) && v.skills.every(isSkill)
     && Array.isArray(v.turns) && v.turns.every(t => record(t) && ['id','text','status','jobId','createdAt'].every(k => string(t[k])) && (t.reply === null || string(t.reply))
       && (t.skillName === null || string(t.skillName)) && (t.error === null || string(t.error)) && integer(t.jobVersion)
       && Array.isArray(t.attachments) && t.attachments.every(a => isAsset(a, taskId))

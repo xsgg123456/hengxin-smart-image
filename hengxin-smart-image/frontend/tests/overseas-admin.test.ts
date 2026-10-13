@@ -5,7 +5,6 @@ import {
   skills,
   settings,
   saveMember,
-  saveSkill,
   saveSettings,
   removeRecord,
   resetOverseasManagement,
@@ -40,30 +39,11 @@ test("海外成员独立新增编辑禁用删除与重复校验", () => {
   removeRecord(members, members[0].id);
   assert.equal(members.length, 0);
 });
-test("海外 Skill 内容必填、唯一名称、更新及删除", () => {
-  resetOverseasManagement();
-  assert.throws(() =>
-    saveSkill({
-      id: "",
-      name: "排版",
-      stage: "analysis",
-      content: " ",
-      enabled: true,
-    }),
-  );
-  saveSkill({
-    id: "",
-    name: "排版",
-    stage: "analysis",
-    content: "按提供资料分析",
-    enabled: true,
-  });
-  assert.throws(() => saveSkill({ ...skills[0], id: "" }), /重复/);
-  saveSkill({ ...skills[0], content: "更新指令", enabled: false });
-  assert.equal(skills[0].content, "更新指令");
-  assert.equal(skills[0].enabled, false);
-  removeRecord(skills, skills[0].id);
-  assert.equal(skills.length, 0);
+test("海外 Skill 预览仅承接只读目录且退出清空，不写固定安装数量", () => {
+  resetOverseasManagement(); assert.equal(skills.length, 0);
+  skills.push({ id: "preview-skill", name: "preview", displayName: "预览目录", description: "完整描述" });
+  assert.equal(skills[0].description, "完整描述");
+  resetOverseasManagement(); assert.equal(skills.length, 0);
 });
 test("系统配置阻止无效数字，保存与退出重置独立内存", () => {
   resetOverseasManagement();

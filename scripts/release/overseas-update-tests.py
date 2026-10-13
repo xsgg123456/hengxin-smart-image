@@ -73,7 +73,7 @@ def setup_deploy(monkeypatch, tmp_path, failure=None):
     monkeypatch.setattr(r, 'APP', tmp_path)
     monkeypatch.setattr(r, 'run', lambda *args, **kw: event('run', *args) or 'sha256:tested')
     monkeypatch.setattr(r, 'private', lambda p, v: event('private', str(p)))
-    monkeypatch.setattr(r, 'sql', lambda _: 'overseas_0012' if any(e[0] == 'migrate' for e in events) else 'overseas_0010')
+    monkeypatch.setattr(r, 'sql', lambda _: 'overseas_0013' if any(e[0] == 'migrate' for e in events) else 'overseas_0012')
     monkeypatch.setattr(r, 'roles_migratable', lambda: event('roles'))
     monkeypatch.setattr(r, 'topology', lambda: data)
     monkeypatch.setattr(d, 'untouched', lambda: {})
@@ -83,6 +83,8 @@ def setup_deploy(monkeypatch, tmp_path, failure=None):
     monkeypatch.setattr(r, 'pending', lambda: 0)
     monkeypatch.setattr(r, 'worker_idle', lambda: True)
     monkeypatch.setattr(r, 'backup', lambda *args: event('backup'))
+    monkeypatch.setattr(d.skills, 'install', lambda *args: event('skills_install'))
+    monkeypatch.setattr(d.skills, 'verify', lambda *args: event('skills_verify'))
     monkeypatch.setattr(r, 'switch_native', lambda *args: event('native'))
     monkeypatch.setattr(r.r, 'publish', lambda *args: event('publish'))
     monkeypatch.setattr(r, 'verify', lambda *args: event('verify'))
@@ -93,7 +95,7 @@ def setup_deploy(monkeypatch, tmp_path, failure=None):
     return work, events
 
 
-@pytest.mark.parametrize('failure', ['drain', 'backup', 'migrate', 'native', 'publish', 'verify', 'public'])
+@pytest.mark.parametrize('failure', ['drain', 'backup', 'skills_install', 'migrate', 'native', 'publish', 'verify', 'skills_verify', 'public'])
 def test_failures_close_intake_without_old_code_or_database_rollback(monkeypatch, tmp_path, failure):
     work, events = setup_deploy(monkeypatch, tmp_path, failure)
     with pytest.raises(RuntimeError, match=failure):
@@ -111,6 +113,8 @@ def test_success_orders_drain_backup_migration_validation_open(monkeypatch, tmp_
     names = [e[0] for e in events]
     assert names.index('close') < names.index('drain') < names.index('backup') < names.index('migrate')
     assert names.index('migrate') < names.index('verify') < names.index('open') < names.index('public')
+    assert names.index('backup') < names.index('skills_install') < names.index('migrate')
+    assert names.index('verify') < names.index('skills_verify') < names.index('open')
     assert ('run', 'systemctl', 'stop', r.UNITS[0]) in events
     assert not any('hengxin-vps' in str(e) and 'stop' in e for e in events)
 

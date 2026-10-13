@@ -1,10 +1,11 @@
+import { createArchivesApi } from './archives'
+export type { Archive } from './archives'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
-import { isTaskDetail, type TaskDetail, type Page } from './tasks'
+import { isTaskDetail, type TaskDetail } from './tasks'
 import type { AnnotationMark } from '../../views/hengxin/components/annotation/annotation-model'
 export interface PictureVersion { version: number; url: string; width: number; height: number; note: string; createdAt: string }
 export interface Picture { id: string; taskId: string; sku: string; position: number; title: string; version: number; approved: boolean; status: 'pending' | 'ready' | 'reworking' | 'failed'; url: string | null; width: number | null; height: number | null; history: PictureVersion[] }
 export interface PictureList { items: Picture[]; taskVersion: number }
-export interface Archive { id: string; taskId: string; productName: string; brand: string; skus: { code: string }[]; pictureCount: number; createdAt: string }
 export type PictureCommand = { kind: 'approve' | 'revision' | 'retry' | 'archive'; taskId: string; pictureId: string; version: number; taskVersion: number; sku: string; note: string; marks: AnnotationMark[] }
 const positive = (v: unknown) => Number.isInteger(v) && Number(v) > 0
 const text = (v: unknown): v is string => typeof v === 'string'
@@ -36,8 +37,8 @@ export function createPicturesApi(fetcher: typeof fetch = fetch) {
       return request(url, (v): v is TaskDetail => isTaskDetail(v) && v.id === c.taskId, body, { idempotencyKey: key })
     },
     content: (id: string, version: number) => binary(`${pictureUrl(id, version)}?download=true`),
-    archives: (query: { product: string; brand: string; sku: string; search: string; page: number; pageSize: number }) => request(`${root}/archives`, (v): v is Page<Archive> => record(v) && Array.isArray(v.items) && Number.isInteger(v.total) && Number(v.total) >= 0 && positive(v.page) && positive(v.pageSize) && v.items.every(a => record(a) && ['id', 'taskId', 'productName', 'brand', 'createdAt'].every(k => text(a[k])) && positive(a.pictureCount) && Array.isArray(a.skus) && a.skus.every(s => record(s) && text(s.code))), undefined, { params: query }),
-    download: (id: string) => binary(`${root}/archives/${encodeURIComponent(id)}/download`)
+    archives: createArchivesApi(fetcher).list,
+    download: createArchivesApi(fetcher).download
   }
 }
 export function saveBlob(blob: Blob, name: string) {

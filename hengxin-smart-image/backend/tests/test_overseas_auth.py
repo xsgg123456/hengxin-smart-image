@@ -32,12 +32,14 @@ MEMBER = {'corp_id': 'corp', 'provider_user_id': 'member-1', 'union_id': 'union-
 
 
 @pytest.fixture
-def overseas(monkeypatch):
+def overseas(monkeypatch, tmp_path):
     monkeypatch.setenv('HX_BUSINESS_CONTEXT', 'overseas')
     for key, value in FAKE_OVERSEAS.items():
         monkeypatch.setenv('OVERSEAS_' + key, value)
     get_settings.cache_clear()
     settings = get_settings()
+    settings.local_skill_root = str(tmp_path / 'installed-skills')
+    Path(settings.local_skill_root).mkdir()
     settings.identity_service_url = 'http://identity.test'
     settings.identity_service_key = 'test-service-key-' * 3
     settings.identity_public_origin = 'http://testserver'

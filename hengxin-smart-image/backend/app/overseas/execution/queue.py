@@ -25,6 +25,8 @@ def enqueue(session, task_id, kind, dedupe_key, payload):
     if not dedupe_key or not dedupe_key.strip() or len(dedupe_key) > 200:
         raise ValueError('Invalid overseas execution dedupe key')
     frozen = json.loads(json.dumps(payload, allow_nan=False))
+    from app.overseas.tasks.queries import get_task
+    get_task(session, UUID(str(task_id)), lock=True)
     # Serializes duplicate insert and admission without database-specific upsert semantics.
     lock_gate(session)
     previous = session.scalar(select(Job).where(Job.dedupe_key == dedupe_key))
@@ -52,9 +54,11 @@ def dispatch_once(factory, sender=publish):
     from .claims import sweep_expired
     sweep_expired(factory)
     with factory.begin() as session:
+        from app.overseas.tasks.models import TaskDeletion
         rows = session.scalars(select(JobOutbox).join(Job, Job.id == JobOutbox.job_id).where(
             JobOutbox.completed_at.is_(None), JobOutbox.next_dispatch_at <= utcnow(),
-            Job.status == 'queued').order_by(JobOutbox.next_dispatch_at)
+            Job.status == 'queued', ~select(TaskDeletion.task_id).where(
+                TaskDeletion.task_id == Job.task_id).exists()).order_by(JobOutbox.next_dispatch_at)
             .limit(100).with_for_update(of=JobOutbox, skip_locked=True)).all()
         for row in rows:
             sender(row.job_id)

@@ -1,4 +1,4 @@
-"""Real row locks ensure one decision and one AI job under contention."""
+"""Real row locks ensure one decision enters studio without starting AI work."""
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import UUID
@@ -6,8 +6,9 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from app.overseas.auth.models import Member
-from app.overseas.execution.models import ExecutionGate, Job
-from app.overseas.tasks.models import Task, RequirementsReview as Review
+from app.overseas.execution.models import ExecutionGate, Job, JobOutbox
+from app.overseas.plans.models import Plan
+from app.overseas.tasks.models import Task, TaskEvent, RequirementsReview as Review
 from app.overseas.tasks.requirements import review, resubmit
 from app.overseas.tasks.schemas import RequirementsReview, ResubmitTask
 from app.overseas.materials.service import submit
@@ -32,7 +33,7 @@ def pending_pg(pg_factory):
 
 
 @pytest.mark.parametrize('same_key', [True, False])
-def test_concurrent_review_enqueues_exactly_once(pending_pg, same_key):
+def test_concurrent_review_opens_studio_exactly_once_without_job(pending_pg, same_key):
     factory, _, designer, task_id, _ = pending_pg
     barrier = Barrier(2)
     def act(index):
@@ -40,17 +41,26 @@ def test_concurrent_review_enqueues_exactly_once(pending_pg, same_key):
             actor = session.get(Member, designer)
             barrier.wait(timeout=8)
             try:
-                review(session, actor, task_id, RequirementsReview(version=2, decision='approve'),
-                       'same' if same_key else str(index))
+                result = review(session, actor, task_id, RequirementsReview(version=2, decision='approve'),
+                                'same' if same_key else str(index))
+                assert result['status'] == 'studio' and result['version'] == 3
                 return 200
             except HTTPException as exc:
                 return exc.status_code
     with ThreadPoolExecutor(2) as pool:
         assert sorted(pool.map(act, (1, 2))) == ([200, 200] if same_key else [200, 409])
     with factory() as session:
-        assert session.scalar(select(func.count()).select_from(Job)) == 1
+        for model in (Job, JobOutbox, Plan):
+            assert session.scalar(select(func.count()).select_from(model)) == 0
         assert session.scalar(select(func.count()).select_from(Review)) == 1
-        assert session.get(Task, task_id).version == 3
+        decision = session.scalar(select(Review))
+        assert decision.task_id == task_id and decision.actor_id == designer
+        assert decision.decision == 'approve' and decision.version == 2
+        assert session.scalar(select(func.count()).select_from(TaskEvent).where(
+            TaskEvent.task_id == task_id, TaskEvent.kind == 'task.requirements_approved')) == 1
+        task = session.get(Task, task_id)
+        assert task.version == 3 and task.status == 'studio'
+        assert task.workflow == 'studio' and task.requirements_approved
 
 
 def test_concurrent_resubmit_preserves_one_submission(pending_pg):

@@ -83,3 +83,24 @@ class RequirementsReview(Timestamps, Base):
     comment: Mapped[str] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer)
     submission: Mapped[dict] = mapped_column(JSON)
+
+
+class TaskDeletion(Timestamps, Base):
+    """A recoverable erasure receipt, deliberately without a task foreign key."""
+    __tablename__ = 'overseas_task_deletions'
+    task_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    actor_id: Mapped[UUID] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(20), default='deleting', index=True)
+    phase: Mapped[str] = mapped_column(String(30), default='stopping')
+    error: Mapped[str | None] = mapped_column(String(200))
+    manifest: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ExecutionObject(Timestamps, Base):
+    """Write-ahead ownership for objects produced before result publication."""
+    __tablename__ = 'overseas_execution_objects'
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_jobs.id'), index=True)
+    bucket: Mapped[str] = mapped_column(String(200))
+    object_key: Mapped[str] = mapped_column(String(500), unique=True)

@@ -50,6 +50,11 @@ class Assignment(StrictBody):
     version: int = Field(ge=1, strict=True)
 
 
+class DeleteTask(StrictBody):
+    version: int = Field(ge=1, strict=True)
+    confirmationName: Text80
+
+
 class RequirementsReview(StrictBody):
     decision: Literal['approve', 'reject']
     comment: str = Field(default='', max_length=2000)

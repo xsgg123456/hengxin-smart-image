@@ -18,6 +18,15 @@ def prepare(job, workspace):
     workspace.use_skill = skill is not None
     if skill is None:
         return
+    if skill.get('installedRelease'):
+        from app.overseas.management.installed_catalog import frozen_package
+        package = frozen_package(skill)
+        root = workspace.work / 'skills' / package.name
+        from .skill_copy import write_package
+        write_package(root, package.files, workspace.work)
+        workspace.skill_name = package.name
+        workspace.local_skill = root
+        return
     name, files = skill.get('name'), skill.get('files')
     if (not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,99}', name)
             or not isinstance(files, dict) or not files.get('SKILL.md')):

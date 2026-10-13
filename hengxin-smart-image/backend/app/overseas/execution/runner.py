@@ -143,7 +143,9 @@ def run(factory, job_id):
                 current.status = 'collecting'
                 current.version += 1
                 record(session, current)
-            result = handler.validate(job, workspace, summary)
+            from .objects import collecting
+            with collecting(factory, job, token):
+                result = handler.validate(job, workspace, summary)
             if not isinstance(result, dict) or not result:
                 raise ValueError('Protocol did not return validated output')
             if not claims.finish(factory, job_id, token, 'succeeded', result=result,

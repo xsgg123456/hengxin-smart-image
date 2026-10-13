@@ -174,7 +174,7 @@ def wait_worker_ready(timeout=90):
 
 
 def verify(source, manifest, image):
-    assert sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0012'
+    assert sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0013'
     live = json.loads(run('docker', 'inspect', API, capture=True))[0]
     assert live['Image'] == image and live['State']['Running']
     expected = {n.removeprefix('backend/'): h for n, h in manifest['files'].items() if n.startswith('backend/')}

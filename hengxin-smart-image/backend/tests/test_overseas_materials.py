@@ -22,18 +22,27 @@ class Stream(BytesIO):
 class MemoryStore:
     def __init__(self):
         self.data = {}
+        self.buckets = {}
         self.fail_remove = False
 
     def put(self, record, data):
         self.data[record.object_key] = data
+        self.buckets[record.object_key] = record.bucket
 
     def open(self, record):
         return Stream(self.data[record.object_key])
+
+    def stat(self, record):
+        return len(self.data[record.object_key])
+
+    def keys(self, bucket, prefix):
+        return [key for key in self.data if key.startswith(prefix) and self.buckets.get(key) == bucket]
 
     def remove(self, record):
         if self.fail_remove:
             raise RuntimeError('private storage path')
         self.data.pop(record.object_key, None)
+        self.buckets.pop(record.object_key, None)
 
 
 @pytest.fixture

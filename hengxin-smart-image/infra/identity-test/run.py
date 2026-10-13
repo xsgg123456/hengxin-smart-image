@@ -22,8 +22,10 @@ def main():
     parser.add_argument('--phase24', action='store_true')
     parser.add_argument('--phase25', action='store_true')
     parser.add_argument('--requirements', action='store_true')
+    parser.add_argument('--delete-skills', action='store_true')
     parser.add_argument('--origin')
     args = parser.parse_args()
+    args.requirements = args.requirements or args.delete_skills
     args.phase24 = args.phase24 or args.phase25
     args.phase23 = args.phase23 or args.phase24
     args.phase22 = args.phase22 or args.phase23
@@ -83,6 +85,7 @@ def main():
                         *(['--phase24'] if args.phase24 else []),
                         *(['--phase25'] if args.phase25 else []),
                         *(['--requirements'] if args.requirements else []),
+                        *(['--delete-skills'] if args.delete_skills else []),
                         *(['--origin', args.origin] if args.origin else [])))
         if args.serve:
             print('LOCAL PORTS ' + docker('port', runner), flush=True)

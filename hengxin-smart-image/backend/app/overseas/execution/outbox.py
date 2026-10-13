@@ -17,6 +17,8 @@ def main():
         try:
             factory = session_factory()
             reconcile_once(factory)
+            from app.overseas.tasks.cleanup import cleanup_once
+            cleanup_once(factory)
             dispatch_once(factory)
         except Exception:
             logging.warning('Overseas execution maintenance unavailable; durable work retained')

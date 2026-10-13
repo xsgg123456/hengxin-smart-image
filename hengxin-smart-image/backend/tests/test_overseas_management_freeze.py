@@ -6,14 +6,15 @@ from test_overseas_tasks import overseas, HEADERS
 from test_overseas_assignment import change_roles
 from test_overseas_plans import prepared, plans, publish, post
 from test_overseas_pictures import generate, picture_list, action
-from test_overseas_management import MANAGE, config, skill
+from test_overseas_management import MANAGE, config
+from overseas_installed_helpers import install_sample
 
 
 def test_confirmation_uses_new_binding_retry_keeps_old_revision_uses_current(materials, monkeypatch, tmp_path):
     client, factory, actor, task = prepared(materials, monkeypatch)
     change_roles(factory, actor, ('super_admin',))
-    generation = skill(client, 'generation', 'new-generation')
-    revision = skill(client, 'revision', 'new-revision')
+    generation = install_sample('new-generation')
+    revision = install_sample('new-revision')
     body = config(client, timeoutSeconds=120, defaults={
         'analysis': None, 'generation': generation['id'], 'revision': revision['id']})
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 200
@@ -29,8 +30,7 @@ def test_confirmation_uses_new_binding_retry_keeps_old_revision_uses_current(mat
         original = second.payload
         first_id, second_sku = first.id, second.payload['sku']['code']
         claims.end(session, second, 'failed', error=True)
-    assert client.post(MANAGE + '/skills/' + generation['id'] + '/versions', headers=HEADERS,
-        json={'version': 1, 'files': {'SKILL.md': 'published after queue'}}).status_code == 200
+    install_sample('new-generation', content='published after queue')
     assert client.patch(MANAGE + '/settings', json=config(client, timeoutSeconds=180), headers=HEADERS).status_code == 200
     retried = post(client, task, '/generation/retry', {'version': response.json()['version'], 'sku': second_sku}, 'retry')
     assert retried.status_code == 200

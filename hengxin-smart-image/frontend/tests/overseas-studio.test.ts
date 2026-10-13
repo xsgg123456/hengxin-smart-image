@@ -30,6 +30,12 @@ test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   assert.throws(()=>validateStudioFile({name:'a.png',size:20*1024*1024+1}),/20 MiB/)
   assert.throws(()=>validateStudioFile({name:'a.html',size:1}),/不支持/)
 })
+test('工作台 Skill 与管理目录共用中文名称和描述契约，不要求版本或阶段',()=>{
+  const value=snapshot();value.skills=[{id:'old',name:'walmart-old',displayName:'沃尔玛新品主图 · 原版',description:'原版说明'},{id:'new',name:'walmart-new',displayName:'沃尔玛新品主图 · 新版（9.27）',description:'新版说明'}]
+  assert.equal(isStudio(value,'t'),true)
+  assert.equal(isStudio({...value,skills:[{id:'old',name:'walmart-old',version:1}]},'t'),false)
+  assert.equal(isStudio({...value,skills:[{...value.skills[0],description:null}]},'t'),false)
+})
 test('真实排队轮次reply为空可恢复；轮询恢复只清除读取错误',async()=>{
   const queued=snapshot();queued.turns=[{id:'r',text:'需求',skillName:null,status:'queued',reply:null,error:null,jobId:'j',jobVersion:1,attachments:[],pictures:[],referencePictures:[],createdAt:'2026-10-13'}];queued.activeTurnId='r'
   assert.equal(isStudio(queued,'t'),true)

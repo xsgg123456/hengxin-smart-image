@@ -3,6 +3,7 @@ import subprocess
 import sys
 from uuid import uuid4
 from sqlalchemy import create_engine, text
+from app.overseas.db import SCHEMA_REVISION
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
@@ -32,7 +33,7 @@ def test_upgrade_0003_preserves_members_and_domestic(disposable_databases):
             assert after[table] == before[table]
         for table in ('overseas_tasks', 'overseas_task_skus', 'overseas_task_events', 'overseas_task_requests', 'overseas_task_outbox'):
             assert after[table] == []
-        assert after['overseas_alembic_version'] == [('overseas_0010',)]
+        assert after['overseas_alembic_version'] == [(SCHEMA_REVISION,)]
         assert snapshot(domestic_url) == before_domestic
     finally:
         engine.dispose()

@@ -53,7 +53,7 @@ def test_metadata_is_independent_and_does_not_import_domestic_models():
          'from app.overseas.members import models as audits; '
          'from app.overseas.tasks import models as tasks; '
          'from app.overseas.materials import models as materials; '
-         'assert set(Base.metadata.tables)=={"overseas_members","overseas_member_roles","overseas_sessions","overseas_member_audits","overseas_tasks","overseas_task_skus","overseas_task_events","overseas_task_requests","overseas_task_outbox","overseas_materials","overseas_material_versions","overseas_requirements_reviews"}; '
+         'assert set(Base.metadata.tables)=={"overseas_members","overseas_member_roles","overseas_sessions","overseas_member_audits","overseas_tasks","overseas_task_skus","overseas_task_events","overseas_task_requests","overseas_task_outbox","overseas_materials","overseas_material_versions","overseas_requirements_reviews","overseas_task_deletions","overseas_execution_objects"}; '
          'assert "app.models" not in sys.modules; '
          'from app.models import Base as DomesticBase; '
          'assert Base.metadata is not DomesticBase.metadata'],
@@ -73,7 +73,7 @@ def test_revision_tree_has_only_overseas_revisions():
     script = ScriptDirectory.from_config(Config(str(BACKEND / 'alembic.overseas.ini')))
     assert script.get_heads() == [db.SCHEMA_REVISION]
     assert script.get_base() == 'overseas_0001'
-    assert len(list(script.walk_revisions())) == 12
+    assert len(list(script.walk_revisions())) == 13
 
 
 @pytest.mark.parametrize('context', ['domestic', 'invalid', ''])
@@ -168,6 +168,8 @@ def test_real_upgrades_are_repeatable_and_domestic_database_is_unchanged(disposa
             'overseas_materials', 'overseas_material_versions', 'overseas_requirements_reviews',
             'overseas_execution_gate', 'overseas_jobs', 'overseas_job_outbox', 'overseas_execution_events', 'overseas_plans', 'overseas_pictures', 'overseas_picture_versions', 'overseas_archives',
             'overseas_skills', 'overseas_skill_versions', 'overseas_settings', 'overseas_management_audit',
+            'overseas_studio_conversations', 'overseas_studio_turns', 'overseas_studio_uploads', 'overseas_studio_pictures',
+            'overseas_task_deletions', 'overseas_execution_objects', 'overseas_archive_assets',
         }
         assert snapshot(overseas_url)[1][db.VERSION_TABLE] == [(db.SCHEMA_REVISION,)]
     assert snapshot(domestic_url) == before

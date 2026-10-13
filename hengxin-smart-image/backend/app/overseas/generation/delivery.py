@@ -75,7 +75,8 @@ class GenerationHandler:
             record = dict(bucket=get_settings().minio_bucket, object_key=f'pictures/{job.id}/{uuid4()}',
                 name=image.name, content_type=image.content_type, size_bytes=len(image.data),
                 checksum=image.checksum, width=image.width, height=image.height)
-            get_store().put(SimpleNamespace(**record), image.data)
+            from app.overseas.execution.objects import put
+            put(get_store(), record, image.data)
             stored.append({'position': position, **record})
         return {'images': stored}
 

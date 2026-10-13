@@ -7,6 +7,7 @@ from sqlalchemy import MetaData, create_engine
 from alembic import op
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from app.overseas.db import SCHEMA_REVISION
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
@@ -43,7 +44,7 @@ def test_0006_upgrade_repeatable(disposable_databases):
         assert result.returncode == 0, result.stderr
         after = snapshot(overseas_url)[1]
         assert after['overseas_plans'] == []
-        assert after['overseas_alembic_version'] == [('overseas_0010',)]
+        assert after['overseas_alembic_version'] == [(SCHEMA_REVISION,)]
         for table, rows in before.items():
             if table != 'overseas_alembic_version':
                 assert after[table] == rows

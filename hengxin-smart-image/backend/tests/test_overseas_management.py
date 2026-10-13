@@ -21,63 +21,49 @@ def config(client, **updates):
     return {**current, **updates}
 
 
-def skill(client, stage='analysis', name='sample'):
-    result = client.post(MANAGE + '/skills', json={'name': name, 'stage': stage,
-        'files': {'SKILL.md': 'first'}}, headers=HEADERS)
-    assert result.status_code == 201, result.text
-    return result.json()
-
-
-def test_skill_immutable_freeze_audit_conflict_and_disabled_default(overseas):
+def test_installed_freeze_and_settings_audit(overseas):
+    from overseas_installed_helpers import install_sample
+    from app.overseas.management.installed_catalog import frozen_package
     client, factory, actor, _ = setup(overseas, ('super_admin',))
-    item = skill(client)
+    item = install_sample()
     body = config(client, timeoutSeconds=120, defaults={'analysis': item['id'], 'generation': None, 'revision': None})
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 200
     with factory.begin() as session:
         old = freeze(session, 'analysis', SKILL)
-    published = client.post(MANAGE + '/skills/' + item['id'] + '/versions',
-        json={'version': 1, 'files': {'SKILL.md': 'second'}}, headers=HEADERS)
-    assert published.status_code == 200 and len(published.json()['versions']) == 2
+    install_sample(content='second')
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 409
     with factory.begin() as session:
         new = freeze(session, 'analysis', SKILL)
-    assert old['skill']['version'] == 1 and old['skill']['files']['SKILL.md'] == 'first'
-    assert new['skill']['version'] == 2 and new['runtime'] == {'timeoutSeconds': 120}
-    patch = {'version': 2, 'enabled': False}
-    assert client.patch(MANAGE + '/skills/' + item['id'], json=patch, headers=HEADERS).status_code == 200
-    with factory.begin() as session, pytest.raises(Exception) as caught:
-        freeze(session, 'analysis', SKILL)
-    assert caught.value.status_code == 422
+    assert frozen_package(old['skill']).files['SKILL.md'].endswith(b'first')
+    assert frozen_package(new['skill']).files['SKILL.md'].endswith(b'second')
+    assert old['skill']['installedRelease'] != new['skill']['installedRelease']
+    assert new['runtime'] == {'timeoutSeconds': 120}
     with factory() as session:
-        assert session.scalar(select(func.count()).select_from(Audit)) == 4
-    assert client.patch(MANAGE + '/skills/' + item['id'], json=patch, headers=HEADERS).status_code == 409
+        assert session.scalar(select(func.count()).select_from(Audit)) == 1
     change_roles(factory, actor, ('operator',))
     assert client.get(MANAGE + '/skills').status_code == 403
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 403
 
 
-@pytest.mark.parametrize('files', [ {'SKILL.md': 'x', '../escape': 'x'}, {'SKILL.md': 'x', '/abs': 'x'},
-    {'SKILL.md': 'x', 'a\\b': 'x'}, {'SKILL.md': 'x', 'a/./b': 'x'}, {'SKILL.md': 'x', 'CON': 'x'},
-    {'SKILL.md': 'x', 'a': 'x', 'a/b': 'x'}, {'SKILL.md': 'x', 'skill.md': 'x'}, {'other': 'x'},
-    {'SKILL.md': ' '}, {'SKILL.md': 'x\x00'}, {'SKILL.md': 'x', 'a.': 'x'}])
-def test_unsafe_skill_rejected_without_writes(overseas, files):
+def test_skill_browser_writes_are_removed(overseas):
     client, factory, _, _ = setup(overseas, ('super_admin',))
-    result = client.post(MANAGE + '/skills', json={'name': 'sample', 'stage': 'analysis', 'files': files}, headers=HEADERS)
-    assert result.status_code == 422
+    from uuid import uuid4
+    for method, path in [('POST', '/skills'), ('POST', '/skills/' + str(uuid4()) + '/versions'),
+                         ('PATCH', '/skills/' + str(uuid4())), ('POST', '/skill-packages')]:
+        response = client.request(method, MANAGE + path, json={'files': {'SKILL.md': 'x'}}, headers=HEADERS)
+        assert response.status_code in (404, 405)
     assert client.get(MANAGE + '/skills').json() == {'items': []}
 
 
 def test_settings_bounds_binding_csrf_and_secret_rejection(overseas):
+    from uuid import uuid4
     client, _, _, _ = setup(overseas, ('super_admin',))
-    item = skill(client, stage='generation')
     body = config(client)
     for update in ({'concurrency': 6}, {'concurrency': 0}, {'timeoutSeconds': 9}, {'timeoutSeconds': 7201},
                    {'autoCleanup': True}, {'codexAuthFile': 'secret'}, {'concurrency': True},
-                   {'defaults': {'analysis': item['id'], 'generation': None, 'revision': None}}):
+                   {'defaults': {'analysis': str(uuid4()), 'generation': None, 'revision': None}}):
         assert client.patch(MANAGE + '/settings', json={**body, **update}, headers=HEADERS).status_code == 422
     assert client.patch(MANAGE + '/settings', json=body).status_code == 403
-    assert client.post(MANAGE + '/skills', json={'name': 'sample', 'stage': 'analysis',
-        'files': {'SKILL.md': 'duplicate'}}, headers=HEADERS).status_code == 409
     assert client.get(MANAGE + '/settings').json()['version'] == 1
 
 

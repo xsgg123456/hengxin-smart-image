@@ -49,7 +49,7 @@
             </div></template
           >
           <template #status="{ row }"
-            ><ElTag>{{ labels[row.status as keyof typeof labels] }}</ElTag></template
+            ><ElTag :type="row.status === 'delete_failed' ? 'danger' : row.status === 'deleting' ? 'warning' : 'primary'">{{ labels[row.status as keyof typeof labels] }}</ElTag><p v-if="row.deletionError" class="task-deletion-error">{{ row.deletionError }}</p></template
           >
           <template #action="{ row }"
             ><ElButton text type="primary" @click="$emit('open', row.id)">查看详情</ElButton
@@ -70,13 +70,16 @@ import type { Task } from './types'
 const props = defineProps<{ tasks: (TaskSummary | Task)[]; allowed: boolean; total: number; busy?: boolean; preview?: boolean }>()
 const query = defineModel<string>('query', { required: true }), scope = defineModel<string>('scope', { required: true }), status = defineModel<string>('status', { required: true })
 defineEmits<{ create: []; open: [id: string]; refresh: [] }>()
-const labels = computed(() => props.preview ? Object.fromEntries(Object.entries(taskStatuses).filter(([key]) => key !== 'created')) : taskStatuses)
+const labels = computed(() => Object.fromEntries(Object.entries(taskStatuses).filter(([key]) => key !== 'deleted' && (!props.preview || !['created', 'deleting', 'delete_failed'].includes(key)))))
 const columns = [
   { prop: 'name', label: '任务 / 品名', minWidth: 240, useSlot: true },
   { prop: 'brand', label: '品牌', minWidth: 100 },
   { prop: 'platform', label: '平台', minWidth: 100 },
   { prop: 'status', label: '当前节点', minWidth: 120, useSlot: true },
   { prop: 'createdAt', label: '提交时间', minWidth: 170 },
-  { prop: 'action', label: '操作', minWidth: 100, useSlot: true },
+  { prop: 'action', label: '操作', minWidth: 180, useSlot: true },
 ]
 </script>
+<style scoped>
+.task-deletion-error { font-size: 12px; color: var(--el-color-danger); white-space: normal; overflow-wrap: anywhere; margin-top: 6px; }
+</style>

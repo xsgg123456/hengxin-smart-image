@@ -35,8 +35,9 @@ def cancel(task_id: UUID, turn_id: UUID, body: Cancel, actor: CurrentMember, ses
 
 
 @router.post('/archive', dependencies=WRITE)
-def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: Database, idempotency_key: Key):
-    return service.archive(session, actor, task_id, body, idempotency_key)
+def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: Database, idempotency_key: Key,
+            store=Depends(get_store)):
+    return service.archive(session, actor, task_id, body, idempotency_key, store)
 
 
 @router.post('/complete', dependencies=WRITE)

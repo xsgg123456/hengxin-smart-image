@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from app.overseas.auth.models import Member, MemberRole
 from app.overseas.members.service import roles_for
 from app.overseas.permissions import can_access_task, principal_for, require_task_access, scopes, task_filter
-from .models import Task, TaskEvent, TaskSku, RequirementsReview
+from .models import Task, TaskEvent, TaskSku, RequirementsReview, TaskDeletion
 
 DESIGN_ROLES = ('designer', 'design_manager', 'super_admin')
 
@@ -18,6 +18,8 @@ def get_task(session, task_id, lock=False):
     task = session.scalar(query.with_for_update() if lock else query)
     if task is None:
         raise HTTPException(404, '海外任务不存在')
+    if lock and session.get(TaskDeletion, task.id) is not None:
+        raise HTTPException(409, '任务正在删除，不能继续操作')
     return task
 
 
@@ -25,15 +27,18 @@ def summary(session, task, principal):
     from app.overseas.plans.service import task_status
     creator = session.get(Member, task.created_by)
     designer = session.get(Member, task.designer_id)
+    deletion = session.get(TaskDeletion, task.id)
     skus = session.scalars(select(TaskSku).where(TaskSku.task_id == task.id).order_by(TaskSku.position))
-    return {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
+    result = {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
             'brand': task.brand, 'platform': task.platform, 'market': task.market,
             'remarks': task.remarks, 'skus': [{'code': item.code} for item in skus],
             'workflow': task.workflow, 'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
             'updatedAt': task.updated_at, 'createdBy': {'id': str(creator.id), 'name': creator.name},
             'designer': {'id': str(designer.id), 'name': designer.name,
                          'status': designer.status, 'eligible': eligible(session, designer)},
-            'capabilities': [permission for permission in ('task.read', 'task.design', 'task.reassign')
+            'deletionStatus': deletion.status if deletion else None,
+            'deletionError': deletion.error if deletion else None,
+            'capabilities': [permission for permission in ('task.read', 'task.design', 'task.reassign', 'task.delete')
                              if can_access_task(principal, task.created_by, task.designer_id, permission)]
                             + (['task.materials.submit'] if task.status == 'created'
                                and scopes(principal.roles, 'task.create')
@@ -44,6 +49,10 @@ def summary(session, task, principal):
                             + (['task.requirements.resubmit'] if task.status == 'returned'
                                and scopes(principal.roles, 'task.create')
                                and (task.created_by == principal.id or bool(principal.roles & {'operator_manager', 'super_admin'})) else [])}
+    if deletion:
+        result['status'] = deletion.status
+        result['capabilities'] = [cap for cap in result['capabilities'] if cap in ('task.read', 'task.delete')]
+    return result
 
 
 def detail(session, task_id, actor, lock=False):
@@ -78,7 +87,10 @@ def list_tasks(session, actor, search='', scope='all', status=None, page=1, page
             Plan.version.desc()).limit(1).correlate(Task).scalar_subquery()
         failed = select(Job.id).where(Job.id == latest_id,
             Job.status.in_(('failed', 'cancelled'))).correlate(Task).exists()
-        if status == 'analysisFailed':
+        if status in ('deleting', 'delete_failed'):
+            filters.append(select(TaskDeletion.task_id).where(TaskDeletion.task_id == Task.id,
+                TaskDeletion.status == status).exists())
+        elif status == 'analysisFailed':
             filters.extend([Task.status == 'analyzing', failed])
         elif status == 'analyzing':
             filters.extend([Task.status == 'analyzing', ~failed])

@@ -95,6 +95,8 @@ const tasksApi = createTasksApi()
 const tasksAdapter: TasksApi = {
   async list(query) { await taskAuthorize('task.read'); return tasksApi.list(query) },
   async get(id) { await taskAuthorize('task.read'); return tasksApi.get(id) },
+  async remove(id, version, confirmationName) { await taskAuthorize('task.delete'); return tasksApi.remove(id, version, confirmationName) },
+  async deletion(id) { await taskAuthorize('task.read'); return tasksApi.deletion(id) },
   async create(draft, key) { await taskAuthorize('task.create'); return tasksApi.create(draft, key) },
   async submitMaterials(id, ids, version, key) { await taskAuthorize('task.create'); return tasksApi.submitMaterials(id, ids, version, key) },
   async assign(id, designerId, version, key) { await taskAuthorize('task.reassign'); return tasksApi.assign(id, designerId, version, key) },
@@ -121,13 +123,9 @@ async function managementCall<T>(cap: string, action: () => Promise<T>, write = 
   catch (reason) { await managementFailure(reason); throw reason }
 }
 const managementAdapter: ManagementApi = {
-  uploadPackage: (file, name, stage, identity, version) => managementCall('skills.manage', () => managementApi.uploadPackage(file,name,stage,identity,version), true),
   usage: query => managementCall('stats.read', () => managementApi.usage(query)),
   jobs: query => managementCall('stats.read', () => managementApi.jobs(query)),
   skills: () => managementCall('skills.manage', () => managementApi.skills()),
-  createSkill: (name, stage, files) => managementCall('skills.manage', () => managementApi.createSkill(name,stage,files), true),
-  publish: (id, version, files) => managementCall('skills.manage', () => managementApi.publish(id,version,files), true),
-  toggle: (id, version, enabled) => managementCall('skills.manage', () => managementApi.toggle(id,version,enabled), true),
   settings: () => managementCall('settings.manage', () => managementApi.settings()),
   saveSettings: value => managementCall('settings.manage', () => managementApi.saveSettings(value), true)
 }

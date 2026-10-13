@@ -85,6 +85,10 @@ class MinioStore:
         self.ensure_private(record.bucket, force=False)
         return self.client.stat_object(record.bucket, record.object_key).size
 
+    def keys(self, bucket, prefix):
+        self.ensure_private(bucket, force=False)
+        return (item.object_name for item in self.client.list_objects(bucket, prefix=prefix, recursive=True))
+
     def signed_delivery(self, record, method, headers):
         self.ensure_private(record.bucket, force=False)
         return self.client.get_presigned_url(method, record.bucket, record.object_key,

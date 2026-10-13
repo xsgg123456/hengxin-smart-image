@@ -97,7 +97,7 @@ def upload(session, store, actor, task_id, data, filename):
     identity = uuid4()
     row = Upload(id=identity, task_id=task.id, name=name, content_type=content_type,
         size_bytes=len(data), checksum=sha256(data).hexdigest(),
-        bucket=get_settings().minio_bucket, object_key=f'studio/uploads/{identity}')
+        bucket=get_settings().minio_bucket, object_key=f'studio/uploads/{task.id}/{identity}')
     try:
         store.put(row, data)
     except Exception:

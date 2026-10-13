@@ -8,9 +8,10 @@ from app.overseas.auth.models import Member
 from app.overseas.execution import claims
 from app.overseas.execution.models import ExecutionGate, Job
 from app.overseas.execution.queue import enqueue, lock_gate
-from app.overseas.management import settings, skills
+from app.overseas.management import settings
 from app.overseas.management.models import Audit, Settings
-from app.overseas.management.schemas import SettingsPatch, SkillCreate, SkillPublish
+from app.overseas.management.schemas import SettingsPatch
+from overseas_installed_helpers import install_sample
 from app.overseas.plans.snapshot import SKILL
 from test_overseas_members_postgres import pg_factory, member
 from test_overseas_concurrency import execution, add
@@ -18,9 +19,11 @@ from test_overseas_configuration import configure_overseas
 
 
 @pytest.fixture(autouse=True)
-def configured(monkeypatch):
+def configured(monkeypatch, tmp_path):
     configure_overseas(monkeypatch)
     get_settings.cache_clear()
+    get_settings().local_skill_root = str(tmp_path / 'skills')
+    (tmp_path / 'skills').mkdir()
     yield
     get_settings.cache_clear()
 
@@ -79,8 +82,7 @@ def test_freeze_waits_for_atomic_skill_and_settings_update(pg_factory):
     with pg_factory.begin() as session:
         session.add(ExecutionGate(id=1))
     with pg_factory() as session:
-        item = skills.mutate(session, session.get(Member, actor),
-            SkillCreate(name='bound', stage='analysis', files={'SKILL.md': 'one'}))
+        item = install_sample('bound', content='one')
         patch = SettingsPatch(**{**body().model_dump(), 'defaults': {
             'analysis': item['id'], 'generation': None, 'revision': None}})
         settings.save(session, session.get(Member, actor), patch)

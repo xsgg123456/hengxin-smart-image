@@ -15,7 +15,7 @@ from app.overseas.permissions import (
     ('operator_manager', {'task.read', 'task.create', 'stats.read'}),
     ('designer', {'task.read', 'task.design', 'stats.read'}),
     ('design_manager', {'task.read', 'task.design', 'task.reassign', 'stats.read'}),
-    ('super_admin', {'task.create', 'task.design', 'task.read', 'task.reassign', 'stats.read', 'members.manage',
+    ('super_admin', {'task.create', 'task.design', 'task.read', 'task.reassign', 'task.delete', 'stats.read', 'members.manage',
                      'skills.manage', 'settings.manage'}),
 ])
 def test_five_role_capabilities(role, expected):
