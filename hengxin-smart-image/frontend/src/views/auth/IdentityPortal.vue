@@ -1,5 +1,7 @@
 <template>
-  <OverseasPortal v-if="overseas && member && !busy" :member="member" @member="member = $event" @switch="switchBusiness" @logout="logout" @failure="businessFailure" />
+  <div v-if="overseas && member && !busy" :key="member.id" :inert="checking" :aria-busy="checking">
+    <OverseasPortal :member="member" @member="member = $event" @switch="switchBusiness" @logout="logout" @failure="businessFailure" />
+  </div>
   <div v-else class="flex w-full h-screen overflow-auto">
     <LoginLeftView />
     <div class="relative flex-1">
@@ -31,20 +33,34 @@ import OverseasPortal from '@/views/overseas/OverseasPortal.vue'
 import { identityApi, IdentityError, type IdentityConfig, type AccessResult, type Member } from '@/api/identity/auth'
 import { requestContainerAuthCode } from '@/api/hengxin/container-auth'
 import type { Business } from '@/api/identity/access'
+import { createOverseasRevalidator } from '@/api/identity/revalidate'
 const callbackError = new URLSearchParams(window.location.hash.split('?')[1] || '').get('auth')
 const busy = ref(false), error = ref(''), name = ref('')
+const checking = ref(false)
 const config = ref<IdentityConfig>(), member = ref<Member>()
 const states = ref<Partial<Record<Business, AccessResult>>>({})
 const overseas = ref(window.location.hash.startsWith('#/overseas'))
 const access = computed(() => ({ authenticated: !!name.value, domestic: !busy.value && states.value.domestic?.state === 'allowed', overseas: !busy.value && states.value.overseas?.state === 'allowed' }))
 const hasFailure = computed(() => Object.values(states.value).some(v => v.state === 'error'))
 function businessFailure(reason: unknown) {
+  revalidator.invalidate()
   ++generation; member.value = undefined; states.value = {}; busy.value = false
   error.value = reason instanceof Error ? reason.message : '业务连接失败，请重新连接'
   if (reason instanceof IdentityError && reason.status === 401) { name.value = ''; overseas.value = false }
 }
 let generation = 0
+const revalidator = createOverseasRevalidator({
+  identity: () => identityApi.me(), member: () => identityApi.overseasMe(),
+  accept(current, identityName) { member.value = current; name.value = identityName },
+  reject: businessFailure,
+  pending(value) {
+    checking.value = value
+    // Element弹层teleport到body，必须连同页面一起阻止核验期间的交互。
+    document.body.inert = value
+  }
+})
 async function load() {
+  revalidator.invalidate()
   const epoch = ++generation
   overseas.value = window.location.hash.startsWith('#/overseas')
   busy.value = true; error.value = ''; states.value = {}; member.value = undefined
@@ -91,8 +107,9 @@ async function enter(business: Business) {
   catch (reason) { if (epoch === generation) { error.value = reason instanceof Error ? reason.message : '业务连接失败'; await load() } }
   finally { if (epoch === generation) busy.value = false }
 }
-function switchBusiness() { overseas.value = false; member.value = undefined; window.location.hash = '/auth/business'; void load() }
+function switchBusiness() { revalidator.invalidate(); overseas.value = false; member.value = undefined; window.location.hash = '/auth/business'; void load() }
 async function logout() {
+  revalidator.invalidate()
   ++generation; busy.value = true; error.value = ''; member.value = undefined; overseas.value = false; states.value = {}
   try { await identityApi.logout(); try { localStorage.setItem('hengxin:logout', crypto.randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; window.location.hash = '/auth/business' }
   catch (reason) { error.value = reason instanceof Error ? reason.message : '退出失败，请重试' }
@@ -103,9 +120,13 @@ function navigated() {
   if (foreign !== overseas.value) { overseas.value = foreign; void load() }
 }
 function changed(event: StorageEvent) { if (event.key === 'hengxin:logout') void load() }
-function resume() { if (document.visibilityState === 'visible') void load() }
+function resume() {
+  if (document.visibilityState !== 'visible' || busy.value) return
+  if (overseas.value && member.value) void revalidator.run()
+  else void load()
+}
 onMounted(() => { void load(); window.addEventListener('focus', resume); window.addEventListener('storage', changed); window.addEventListener('hashchange', navigated); document.addEventListener('visibilitychange', resume) })
-onUnmounted(() => { ++generation; window.removeEventListener('focus', resume); window.removeEventListener('storage', changed); window.removeEventListener('hashchange', navigated); document.removeEventListener('visibilitychange', resume) })
+onUnmounted(() => { revalidator.invalidate(); ++generation; window.removeEventListener('focus', resume); window.removeEventListener('storage', changed); window.removeEventListener('hashchange', navigated); document.removeEventListener('visibilitychange', resume) })
 </script>
 <style scoped>
 @import './login/style.css';

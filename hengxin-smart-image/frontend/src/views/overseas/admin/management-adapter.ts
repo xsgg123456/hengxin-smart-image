@@ -46,10 +46,9 @@ export function saveMember(input: Member) {
   if (
     !value.name ||
     value.name.length > 40 ||
-    !value.department ||
     value.department.length > 60
   )
-    throw new Error("请填写姓名（1–40 字）和部门（1–60 字）");
+    throw new Error("请填写姓名（1–40 字）");
   if (!(value.role in roles)) throw new Error("请选择海外业务角色");
   if (
     members.some(

@@ -2,11 +2,11 @@
   <ElCard class="art-card hx-section hx-admin-table-card">
     <div class="hx-admin-section-head">
       <div><span class="hx-admin-kicker">MEMBER ACCESS</span><h2>海外成员目录</h2>
-        <p>{{ adapter.preview ? '配置仅用于本地管理交互预览。' : '成员身份来自企业钉钉，姓名与部门只读；可兼任多个海外角色。' }}</p></div>
+        <p>{{ adapter.preview ? '配置仅用于本地管理交互预览。' : '成员身份来自企业钉钉，姓名只读；可兼任多个海外角色。' }}</p></div>
       <ElButton v-if="adapter.preview" type="primary" @click="edit()">新增成员</ElButton>
     </div>
     <div class="hx-filter">
-      <ElInput v-model="query.search" class="hx-search" placeholder="搜索姓名或部门" maxlength="100" clearable aria-label="搜索成员" @change="filter" />
+      <ElInput v-model="query.search" class="hx-search" placeholder="搜索姓名" maxlength="100" clearable aria-label="搜索成员" @change="filter" />
       <ElSelect v-model="query.status" clearable placeholder="全部状态" aria-label="成员状态筛选" style="width: 150px" @change="filter"><ElOption v-for="(label,key) in statuses" :key="key" :value="key" :label="label" /></ElSelect>
       <ElSelect v-model="query.role" clearable placeholder="全部角色" aria-label="成员角色筛选" style="width: 150px" @change="filter"><ElOption v-for="(label,key) in roleOptions" :key="key" :value="key" :label="label" /></ElSelect>
       <ElButton :loading="loading" @click="load">刷新成员</ElButton>
@@ -24,7 +24,6 @@
   <ElDialog v-model="open" :title="form.id ? '编辑海外成员' : '新增海外成员'" width="min(480px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
     <ElForm label-position="top" @submit.prevent="save">
       <ElFormItem label="姓名" required><ElInput v-model="form.name" aria-label="成员姓名" :readonly="!adapter.preview" maxlength="40" /></ElFormItem>
-      <ElFormItem label="部门" required><ElInput v-model="form.department" aria-label="成员部门" :readonly="!adapter.preview" maxlength="60" /></ElFormItem>
       <ElFormItem label="海外业务角色" required><ElSelect v-model="form.roles" multiple :multiple-limit="adapter.preview ? 1 : 0" aria-label="海外业务角色" :disabled="saving || conflict"><ElOption v-for="(label,key) in roleOptions" :key="key" :label="label" :value="key" /></ElSelect></ElFormItem>
       <ElFormItem label="账号启用"><ElSwitch :model-value="form.status === 'active'" aria-label="账号启用" :disabled="saving || conflict" @change="form.status = $event ? 'active' : 'disabled'" /><span v-if="form.status === 'pending'" class="hx-muted">待授权，请明确启用或禁用</span></ElFormItem>
     </ElForm>
@@ -47,7 +46,7 @@ const statuses = { active: '启用', pending: '待授权', disabled: '禁用' }
 const roleOptions = computed(() => props.adapter.preview ? { operator: '运营', designer: '设计', super_admin: '管理员' } : memberRoles)
 const blank = (): OverseasMember => ({ id: '', name: '', department: '', roles: ['operator'], status: 'active', version: 1, createdAt: '', updatedAt: '' })
 const form = reactive(blank())
-let generation = 0, active = true, originalStatus: MemberStatus = 'active'
+let generation = 0, active = true, confirmingDisable = false, originalStatus: MemberStatus = 'active'
 function failure(reason: unknown) {
   if (!active) return
   error.value = reason instanceof Error ? reason.message : '成员加载失败，请重试'
@@ -77,7 +76,9 @@ async function save() {
   saving.value = true
   try {
     if (form.status === 'disabled' && originalStatus !== 'disabled') {
+      confirmingDisable = true
       try { await ElMessageBox.confirm(`禁用「${form.name}」后将撤销其全部海外会话，是否继续？`, '禁用成员', { type: 'warning', confirmButtonText: '确认禁用', cancelButtonText: '取消' }) } catch { return }
+      finally { confirmingDisable = false }
     }
     if (!active) return
     await props.adapter.save({ ...form, roles: [...form.roles] })
@@ -94,7 +95,7 @@ async function toggle(member: OverseasMember) { await edit(member); if (!open.va
 async function remove(member: OverseasMember) {
   try { await ElMessageBox.confirm(`删除「${member.name}」？此操作仅移除本地预览成员。`, '删除成员', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }); await props.adapter.remove?.(member.id); await load() } catch { /* 取消 */ }
 }
-const columns = [{ prop: 'name', label: '姓名', minWidth: 110 }, { prop: 'department', label: '部门', minWidth: 120 }, { prop: 'roles', label: '海外角色', minWidth: 180, useSlot: true }, { prop: 'status', label: '状态', width: 90, useSlot: true }, { prop: 'action', label: '操作', width: props.adapter.preview ? 220 : 90, useSlot: true }]
+const columns = [{ prop: 'name', label: '姓名', minWidth: 110 }, { prop: 'roles', label: '海外角色', minWidth: 180, useSlot: true }, { prop: 'status', label: '状态', width: 90, useSlot: true }, { prop: 'action', label: '操作', width: props.adapter.preview ? 220 : 90, useSlot: true }]
 onMounted(load)
-onUnmounted(() => { active = false; ++generation })
+onUnmounted(() => { active = false; ++generation; if (confirmingDisable) ElMessageBox.close() })
 </script>
