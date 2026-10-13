@@ -24,4 +24,11 @@
 - 浏览器使用正式dist静态服务，3015匿名、3016本地管理员fixture，明确不冒充真实身份联调；桌面登录Logo280px、表单440px，无横向溢出。登录、业务选择、海外首页、成员目录以及390px窄屏登录/海外均已目视检查，截图`output/css-hotfix-{login,business,overseas,members,login-mobile,overseas-mobile}.jpg`。
 - 静态验收服务初始使用Python默认监听队列，并行资源请求曾失败；调大监听队列后重新载入通过，没有将该失败轮次算通过。
 - 复用前端发布脚本`frontend-static.py`，只更新版本前置与本次发布名称；备份、旧资源保留、入口原子替换及异常回退不变。4项发布测试通过。
-- 独立审查候选`55ae6380d4d5645d1b7ac21612719a580ad8b10fda888703350a13464b061915`；生产结果待追加。
+- 独立两阶段审查PASS，候选`55ae6380d4d5645d1b7ac21612719a580ad8b10fda888703350a13464b061915`，报告`docs/reviews/OVERSEAS-CSS-HOTFIX-REVIEW-20261013.md`。
+
+## 生产发布结果
+
+- 2026-10-13发布`frontend-css-20261013-fbb7586`，前端0.2.23；修复提交`fbb7586`。620文件、4,774,839字节，隐私审计通过；归档SHA256 `53f69cee0bf28d9ffe2048419f2849c8a040e4e0f6a284f4abb061c8fffb173f`，服务器核验一致。
+- 安装618个前端文件，逐文件哈希通过；公网HTML、JS入口及入口依赖表43个CSS的响应内容与本地发布包一致。国内/海外ready及统一身份配置检查通过。
+- 备份`/opt/hengxin-backups/frontend-css-20261013-fbb7586`，保留旧资源；仅原子切换前端入口和版本记录，未重启后端或执行数据库迁移。
+- 张帅真实会话下，生产海外首页已目视检查，sidebar位于x=0、宽231px，main位于x=231、宽1049px（1280px视口），无横向溢出。确认加载IdentityPortal、BusinessEntry和OverseasShell样式；截图`output/css-hotfix-production-after.jpg`，修复前对照`output/css-hotfix-production-before.jpg`。
