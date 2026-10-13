@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from app.overseas.auth.models import Member, MemberRole
 from app.overseas.members.service import roles_for
 from app.overseas.permissions import can_access_task, principal_for, require_task_access, scopes, task_filter
-from .models import Task, TaskEvent, TaskSku
+from .models import Task, TaskEvent, TaskSku, RequirementsReview
 
 DESIGN_ROLES = ('designer', 'design_manager')
 
@@ -38,7 +38,12 @@ def summary(session, task, principal):
                             + (['task.materials.submit'] if task.status == 'created'
                                and scopes(principal.roles, 'task.create')
                                and (task.created_by == principal.id or 'operator_manager' in principal.roles)
-                               else [])}
+                               else [])
+                            + (['task.requirements.review'] if task.status == 'pending_review'
+                               and can_access_task(principal, task.created_by, task.designer_id, 'task.design') else [])
+                            + (['task.requirements.resubmit'] if task.status == 'returned'
+                               and scopes(principal.roles, 'task.create')
+                               and (task.created_by == principal.id or 'operator_manager' in principal.roles) else [])}
 
 
 def detail(session, task_id, actor, lock=False):
@@ -46,6 +51,12 @@ def detail(session, task_id, actor, lock=False):
     principal = principal_for(session, actor)
     require_task_access(principal, task.created_by, task.designer_id)
     result = summary(session, task, principal)
+    reviews = session.scalars(select(RequirementsReview).where(RequirementsReview.task_id == task.id)
+                              .order_by(RequirementsReview.version))
+    result['requirementsReviews'] = [{'id': str(item.id), 'decision': item.decision,
+        'comment': item.comment, 'actorId': str(item.actor_id), 'actorName': item.actor_name,
+        'createdAt': item.created_at, 'version': item.version,
+        'materialIds': item.submission['materialIds'], 'submission': item.submission} for item in reviews]
     events = session.scalars(select(TaskEvent).where(TaskEvent.task_id == task.id).order_by(TaskEvent.version))
     result['events'] = [{'id': str(item.id), 'kind': item.kind, 'actorId': str(item.actor_id),
                          'actorName': item.actor_name, 'title': item.title, 'at': item.created_at,

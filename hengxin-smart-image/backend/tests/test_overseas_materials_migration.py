@@ -32,9 +32,11 @@ def test_upgrade_0004_preserves_existing_tasks(disposable_databases):
             assert result.returncode == 0, result.stderr
             after = snapshot(overseas_url)[1]
             for table, rows in before.items():
-                if table != 'overseas_alembic_version':
+                if table == 'overseas_tasks':
+                    assert after[table] == [(*row, False, None) for row in rows]
+                elif table != 'overseas_alembic_version':
                     assert after[table] == rows
-            assert after['overseas_alembic_version'] == [('overseas_0009',)]
+            assert after['overseas_alembic_version'] == [('overseas_0010',)]
             assert after['overseas_materials'] == after['overseas_material_versions'] == []
     finally:
         engine.dispose()

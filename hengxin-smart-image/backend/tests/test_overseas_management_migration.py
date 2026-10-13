@@ -1,7 +1,8 @@
 import subprocess
 import sys
+from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import MetaData, Table, create_engine, inspect, text
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
@@ -20,8 +21,10 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
         with engine.begin() as connection:
             connection.execute(Member.__table__.insert().values(id=actor, corp_id='legacy',
                 provider_user_id='legacy', name='legacy', status='active'))
-            connection.execute(Task.__table__.insert().values(id=task, name='legacy', product_name='p',
-                brand='b', market='US', platform='Amazon', created_by=actor, designer_id=actor))
+            connection.execute(Table('overseas_tasks', MetaData(), autoload_with=connection).insert().values(id=task, name='legacy', product_name='p',
+                brand='b', market='US', platform='Amazon', created_by=actor, designer_id=actor,
+                remarks='', status='created', version=1, created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)))
             connection.execute(Job.__table__.insert().values(id=job, task_id=task, kind='analysis',
                 dedupe_key='legacy', payload={'skill': {'name': 'old', 'files': {'SKILL.md': 'old'}}}))
     finally:
@@ -31,12 +34,14 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
         result = migrate(env)
         assert result.returncode == 0, result.stderr
     after = snapshot(overseas)
-    assert after[1]['overseas_alembic_version'] == [('overseas_0009',)]
+    assert after[1]['overseas_alembic_version'] == [('overseas_0010',)]
     assert len(after[1]['overseas_settings']) == 1
     assert snapshot(domestic) == domestic_before
     for name, rows in before[1].items():
         if name == 'overseas_jobs':
             assert after[1][name] == [(*row, None) for row in rows]
+        elif name == 'overseas_tasks':
+            assert after[1][name] == [(*row, False, None) for row in rows]
         elif name != 'overseas_alembic_version':
             assert after[1][name] == rows
     engine = create_engine(overseas)
@@ -57,6 +62,6 @@ def test_complete_offline_sql_executes_on_empty_postgres(disposable_databases):
             connection.commit()
         with engine.connect() as connection:
             assert connection.execute(text('SELECT version FROM overseas_settings')).scalar_one() == 1
-            assert connection.execute(text('SELECT version_num FROM overseas_alembic_version')).scalar_one() == 'overseas_0009'
+            assert connection.execute(text('SELECT version_num FROM overseas_alembic_version')).scalar_one() == 'overseas_0010'
     finally:
         engine.dispose()

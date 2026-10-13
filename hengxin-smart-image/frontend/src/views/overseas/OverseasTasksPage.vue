@@ -5,11 +5,20 @@
       <template #after><OverseasMaterialsPanel :key="panelEpoch" v-model="materials" :api="materialsApi" :editable="canCreate" :disabled="saving" @busy="materialsBusy = $event" @failure="failure" /><ElAlert v-if="error" :title="error" type="error" :closable="false" /><div class="hx-filter"><ElButton type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="create">提交图需</ElButton></div></template>
     </OverseasCreate>
     <template v-else-if="detailId">
-      <div class="hx-heading"><div><h1>{{ detail?.name || '任务详情' }}</h1><p v-if="detail">{{ taskStatuses[detail.status] }}</p></div><ElButton @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div>
+      <div v-if="!editingRequirements" class="hx-heading"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail">{{ taskStatuses[detail.status] }}</p></div><ElButton @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div>
       <p v-if="busy" role="status">正在加载任务…</p>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
-      <ElButton :loading="busy" @click="load">刷新任务详情</ElButton>
-      <OverseasTaskInfo v-if="detail" :task="detail" class="hx-gap">
+      <ElButton v-if="!editingRequirements" :loading="busy" @click="load">刷新任务详情</ElButton>
+      <OverseasRequirementsResubmit v-if="detail && preReview && editingRequirements" :key="detail.id" :task="detail" :materials="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @close="editingRequirements = false" @changed="requirementsChanged" />
+      <OverseasRequirementsReview v-else-if="detail && preReview" :key="detail.id" :task="detail" :files="materials" :api="api" :materials-api="materialsApi" @failure="failure" @refresh="refreshDetail" @edit="editingRequirements = true" @changed="requirementsChanged">
+        <template #assignment>
+          <div v-if="detail.capabilities.includes('task.reassign')" class="hx-gap">
+            <ElButton v-if="!assigning" @click="assigning = true">改派设计</ElButton>
+            <template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><div class="hx-filter hx-gap"><ElButton type="primary" :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton :disabled="saving" @click="assigning = false">取消</ElButton></div></template>
+          </div>
+        </template>
+      </OverseasRequirementsReview>
+      <OverseasTaskInfo v-if="detail && !preReview" :task="detail" class="hx-gap">
         <template #assignment>
           <div v-if="detail.capabilities.includes('task.reassign')" class="hx-gap">
             <ElButton v-if="!assigning" @click="assigning = true">改派设计</ElButton>
@@ -21,9 +30,9 @@
           <ElButton v-if="detail.status === 'created' && detail.capabilities.includes('task.materials.submit')" class="hx-gap" type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="submitMaterials">提交补充资料</ElButton>
         </template>
       </OverseasTaskInfo>
-      <OverseasPlans v-if="detail" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
-      <OverseasPictureResults v-if="detail" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
-      <OverseasExecution v-if="detail" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
+      <OverseasPlans v-if="detail && !preReview" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasPictureResults v-if="detail && !preReview" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
+      <OverseasExecution v-if="detail && !preReview" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
     </template>
     <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
       <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /></template>
@@ -37,6 +46,8 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'
 import { cleanDraft, createRequestKeys, emptyTaskDraft, taskError, taskStatuses, validateDraft, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import OverseasRequirementsReview from './OverseasRequirementsReview.vue'
+import OverseasRequirementsResubmit from './OverseasRequirementsResubmit.vue'
 import OverseasCreate from './OverseasCreate.vue'
 import OverseasWorkspace from './OverseasWorkspace.vue'
 import OverseasTaskInfo from './OverseasTaskInfo.vue'
@@ -52,6 +63,8 @@ const route = useRoute(), router = useRouter(), creating = computed(() => route.
 const canCreate = computed(() => props.capabilities.includes('task.create')), canRead = computed(() => props.capabilities.includes('task.read'))
 const draft = ref(emptyTaskDraft()), tasks = ref<TaskSummary[]>([]), detail = ref<TaskDetail>(), total = ref(0), page = ref(1)
 const search = ref(''), scope = ref('all'), status = ref(''), error = ref(''), busy = ref(false), saving = ref(false), assigning = ref(false), designerId = ref('')
+const editingRequirements = ref(false)
+const preReview = computed(() => detail.value && ['pending_review', 'returned'].includes(detail.value.status))
 const panelEpoch = ref(0), plansRefresh = ref(0)
 const materials = ref<Material[]>([]), materialsBusy = ref(false)
 const ready = computed(() => { try { readyMaterialIds(materials.value); return true } catch { return false } })
@@ -61,6 +74,7 @@ let generation = 0, timer: ReturnType<typeof setTimeout> | undefined, active = t
 function failure(reason: unknown) { ++generation; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; total.value = 0; emit('failure', reason) }
 function failed(reason: unknown) { error.value = taskError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) failure(reason) }
 async function load() {
+  editingRequirements.value = false
   const current = ++generation; panelEpoch.value++; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; busy.value = false; error.value = ''; assigning.value = false; designerId.value = ''
   if (creating.value || !canRead.value) return
   busy.value = true
@@ -71,6 +85,12 @@ async function load() {
   finally { if (current === generation) busy.value = false }
 }
 function updateDetail(value: TaskDetail) { if (detail.value?.id === value.id && value.version >= detail.value.version) detail.value = value }
+async function requirementsChanged(value: TaskDetail) {
+  updateDetail(value); editingRequirements.value = false
+  const current = generation
+  try { const files = await props.materialsApi.list(value.id); if (active && current === generation && detail.value?.id === value.id) materials.value = files }
+  catch (reason) { if (active && current === generation) failed(reason) }
+}
 async function refreshDetail() {
   const id = detail.value?.id, current = generation
   if (!id) return

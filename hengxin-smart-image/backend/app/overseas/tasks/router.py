@@ -6,8 +6,8 @@ from app.core.browser_auth import browser_request
 from app.db.session import get_session
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.permissions import authorize_member
-from . import assignment, queries, service
-from .schemas import Assignment, CreateTask
+from . import assignment, queries, service, requirements
+from .schemas import Assignment, CreateTask, RequirementsReview, ResubmitTask
 
 router = APIRouter(prefix='/api/overseas/v1', tags=['overseas-tasks'])
 Database = Annotated[Session, Depends(get_session)]
@@ -43,3 +43,13 @@ def detail(task_id: UUID, actor: CurrentMember, session: Database):
 @router.patch('/tasks/{task_id}/assignment', dependencies=[Depends(browser_request)])
 def assign(task_id: UUID, body: Assignment, actor: CurrentMember, session: Database, idempotency_key: Key):
     return assignment.assign(session, actor, task_id, body, idempotency_key)
+
+
+@router.post('/tasks/{task_id}/requirements-review', dependencies=[Depends(browser_request)])
+def review(task_id: UUID, body: RequirementsReview, actor: CurrentMember, session: Database, idempotency_key: Key):
+    return requirements.review(session, actor, task_id, body, idempotency_key)
+
+
+@router.post('/tasks/{task_id}/resubmit', dependencies=[Depends(browser_request)])
+def resubmit(task_id: UUID, body: ResubmitTask, actor: CurrentMember, session: Database, idempotency_key: Key):
+    return requirements.resubmit(session, actor, task_id, body, idempotency_key)

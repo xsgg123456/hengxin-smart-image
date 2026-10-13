@@ -8,8 +8,7 @@ from app.overseas.db import Base
 
 class Material(Timestamps, Base):
     __tablename__ = 'overseas_materials'
-    __table_args__ = (UniqueConstraint('task_id', 'kind'),
-                     CheckConstraint("kind IN ('requirement', 'competitor')"),
+    __table_args__ = (CheckConstraint("kind IN ('requirement', 'competitor')"),
                      CheckConstraint('version >= 0'))
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'), index=True)

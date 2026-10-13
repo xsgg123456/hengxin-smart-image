@@ -1,6 +1,7 @@
 <template>
-  <ElDialog v-model="open" title="图需资料预览" width="min(880px, 94vw)" append-to-body>
-    <ElTabs v-model="tab">
+  <ElDialog v-model="open" title="图需资料预览" width="min(1180px, 94vw)" append-to-body destroy-on-close>
+    <OverseasMaterialReader v-if="open && api && actualFiles.length" :files="actualFiles" :api="api" @failure="emit('failure', $event)" />
+    <ElTabs v-else v-model="tab">
       <ElTabPane v-for="kind in kinds" :key="kind.key" :label="kind.label" :name="kind.key">
         <template v-if="material(kind.key)">
           <p class="hx-muted">{{ material(kind.key)?.name }}</p>
@@ -33,10 +34,12 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
+import OverseasMaterialReader from './OverseasMaterialReader.vue'
 import type { Material as PreviewMaterial } from './types'
 import { materialError, type Material, type MaterialsApi } from '@/api/overseas/materials'
 const props = defineProps<{ files: (PreviewMaterial | Material)[]; api?: MaterialsApi }>()
+const actualFiles = computed(() => props.files.filter((file): file is Material => 'id' in file))
 const emit = defineEmits<{ failure: [reason: unknown] }>()
 const open = defineModel<boolean>({ required: true })
 const tab = ref(props.files[0]?.kind || 'requirement'), selectedVersion = ref(1), loading = ref(false), error = ref(''), originalUrl = ref('')

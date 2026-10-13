@@ -1,0 +1,20 @@
+# 设计人工审核与资料阅读验收（2026-10-13）
+
+## 范围与流程
+
+按已确认预览实现海外运营提交、设计人工审核、退回运营修改重提，以及资料预览和鉴权下载。新提交只有设计通过后才能排队分析，后续保留方案确认和逐图审核。原有在途任务不回退。前端0.2.25，海外数据库0010，国内数据库0027。
+
+## 发布前证据
+
+- 前端301项测试通过；正式 `pnpm build` 包含类型检查，退出0。日志 `output/requirements-frontend-tests.log`、`output/requirements-build.log`。
+- 后端2051 passed、17 skipped（宿主环境专用条件），退出0。日志 `output/requirements-backend-final-full-20261013.log`。跳过项不计验证通过。
+- 真实 PostgreSQL、Redis、MinIO 和身份HTTP验证：PDF/DOCX/XLSX/CSV上传原件字节一致、未审核无AI、角色/任务范围、退回重提、并发幂等唯一分析作业、历史资料鉴权和国内数据未变；测试环境未启动外部AI。日志 `output/requirements-http-20261013.log`。
+- 增量发布/打包失败注入38项通过，日志 `output/requirements-release-tests.log`。
+- 正式入口6分支CSS依赖检查通过；构建资产逐字节隐私审计826文件通过。
+- 依赖审计critical=0；现有依赖包含high/moderate项，本轮未宣称依赖零漏洞。审计 `output/requirements-audit.json`。
+- 浏览器使用真实压缩构建及真实隔离API：PDF三页翻页、125%缩放、缩略图跳转；放大窗口文件切换；原件下载SHA256与上传文件一致；设计退回后运营可看到原因、修改说明并重新送审（任务版本1→2→3→4，设计再次通过后进入分析中）。截图 `output/requirements-qa/`。
+- Word和表格提供安全内容阅读，明确标识非原始版式，原始格式通过鉴权下载本地软件核对。PDF为原件画布阅读，不执行文档脚本。
+
+## 发布与线上验收
+
+待实际安装包测试、独立审查和生产部署完成后记录，以上测试结果不代表已上线。

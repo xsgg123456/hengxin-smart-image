@@ -19,7 +19,7 @@ def test_confirmation_uses_new_binding_retry_keeps_old_revision_uses_current(mat
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 200
     plan = plans(client, task)[0]
     publish(factory, plan)
-    response = post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 2}, 'confirm')
+    response = post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 3}, 'confirm')
     assert response.status_code == 200
     with factory.begin() as session:
         queued = session.scalars(select(Job).where(Job.kind == 'generation').order_by(Job.created_at)).all()

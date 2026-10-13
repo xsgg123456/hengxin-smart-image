@@ -48,3 +48,14 @@ class CreateTask(StrictBody):
 class Assignment(StrictBody):
     designerId: UUID
     version: int = Field(ge=1, strict=True)
+
+
+class RequirementsReview(StrictBody):
+    decision: Literal['approve', 'reject']
+    comment: str = Field(default='', max_length=2000)
+    version: int = Field(ge=1, strict=True)
+
+
+class ResubmitTask(CreateTask):
+    version: int = Field(ge=1, strict=True)
+    materialIds: list[UUID] = Field(min_length=1, max_length=2)

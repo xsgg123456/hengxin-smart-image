@@ -1,5 +1,5 @@
 <template>
-  <div class="hx-stack">
+  <div class="hx-stack designer-picker">
     <ElInput v-model="search" placeholder="搜索设计姓名或部门" aria-label="搜索负责设计" clearable :disabled="disabled" maxlength="100" />
     <ElSelect :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" aria-label="负责设计" placeholder="请选择负责设计" :loading="busy" :disabled="disabled || busy || !!error" style="width: 100%">
       <ElOption v-for="person in candidates" :key="person.id" :value="person.id" :label="`${person.name} · ${person.department || '未设置部门'}`" />
@@ -28,3 +28,7 @@ watch(search, () => { ++generation; candidates.value = []; total.value = 0; busy
 watch(page, load, { immediate: true })
 onUnmounted(() => { ++generation; clearTimeout(timer) })
 </script>
+
+<style scoped>
+.designer-picker { width: 100%; min-width: 0; }
+</style>

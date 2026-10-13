@@ -1,7 +1,7 @@
 """Overseas task persistence, independent from domestic execution records."""
 from datetime import datetime
 from uuid import UUID, uuid4
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.timestamps import Timestamps
 from app.overseas.db import Base
@@ -21,6 +21,8 @@ class Task(Timestamps, Base):
     designer_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'), index=True)
     status: Mapped[str] = mapped_column(String(40), default='created')
     version: Mapped[int] = mapped_column(Integer, default=1)
+    requirements_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    material_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
 
 class TaskSku(Timestamps, Base):
@@ -66,3 +68,17 @@ class TaskOutbox(Timestamps, Base):
     topic: Mapped[str] = mapped_column(String(40))
     payload: Mapped[dict] = mapped_column(JSON)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RequirementsReview(Timestamps, Base):
+    __tablename__ = 'overseas_requirements_reviews'
+    __table_args__ = (UniqueConstraint('task_id', 'version'),
+                     CheckConstraint("decision IN ('approve', 'reject')"))
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'))
+    actor_name: Mapped[str] = mapped_column(String(200))
+    decision: Mapped[str] = mapped_column(String(20))
+    comment: Mapped[str] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer)
+    submission: Mapped[dict] = mapped_column(JSON)

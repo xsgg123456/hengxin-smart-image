@@ -1,5 +1,6 @@
 """Package reviewed, committed overseas runtime and production frontend assets."""
 import hashlib
+import gzip
 import importlib.util
 import io
 import json
@@ -12,7 +13,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.22'
+VERSION = '0.2.25'
 EXACT = m.EXACT | {
     'backend/alembic.overseas.ini',
     'backend/migrations/overseas/script.py.mako',
@@ -26,10 +27,12 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-deploy.py', 'scripts/release/overseas-runtime.py',
     'scripts/release/overseas-verify.py', 'scripts/release/overseas-services.py',
     'scripts/release/overseas-topology.py',
+    'scripts/release/overseas-update-deploy.py', 'scripts/release/overseas-update-runtime.py',
     'frontend/dist/index.html',
     'backend/migrations/env.py', 'backend/migrations/overseas/env.py',
     'backend/migrations/versions/0027_identity_session_binding.py',
     'backend/migrations/overseas/versions/0009_management.py',
+    'backend/migrations/overseas/versions/0010_requirements_review.py',
     'backend/app/main.py', 'backend/app/identity/main.py',
     'backend/app/overseas/main.py', 'backend/app/overseas/execution/worker.py',
     'backend/app/overseas/execution/outbox.py',
@@ -75,9 +78,26 @@ def collect_assets(dist):
             continue
         name = 'frontend/dist/' + relative.as_posix()
         raw = path.read_bytes()
-        m.audit_asset(name, raw)
+        audit_asset(name, raw, dist.parent / 'node_modules/pdfjs-dist')
         files[name] = raw
     return files
+
+
+def audit_asset(name, raw, pdfjs):
+    """Only exact files shipped by pinned pdfjs-dist may bypass generic asset suffixes."""
+    plain = name.removesuffix('.gz')
+    resource = re.fullmatch(r'frontend/dist/pdfjs-6\.4\.299/(cmaps/[\w.-]+\.bcmap|standard_fonts/[\w.-]+\.(?:pfb|ttf)|wasm/[\w.-]+\.(?:wasm|js))', plain)
+    worker = re.fullmatch(r'frontend/dist/assets/pdf\.worker\.min-[A-Za-z0-9_-]+\.mjs', plain)
+    if not resource and not worker:
+        return m.audit_asset(name, raw)
+    no_symlink(pdfjs)
+    if json.loads((pdfjs / 'package.json').read_text(encoding='utf-8'))['version'] != '6.4.299':
+        raise ValueError('PDF.js resource version mismatch')
+    reference = pdfjs / (resource.group(1) if resource else 'build/pdf.worker.min.mjs')
+    no_symlink(reference)
+    body = gzip.decompress(raw) if name.endswith('.gz') else raw
+    if body != reference.read_bytes():
+        raise ValueError('PDF.js resource bytes differ from pinned dependency: ' + name)
 
 
 def validate(files):
@@ -136,7 +156,7 @@ def build(repo):
     validate(files)
     release = 'overseas-20261013-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0027', overseasMigration='overseas_0009', frontendVersion=VERSION,
+                    migration='0027', overseasMigration='overseas_0010', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

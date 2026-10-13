@@ -1,22 +1,22 @@
 <template>
   <ElCard class="art-card hx-section" shadow="never">
-    <h2>图需资料</h2>
+    <div class="section-heading"><h2>图需资料</h2><ElTag v-if="editable" type="info">至少提供一份</ElTag></div>
     <p v-if="editable" class="hx-muted hx-gap">至少一份解析成功的资料，每类一份，每份不超过 20 MiB。PDF 须包含可抽取文字；DOC 请另存为 DOCX 或 PDF。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
-    <div v-for="kind in kinds" :key="kind.key" class="hx-gap">
+    <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card">
       <h3>{{ kind.label }}</h3>
       <template v-if="file(kind.key)">
         <p class="file-name">{{ file(kind.key)?.name }} · {{ file(kind.key)?.status === 'ready' ? '解析成功' : '解析失败' }} · 第 {{ file(kind.key)?.version }} 版</p>
         <p v-if="file(kind.key)?.error" role="alert">{{ file(kind.key)?.error }}</p>
         <ElButton :disabled="locked" @click="preview = true">预览资料</ElButton>
+        <ElButton v-if="editable && replaceable && file(kind.key)?.taskId" text type="danger" :disabled="locked" @click="detach(file(kind.key)!)">更换资料</ElButton>
         <template v-if="editable && !file(kind.key)?.taskId">
           <ElButton v-if="file(kind.key)?.status === 'failed'" :disabled="locked" @click="retry(file(kind.key)!)">重试解析</ElButton>
           <div class="hx-gap"><ElButton type="danger" text :disabled="locked" @click="remove(file(kind.key)!)">移除资料</ElButton></div>
         </template>
       </template>
-      <ElUpload v-else-if="editable" :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :accept="kind.accept" :disabled="locked" :on-change="selected => upload(selected, kind.key)">
-        <ElButton :disabled="locked">上传{{ kind.label }}</ElButton>
-        <template #tip><p class="hx-muted">{{ kind.accept }}</p></template>
+      <ElUpload v-else-if="editable" drag :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :accept="kind.accept" :disabled="locked" :on-change="selected => upload(selected, kind.key)">
+        <div class="upload-copy"><strong>点击选择或拖入{{ kind.label }}</strong><span>{{ kind.accept }} · 单份不超过 20 MiB</span></div>
       </ElUpload>
       <p v-else class="hx-muted">未提供{{ kind.label }}</p>
       <template v-if="uploading === kind.key">
@@ -24,7 +24,8 @@
         <p role="status">{{ progress === 100 ? '上传完成，正在解析…' : '正在上传…' }}</p>
         <ElButton @click="cancel">取消上传</ElButton>
       </template>
-    </div>
+    </div></div>
+    <p v-if="editable" class="review-notice">提交后先由设计人工审核，通过后才进入 AI 分析；资料不完整时退回运营修改。</p>
     <OverseasMaterialPreview v-model="preview" :files="files" :api="api" @failure="failed" />
   </ElCard>
 </template>
@@ -35,7 +36,7 @@ import { IdentityError } from '@/api/identity/request'
 import { materialError, validateFile, type Material, type MaterialKind, type MaterialsApi } from '@/api/overseas/materials'
 import OverseasMaterialPreview from './OverseasMaterialPreview.vue'
 const files = defineModel<Material[]>({ required: true })
-const props = defineProps<{ api: MaterialsApi; editable: boolean; disabled?: boolean }>()
+const props = defineProps<{ api: MaterialsApi; editable: boolean; disabled?: boolean; replaceable?: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean]; failure: [reason: unknown] }>()
 const kinds = [{ key: 'requirement', label: '图片需求文件', accept: '.pdf,.docx' }, { key: 'competitor', label: '竞品分析表格', accept: '.xls,.xlsx,.csv' }] as const
 const busy = ref(false), progress = ref(0), uploading = ref<MaterialKind>(), error = ref(''), preview = ref(false), inputKey = ref(0)
@@ -74,6 +75,10 @@ async function remove(material: Material) {
   } catch (reason) { if (current === generation && reason !== 'cancel' && reason !== 'close') failed(reason) }
   finally { if (current === generation) busy.value = false }
 }
+function detach(material: Material) {
+  if (!props.editable || !props.replaceable || locked.value) return
+  files.value = files.value.filter(file => file.id !== material.id)
+}
 watch(() => props.editable, () => { cancel(); preview.value = false })
 onUnmounted(cancel)
 </script>
@@ -82,4 +87,11 @@ h2 { font-size: 16px; }
 h3 { font-size: 14px; margin-bottom: 12px; }
 p { overflow-wrap: anywhere; white-space: pre-wrap; }
 .file-name { margin-bottom: 12px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.material-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }
+.material-card { border: 1px solid #e4e7ed; border-radius: 10px; padding: 18px; min-width: 0; }
+.material-card :deep(.el-upload) { display: block; width: 100%; }.material-card :deep(.el-upload-dragger) { width: 100%; padding: 28px 12px; background: #fafbff; }
+.upload-copy { display: flex; flex-direction: column; gap: 14px; font-size: 13px; color: #687891; white-space: normal; }.upload-copy strong { font-weight: 500; }.upload-copy span { font-size: 12px; color: #8b98aa; }
+.review-notice { margin-top: 20px; padding: 16px; border-radius: 8px; background: #f4f7ff; color: #7789a8; font-size: 13px; line-height: 1.8; }
+@media(max-width: 800px) { .material-grid { grid-template-columns: 1fr; } }
 </style>

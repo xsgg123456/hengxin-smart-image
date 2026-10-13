@@ -18,8 +18,8 @@ Do not generate images, contact external services, or access paths outside /work
 
 def freeze(session, task):
     session.flush()
-    records = session.scalars(select(Material).where(Material.task_id == task.id,
-        Material.deleted_at.is_(None)).order_by(Material.kind)).all()
+    from app.overseas.materials.service import current_materials
+    records = current_materials(session, task)
     if not records:
         raise HTTPException(422, '至少需要一份成功解析的资料')
     materials = []

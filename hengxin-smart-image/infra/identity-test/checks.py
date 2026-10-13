@@ -31,7 +31,6 @@ ENGINES = {kind: create_engine(url) for kind, url in DB.items()}
 PROCESSES = {}
 REDIS = Redis.from_url('redis://redis:6379/0', decode_responses=True)
 
-
 def environment(kind):
     env = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'LANG', 'PYTHONDONTWRITEBYTECODE')}
     env['PYTHONPATH'] = '/workspace/backend:' + str(DIRECTORY)
@@ -50,9 +49,7 @@ def environment(kind):
             MINIO_SECRET_KEY=kind + '-phase20-test-only', MINIO_BUCKET=kind + '-test').items()})
     return env
 
-
 KEYS = {kind: secrets.token_urlsafe(36) for kind in BUSINESS}
-
 
 def seed():
     for kind, engine in ENGINES.items():
@@ -74,7 +71,6 @@ def seed():
                     connection.execute(text("INSERT INTO overseas_member_roles (id,user_id,role,created_at,updated_at) "
                         "VALUES (:id,:uid,'operator',now(),now())"), {'id': str(uuid4()), 'uid': uid})
 
-
 def start(kind, module, port, env):
     PROCESSES[kind] = subprocess.Popen([PYTHON, '-m', 'uvicorn', module, '--host', '0.0.0.0',
                                       '--port', str(port), '--no-access-log'], env=env)
@@ -90,11 +86,9 @@ def start(kind, module, port, env):
         time.sleep(.1)
     raise RuntimeError(kind + ' API not ready')
 
-
 def expect(response, status):
     assert response.status_code == status, (response.request.url.path, response.status_code, response.text)
     return response
-
 
 @contextmanager
 def login(member='both'):
@@ -104,20 +98,16 @@ def login(member='both'):
         assert 'HttpOnly' in cookie and 'Path=/api/identity/v1' in cookie and 'SameSite=lax' in cookie
         yield client
 
-
 def ticket(client, kind):
     return expect(client.post(ID + PATH + '/tickets', json={'business': kind}), 200).json()['ticket']
-
 
 def exchange(client, kind, value=None, status=200):
     response = client.post(''.join(BUSINESS[kind]) + '/identity/session',
                            json={'ticket': value or ticket(client, kind)})
     return expect(response, status)
 
-
 def me(client, kind, status=200):
     return expect(client.get(''.join(BUSINESS[kind]) + '/me'), status)
-
 
 def check_matrix():
     for member in ('both', 'domestic', 'overseas', 'neither'):
@@ -132,7 +122,6 @@ def check_matrix():
                     if kind == 'overseas':
                         assert 'Path=/api/overseas/v1' in response.headers['set-cookie']
         print('PASS authorization ' + member, flush=True)
-
 
 def checks():
     check_matrix()
@@ -214,7 +203,6 @@ def checks():
             me(client, kind, 503)
     print('PASS identity outage fails closed for both businesses', flush=True)
 
-
 def main():
     phase25_validated = False
     identity_env = {'PATH': os.environ['PATH'], 'PYTHONPATH': '/workspace/backend:' + str(DIRECTORY),
@@ -252,16 +240,21 @@ def main():
             from phase18_checks import run
             context = sys.modules[__name__]
             fixtures = prepare(context)
-            run(context, fixtures)
-            print('PASS ALL Phase 18 real HTTP integration', flush=True)
-        if '--phase19' in sys.argv or '--phase20' in sys.argv:
+            if '--requirements' not in sys.argv:
+                run(context, fixtures)
+                print('PASS ALL Phase 18 real HTTP integration', flush=True)
+        if ('--phase19' in sys.argv or '--phase20' in sys.argv) and '--requirements' not in sys.argv:
             from phase19_checks import run as run_tasks
             run_tasks(context, fixtures)
             print('PASS ALL Phase 19 real HTTP integration', flush=True)
-        if '--phase20' in sys.argv:
+        if '--phase20' in sys.argv and '--requirements' not in sys.argv:
             from phase20_checks import run as run_materials
             run_materials(context)
             print('PASS ALL Phase 20 real HTTP integration', flush=True)
+        if '--requirements' in sys.argv:
+            from requirements_checks import run as run_requirements
+            run_requirements(context, fixtures)
+            print('PASS ALL requirements review real HTTP integration', flush=True)
         if '--phase21' in sys.argv:
             from phase21_checks import run as run_execution
             run_execution(context)
@@ -295,6 +288,5 @@ def main():
     finally:
         from shutdown import finish
         finish(PROCESSES, ENGINES, REDIS, restore_objects=phase25_validated)
-
 
 if __name__ == '__main__': main()

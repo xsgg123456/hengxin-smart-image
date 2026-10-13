@@ -13,7 +13,7 @@ spec.loader.exec_module(p)
 @pytest.fixture
 def package_files():
     files = {name: b'' for name in p.REQUIRED}
-    files['frontend/package.json'] = json.dumps({'version': '0.2.22'}).encode()
+    files['frontend/package.json'] = json.dumps({'version': '0.2.25'}).encode()
     files['frontend/dist/index.html'] = b'<html><script src="/assets/main.js"></script></html>'
     files['frontend/dist/assets/main.js'] = b'console.log(1)'
     return files
@@ -81,6 +81,33 @@ def test_source_scan_rejects_embedded_credentials():
         p.m.common.privacy_check('backend/app/overseas/config.py', ('API_KEY="sk-' + 'x' * 30 + '"').encode())
 
 
+@pytest.mark.parametrize('resource,asset', [
+    ('cmaps/Adobe-Japan1.bcmap', 'pdfjs-6.4.299/cmaps/Adobe-Japan1.bcmap'),
+    ('standard_fonts/FoxitSans.pfb', 'pdfjs-6.4.299/standard_fonts/FoxitSans.pfb'),
+    ('wasm/openjpeg.wasm', 'pdfjs-6.4.299/wasm/openjpeg.wasm'),
+    ('build/pdf.worker.min.mjs', 'assets/pdf.worker.min-HASH123.mjs')])
+def test_pdfjs_resources_require_exact_version_and_bytes(tmp_path, resource, asset):
+    (tmp_path / 'package.json').write_text('{"version":"6.4.299"}')
+    path = tmp_path / resource
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b'pinned upstream bytes')
+    name = 'frontend/dist/' + asset
+    p.audit_asset(name, path.read_bytes(), tmp_path)
+    p.audit_asset(name + '.gz', gzip.compress(path.read_bytes()), tmp_path)
+    with pytest.raises(ValueError, match='bytes differ'):
+        p.audit_asset(name, b'changed payload', tmp_path)
+    (tmp_path / 'package.json').write_text('{"version":"6.4.298"}')
+    with pytest.raises(ValueError, match='version mismatch'):
+        p.audit_asset(name, path.read_bytes(), tmp_path)
+
+
+@pytest.mark.parametrize('name', ['pdfjs-6.4.299/other.wasm', 'pdfjs-6.4.298/wasm/x.wasm',
+    'assets/other.mjs', 'pdfjs-6.4.299/cmaps/../x.bcmap'])
+def test_pdfjs_exception_is_not_general_binary_allowlist(tmp_path, name):
+    with pytest.raises(ValueError):
+        p.audit_asset('frontend/dist/' + name, b'unknown', tmp_path)
+
+
 def test_strict_clean_gate_no_previous_skill_exception():
     p.require_clean_tracked(lambda *_: b'')
     for status in (b' M .agents/skills/dev-builder/SKILL.md', b'M  backend/app/main.py', b' D file.py'):
@@ -143,8 +170,8 @@ def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, 
     with tarfile.open(output / 'release.tar.gz', 'r:gz') as archive:
         manifest = json.load(archive.extractfile('release.json'))
         assert manifest['migration'] == '0027'
-        assert manifest['overseasMigration'] == 'overseas_0009'
-        assert manifest['frontendVersion'] == '0.2.22'
+        assert manifest['overseasMigration'] == 'overseas_0010'
+        assert manifest['frontendVersion'] == '0.2.25'
         assert manifest['candidateId'] == 'reviewed-candidate'
         assert manifest['commit'] == commit
         for name, digest in manifest['files'].items():

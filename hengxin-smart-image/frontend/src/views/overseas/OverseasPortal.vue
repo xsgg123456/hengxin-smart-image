@@ -97,6 +97,8 @@ const tasksAdapter: TasksApi = {
   async create(draft, key) { await taskAuthorize('task.create'); return tasksApi.create(draft, key) },
   async submitMaterials(id, ids, version, key) { await taskAuthorize('task.create'); return tasksApi.submitMaterials(id, ids, version, key) },
   async assign(id, designerId, version, key) { await taskAuthorize('task.reassign'); return tasksApi.assign(id, designerId, version, key) },
+  async reviewRequirements(id, decision, comment, version, key) { await taskAuthorize('task.design'); return tasksApi.reviewRequirements(id, decision, comment, version, key) },
+  async resubmit(id, draft, version, key) { await taskAuthorize('task.create'); return tasksApi.resubmit(id, draft, version, key) },
   async designers(query) { await taskAuthorize(route.path === '/overseas/create' ? 'task.create' : 'task.reassign'); return tasksApi.designers(query) }
 }
 const materialsApi = createMaterialsApi()

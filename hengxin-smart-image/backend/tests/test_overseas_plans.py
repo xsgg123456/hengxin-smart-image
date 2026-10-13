@@ -24,7 +24,9 @@ def prepared(materials, monkeypatch):
     material = upload(client).json()['id']
     task = create(client, {**payload(designer), 'materialIds': [material]}).json()
     change_roles(factory, actor, ('operator', 'design_manager'))
-    return client, factory, actor, task
+    response = post(client, task, '/requirements-review', {'version': task['version'], 'decision': 'approve'}, 'review')
+    assert response.status_code == 200, response.text
+    return client, factory, actor, response.json()
 
 
 def plans(client, task):
@@ -46,7 +48,7 @@ def publish(factory, plan):
 
 def test_automatic_freeze_confirm_replay_and_all_skus(materials, monkeypatch):
     client, factory, _, task = prepared(materials, monkeypatch)
-    assert task['status'] == 'analyzing' and task['version'] == 1
+    assert task['status'] == 'analyzing' and task['version'] == 2
     plan = plans(client, task)[0]
     assert plan['status'] == 'pending' and plan['content'] is None
     with factory() as session:
@@ -54,17 +56,17 @@ def test_automatic_freeze_confirm_replay_and_all_skus(materials, monkeypatch):
         assert frozen['materials'][0]['text'] == 'FULL DATA ' * 20000
         assert len(frozen['materials'][0]['checksum']) == 64
         assert frozen['skill']['files']['SKILL.md'] == snapshot.SKILL['files']['SKILL.md']
-    assert post(client, task, '/analysis', {'version': 1}).status_code == 409
-    assert post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 1}).status_code == 409
+    assert post(client, task, '/analysis', {'version': 2}).status_code == 409
+    assert post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 2}).status_code == 409
     publish(factory, plan)
     assert plans(client, task)[0]['content'] == CONTENT
     suffix = '/plans/' + plan['id'] + '/confirm'
-    assert post(client, task, suffix, {'version': 1}).status_code == 409
-    response = post(client, task, suffix, {'version': 2}, 'confirm')
+    assert post(client, task, suffix, {'version': 2}).status_code == 409
+    response = post(client, task, suffix, {'version': 3}, 'confirm')
     assert response.status_code == 200, response.text
-    assert response.json()['status'] == 'generating' and response.json()['version'] == 3
-    assert post(client, task, suffix, {'version': 2}, 'confirm').json() == response.json()
-    assert post(client, task, suffix, {'version': 3}, 'duplicate').status_code == 409
+    assert response.json()['status'] == 'generating' and response.json()['version'] == 4
+    assert post(client, task, suffix, {'version': 3}, 'confirm').json() == response.json()
+    assert post(client, task, suffix, {'version': 4}, 'duplicate').status_code == 409
     with factory() as session:
         jobs = session.scalars(select(Job).where(Job.kind == 'generation')).all()
         assert len(jobs) == 2 and len({j.payload['sku']['code'] for j in jobs}) == 2
@@ -76,12 +78,12 @@ def test_reanalysis_feedback_history_stale_and_failed_retry(materials, monkeypat
     client, factory, _, task = prepared(materials, monkeypatch)
     original = plans(client, task)[0]
     publish(factory, original)
-    assert post(client, task, '/analysis', {'version': 2, 'feedback': '  '}).status_code == 422
-    response = post(client, task, '/analysis', {'version': 2, 'feedback': '增加细节'}, 'modify')
-    assert response.status_code == 200 and response.json()['version'] == 3
+    assert post(client, task, '/analysis', {'version': 3, 'feedback': '  '}).status_code == 422
+    response = post(client, task, '/analysis', {'version': 3, 'feedback': '增加细节'}, 'modify')
+    assert response.status_code == 200 and response.json()['version'] == 4
     history = plans(client, task)
     assert [p['status'] for p in history] == ['pending', 'ready']
-    assert post(client, task, '/plans/' + original['id'] + '/confirm', {'version': 3}).status_code == 409
+    assert post(client, task, '/plans/' + original['id'] + '/confirm', {'version': 4}).status_code == 409
     with factory.begin() as session:
         job = claims.locked_job(session, UUID(history[0]['jobId']))
         claims.end(session, job, 'failed', error=True)
@@ -89,7 +91,7 @@ def test_reanalysis_feedback_history_stale_and_failed_retry(materials, monkeypat
     assert client.get(ROOT + '/tasks/' + task['id']).json()['status'] == 'analysisFailed'
     assert client.get(ROOT + '/tasks?status=analysisFailed').json()['total'] == 1
     assert client.get(ROOT + '/tasks?status=analyzing').json()['total'] == 0
-    assert post(client, task, '/analysis', {'version': 3}, 'retry').status_code == 200
+    assert post(client, task, '/analysis', {'version': 4}, 'retry').status_code == 200
     assert len(plans(client, task)) == 3
 
 
@@ -99,8 +101,8 @@ def test_business_roles_not_admin_and_not_unassigned_designer(materials, monkeyp
     plan = plans(client, task)[0]
     publish(factory, plan)
     change_roles(factory, actor, roles)
-    assert post(client, task, '/analysis', {'version': 2, 'feedback': 'change'}).status_code == 403
-    assert post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 2}).status_code == 403
+    assert post(client, task, '/analysis', {'version': 3, 'feedback': 'change'}).status_code == 403
+    assert post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 3}).status_code == 403
 
 
 def test_uncertain_not_retryable_and_cancelled_retryable(materials, monkeypatch):
@@ -110,27 +112,32 @@ def test_uncertain_not_retryable_and_cancelled_retryable(materials, monkeypatch)
         job = session.get(Job, UUID(plan['jobId']))
         job.status = 'uncertain'
     assert plans(client, task)[0]['status'] == 'uncertain'
-    assert post(client, task, '/analysis', {'version': 1}).status_code == 409
+    assert post(client, task, '/analysis', {'version': 2}).status_code == 409
     with factory.begin() as session:
         claims.end(session, claims.locked_job(session, UUID(plan['jobId'])), 'cancelled')
-    assert post(client, task, '/analysis', {'version': 1}, 'retry').status_code == 200
+    assert post(client, task, '/analysis', {'version': 2}, 'retry').status_code == 200
 
 
-def test_enqueue_failure_rolls_back_submission(materials, monkeypatch):
+def test_enqueue_failure_rolls_back_approval(materials, monkeypatch):
     from app.overseas.materials import parsers
     from app.overseas.plans import service
-    client, factory, _, designer, _ = materials
+    from app.overseas.tasks.models import RequirementsReview
+    client, factory, actor, designer, _ = materials
     monkeypatch.setattr(parsers, 'parse_document', lambda *_: 'parsed')
     material = upload(client).json()['id']
+    task = create(client, {**payload(designer), 'materialIds': [material]}).json()
+    change_roles(factory, actor, ('operator', 'design_manager'))
     def fail(*args, **kwargs):
         queue.enqueue(*args, **kwargs)
         raise RuntimeError('atomic fault')
     monkeypatch.setattr(service, 'enqueue', fail)
     with pytest.raises(RuntimeError, match='atomic fault'):
-        create(client, {**payload(designer), 'materialIds': [material]})
+        post(client, task, '/requirements-review', {'version': 1, 'decision': 'approve'}, 'review')
     with factory() as session:
-        for model in (Task, Job, JobOutbox, Plan):
+        for model in (Job, JobOutbox, Plan, RequirementsReview):
             assert session.scalar(select(func.count()).select_from(model)) == 0
+        saved = session.get(Task, UUID(task['id']))
+        assert saved.status == 'pending_review' and saved.version == 1 and not saved.requirements_approved
 
 
 def test_legacy_submitted_task_can_start_and_missing_materials_rejected(materials, monkeypatch):
@@ -143,6 +150,7 @@ def test_legacy_submitted_task_can_start_and_missing_materials_rejected(material
     change_roles(factory, actor, ('operator', 'design_manager'))
     with factory.begin() as session:
         session.get(Task, UUID(task['id'])).status = 'submitted'
+        session.get(Task, UUID(task['id'])).requirements_approved = True
     assert post(client, task, '/analysis', {'version': 1}).status_code == 422
     with factory.begin() as session:
         session.get(Material, UUID(material)).task_id = UUID(task['id'])
@@ -169,7 +177,7 @@ def test_assigned_designer_can_confirm_and_publication_failure_atomic(materials,
         claims.finish(factory, identity, token, 'succeeded', CONTENT, publish=broken)
     with factory() as session:
         assert session.get(Plan, UUID(plan['id'])).status == 'pending'
-        assert session.get(Task, UUID(task['id'])).version == 1
+        assert session.get(Task, UUID(task['id'])).version == 2
         assert session.get(Job, identity).status == 'running'
     assert claims.finish(factory, identity, token, 'succeeded', CONTENT, publish=HANDLER.publish)
-    assert post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 2}).status_code == 200
+    assert post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 3}).status_code == 200

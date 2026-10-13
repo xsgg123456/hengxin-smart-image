@@ -105,7 +105,7 @@ def test_atomic_create_and_bound_immutability(materials):
     first = create(client, body)
     assert first.status_code == 201, first.text
     task = first.json()
-    assert task['status'] == 'analyzing' and 'task.materials.submit' not in task['capabilities']
+    assert task['status'] == 'pending_review' and 'task.materials.submit' not in task['capabilities']
     assert create(client, body).status_code == 200
     assert counts(factory) == [1, 2, 1, 1, 1]
     path = ROOT + '/materials/' + data['id']
@@ -124,7 +124,7 @@ def test_supplement_version_idempotency_and_original_freeze(materials):
     assert submit(client, task['id'], [data['id']], version=2).status_code == 409
     response = submit(client, task['id'], [data['id']])
     assert response.status_code == 200, response.text
-    assert response.json()['status'] == 'analyzing' and response.json()['version'] == 2
+    assert response.json()['status'] == 'pending_review' and response.json()['version'] == 2
     assert response.json()['events'][-1]['kind'] == 'task.materials_submitted'
     assert submit(client, task['id'], [data['id']]).status_code == 200
     assert submit(client, task['id'], [data['id']], key='different', version=2).status_code == 409

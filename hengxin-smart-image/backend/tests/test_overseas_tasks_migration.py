@@ -32,7 +32,7 @@ def test_upgrade_0003_preserves_members_and_domestic(disposable_databases):
             assert after[table] == before[table]
         for table in ('overseas_tasks', 'overseas_task_skus', 'overseas_task_events', 'overseas_task_requests', 'overseas_task_outbox'):
             assert after[table] == []
-        assert after['overseas_alembic_version'] == [('overseas_0009',)]
+        assert after['overseas_alembic_version'] == [('overseas_0010',)]
         assert snapshot(domestic_url) == before_domestic
     finally:
         engine.dispose()

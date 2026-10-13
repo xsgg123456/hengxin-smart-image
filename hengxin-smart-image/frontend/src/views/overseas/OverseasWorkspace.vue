@@ -58,7 +58,7 @@
         </ArtTable>
         <slot name="pagination" />
         <p class="hx-footnote">
-          共 {{ total }} 个任务 · 运营提交，设计确认方案与逐图审核
+          共 {{ total }} 个任务 · 运营提交，设计审核图需、确认方案与逐图审核
         </p>
       </ElCard>
 </div></template>

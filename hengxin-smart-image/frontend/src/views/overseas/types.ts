@@ -2,6 +2,8 @@ import type { AnnotationMark } from "../hengxin/components/annotation/annotation
 export type Role = "operator" | "designer";
 export type Page = "create" | "tasks" | "archive";
 export type Status =
+  | "pending_review"
+  | "returned"
   | "analyzing"
   | "analysisFailed"
   | "plan"
@@ -49,6 +51,7 @@ export interface Task extends Draft {
 }
 export const STAGES = [
   "运营提交图需",
+  "设计人工审核",
   "AI 排版分析",
   "设计确认方案",
   "AI 生成图片",
@@ -56,6 +59,8 @@ export const STAGES = [
   "归档成品库",
 ];
 export const STATUS_LABELS: Record<Status, string> = {
+  pending_review: "待设计审核",
+  returned: "退回运营",
   analyzing: "分析中",
   analysisFailed: "分析失败",
   plan: "方案待审",
@@ -65,11 +70,13 @@ export const STATUS_LABELS: Record<Status, string> = {
   archived: "已归档",
 };
 export const STATUS_STEP: Record<Status, number> = {
-  analyzing: 1,
-  analysisFailed: 1,
-  plan: 2,
-  generating: 3,
-  generationFailed: 3,
-  review: 4,
-  archived: 5,
+  pending_review: 1,
+  returned: 0,
+  analyzing: 2,
+  analysisFailed: 2,
+  plan: 3,
+  generating: 4,
+  generationFailed: 4,
+  review: 5,
+  archived: 6,
 };

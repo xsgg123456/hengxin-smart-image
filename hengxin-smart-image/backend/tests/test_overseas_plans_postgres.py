@@ -15,6 +15,8 @@ from app.overseas.plans.schemas import AnalysisRequest, ConfirmRequest
 from app.overseas.materials import service as materials_service
 from app.overseas.materials.schemas import SubmitMaterials
 from app.overseas.tasks.models import Task
+from app.overseas.tasks.requirements import review
+from app.overseas.tasks.schemas import RequirementsReview
 from test_overseas_members_postgres import pg_factory, member
 from test_overseas_tasks_postgres import create
 from test_overseas_materials_postgres import ready
@@ -31,6 +33,9 @@ def plan_pg(pg_factory):
     with factory() as session:
         materials_service.submit(session, session.get(Member, operator), UUID(task['id']),
             SubmitMaterials(version=1, materialIds=[material]), 'submit')
+    with factory() as session:
+        review(session, session.get(Member, designer), UUID(task['id']),
+               RequirementsReview(version=2, decision='approve'), 'review')
     with factory() as session:
         plan = session.scalar(select(Plan))
         job = session.get(Job, plan.job_id)
@@ -54,7 +59,7 @@ def test_concurrent_confirmation_creates_one_group(plan_pg, same_key):
             barrier.wait(timeout=8)
             try:
                 service.confirm(session, session.get(Member, designer), task, plan,
-                    ConfirmRequest(version=3), 'same' if same_key else str(index))
+                    ConfirmRequest(version=4), 'same' if same_key else str(index))
                 return 200
             except HTTPException as exc:
                 return exc.status_code
@@ -63,7 +68,7 @@ def test_concurrent_confirmation_creates_one_group(plan_pg, same_key):
     assert sorted(result) == ([200, 200] if same_key else [200, 409])
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(Job).where(Job.kind == 'generation')) == 2
-        assert session.get(Task, task).version == 4
+        assert session.get(Task, task).version == 5
 
 
 def test_concurrent_reanalysis_one_version_and_rollback(plan_pg, monkeypatch):
@@ -79,7 +84,7 @@ def test_concurrent_reanalysis_one_version_and_rollback(plan_pg, monkeypatch):
         return job
     monkeypatch.setattr(service, 'enqueue', fail_second)
     with factory() as session, pytest.raises(RuntimeError, match='second generation'):
-        service.confirm(session, session.get(Member, designer), task, plan, ConfirmRequest(version=3), 'atomic')
+        service.confirm(session, session.get(Member, designer), task, plan, ConfirmRequest(version=4), 'atomic')
     with factory() as session:
         assert session.get(Plan, plan).status == 'ready'
         assert session.get(Task, task).status == 'plan'
@@ -91,7 +96,7 @@ def test_concurrent_reanalysis_one_version_and_rollback(plan_pg, monkeypatch):
             barrier.wait(timeout=8)
             try:
                 service.analyze(session, session.get(Member, designer), task,
-                    AnalysisRequest(version=3, feedback='Change'), str(index))
+                    AnalysisRequest(version=4, feedback='Change'), str(index))
                 return 200
             except HTTPException as exc:
                 return exc.status_code

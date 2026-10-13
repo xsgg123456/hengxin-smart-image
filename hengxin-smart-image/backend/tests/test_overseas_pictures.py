@@ -27,7 +27,7 @@ def confirmed(materials, monkeypatch):
     client, factory, actor, task = prepared(materials, monkeypatch)
     plan = plans(client, task)[0]
     publish(factory, plan)
-    response = post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 2}, 'confirm')
+    response = post(client, task, '/plans/' + plan['id'] + '/confirm', {'version': 3}, 'confirm')
     assert response.status_code == 200, response.text
     monkeypatch.setattr(delivery, 'get_store', lambda: materials[-1])
     return client, factory, actor, response.json()

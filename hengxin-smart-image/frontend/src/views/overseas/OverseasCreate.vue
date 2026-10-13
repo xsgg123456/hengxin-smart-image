@@ -1,8 +1,8 @@
 <template>
   <div class="hx-heading">
     <div>
-      <h1>提交图需</h1>
-      <p>{{ preview ? '填写品名与 SKU，提供图需资料后直接进入 AI 排版分析。' : '填写商品信息、SKU 并指定负责设计。' }}</p>
+      <h1>{{ editing ? '修改图需' : '提交图需' }}</h1>
+      <p>{{ editing ? '按设计反馈补充资料，修改完成后重新提交设计审核。' : preview ? '填写品名与 SKU，提供图需资料以体验模拟流程。' : '填写商品信息、SKU 并指定负责设计，提交后由设计先审核资料。' }}</p>
     </div>
     <ElButton :disabled="busy" @click="$emit('back')">返回任务列表</ElButton>
   </div>
@@ -91,9 +91,9 @@
           :description="
             i === 0
               ? '运营核对品名、品牌与 SKU'
-              : i === 5
+              : i === STAGES.length - 1
                 ? '全部 SKU 通过后整套归档'
-                : preview ? '设计跟进 · AI 模拟执行' : '设计跟进'
+                : i === 1 ? '核对需求是否清晰、资料是否完整' : preview ? '设计跟进 · AI 模拟执行' : '审核通过后继续处理'
           " /></ElSteps
     ></ElCard>
   </div>
@@ -102,7 +102,7 @@
 import { STAGES } from './types'
 interface Fields { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[] }
 const draft = defineModel<Fields>({ required: true })
-defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean }>()
+defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean; editing?: boolean }>()
 defineEmits<{ back: [] }>()
 </script>
 <style scoped>

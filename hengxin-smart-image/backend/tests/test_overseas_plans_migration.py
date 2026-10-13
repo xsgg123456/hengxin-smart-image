@@ -43,7 +43,7 @@ def test_0006_upgrade_repeatable(disposable_databases):
         assert result.returncode == 0, result.stderr
         after = snapshot(overseas_url)[1]
         assert after['overseas_plans'] == []
-        assert after['overseas_alembic_version'] == [('overseas_0009',)]
+        assert after['overseas_alembic_version'] == [('overseas_0010',)]
         for table, rows in before.items():
             if table != 'overseas_alembic_version':
                 assert after[table] == rows

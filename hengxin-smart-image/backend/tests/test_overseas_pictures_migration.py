@@ -45,7 +45,7 @@ def test_0007_upgrade_repeatable(disposable_databases):
         assert result.returncode == 0, result.stderr
         after = snapshot(overseas_url)[1]
         assert after['overseas_plans'] == []
-        assert after['overseas_alembic_version'] == [('overseas_0009',)]
+        assert after['overseas_alembic_version'] == [('overseas_0010',)]
         for table, rows in before.items():
             if table != 'overseas_alembic_version':
                 assert after[table] == rows
@@ -89,7 +89,7 @@ def test_offline_backfill_sql_recreates_confirmed_slots_on_postgres(plan_pg):
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
     with factory() as session:
-        confirm(session, session.get(Member, actor), task, plan, ConfirmRequest(version=3), 'confirm')
+        confirm(session, session.get(Member, actor), task, plan, ConfirmRequest(version=4), 'confirm')
     with factory.begin() as session:
         session.execute(delete(Picture))
         session.execute(text(migration.BACKFILL_SQL))

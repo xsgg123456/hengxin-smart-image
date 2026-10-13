@@ -7,7 +7,8 @@ export interface TaskSummary extends Omit<TaskDraft, 'designerId'> {
   createdBy: { id: string; name: string }; designer: { id: string; name: string; status: string; eligible: boolean }; capabilities: string[]
 }
 export interface TaskEvent { id: string; kind: string; actorId: string; actorName: string; title: string; at: string; beforeDesignerId: string | null; afterDesignerId: string; version: number }
-export interface TaskDetail extends TaskSummary { events: TaskEvent[] }
+export interface RequirementsReview { id: string; decision: 'approve' | 'reject'; comment: string; actorId: string; actorName: string; createdAt: string; version: number; materialIds?: string[] }
+export interface TaskDetail extends TaskSummary { events: TaskEvent[]; requirementsReviews?: RequirementsReview[] }
 export interface Designer { id: string; name: string; department: string }
 export interface Page<T> { items: T[]; total: number; page: number; pageSize: number }
 export interface TaskQuery { search: string; scope: string; status: string; page: number; pageSize: number }
@@ -17,6 +18,8 @@ export interface TasksApi {
   create(draft: TaskDraft, key: string): Promise<TaskDetail>
   submitMaterials(id: string, materialIds: string[], version: number, key: string): Promise<TaskDetail>
   assign(id: string, designerId: string, version: number, key: string): Promise<TaskDetail>
+  reviewRequirements(id: string, decision: 'approve' | 'reject', comment: string, version: number, key: string): Promise<TaskDetail>
+  resubmit(id: string, draft: TaskDraft, version: number, key: string): Promise<TaskDetail>
   designers(query: { search: string; page: number; pageSize: number }): Promise<Page<Designer>>
 }
 const text = (v: unknown): v is string => typeof v === 'string'
@@ -33,6 +36,10 @@ export function isTaskDetail(v: unknown): v is TaskDetail {
   return isTask(v) && record(v) && Array.isArray(v.events) && v.events.every(e => record(e)
     && ['id', 'kind', 'actorId', 'actorName', 'title', 'at', 'afterDesignerId'].every(k => text(e[k]))
     && (e.beforeDesignerId === null || text(e.beforeDesignerId)) && positive(e.version))
+    && (v.requirementsReviews === undefined || (Array.isArray(v.requirementsReviews) && v.requirementsReviews.every(r => record(r)
+      && ['id', 'comment', 'actorId', 'actorName', 'createdAt'].every(k => text(r[k]))
+      && ['approve', 'reject'].includes(String(r.decision)) && positive(r.version)
+      && (r.materialIds === undefined || (Array.isArray(r.materialIds) && r.materialIds.every(text))))))
 }
 function pageOf<T>(guard: (v: unknown) => v is T) {
   return (v: unknown): v is Page<T> => record(v) && Array.isArray(v.items) && v.items.every(guard)
@@ -54,6 +61,8 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
     create: (draft, key) => request(base, isTaskDetail, cleanDraft(draft), { idempotencyKey: key }),
     submitMaterials: (id, materialIds, version, key) => request(`${base}/${encodeURIComponent(id)}/materials`, isTaskDetail, { materialIds, version }, { idempotencyKey: key }),
     assign: (id, designerId, version, key) => request(`${base}/${encodeURIComponent(id)}/assignment`, isTaskDetail, { designerId, version }, { method: 'PATCH', idempotencyKey: key }),
+    reviewRequirements: (id, decision, comment, version, key) => request(`${base}/${encodeURIComponent(id)}/requirements-review`, isTaskDetail, { decision, comment: comment.trim(), version }, { idempotencyKey: key }),
+    resubmit: (id, draft, version, key) => request(`${base}/${encodeURIComponent(id)}/resubmit`, isTaskDetail, { ...cleanDraft(draft), version }, { idempotencyKey: key }),
     designers: query => request('/api/overseas/v1/task-designers', pageOf((v): v is Designer => record(v) && person(v) && text(v.department)), undefined, { params: { ...query } })
   }
 }

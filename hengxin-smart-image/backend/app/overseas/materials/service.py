@@ -62,21 +62,23 @@ def parse_revision(session, record, data):
     session.flush()
 
 
-def bind(session, actor, task, material_ids):
+def bind(session, actor, task, material_ids, *, resubmit=False):
     records = [find(session, key, lock=True) for key in sorted(material_ids, key=str)]
     if len({r.kind for r in records}) != len(records):
         raise HTTPException(422, '每种资料最多提交一份')
     for record in records:
-        owned(session, record, actor)
+        if not (resubmit and record.task_id == task.id):
+            owned(session, record, actor)
         version = session.scalar(select(ParseVersion).where(
             ParseVersion.material_id == record.id, ParseVersion.version == record.version))
         if version is None or version.status != 'ready':
             raise HTTPException(422, '资料解析成功后才能提交')
     for record in records:
         record.task_id = task.id
-    from app.overseas.plans.service import enqueue_analysis
+    task.material_ids = [str(record.id) for record in records]
+    task.requirements_approved = False
+    task.status = 'pending_review'
     session.flush()
-    enqueue_analysis(session, task)
 
 
 def submit(session, actor, task_id, body, key):
@@ -107,5 +109,12 @@ def submit(session, actor, task_id, body, key):
 def for_task(session, actor, task_id):
     task = get_task(session, task_id)
     require_task_access(principal_for(session, actor), task.created_by, task.designer_id)
-    return [describe(session, record) for record in session.scalars(select(Material).where(
-        Material.task_id == task.id, Material.deleted_at.is_(None)).order_by(Material.kind))]
+    return [describe(session, record) for record in current_materials(session, task)]
+
+
+def current_materials(session, task):
+    query = select(Material).where(Material.task_id == task.id, Material.deleted_at.is_(None))
+    if task.material_ids is not None:
+        from uuid import UUID
+        query = query.where(Material.id.in_([UUID(key) for key in task.material_ids]))
+    return session.scalars(query.order_by(Material.kind)).all()

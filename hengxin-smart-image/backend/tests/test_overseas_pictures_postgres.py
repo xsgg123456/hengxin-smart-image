@@ -28,7 +28,7 @@ def picture_pg(plan_pg, monkeypatch, tmp_path):
     monkeypatch.setattr(delivery, 'get_store', lambda: store)
     store = MemoryStore()
     with factory() as session:
-        plans.confirm(session, session.get(Member, actor), task, plan, ConfirmRequest(version=3), 'confirm')
+        plans.confirm(session, session.get(Member, actor), task, plan, ConfirmRequest(version=4), 'confirm')
     with factory() as session:
         jobs = session.scalars(select(Job.id).where(Job.kind == 'generation')).all()
     for job in jobs:
@@ -104,7 +104,7 @@ def test_failed_maximum_length_sku_retry_uses_bounded_request_target(plan_pg):
     from app.overseas.pictures.schemas import RetryRequest
     factory, actor, task, plan = plan_pg
     with factory() as session:
-        plans.confirm(session, session.get(Member, actor), task, plan, ConfirmRequest(version=3), 'confirm')
+        plans.confirm(session, session.get(Member, actor), task, plan, ConfirmRequest(version=4), 'confirm')
     code = 'X' * 80
     with factory.begin() as session:
         picture = session.scalar(select(Picture).where(Picture.task_id == task))
@@ -113,5 +113,5 @@ def test_failed_maximum_length_sku_retry_uses_bounded_request_target(plan_pg):
         job.payload = {**job.payload, 'sku': {**job.payload['sku'], 'code': code}}
         claims.end(session, job, 'failed', error=True)
     with factory() as session:
-        result = retry(session, session.get(Member, actor), task, RetryRequest(version=4, sku=code), 'retry')
-        assert result['version'] == 5
+        result = retry(session, session.get(Member, actor), task, RetryRequest(version=5, sku=code), 'retry')
+        assert result['version'] == 6
