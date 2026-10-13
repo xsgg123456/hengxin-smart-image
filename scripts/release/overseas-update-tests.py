@@ -73,7 +73,8 @@ def setup_deploy(monkeypatch, tmp_path, failure=None):
     monkeypatch.setattr(r, 'APP', tmp_path)
     monkeypatch.setattr(r, 'run', lambda *args, **kw: event('run', *args) or 'sha256:tested')
     monkeypatch.setattr(r, 'private', lambda p, v: event('private', str(p)))
-    monkeypatch.setattr(r, 'sql', lambda _: 'overseas_0010' if any(e[0] == 'migrate' for e in events) else 'overseas_0009')
+    monkeypatch.setattr(r, 'sql', lambda _: 'overseas_0012' if any(e[0] == 'migrate' for e in events) else 'overseas_0010')
+    monkeypatch.setattr(r, 'roles_migratable', lambda: event('roles'))
     monkeypatch.setattr(r, 'topology', lambda: data)
     monkeypatch.setattr(d, 'untouched', lambda: {})
     monkeypatch.setattr(r, 'close_edge', lambda: event('close'))
@@ -112,3 +113,38 @@ def test_success_orders_drain_backup_migration_validation_open(monkeypatch, tmp_
     assert names.index('migrate') < names.index('verify') < names.index('open') < names.index('public')
     assert ('run', 'systemctl', 'stop', r.UNITS[0]) in events
     assert not any('hengxin-vps' in str(e) and 'stop' in e for e in events)
+
+
+@pytest.mark.parametrize('count', ['1', '2'])
+def test_role_preflight_blocks_ambiguous_and_missing_roles(monkeypatch, count):
+    monkeypatch.setattr(r, 'sql', lambda _: count)
+    with pytest.raises(AssertionError, match='roles before migration'):
+        r.roles_migratable()
+
+
+def test_role_preflight_accepts_migratable_population(monkeypatch):
+    monkeypatch.setattr(r, 'sql', lambda _: '0')
+    r.roles_migratable()
+
+
+def test_worker_readiness_waits_for_replies(monkeypatch):
+    ready = {'stats': {'node': {'pool': {'max-concurrency': 5}}},
+             'queues': {'node': [{'name': 'overseas.cli'}]}}
+    replies = iter([{'stats': None, 'queues': None}, ready])
+    monkeypatch.setattr(r, 'native_probe', lambda _: next(replies))
+    monkeypatch.setattr(r.time, 'sleep', lambda _: None)
+    r.wait_worker_ready()
+
+
+def test_worker_readiness_never_accepts_absent_replies(monkeypatch):
+    monkeypatch.setattr(r, 'native_probe', lambda _: {'stats': None, 'queues': None})
+    with pytest.raises(RuntimeError, match='readiness timed out'):
+        r.wait_worker_ready(timeout=0)
+
+
+def test_worker_readiness_rejects_wrong_queue(monkeypatch):
+    monkeypatch.setattr(r, 'native_probe', lambda _: {
+        'stats': {'node': {'pool': {'max-concurrency': 5}}},
+        'queues': {'node': [{'name': 'domestic'}]}})
+    with pytest.raises(AssertionError, match='Wrong worker queues'):
+        r.wait_worker_ready()

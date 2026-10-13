@@ -13,7 +13,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.25'
+VERSION = '0.2.26'
 EXACT = m.EXACT | {
     'backend/alembic.overseas.ini',
     'backend/migrations/overseas/script.py.mako',
@@ -33,6 +33,9 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/migrations/versions/0027_identity_session_binding.py',
     'backend/migrations/overseas/versions/0009_management.py',
     'backend/migrations/overseas/versions/0010_requirements_review.py',
+    'backend/migrations/overseas/versions/0011_single_member_role.py',
+    'backend/migrations/overseas/versions/0012_studio.py',
+    'backend/app/overseas/studio/router.py',
     'backend/app/main.py', 'backend/app/identity/main.py',
     'backend/app/overseas/main.py', 'backend/app/overseas/execution/worker.py',
     'backend/app/overseas/execution/outbox.py',
@@ -156,7 +159,7 @@ def build(repo):
     validate(files)
     release = 'overseas-20261013-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0027', overseasMigration='overseas_0010', frontendVersion=VERSION,
+                    migration='0027', overseasMigration='overseas_0012', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

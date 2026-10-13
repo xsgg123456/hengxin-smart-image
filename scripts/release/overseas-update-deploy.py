@@ -1,8 +1,8 @@
-"""Forward-only overseas 0010 cutover; failure keeps overseas closed, never downgrades data.
+"""Forward-only overseas 0012 cutover; failure keeps overseas closed, never downgrades data.
 
 Run build, prepare, deploy in order. A failed deploy requires operator inspection.
-After 0010, do not restart the old API/worker against new pending_review/returned tasks
-or multiple materials. Recovery is a reviewed forward fix; restoring the dump requires
+After 0011/0012, do not restart the old API/worker against single-role members
+or studio sessions. Recovery is a reviewed forward fix; restoring the dump requires
 separate authorization and proof no post-backup business writes will be discarded.
 """
 import importlib.util
@@ -20,8 +20,8 @@ spec.loader.exec_module(r)
 def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
-    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.25'
-    assert manifest['overseasMigration'] == 'overseas_0010' and manifest['migration'] == '0027'
+    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.26'
+    assert manifest['overseasMigration'] == 'overseas_0012' and manifest['migration'] == '0027'
     r.r.hashes(source, manifest)
     return source, manifest, 'hengxin-smart-image-backend:' + release
 
@@ -35,14 +35,15 @@ def untouched():
 def prepare(work, source, manifest, image):
     identity = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True)
     assert (work / 'INSTALL_TEST_IMAGE_ID').read_text() == identity
-    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0009'
-    assert json.loads((r.APP / 'frontend/package.json').read_text())['version'] == '0.2.24'
+    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0010'
+    assert json.loads((r.APP / 'frontend/package.json').read_text())['version'] == '0.2.25'
     assert not (work / 'PREPARED').exists()
     # Refuse overwriting shared unhashed assets used by the previous frontend.
     for file in (source / 'frontend/dist').rglob('*'):
         if file.is_file() and file.name not in ('index.html', 'index.html.gz'):
             dest = r.APP / 'frontend/dist' / file.relative_to(source / 'frontend/dist')
             assert not dest.exists() or dest.read_bytes() == file.read_bytes(), str(dest)
+    r.roles_migratable()
     data = r.topology()
     r.private(work / 'old-topology.json', data)
     r.private(work / 'untouched.json', untouched())
@@ -55,8 +56,8 @@ def prepare(work, source, manifest, image):
 
 def public_verify(source):
     for path in ('/api/overseas/v1/health/ready', '/api/v1/health/ready', '/api/identity/v1/config'):
-        r.run('curl', '-fsS', '-o', '/dev/null', r.r.ORIGIN + path)
-    result = r.run('curl', '-fsS', '-H', 'Accept-Encoding: identity', r.r.ORIGIN + '/', capture=True)
+        r.run('curl', '--retry', '10', '--retry-delay', '2', '--retry-connrefused', '-fsS', '-o', '/dev/null', r.r.ORIGIN + path)
+    result = r.run('curl', '--retry', '10', '--retry-delay', '2', '--retry-connrefused', '-fsS', '-H', 'Accept-Encoding: identity', r.r.ORIGIN + '/', capture=True)
     assert result.strip() == (source / 'frontend/dist/index.html').read_text().strip(), 'Public index mismatch'
     for route in ('auth/me', 'tasks'):
         status = r.run('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}', r.r.ORIGIN + '/api/overseas/v1/' + route, capture=True)
@@ -66,9 +67,10 @@ def public_verify(source):
 def deploy(work, source, manifest, image):
     identity = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True)
     assert (work / 'PREPARED').read_text() == (work / 'INSTALL_TEST_IMAGE_ID').read_text() == identity
-    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0009'
+    assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0010'
     data = json.loads((work / 'old-topology.json').read_text())
     assert r.topology() == data and untouched() == json.loads((work / 'untouched.json').read_text())
+    r.roles_migratable()
     backup = Path('/opt/hengxin-backups') / manifest['release']
     assert not backup.exists()
     edge = r.EDGE.read_bytes()
@@ -88,7 +90,7 @@ def deploy(work, source, manifest, image):
         # Mark before invoking migration: even a partially successful migration forbids old code.
         r.private(work / 'MIGRATION_STARTED', 'Forward-only; never auto-restore old business runtime')
         r.compose(data, 'run', '--rm', '--no-deps', 'migrate', overlay=overlay)
-        assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0010'
+        assert r.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0012'
         r.switch_native(Path((work / 'native-target').read_text()))
         r.compose(data, 'up', '-d', '--no-deps', '--wait', '--wait-timeout', '180', 'api', overlay=overlay)
         r.run('systemctl', 'start', *r.UNITS)
@@ -99,14 +101,14 @@ def deploy(work, source, manifest, image):
         r.verify(source, manifest, identity)
         assert untouched() == json.loads((work / 'untouched.json').read_text())
         # Validate the proxy route before restoring public overseas intake.
-        r.run('curl', '-fsS', '-H', 'Host: zhitu.qhhengxin.top', '-o', '/dev/null', 'http://127.0.0.1:18080/api/overseas/v1/health/ready')
+        r.run('curl', '--retry', '10', '--retry-delay', '2', '--retry-connrefused', '-fsS', '-H', 'Host: zhitu.qhhengxin.top', '-o', '/dev/null', 'http://127.0.0.1:18080/api/overseas/v1/health/ready')
         r.EDGE.write_bytes(edge)
         r.reload_edge()
         public_verify(source)
         r.private(r.APP / 'OVERSEAS_RELEASE.json', manifest)
         r.private(r.APP / 'FRONTEND_RELEASE.json', manifest)
         r.private(work / 'verification.json', {'release': manifest['release'], 'image': identity,
-                  'migration': 'overseas_0010', 'domesticIdentityUnchanged': True, 'backup': str(backup)})
+                  'migration': 'overseas_0012', 'domesticIdentityUnchanged': True, 'backup': str(backup)})
         print('OVERSEAS_UPDATE_COMPLETE ' + manifest['release'], flush=True)
     except BaseException:
         # Never stop an executor here: drain failure can mean a paid subprocess is alive.

@@ -30,6 +30,14 @@ def sql(query):
                '-d', 'hengxin_overseas', '-Atc', query, capture=True)
 
 
+def roles_migratable():
+    invalid = int(sql("""SELECT count(*) FROM overseas_members m WHERE
+      ((SELECT count(*) FROM overseas_member_roles r WHERE r.user_id=m.id)>1
+       AND NOT EXISTS (SELECT 1 FROM overseas_member_roles r WHERE r.user_id=m.id AND r.role='super_admin'))
+      OR (m.status='active' AND NOT EXISTS (SELECT 1 FROM overseas_member_roles r WHERE r.user_id=m.id))"""))
+    assert invalid == 0, 'Resolve ambiguous or missing member roles before migration'
+
+
 def topology():
     live = json.loads(run('docker', 'inspect', API, capture=True))[0]
     labels = live['Config']['Labels']
@@ -148,8 +156,25 @@ def switch_native(target):
     run('systemctl', 'daemon-reload')
 
 
+def wait_worker_ready(timeout=90):
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            evidence = native_probe("i=c.control.inspect(timeout=5); print(json.dumps({'stats':i.stats(),'queues':i.active_queues()}))")
+        except (AssertionError, subprocess.SubprocessError, OSError):
+            evidence = {}
+        stats, queues = evidence.get('stats') or {}, evidence.get('queues') or {}
+        if len(stats) == len(queues) == 1 and stats.keys() == queues.keys():
+            assert next(iter(stats.values()))['pool']['max-concurrency'] == 5, 'Wrong worker concurrency'
+            assert [q['name'] for q in next(iter(queues.values()))] == ['overseas.cli'], 'Wrong worker queues'
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Overseas worker readiness timed out; intake remains closed')
+        time.sleep(3)
+
+
 def verify(source, manifest, image):
-    assert sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0010'
+    assert sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0012'
     live = json.loads(run('docker', 'inspect', API, capture=True))[0]
     assert live['Image'] == image and live['State']['Running']
     expected = {n.removeprefix('backend/'): h for n, h in manifest['files'].items() if n.startswith('backend/')}
@@ -158,10 +183,7 @@ def verify(source, manifest, image):
     run('docker', 'exec', API, 'python', '-c', probe, json.dumps(expected))
     for unit in UNITS:
         run('systemctl', 'is-active', unit)
-    evidence = native_probe("i=c.control.inspect(timeout=5); print(json.dumps({'stats':i.stats(),'queues':i.active_queues()}))")
-    assert len(evidence['stats'] or {}) == 1 and len(evidence['queues'] or {}) == 1
-    assert next(iter(evidence['stats'].values()))['pool']['max-concurrency'] == 5
-    assert [q['name'] for q in next(iter(evidence['queues'].values()))] == ['overseas.cli']
+    wait_worker_ready()
     for port, route in ((18018, '/api/overseas/v1/health/ready'), (18008, '/api/v1/health/ready'), (18012, '/api/identity/v1/config')):
         run('curl', '--retry', '10', '--retry-delay', '2', '--retry-connrefused', '-fsS', '-o', '/dev/null', f'http://127.0.0.1:{port}{route}')
     r.hashes(APP, {'files': {n: h for n, h in manifest['files'].items() if n.startswith('frontend/')}})
