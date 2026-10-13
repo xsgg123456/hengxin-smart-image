@@ -40,7 +40,7 @@ import { IdentityError } from '@/api/identity/request'
 import { createRequestKeys, taskError, taskStatuses, type TaskDetail, type TasksApi } from '@/api/overseas/tasks'
 import type { Material, MaterialsApi } from '@/api/overseas/materials'
 import OverseasMaterialReader from './OverseasMaterialReader.vue'
-import { STAGES } from './types'
+import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
 import { formatTaskTime } from './requirements'
 const props = defineProps<{ task: TaskDetail; files: Material[]; api: TasksApi; materialsApi: MaterialsApi }>()
 const emit = defineEmits<{ changed: [task: TaskDetail]; refresh: []; failure: [reason: unknown]; edit: [] }>()
@@ -48,8 +48,8 @@ const comment = ref(''), error = ref(''), saving = ref(false), keys = createRequ
 let active = true
 const canReview = computed(() => props.task.status === 'pending_review' && props.task.capabilities.includes('task.requirements.review'))
 const facts = computed(() => [['品名', props.task.productName], ['品牌', props.task.brand], ['平台 / 站点', `${props.task.platform} · ${props.task.market}`], ['提交人', props.task.createdBy.name], ['负责设计', props.task.designer.name], ['提交时间', formatTaskTime(props.task.createdAt)]])
-const stages = computed(() => props.task.workflow === 'studio' ? ['运营提交图需', '设计人工审核', 'AI 设计工作台', '归档成品库'] : STAGES)
-const descriptions = ['核对商品信息与图需资料', '核对需求是否清晰、资料是否完整', '仅在设计审核通过后启动', '确认排版和各张图片方案', '按已确认方案执行', '检查结果，按需修改', '全部 SKU 通过后整套归档']
+const stages = computed(() => props.task.workflow === 'studio' ? STUDIO_STAGES : STAGES)
+const descriptions = computed(() => props.task.workflow === 'studio' ? STUDIO_DESCRIPTIONS : ['核对商品信息与图需资料', '核对需求是否清晰、资料是否完整', '仅在设计审核通过后启动', '确认排版和各张图片方案', '按已确认方案执行', '检查结果，按需修改', '全部 SKU 通过后整套归档'])
 async function decide(decision: 'approve' | 'reject') {
   if (saving.value || !canReview.value) return
   const task = props.task, note = comment.value.trim()

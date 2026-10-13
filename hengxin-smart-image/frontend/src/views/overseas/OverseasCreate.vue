@@ -85,13 +85,13 @@
       ><h2>这套图如何完成</h2>
       <ElSteps direction="vertical" :active="0" :space="85"
         ><ElStep
-          v-for="(step, i) in STAGES"
+          v-for="(step, i) in stages"
           :key="step"
           :title="step"
           :description="
-            i === 0
+            studio ? STUDIO_DESCRIPTIONS[i] : i === 0
               ? '运营核对品名、品牌与 SKU'
-              : i === STAGES.length - 1
+              : i === stages.length - 1
                 ? '全部 SKU 通过后整套归档'
                 : i === 1 ? '核对需求是否清晰、资料是否完整' : preview ? '设计跟进 · AI 模拟执行' : '审核通过后继续处理'
           " /></ElSteps
@@ -99,10 +99,13 @@
   </div>
 </template>
 <script setup lang="ts">
-import { STAGES } from './types'
+import { computed } from 'vue'
+import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
 interface Fields { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[] }
 const draft = defineModel<Fields>({ required: true })
-defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean; editing?: boolean }>()
+const props = defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean; editing?: boolean; workflow?: 'studio' | 'legacy' }>()
+const studio = computed(() => !props.preview && props.workflow !== 'legacy')
+const stages = computed(() => studio.value ? STUDIO_STAGES : STAGES)
 defineEmits<{ back: [] }>()
 </script>
 <style scoped>

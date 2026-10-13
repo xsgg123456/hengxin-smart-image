@@ -1,6 +1,6 @@
 <template>
   <ElAlert class="hx-gap" title="请根据退回意见修改图需" :description="latestReason" type="warning" :closable="false" />
-  <OverseasCreate v-model="draft" editing :allowed="allowed" :busy="saving" @back="$emit('close')">
+  <OverseasCreate v-model="draft" editing :workflow="task.workflow" :allowed="allowed" :busy="saving" @back="$emit('close')">
     <template #designer><ElFormItem label="负责设计" required><DesignerPicker v-if="task.capabilities.includes('task.reassign')" v-model="draft.designerId" :api="api" :disabled="saving" @failure="$emit('failure', $event)" /><p class="hx-footnote">当前负责设计：{{ task.designer.name }}</p></ElFormItem></template>
     <template #after>
       <OverseasMaterialsPanel v-model="files" :api="materialsApi" :editable="allowed" replaceable :disabled="saving" @busy="uploading = $event" @failure="$emit('failure', $event)" />

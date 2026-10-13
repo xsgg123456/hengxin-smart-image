@@ -25,7 +25,7 @@
         <ElButton @click="cancel">取消上传</ElButton>
       </template>
     </div></div>
-    <p v-if="editable" class="review-notice">提交后先由设计人工审核，通过后才进入 AI 分析；资料不完整时退回运营修改。</p>
+    <p v-if="editable" class="review-notice">提交后先由设计人工审核，审核通过后才能继续 AI 设计；资料不完整时退回运营修改。</p>
     <OverseasMaterialPreview v-model="preview" :files="files" :api="api" @failure="failed" />
   </ElCard>
 </template>

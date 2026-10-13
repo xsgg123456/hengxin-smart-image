@@ -20,25 +20,21 @@ def package(repo):
     assert not git('status', '--porcelain').strip(), 'Commit changes before packaging'
     status = helper.common.reviewed_status(repo)
     commit = git('rev-parse', 'HEAD').decode().strip()
-    release = 'frontend-session-20261013-' + commit[:7]
+    release = 'frontend-studio-20261013-' + commit[:7]
     source = repo / 'hengxin-smart-image/frontend'
-    files = {}
-    for path in (source / 'dist').rglob('*'):
-        assert not path.is_symlink(), str(path)
-        if not path.is_file() or 'demo-images' in path.parts:
-            continue
-        name = 'frontend/dist/' + path.relative_to(source / 'dist').as_posix()
-        helper.audit_asset(name, path.read_bytes())
-        files[name] = path.read_bytes()
+    asset_spec = importlib.util.spec_from_file_location('studio_assets', Path(__file__).with_name('package-overseas.py'))
+    assets = importlib.util.module_from_spec(asset_spec)
+    asset_spec.loader.exec_module(assets)
+    files = assets.collect_assets(source / 'dist')
     for name in ('hengxin-smart-image/frontend/package.json', 'scripts/release/frontend-static.py'):
         raw = helper.common.normalized(git('show', f'{commit}:{name}'))
         assert raw == helper.common.normalized((repo / name).read_bytes())
         helper.common.privacy_check(name, raw)
         files[name.removeprefix('hengxin-smart-image/')] = raw
     assert 'frontend/dist/index.html' in files
-    assert json.loads(files['frontend/package.json'])['version'] == '0.2.24'
+    assert json.loads(files['frontend/package.json'])['version'] == '0.2.27'
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    frontendVersion='0.2.24', files={n: hashlib.sha256(b).hexdigest() for n, b in files.items()})
+                    frontendVersion='0.2.27', files={n: hashlib.sha256(b).hexdigest() for n, b in files.items()})
     files['release.json'] = json.dumps(manifest, indent=2).encode()
     raw = helper.archive_bytes(files)
     target = repo / 'output/release' / release
@@ -68,9 +64,9 @@ def atomic_copy(source, target):
 def deploy(source, app, backup):
     manifest = json.loads((source / 'release.json').read_text())
     verify(source, manifest)
-    assert manifest['frontendVersion'] == '0.2.24'
+    assert manifest['frontendVersion'] == '0.2.27'
     target = app / 'frontend/dist'
-    assert json.loads((app / 'frontend/package.json').read_text())['version'] == '0.2.23'
+    assert json.loads((app / 'frontend/package.json').read_text())['version'] == '0.2.26'
     # Unhashed assets may be shared by old HTML; refuse changing them in place.
     for file in (source / 'frontend/dist').rglob('*'):
         if not file.is_file() or file.name in ('index.html', 'index.html.gz'):
