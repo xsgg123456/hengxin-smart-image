@@ -30,7 +30,8 @@ def test_upgrade_0003_preserves_members_and_domestic(disposable_databases):
         assert result.returncode == 0, result.stderr
         after = snapshot(overseas_url)[1]
         for table in ('overseas_members', 'overseas_member_roles', 'overseas_sessions', 'overseas_member_audits'):
-            assert after[table] == before[table]
+            expected = [(*row, 'enrolled') for row in before[table]] if table == 'overseas_members' else before[table]
+            assert after[table] == expected
         for table in ('overseas_tasks', 'overseas_task_skus', 'overseas_task_events', 'overseas_task_requests', 'overseas_task_outbox'):
             assert after[table] == []
         assert after['overseas_alembic_version'] == [(SCHEMA_REVISION,)]

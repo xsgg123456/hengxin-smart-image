@@ -57,17 +57,18 @@ def login(client):
     cookie = response.headers['set-cookie']
     assert 'HttpOnly' in cookie and 'Secure' in cookie and 'SameSite=lax' in cookie
     assert 'Path=/api/identity/v1' in cookie
+    assert response.json()['sessionId'] == client.get(PATH + '/me').json()['sessionId']
     return client.cookies.get('hx_identity')
 
 
-def ticket(client, business='domestic'):
-    response = client.post(PATH + '/tickets', json={'business': business}, headers=HEADERS)
+def ticket(client, business='domestic', purpose='session'):
+    response = client.post(PATH + '/tickets', json={'business': business, 'purpose': purpose}, headers=HEADERS)
     assert response.status_code == 200
     return response.json()['ticket']
 
 
-def redeem(client, token, key=DOMESTIC_KEY):
-    return client.post('/internal/redeem', json={'ticket': token}, headers={'X-HX-Service-Key': key})
+def redeem(client, token, key=DOMESTIC_KEY, purpose='session'):
+    return client.post('/internal/redeem', json={'ticket': token, 'purpose': purpose}, headers={'X-HX-Service-Key': key})
 
 
 def test_ticket_is_bound_atomic_and_only_hashes_persist(identity):
@@ -85,7 +86,8 @@ def test_ticket_is_bound_atomic_and_only_hashes_persist(identity):
     for key in redis.scan_iter(prefix + '*'):
         raw = redis.get(key)
         assert token not in key + raw and grant not in key + raw
-    assert client.get(PATH + '/me').json() == {'name': '测试成员'}
+    assert client.get(PATH + '/me').json() == {
+        'name': '测试成员', 'sessionId': record['identity_session_id']}
 
 
 def test_global_logout_invalidates_issued_grants_and_check(identity):
@@ -106,8 +108,8 @@ def test_expiration_and_service_auth_fail_closed(identity):
     client, store, redis, prefix = identity
     token = login(client)
     grant = ticket(client)
-    assert 0 < redis.ttl(prefix + 'ticket:domestic:' + hash_token(grant)) <= 60
-    redis.delete(prefix + 'ticket:domestic:' + hash_token(grant))
+    assert 0 < redis.ttl(prefix + 'ticket:domestic:session:' + hash_token(grant)) <= 60
+    redis.delete(prefix + 'ticket:domestic:session:' + hash_token(grant))
     assert redeem(client, grant).status_code == 401
     record = store.resolve(token)
     record['expires_at'] = (utcnow() - timedelta(seconds=1)).isoformat()
@@ -180,7 +182,7 @@ def test_redis_ttl_expiration_rejects_ticket_and_session(identity):
     token = login(client)
     record = store.resolve(token)
     grant = ticket(client)
-    redis.pexpire(prefix + 'ticket:domestic:' + hash_token(grant), 1)
+    redis.pexpire(prefix + 'ticket:domestic:session:' + hash_token(grant), 1)
     redis.pexpire(prefix + 'session:' + record['identity_session_id'], 1)
     time.sleep(.02)
     assert redeem(client, grant).status_code == 401

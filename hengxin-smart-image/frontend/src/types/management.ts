@@ -1,4 +1,5 @@
 import type { Mode, PageQuery, PageResult, Role, SkillVersion, SystemConfig, User, WorkerStatus } from './hengxin'
+import type { ApplicationsAdapter } from '../api/identity/applications'
 
 export type ManagementScenario = 'default' | 'empty' | 'unknown' | 'idle' | 'unavailable' | 'list-error' | 'save-error' | 'install-error' | 'worker-lost' | 'auth-rejected' | 'rate-limited' | 'timeout'
 export interface UsageQuery { from?: string; to?: string; userId?: string; mode?: Mode }
@@ -22,8 +23,8 @@ export interface MonitorReport {
   checkedAt: string | null; state: WorkerStatus['state']; queueSize: number | null; runningCount: number | null; taskCount: number | null; tasks: MonitorTask[]
   detail: null | { workers: WorkerStatus[]; cliVersion: string | null; configured: boolean | null; lastResult: string | null; dependencies: { name: string; state: 'available' | 'unavailable' | 'unknown'; message: string }[]; freeDiskBytes: number | null }
 }
-export interface ManagedUser extends User { department: string; lastLoginAt: string | null }
-export interface UserQuery extends PageQuery { status?: User['status']; role?: Role }
+export interface ManagedUser extends User { department: string; lastLoginAt: string | null; directoryState?: 'enrolled' | 'legacy_unconfirmed' }
+export interface UserQuery extends PageQuery { status?: User['status']; role?: Role; directory?: 'members' | 'legacy' }
 export interface UserInput { id: string; role: Role | null; status: User['status'] }
 export interface SkillRegistration { name: string; mode: Mode; version: string; description: string }
 export interface ManagedSkill extends SkillVersion { sourceType: 'zip' | 'local'; description?: string; installedAt: string | null; node: string | null; updatedAt: string; error: string | null; referenced: boolean }
@@ -38,7 +39,7 @@ export interface CatalogSkill {
 }
 export interface SkillSync { jobId: string | null; status: 'idle' | 'queued' | 'running' | 'succeeded' | 'failed'; error: string | null }
 export interface SkillSyncAccepted { jobId: string; status: 'queued' | 'running' }
-export interface ManagementService {
+export interface ManagementService extends ApplicationsAdapter {
   listSkillCatalog(mode?: Mode): Promise<CatalogSkill[]>
   listManagedCatalog(): Promise<CatalogSkill[]>
   syncSkillCatalog(): Promise<SkillSyncAccepted>

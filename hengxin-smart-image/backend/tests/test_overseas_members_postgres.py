@@ -119,10 +119,11 @@ def test_waiting_actor_reauthorized_after_lock(pg_factory, monkeypatch, disabled
 
 def test_concurrent_bootstrap_only_one_initialization(pg_factory):
     from app.overseas.members.bootstrap import bootstrap_admins
+    from app.overseas.members.application_models import MembershipApplication
     ids = []
     with pg_factory.begin() as session:
         for i in range(2):
-            value = Member(corp_id='test', provider_user_id=str(i), name='初始化', status='pending')
+            value = MembershipApplication(corp_id='test', provider_user_id=str(i), name='初始化', status='pending')
             session.add(value)
             ids.append(str(i))
     barrier = Barrier(2)

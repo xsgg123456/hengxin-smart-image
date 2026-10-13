@@ -18,10 +18,10 @@ try {
     const req = route.request(), url = new URL(req.url()), p = url.pathname
     let status = 200, body = {}
     if (p.endsWith('/config')) body = { configured: true, corpId: 'test', clientId: 'test' }
-    else if (p === '/api/identity/v1/me') body = { name: '测试' }
+    else if (p === '/api/identity/v1/me') body = { name: '测试', sessionId: 'identity-test' }
     else if (p.endsWith('/tickets')) body = { ticket: 'test' }
-    else if (p === '/api/v1/auth/identity/session') status = 403
-    else if (p.includes('/auth/')) body = { id: 'actor', name: '测试', status: 'active', roles: ['designer'], capabilities: caps }
+    else if (p === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
+    else if (p.includes('/auth/')) { body = { id: 'actor', name: '测试', identitySessionId: 'identity-test', status: 'active', roles: ['designer'], capabilities: caps }; if (p.endsWith('/access')) body = { state: 'allowed', member: body } }
     else if (p.endsWith('/execution-events')) {
       reads++; const after = Number(url.searchParams.get('after')); cursors.push(after)
       if (mode === 'network') { await route.abort(); return }

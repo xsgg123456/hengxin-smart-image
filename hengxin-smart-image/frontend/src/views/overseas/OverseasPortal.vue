@@ -64,12 +64,15 @@ async function authorize() {
   try {
     const member = await identityApi.overseasMe()
     if (!active) throw new IdentityError(0, '页面已离开')
+    if (member.identitySessionId !== props.member.identitySessionId) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
     emit('member', member)
     if (!member.capabilities?.includes('members.manage')) { await router.replace('/overseas'); throw new IdentityError(403, '成员管理权限已被移除') }
   } catch (reason) { fail(reason); throw reason }
 }
 const api = createMembersApi()
 const adapter: MembersAdapter = {
+  async listApplications(query) { await authorize(); return api.listApplications!(query) },
+  async decideApplication(id, input) { await authorize(); const result = await api.decideApplication!(id, input); await authorize(); return result },
   async list(query) { await authorize(); return api.list(query) },
   async get(id) { await authorize(); return api.get(id) },
   async save(member) { await authorize(); const result = await api.save(member); await authorize(); return result }
@@ -87,6 +90,7 @@ async function taskAuthorize(capability: string) {
   try {
     const current = await identityApi.overseasMe()
     if (!active) throw new IdentityError(0, '页面已离开')
+    if (current.identitySessionId !== props.member.identitySessionId) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
     emit('member', current)
     if (!current.capabilities?.includes(capability)) throw new IdentityError(403, '业务权限已变化')
   } catch (reason) { await taskFailure(reason); throw reason }

@@ -11,12 +11,14 @@ try {
     calls.push(path)
     let status = 200, value = {}
     if (path === '/api/identity/v1/config') value = { configured: true, corpId: 'test', clientId: 'test' }
-    else if (path === '/api/identity/v1/me') { status = authenticated ? 200 : 401; value = { name: '测试成员' } }
+    else if (path === '/api/identity/v1/me') { status = authenticated ? 200 : 401; value = { name: '测试成员', sessionId: 'identity-test' } }
     else if (path.endsWith('/tickets')) value = { ticket: 'one-use-ticket' }
-    else if (path === '/api/v1/auth/identity/session') status = 403
-    else if (path === '/api/overseas/v1/auth/identity/session' || path === '/api/overseas/v1/auth/me') {
-      status = unavailable ? 503 : 200; value = { id: 'test', name: '测试成员', status: 'active', roles: ['designer'], capabilities: ['task.read', 'task.design', 'stats.read'] }
-    } else if (path === '/api/identity/v1/logout') { status = logoutFailure ? 503 : 204; if (!logoutFailure) authenticated = false }
+    else if (path === '/api/v1/auth/identity/access') value = { state: 'unregistered' }
+    else if (path === '/api/overseas/v1/auth/identity/access' || path === '/api/overseas/v1/auth/identity/session' || path === '/api/overseas/v1/auth/me') {
+      status = unavailable ? 503 : 200; value = { id: 'test', name: '测试成员', status: 'active', identitySessionId: 'identity-test', roles: ['designer'], capabilities: ['task.read', 'task.design', 'stats.read'] }
+      if (path.endsWith('/access')) value = { state: 'allowed', member: value }
+    } else if (path === '/api/overseas/v1/tasks') value = { items: [], total: 0, page: 1, pageSize: 20 }
+    else if (path === '/api/identity/v1/logout') { status = logoutFailure ? 503 : 204; if (!logoutFailure) authenticated = false }
     else if (path.endsWith('/logout')) status = 204
     else throw new Error(`不应调用 ${path}`)
     await route.fulfill({ status, contentType: 'application/json', body: status === 204 ? '' : JSON.stringify(value) })
@@ -24,7 +26,7 @@ try {
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))
   await page.goto(`${base}/#/auth/business`)
-  const domestic = page.getByRole('button', { name: '国内业务 · 暂无权限', exact: true })
+  const domestic = page.getByRole('button', { name: '国内业务 · 尚未加入', exact: true })
   await domestic.waitFor(); assert.equal(await domestic.isEnabled(), false)
   const failure = page.getByRole('button', { name: '海外业务 · 连接失败，请重试', exact: true })
   await failure.waitFor(); assert.equal(await failure.isEnabled(), false)

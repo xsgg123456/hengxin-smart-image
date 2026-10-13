@@ -1,12 +1,12 @@
 # 国内与海外成员隔离整改方案
 
-日期：2026-10-13。状态：方案待确认，未开发、未部署、未清理生产数据。
+日期：2026-10-13。状态：本地开发、测试和独立两阶段审查通过；未部署、未核对或清理生产成员。验收证据见 [本地验收记录](BUSINESS-MEMBER-ISOLATION-VALIDATION-20261013.md)。
 
 ## 1. 目标与边界
 
-用户已明确：国内、海外用户不能因为登录而混入对方成员目录。本轮只出整改方案。
+用户已确认本方案并要求开始、继续开发。国内、海外用户不能因为登录而混入对方成员目录；本轮实施本地代码、迁移、测试及历史核查工具，不执行生产清理或部署。
 
-推荐方案：继续共用钉钉企业身份认证；两边分别查询权限、分别申请加入、分别由本业务管理员授权，只有进入选定业务时才建立该业务会话。
+已确认方案：继续共用钉钉企业身份认证；两边分别查询权限、分别申请加入、分别由本业务管理员授权，只有进入选定业务时才建立该业务会话。
 
 - 企业身份回答“你是谁”；业务成员关系回答“你被谁批准加入哪个业务”。企业认证成功不等于加入任何业务。
 - 国内登录、海外登录、选择页加载、刷新、切换业务和窗口恢复，都不得自动创建另一业务的成员或申请。
@@ -111,7 +111,7 @@
 
 | 步骤 | 目标与交付 | 主要文件/模块 | 完成标准 |
 |---|---|---|---|
-| 1. 同步合同 | 将认可的成员规则、申请入口、历史策略写入正式需求及开发计划 | `Product-Spec.md`、`DEV-PLAN.md`、`Design-Brief.md`、Phase17/18合同 | 新旧条款无冲突；此次方案仍标待确认，不改既往已完成记录 |
+| 1. 同步合同 | 将认可的成员规则、申请入口、历史策略写入正式需求及开发计划 | `Product-Spec.md`、`DEV-PLAN.md`、`Design-Brief.md`、Phase17/18合同 | 新旧条款无冲突；记录用户授权与本地验收状态，不改既往已完成记录 |
 | 2. 后端准入拆分 | 两边只读准入查询、显式申请与审批、登录禁止建档；兼容旧入口与初始化 | `backend/app/identity/{router,store,schemas}.py`、`core/browser_auth.py`、`modules/auth/{identity_bridge,dingtalk_members,router}.py`、`overseas/auth/{identity,router,models}.py`、`overseas/members/{service,router,bootstrap}.py`；新增两边 application 模块及独立迁移 | 直接调用旧 session 接口也不能隐式建人；国内/海外对称；申请审批可用；数据库断言证明查询零业务写入 |
 | 3. 前端与目录 | 业务选择只查状态、点击才登录；明确申请/撤回；本业务成员与申请分开 | `frontend/src/api/identity/{auth,access,revalidate}.ts`、`views/auth/{IdentityPortal,BusinessEntry}.vue`、`views/overseas/admin/OverseasMembers.vue`、`api/overseas/members.ts`、`views/hengxin/admin/users.vue`、国内管理API适配 | 普通使用不增加另一业务成员；错误/重复/过期响应处理正确；列表和计数一致；同身份恢复保留页面 |
 | 4. 历史审计工具 | 生成国内/海外核对报告，模拟迁移，再按确认名单处理 | 新增 `scripts/maintenance/audit-business-members.py`、`reconcile-business-members.py` 及测试 | 默认仅报告；必须显式指定业务和审核名单才写入；幂等、有恢复材料、并发状态变化跳过 |
@@ -148,10 +148,21 @@
 - 身份服务用途票据、两业务后端和前端必须核对版本兼容；旧的无用途票据不能自动当作申请票据。发布期间短暂登录失败允许明确重试，不允许副作用降级。
 - 历史清理独立于代码上线，默认只出审核报告。数据修正前后均核验两边人员名单和业务引用。
 - 回退优先回到仍保持隔离的兼容版本；不得直接回滚到会自动双边建档的旧登录代码。必要时暂时关闭新申请或统一入口，保留已有合法业务会话；不恢复已停用人员权限。
-- 本轮仅完成方案。实现、生产发布和名单清理均未执行，且不沿用其他功能的部署授权。
+- 本轮授权本地实现、验证与审查；生产发布和名单清理未执行，不沿用其他功能的部署授权。
 
-## 9. 待方案确认后同步的文档
+## 9. 同步的文档
 
 `DEV-PLAN.md` 增加这次整改的独立实施条目；`Design-Brief.md` 补充入口准入状态及成员/申请展示；Phase17合同改为只读准入与按需会话，Phase18合同补充主动申请、审批及历史记录处理；国内原首次登录建档规则也同步覆盖。已完成历史阶段保留为历史，不改写成“从未存在问题”。
 
-本轮仅在 Product Spec/变更日志记录用户确认的隔离目标并链接此候选方案，不将推荐细节标为用户已批准，不提前改动上述下游合同或业务代码。
+用户已确认并授权开发；正式需求、开发计划、设计规范和Phase17/18合同同步本方案。下方实施合同约束前后端协作，不改既往已完成记录。
+
+## 10. 本轮前后端实施合同（已授权）
+
+- `POST /api/{overseas/v1|v1}/auth/identity/access` 消费 access 用途票据，只读返回 `{state, member?, application?}`；state 为 allowed/unregistered/pending/rejected/disabled/legacy_unconfirmed。allowed 的 member 与既有身份 DTO 一致。
+- 现有 session 兑换消费 session 用途票据；仅对已有已确认且启用成员建立会话。DTO增加 `identitySessionId`，统一身份 `/me` 增加 `sessionId`，页面及恢复校验二者一致，禁止同名或跨号误用旧会话。
+- `POST .../auth/identity/application` 用 application 票据申请；`POST .../auth/identity/application/withdraw` 同用途票据撤回本人申请；返回 `{id,status,version,createdAt,updatedAt,name}`。未加入和历史未核对人员可明确申请；disabled 成员不得自助申请。
+- 管理接口：海外 `/api/overseas/v1/members/applications`、国内 `/api/v1/management/users/applications`，GET支持姓名子串搜索 `search`（最多100字符）、状态与分页，返回 `{items,total,page,pageSize}`，total使用与列表相同的过滤条件，每项含申请 DTO 与审批意见；POST `/{id}/decision` body `{decision:'approve'|'reject',role?,version,reason?}`。审批者必须拥有本业务成员管理权限；通过时必须传该业务合法角色，拒绝时原因去除首尾空白后不能为空，最多1000字符。
+- 成员目录新增 `directory=members|legacy` 查询，默认 members。legacy 单列历史待核对，不计默认总数；历史确认必须由明确申请及审批或经过审计的核对工具执行，普通编辑不能绕过。
+- 国内/海外独立申请模型，保存版本及事件；成员新增 `directory_state`：enrolled / legacy_unconfirmed，迁移只将旧 pending 标记待核对，其余保留 enrolled。正常新成员只在审批/显式初始化建档。
+- 操作前最新授权、版本、业务身份核验；重复申请幂等；撤回/拒绝后可重申请保留事件；批准/初始化与成员角色审计同事务。
+- 统一身份 `POST /api/identity/v1/tickets` 增加可选 `expectedSessionId`：新前端传当前页面已核验的身份会话ID，身份服务在签发票据时校验与当前cookie身份一致；不一致返回401且不发票，封住确认操作后跨标签换号的时间差。已签发票据仍绑定原身份，原身份退出或换号后不可兑换。

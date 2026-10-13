@@ -22,12 +22,13 @@ def test_database_rejects_second_role(overseas):
         session.add(MemberRole(user_id=member, role='operator'))
 
 
-def test_bootstrap_replaces_existing_role(overseas):
+def test_bootstrap_cannot_promote_existing_enrolled_member_without_application(overseas):
     _, factory, _ = overseas
     member = seed(factory, roles=('operator',))
     with factory() as session:
-        assert bootstrap_admins(session, 'corp', 'member-1') == 1
-        assert list(session.scalars(select(MemberRole.role).where(MemberRole.user_id == member))) == ['super_admin']
+        with pytest.raises(ValueError, match='加入申请'):
+            bootstrap_admins(session, 'corp', 'member-1')
+        assert list(session.scalars(select(MemberRole.role).where(MemberRole.user_id == member))) == ['operator']
 
 
 def legacy_database():

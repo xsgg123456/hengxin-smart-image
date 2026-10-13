@@ -13,7 +13,7 @@
         </h3>
         <p v-if="busy" role="status">正在验证企业身份与业务权限…</p>
         <ElAlert v-if="error" class="hx-gap" :title="error" type="warning" :closable="false" show-icon />
-        <BusinessEntry v-if="name" :identity="access" :states="states" :busy="busy" @enter="enter" @logout="logout" />
+        <BusinessEntry v-if="name" :identity="access" :states="states" :busy="busy" @enter="enter" @apply="application($event, false)" @withdraw="application($event, true)" @retry="load" @logout="logout" />
         <template v-else-if="!busy">
           <p class="sub-title">使用企业钉钉身份登录工作区</p>
           <ElButton class="w-full hx-gap" type="primary" :disabled="!config?.configured" @click="authorize">钉钉登录</ElButton>
@@ -26,6 +26,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import LoginLeftView from '@/components/core/views/login/LoginLeftView.vue'
 import AuthTopBar from '@/components/core/views/login/AuthTopBar.vue'
 import BusinessEntry from './BusinessEntry.vue'
@@ -36,6 +37,7 @@ import type { Business } from '@/api/identity/access'
 import { createOverseasRevalidator } from '@/api/identity/revalidate'
 const callbackError = new URLSearchParams(window.location.hash.split('?')[1] || '').get('auth')
 const busy = ref(false), error = ref(''), name = ref('')
+const identitySession = ref('')
 const checking = ref(false)
 const config = ref<IdentityConfig>(), member = ref<Member>()
 const states = ref<Partial<Record<Business, AccessResult>>>({})
@@ -51,7 +53,7 @@ function businessFailure(reason: unknown) {
 let generation = 0
 const revalidator = createOverseasRevalidator({
   identity: () => identityApi.me(), member: () => identityApi.overseasMe(),
-  accept(current, identityName) { member.value = current; name.value = identityName },
+  accept(current, identityName) { member.value = current; name.value = identityName; identitySession.value = current.identitySessionId },
   reject: businessFailure,
   pending(value) {
     checking.value = value
@@ -63,21 +65,36 @@ async function load() {
   revalidator.invalidate()
   const epoch = ++generation
   overseas.value = window.location.hash.startsWith('#/overseas')
-  busy.value = true; error.value = ''; states.value = {}; member.value = undefined
+  busy.value = true; error.value = ''; name.value = ''; states.value = {}; member.value = undefined
   try {
     try { config.value = await identityApi.config() }
     catch (reason) {
+      if (epoch !== generation) return
       if (reason instanceof IdentityError && reason.status === 404) { legacySession(); return }
       throw reason
     }
+    if (epoch !== generation) return
     const identity = await identityApi.me()
     if (epoch !== generation) return
     name.value = identity.name
-    const [domestic, foreign] = await Promise.all([identityApi.access('domestic'), identityApi.access('overseas')])
+    identitySession.value = identity.sessionId
+    const [domestic, foreign] = await Promise.all([identityApi.access('domestic', identity.sessionId), identityApi.access('overseas', identity.sessionId)])
     if (epoch !== generation) return
+    const verified = await identityApi.me()
+    if (epoch !== generation) return
+    if (verified.sessionId !== identity.sessionId || [domestic, foreign].some(result => result.state === 'allowed' && result.member.identitySessionId !== identity.sessionId)) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
     states.value = { domestic, overseas: foreign }
     if (overseas.value && foreign.state === 'allowed') {
-      const current = await identityApi.overseasMe()
+      let current: Member
+      try { current = await identityApi.overseasMe() }
+      catch (reason) {
+        if (!(reason instanceof IdentityError) || reason.status !== 401) throw reason
+        if (epoch !== generation) return
+        current = await identityApi.session('overseas', identity.sessionId)
+      }
+      if (epoch !== generation) return
+      const latest = await identityApi.me()
+      if (current.identitySessionId !== identity.sessionId || latest.sessionId !== identity.sessionId) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
       if (epoch === generation) member.value = current
     }
     else overseas.value = false
@@ -91,29 +108,61 @@ function legacySession() { window.location.assign('/?workspace=domestic#/api-ima
 async function authorize() {
   if (!config.value?.configured) return
   if (!/DingTalk/i.test(navigator.userAgent)) { window.location.assign('/api/identity/v1/dingtalk/authorize'); return }
-  busy.value = true; error.value = ''
-  try {
-    await identityApi.container(await requestContainerAuthCode({ ...config.value, callbackPath: '' }))
-    await load()
-  } catch (reason) { error.value = reason instanceof Error ? reason.message : '授权失败，请重试' }
-  finally { busy.value = false }
-}
-async function enter(business: Business) {
-  if (!access.value[business]) return
-  if (business === 'domestic') { legacySession(); return }
   const epoch = ++generation
   busy.value = true; error.value = ''
-  try { const current = await identityApi.overseasMe(); if (epoch !== generation) return; member.value = current; overseas.value = true; window.location.hash = '/overseas/tasks' }
-  catch (reason) { if (epoch === generation) { error.value = reason instanceof Error ? reason.message : '业务连接失败'; await load() } }
+  try {
+    const code = await requestContainerAuthCode({ ...config.value, callbackPath: '' })
+    if (epoch !== generation) return
+    await identityApi.container(code)
+    if (epoch !== generation) return
+    await load()
+  } catch (reason) { if (epoch === generation) error.value = reason instanceof Error ? reason.message : '授权失败，请重试' }
+  finally { if (epoch === generation) busy.value = false }
+}
+async function enter(business: Business) {
+  if (busy.value || !access.value[business]) return
+  const epoch = ++generation
+  busy.value = true; error.value = ''
+  try {
+    const current = await identityApi.session(business, identitySession.value)
+    if (epoch !== generation) return
+    const latest = await identityApi.me()
+    if (epoch !== generation) return
+    if (current.identitySessionId !== identitySession.value || latest.sessionId !== identitySession.value) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
+    if (business === 'domestic') { legacySession(); return }
+    member.value = current; overseas.value = true; window.location.hash = '/overseas/tasks'
+  }
+  catch (reason) { if (epoch === generation) businessFailure(reason) }
+  finally { if (epoch === generation) busy.value = false }
+}
+async function application(business: Business, withdraw: boolean) {
+  if (busy.value) return
+  const state = states.value[business]?.state
+  if (withdraw ? state !== 'pending' : !['unregistered', 'rejected', 'legacy_unconfirmed'].includes(state || '')) return
+  const label = business === 'domestic' ? '国内' : '海外'
+  const epoch = ++generation
+  busy.value = true; error.value = ''
+  try {
+    try { await ElMessageBox.confirm(withdraw ? `确认撤回${label}业务加入申请？` : `确认向${label}业务管理员申请加入？姓名来自当前企业身份，审批通过后才可进入。`, withdraw ? `撤回${label}申请` : `申请${label}权限`, { confirmButtonText: withdraw ? '确认撤回' : '确认申请', cancelButtonText: '取消', type: 'warning' }) } catch { return }
+    if (epoch !== generation) return
+    const latest = await identityApi.me()
+    if (epoch !== generation) return
+    if (latest.sessionId !== identitySession.value) throw new IdentityError(401, '企业身份已变化，请重新登录')
+    await (withdraw ? identityApi.withdraw(business, identitySession.value) : identityApi.apply(business, identitySession.value))
+    if (epoch !== generation) return
+    ElMessage.success(withdraw ? `${label}申请已撤回` : `${label}申请已提交`)
+    await load()
+  } catch (reason) { if (epoch === generation) { if (reason instanceof IdentityError && reason.status === 401) businessFailure(reason); else error.value = reason instanceof Error ? reason.message : '申请操作失败，请重试' } }
   finally { if (epoch === generation) busy.value = false }
 }
 function switchBusiness() { revalidator.invalidate(); overseas.value = false; member.value = undefined; window.location.hash = '/auth/business'; void load() }
 async function logout() {
   revalidator.invalidate()
-  ++generation; busy.value = true; error.value = ''; member.value = undefined; overseas.value = false; states.value = {}
-  try { await identityApi.logout(); try { localStorage.setItem('hengxin:logout', crypto.randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; window.location.hash = '/auth/business' }
-  catch (reason) { error.value = reason instanceof Error ? reason.message : '退出失败，请重试' }
-  finally { busy.value = false }
+  const epoch = ++generation
+  busy.value = true; error.value = ''; member.value = undefined; overseas.value = false; states.value = {}
+  try { await identityApi.logout(); if (epoch !== generation) return; try { localStorage.setItem('hengxin:logout', crypto.randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; window.location.hash = '/auth/business' }
+  catch (reason) { if (epoch === generation) error.value = reason instanceof Error ? reason.message : '退出失败，请重试' }
+  finally { if (epoch === generation) busy.value = false }
 }
 function navigated() {
   const foreign = window.location.hash.startsWith('#/overseas')
@@ -126,7 +175,7 @@ function resume() {
   else void load()
 }
 onMounted(() => { void load(); window.addEventListener('focus', resume); window.addEventListener('storage', changed); window.addEventListener('hashchange', navigated); document.addEventListener('visibilitychange', resume) })
-onUnmounted(() => { revalidator.invalidate(); ++generation; window.removeEventListener('focus', resume); window.removeEventListener('storage', changed); window.removeEventListener('hashchange', navigated); document.removeEventListener('visibilitychange', resume) })
+onUnmounted(() => { revalidator.invalidate(); ++generation; ElMessageBox.close(); window.removeEventListener('focus', resume); window.removeEventListener('storage', changed); window.removeEventListener('hashchange', navigated); document.removeEventListener('visibilitychange', resume) })
 </script>
 <style scoped>
 @import './login/style.css';

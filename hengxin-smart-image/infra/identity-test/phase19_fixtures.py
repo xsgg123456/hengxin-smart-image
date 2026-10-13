@@ -13,17 +13,24 @@ def grant(h, admin, member_id, roles, status='active'):
 
 def prepare(h, ids):
     ids = dict(ids)
+    applications = {}
     for code in CODES:
         with h.login(code) as client:
             h.exchange(client, 'overseas', status=403)
+            applications[code] = h.expect(client.post(
+                h.BUSINESS['overseas'][0] + '/api/overseas/v1/auth/identity/application',
+                json={'ticket': h.ticket(client, 'overseas', 'application')}), 200).json()
+    with h.login('p18-admin') as admin:
+        h.exchange(admin, 'overseas')
+        for code, role in zip(CODES, ('operator', 'designer')):
+            application = applications[code]
+            h.expect(admin.post(h.BUSINESS['overseas'][0] + '/api/overseas/v1/members/applications/'
+                + application['id'] + '/decision', json={
+                    'decision': 'approve', 'role': role, 'version': application['version']}), 200)
     with h.ENGINES['overseas'].connect() as connection:
         for row in connection.execute(text(
                 "SELECT id,provider_user_id FROM overseas_members WHERE provider_user_id LIKE 'p19-%'")):
             ids[row.provider_user_id] = str(row.id)
-    with h.login('p18-admin') as admin:
-        h.exchange(admin, 'overseas')
-        for code, role in zip(CODES, ('operator', 'designer')):
-            grant(h, admin, ids[code], [role])
     return ids
 
 

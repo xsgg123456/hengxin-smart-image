@@ -12,7 +12,7 @@ async function call(method,path,data,key) {
 }
 try {
   const auth=await context.request.post(`${base}/api/identity/v1/dingtalk/container`,{headers,data:{code:'p18-admin'}});assert.equal(auth.status(),200)
-  const ticketResponse=await context.request.post(`${base}/api/identity/v1/tickets`,{headers,data:{business:'overseas'}});assert.equal(ticketResponse.status(),200)
+  const ticketResponse=await context.request.post(`${base}/api/identity/v1/tickets`,{headers,data:{business:'overseas',purpose:'session'}});assert.equal(ticketResponse.status(),200)
   await call('post','/auth/identity/session',await ticketResponse.json())
   await call('get','/auth/me')
   const designers=await call('get','/task-designers?page=1&pageSize=20');assert.ok(designers.items.length)

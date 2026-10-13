@@ -35,6 +35,7 @@ class User(BaseModel):
     name: str
     role: Role | None
     status: Literal['pending', 'active', 'disabled']
+    identitySessionId: str | None = None
 
 
 class Picture(BaseModel):

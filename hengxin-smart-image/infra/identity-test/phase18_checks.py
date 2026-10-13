@@ -10,7 +10,7 @@ EXPECTED = {
     'designer': {'task.read', 'stats.read', 'task.design'},
     'design_manager': {'task.read', 'stats.read', 'task.design', 'task.reassign'},
     'super_admin': {'task.read', 'stats.read', 'task.reassign', 'members.manage',
-                    'skills.manage', 'settings.manage'},
+                    'skills.manage', 'settings.manage', 'task.create', 'task.design', 'task.delete'},
 }
 
 
@@ -59,8 +59,10 @@ def run(h, ids):
             h.expect(admin.get(base, params=params), 422)
         h.expect(admin.get(base + '/00000000-0000-0000-0000-000000000000'), 404)
         before = detail()
-        updated = patch(before, ['operator', 'designer', 'operator']).json()
-        assert set(updated['roles']) == {'operator', 'designer'} and updated['version'] == before['version'] + 1
+        audit_before = len(h.expect(admin.get(target + '/audit'), 200).json()['items'])
+        patch(before, ['operator', 'designer', 'operator'], expected=422)
+        updated = patch(before, ['designer']).json()
+        assert updated['roles'] == ['designer'] and updated['version'] == before['version'] + 1
         patch(before, ['super_admin'], expected=409)
         assert detail() == updated
         for body in ({'roles': [], 'status': 'active', 'version': updated['version']},
@@ -71,7 +73,7 @@ def run(h, ids):
             'version': updated['version']}, headers={'Origin': 'https://evil.invalid'}), 403)
         with h.login('p18-target') as member:
             h.exchange(member, 'overseas')
-            assert set(h.me(member, 'overseas').json()['capabilities']) == EXPECTED['operator'] | EXPECTED['designer']
+            assert set(h.me(member, 'overseas').json()['capabilities']) == EXPECTED['designer']
             patch(detail(), ['super_admin'])
             h.expect(member.get(base), 200)
             patch(detail(), ['operator'])
@@ -80,9 +82,9 @@ def run(h, ids):
             patch(detail(), ['operator'], 'disabled')
             h.me(member, 'overseas', 401)
         audit = h.expect(admin.get(target + '/audit'), 200).json()['items']
-        assert len(audit) == 4, audit
+        assert len(audit) == audit_before + 4, audit
         assert audit[0]['after']['status'] == 'disabled'
-        for entry in audit:
+        for entry in audit[:4]:
             assert entry['actorId'] == ids['p18-admin']
             assert set(entry['before']) == set(entry['after']) == {'roles', 'status', 'version'}
         with h.ENGINES['overseas'].connect() as connection:
@@ -91,7 +93,7 @@ def run(h, ids):
         with h.login('p18-admin2') as fresh:
             h.exchange(fresh, 'overseas')
             assert h.expect(fresh.get(target + '/audit'), 200).json()['items'] == audit
-        print('PASS pagination filters activation multi-role stale409 immediate revocation disable audit persistence', flush=True)
+        print('PASS pagination filters single-role stale409 immediate revocation disable audit persistence', flush=True)
         admin2_url = base + '/' + ids['p18-admin2']
         patch(detail(admin2_url), ['operator'])
         own = detail(base + '/' + ids['p18-admin'])

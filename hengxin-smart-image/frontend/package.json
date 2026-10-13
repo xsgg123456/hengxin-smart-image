@@ -1,6 +1,6 @@
 {
   "name": "hengxin-smart-image-frontend",
-  "version": "0.2.28",
+  "version": "0.2.29",
   "type": "module",
   "engines": {
     "node": "24.18.1",

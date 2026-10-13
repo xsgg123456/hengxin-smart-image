@@ -4,16 +4,17 @@ import { createIdentityApi, IdentityError } from '../src/api/identity/auth'
 import { mayEnter } from '../src/api/identity/access'
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 for (const [domestic, overseas] of [[true, true], [false, true], [true, false], [false, false]]) {
-  test(`真实API合同四权限组合 ${domestic}/${overseas}：两张票据分别兑换`, async () => {
+  test(`真实API合同四权限组合 ${domestic}/${overseas}：只读用途不兑换业务会话`, async () => {
     const tickets = new Map<string, string>()
     const api = createIdentityApi(async (url, options) => {
       assert.equal(options?.credentials, 'include')
       assert.equal((options?.headers as Record<string, string>)['X-HX-Request'], '1')
       const body = JSON.parse(String(options?.body))
-      if (String(url).endsWith('/tickets')) { tickets.set(body.business, `${body.business}-ticket`); return json({ ticket: `${body.business}-ticket` }) }
+      if (String(url).endsWith('/tickets')) { assert.equal(body.purpose, 'access'); tickets.set(body.business, `${body.business}-ticket`); return json({ ticket: `${body.business}-ticket` }) }
+      assert.ok(String(url).endsWith('/auth/identity/access'))
       const business = String(url).includes('/overseas/') ? 'overseas' : 'domestic'
       assert.equal(body.ticket, tickets.get(business))
-      return (business === 'domestic' ? domestic : overseas) ? json({ id: '1', name: '成员', status: 'active', role: 'operator', roles: ['designer'], capabilities: ['task.read', 'task.design', 'stats.read'] }) : json({}, 403)
+      return (business === 'domestic' ? domestic : overseas) ? json({ state: 'allowed', member: { id: '1', name: '成员', status: 'active', identitySessionId: 'identity-1', role: 'operator', roles: ['designer'], capabilities: ['task.read', 'task.design', 'stats.read'] } }) : json({ state: 'unregistered' })
     })
     const [a, b] = await Promise.all([api.access('domestic'), api.access('overseas')])
     const identity = { authenticated: true, domestic: a.state === 'allowed', overseas: b.state === 'allowed' }

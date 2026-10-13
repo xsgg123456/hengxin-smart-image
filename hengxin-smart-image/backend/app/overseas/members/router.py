@@ -9,6 +9,7 @@ from app.overseas.auth.models import Member
 from app.overseas.members import service
 from app.overseas.members.schemas import MemberPatch, Role, Status
 from app.overseas.permissions import require_permission
+from app.membership.schemas import Directory
 
 router = APIRouter(prefix='/api/overseas/v1/members', tags=['overseas-members'])
 admin = require_permission('members.manage')
@@ -18,8 +19,9 @@ admin = require_permission('members.manage')
 def members(search: str = Query('', max_length=100), status: Status | None = None,
             role: Role | None = None, page: int = Query(1, ge=1),
             page_size: int = Query(20, alias='pageSize', ge=1, le=100),
+            directory: Directory = 'members',
             actor: Member = Depends(admin), session: Session = Depends(get_session)):
-    return service.list_members(session, search, status, role, page, page_size)
+    return service.list_members(session, search, status, role, page, page_size, directory)
 
 
 @router.get('/{member_id}')

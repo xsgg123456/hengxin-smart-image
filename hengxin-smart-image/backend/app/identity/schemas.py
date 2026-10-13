@@ -1,6 +1,10 @@
 """Validate identity boundaries before persisting or trusting remote grants."""
+from typing import Literal
+
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 from app.identity.tokens import is_expired
+
+TicketPurpose = Literal['access', 'session', 'application']
 
 
 class Member(BaseModel):

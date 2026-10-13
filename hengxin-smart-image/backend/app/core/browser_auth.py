@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import get_settings
 from app.identity.client import check_identity, redeem_ticket
+from app.identity.schemas import TicketPurpose
 
 
 class TicketInput(BaseModel):
@@ -21,11 +22,11 @@ def browser_request(request: Request, x_hx_request: Annotated[str | None, Header
         raise HTTPException(403, '请求来源无效')
 
 
-def redeem_business_ticket(ticket: str):
+def redeem_business_ticket(ticket: str, purpose: TicketPurpose = 'session'):
     settings = get_settings()
     if not settings.identity_service_url or not settings.identity_service_key:
         raise HTTPException(503, '统一身份服务尚未配置')
-    return redeem_ticket(settings.identity_service_url, settings.identity_service_key, ticket)
+    return redeem_ticket(settings.identity_service_url, settings.identity_service_key, ticket, purpose)
 
 
 def require_identity_session(identity_session_id: str | None):

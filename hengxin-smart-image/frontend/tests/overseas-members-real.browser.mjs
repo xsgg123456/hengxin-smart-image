@@ -67,7 +67,7 @@ try {
         assert.equal(await page.getByRole('button', { name: '编辑', exact: true }).count(), 0)
         assert.equal((await context.request.get(`${base}/api/overseas/v1/members`)).status(), 403)
       }
-      assert.equal(paths.some(p => p.startsWith('/api/v1/') && !p.endsWith('/auth/identity/session')), false)
+      assert.equal(paths.some(p => p.startsWith('/api/v1/') && !p.endsWith('/auth/identity/access')), false)
       await page.getByRole('button', { name: '切换业务', exact: true }).click()
       await page.getByRole('button', { name: '海外业务', exact: true }).waitFor()
       await page.getByRole('button', { name: '退出登录', exact: true }).click()

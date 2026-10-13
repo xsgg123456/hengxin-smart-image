@@ -1,7 +1,7 @@
-import type { Member } from './auth'
+import { IdentityError, type Member, type Identity } from './auth'
 
 interface Dependencies {
-  identity: () => Promise<{ name: string }>
+  identity: () => Promise<Identity>
   member: () => Promise<Member>
   accept: (member: Member, name: string) => void
   reject: (reason: unknown) => void
@@ -26,6 +26,10 @@ export function createOverseasRevalidator(deps: Dependencies) {
         const identity = await deps.identity()
         if (epoch !== generation) return
         const member = await deps.member()
+        if (!identity.sessionId || member.identitySessionId !== identity.sessionId) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
+        if (epoch !== generation) return
+        const latest = await deps.identity()
+        if (latest.sessionId !== identity.sessionId) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
         if (epoch === generation) deps.accept(member, identity.name)
       } catch (reason) {
         if (epoch === generation) deps.reject(reason)

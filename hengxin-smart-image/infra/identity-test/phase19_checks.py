@@ -32,10 +32,11 @@ def run(h, fixtures):
                 'designerId': ids['p18-designer']}
         candidates = get(operator, '/task-designers', pageSize=1)
         second = get(operator, '/task-designers', pageSize=1, page=2)
-        assert candidates['total'] == 3 and len(candidates['items']) == 1
+        assert candidates['total'] == 5 and len(candidates['items']) == 1
         assert candidates['items'][0]['id'] != second['items'][0]['id']
         all_ids = {r['id'] for r in get(operator, '/task-designers')['items']}
-        assert all_ids == {ids[c] for c in ('p18-designer', 'p18-design_manager', 'p19-designer2')}
+        assert all_ids == {ids[c] for c in (
+            'p18-designer', 'p18-design_manager', 'p19-designer2', 'p18-admin', 'p18-admin2')}
         assert get(operator, '/task-designers', search='p19-designer2')['total'] == 1
         h.expect(designer.get(base + '/task-designers'), 403)
         grant(h, admin, ids['p19-designer2'], ['designer'], 'disabled')
@@ -44,11 +45,11 @@ def run(h, fixtures):
         grant(h, admin, ids['p19-designer2'], ['designer'])
         h.exchange(clients['p19-designer2'], 'overseas')
         for patch in ({'name': ' '}, {'skus': [{'code': 'A'}, {'code': ' a '}]},
-                      {'skus': []}, {'files': []}, {'designerId': ids['p18-admin']},
+                      {'skus': []}, {'files': []}, {'designerId': ids['p18-operator']},
                       {'designerId': None}):
             create(operator, {**body, **patch}, str(uuid4()), 422)
         h.expect(operator.post(base + '/tasks', json=body), 422)
-        for code in ('p18-designer', 'p18-design_manager', 'p18-admin'):
+        for code in ('p18-designer', 'p18-design_manager'):
             create(clients[code], body, str(uuid4()), 403)
         first = create(operator, body, 'p19-create')
         assert first['status'] == 'created' and first['version'] == 1
@@ -108,14 +109,14 @@ def run(h, fixtures):
         changed = assign(admin, {'designerId': ids['p18-designer'], 'version': 2}, 'resume')
         assert changed['version'] == 3 and len(changed['events']) == 3
         grant(h, admin, ids['p19-designer2'], ['designer'])
-        grant(h, admin, ids['p18-dual'], ['operator', 'designer'])
-        dual_body = {**body, 'designerId': ids['p18-dual'], 'name': '兼任本人创建'}
+        grant(h, admin, ids['p18-dual'], ['super_admin'])
+        dual_body = {**body, 'designerId': ids['p18-dual'], 'name': '管理员本人创建'}
         dual = create(clients['p18-dual'], dual_body, 'dual-create')
         h.expect(admin.patch(base + '/tasks/' + dual['id'] + '/assignment', json={
             'designerId': ids['p18-designer'], 'version': 1}, headers={'Idempotency-Key': 'dual-move'}), 200)
-        assert get(clients['p18-dual'], '/tasks/' + dual['id'])['capabilities'] == ['task.read', 'task.materials.submit']
         grant(h, admin, ids['p18-dual'], ['operator'])
-        print('PASS Phase19 assignment old/new access stale409 current replay disabled recovery multi-role', flush=True)
+        assert get(clients['p18-dual'], '/tasks/' + dual['id'])['capabilities'] == ['task.read', 'task.materials.submit']
+        print('PASS Phase19 assignment old/new access stale409 current replay disabled recovery single-role downgrade', flush=True)
 
     with h.login('p18-admin') as fresh:
         h.exchange(fresh, 'overseas')

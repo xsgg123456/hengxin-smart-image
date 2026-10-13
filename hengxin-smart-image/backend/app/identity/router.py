@@ -4,8 +4,9 @@ from typing import Literal
 from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from app.modules.auth import dingtalk
+from app.identity.schemas import TicketPurpose
 
 PATH = '/api/identity/v1'
 COOKIE = 'hx_identity'
@@ -18,11 +19,16 @@ class CodeInput(BaseModel):
 
 
 class TicketInput(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     ticket: str = Field(min_length=1, max_length=512)
+    purpose: TicketPurpose = 'session'
 
 
 class BusinessInput(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     business: Literal['domestic', 'overseas']
+    purpose: TicketPurpose = 'session'
+    expectedSessionId: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class CheckInput(BaseModel):
@@ -64,6 +70,7 @@ def login(request, response, member):
     store.revoke(request.cookies.get(COOKIE))
     token = store.create(member)
     set_cookie(response, request, COOKIE, token, settings.session_ttl_seconds)
+    return store.resolve(token)['identity_session_id']
 
 
 @router.get(PATH + '/config')
@@ -75,7 +82,7 @@ def config(request: Request):
 @router.get(PATH + '/me')
 def me(request: Request):
     record = request.app.state.store.resolve(request.cookies.get(COOKIE))
-    return {'name': record['member']['name']}
+    return {'name': record['member']['name'], 'sessionId': record['identity_session_id']}
 
 
 @router.get(PATH + '/dingtalk/authorize')
@@ -116,15 +123,17 @@ def container(body: CodeInput, request: Request, response: Response):
         member = dingtalk.exchange_container_code(body.code, request.app.state.settings)
     except dingtalk.DingTalkProviderError as error:
         raise HTTPException(503, '钉钉认证暂不可用') from error
-    login(request, response, member)
-    return {'name': member.name}
+    session_id = login(request, response, member)
+    return {'name': member.name, 'sessionId': session_id}
 
 
 @router.post(PATH + '/tickets', dependencies=[Depends(same_origin)])
 def tickets(body: BusinessInput, request: Request):
     store = request.app.state.store
     record = store.resolve(request.cookies.get(COOKIE))
-    return {'ticket': store.ticket(record, body.business)}
+    if body.expectedSessionId is not None and body.expectedSessionId != record['identity_session_id']:
+        raise HTTPException(401, '企业身份已变化，请重新选择业务')
+    return {'ticket': store.ticket(record, body.business, body.purpose)}
 
 
 @router.post(PATH + '/logout', status_code=204, dependencies=[Depends(same_origin)])
@@ -137,7 +146,7 @@ def logout(request: Request):
 
 @router.post('/internal/redeem')
 def redeem(body: TicketInput, request: Request, business=Depends(service_business)):
-    return request.app.state.store.redeem(body.ticket, business)
+    return request.app.state.store.redeem(body.ticket, business, body.purpose)
 
 
 @router.post('/internal/check')

@@ -43,8 +43,9 @@ def describe(session, member):
             'updatedAt': member.updated_at}
 
 
-def list_members(session, search='', status=None, role=None, page=1, page_size=20):
-    filters = []
+def list_members(session, search='', status=None, role=None, page=1, page_size=20, directory='members'):
+    state = 'enrolled' if directory == 'members' else 'legacy_unconfirmed'
+    filters = [Member.directory_state == state]
     if search:
         filters.append(or_(Member.name.icontains(search, autoescape=True),
                            Member.department.icontains(search, autoescape=True)))
@@ -62,7 +63,8 @@ def list_members(session, search='', status=None, role=None, page=1, page_size=2
 
 def active_admin_ids(session):
     return set(session.scalars(select(Member.id).join(MemberRole, MemberRole.user_id == Member.id)
-                              .where(Member.status == 'active', MemberRole.role == 'super_admin')))
+                              .where(Member.directory_state == 'enrolled',
+                                     Member.status == 'active', MemberRole.role == 'super_admin')))
 
 
 def write_change(session, member, roles, status, actor_id, action):
@@ -89,6 +91,8 @@ def patch_member(session, actor, member_id, body: MemberPatch):
     actor = get_member(session, actor.id)
     authorize_member(session, actor, 'members.manage')
     member = get_member(session, member_id)
+    if member.directory_state != 'enrolled':
+        raise HTTPException(409, '历史成员尚未核对，请通过明确申请及审批确认归属')
     if member.version != body.version:
         raise HTTPException(409, '成员已被修改，请刷新后重试')
     admins = active_admin_ids(session)

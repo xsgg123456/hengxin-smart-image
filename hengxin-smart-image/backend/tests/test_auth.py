@@ -34,7 +34,7 @@ def test_auth_me_fixed_identity_ignores_client_headers(files_env, monkeypatch):
         })
         assert response.status_code == 200
         assert response.json() == {'id': str(identity[0]), 'name': '测试操作者',
-                                  'role': 'operator', 'status': 'active'}
+                                  'role': 'operator', 'status': 'active', 'identitySessionId': None}
     finally:
         get_settings.cache_clear()
 

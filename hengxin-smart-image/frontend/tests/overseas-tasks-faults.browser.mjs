@@ -21,10 +21,10 @@ try {
     const req = route.request(), u = new URL(req.url()), p = u.pathname
     let status = 200, body = {}
     if (p.endsWith('/config')) body = { configured: true, corpId: 'test', clientId: 'test' }
-    else if (p === '/api/identity/v1/me') body = { name: '测试运营' }
+    else if (p === '/api/identity/v1/me') body = { name: '测试运营', sessionId: 'identity-test' }
     else if (p.endsWith('/tickets')) body = { ticket: 'test' }
-    else if (p === '/api/v1/auth/identity/session') status = 403
-    else if (p.includes('/auth/')) body = { id: 'actor', name: '测试运营', status: 'active', roles: ['operator', 'design_manager'], capabilities: caps }
+    else if (p === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
+    else if (p.includes('/auth/')) { body = { id: 'actor', name: '测试运营', identitySessionId: 'identity-test', status: 'active', roles: ['super_admin'], capabilities: caps }; if (p.endsWith('/access')) body = { state: 'allowed', member: body } }
     else if (p.endsWith('/jobs')) body = { items: [] }
     else if (p.endsWith('/execution-events')) body = { items: [], cursor: Number(u.searchParams.get('after')) }
     else if (p.endsWith('/task-designers')) {

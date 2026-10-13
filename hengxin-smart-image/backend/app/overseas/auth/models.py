@@ -16,6 +16,8 @@ class Member(Timestamps, Base):
     __table_args__ = (
         UniqueConstraint('corp_id', 'provider_user_id', name='uq_overseas_member_identity'),
         CheckConstraint("status IN ('active','pending','disabled')"),
+        CheckConstraint("directory_state IN ('enrolled','legacy_unconfirmed')",
+                        name='ck_overseas_members_directory_state'),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     corp_id: Mapped[str] = mapped_column(String(200))
@@ -25,6 +27,7 @@ class Member(Timestamps, Base):
     department: Mapped[str] = mapped_column(String(200), default='')
     status: Mapped[str] = mapped_column(String(20), default='pending')
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    directory_state: Mapped[str] = mapped_column(String(32), default='enrolled', server_default='enrolled')
 
 
 class MemberRole(Timestamps, Base):

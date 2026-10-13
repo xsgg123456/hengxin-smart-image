@@ -13,7 +13,7 @@ spec.loader.exec_module(p)
 @pytest.fixture
 def package_files():
     files = {name: b'' for name in p.REQUIRED}
-    files['frontend/package.json'] = json.dumps({'version': '0.2.28'}).encode()
+    files['frontend/package.json'] = json.dumps({'version': '0.2.29'}).encode()
     files['frontend/dist/index.html'] = b'<html><script src="/assets/main.js"></script></html>'
     files['frontend/dist/assets/main.js'] = b'console.log(1)'
     return files
@@ -27,12 +27,16 @@ def test_allowlist_covers_runtime_and_only_explicit_non_python_resources():
                  'backend/tests/test_overseas_management.py'):
         assert p.selected(p.APP + path) == path
     assert p.selected('scripts/release/overseas-runtime.py')
+    assert p.selected('scripts/release/member-release-deploy.py')
+    for name in p.MAINTENANCE:
+        assert p.selected('scripts/maintenance/' + name)
     for path in ('backend/.env', 'backend/app/.env.py', 'backend/app/private.db',
                  'backend/app/key.pem', 'frontend/src/main.ts', 'frontend/dist/index.html',
                  'infra/.env.overseas.example', 'backend/app/../secrets.py'):
         assert p.selected(p.APP + path) is None
     for path in ('scripts/release/management-deploy.py', 'scripts/release/overseas.env',
-                 'scripts/release/overseas/x.py', 'output/auth.json', '.codex/sessions/a.jsonl'):
+                 'scripts/release/overseas/x.py', 'output/auth.json', '.codex/sessions/a.jsonl',
+                 'scripts/maintenance/private.json', 'scripts/maintenance/approved-list.json'):
         assert p.selected(path) is None
 
 
@@ -133,6 +137,20 @@ def test_build_requires_clean_tree_before_review(monkeypatch, tmp_path):
         p.build(tmp_path)
 
 
+def test_packaged_maintenance_commands_have_complete_import_dependencies(tmp_path):
+    import subprocess
+    import sys
+
+    source = Path(__file__).resolve().parents[1] / 'maintenance'
+    for name in p.MAINTENANCE:
+        (tmp_path / name).write_bytes((source / name).read_bytes())
+    for command in ('audit-business-members.py', 'reconcile-business-members.py'):
+        result = subprocess.run([sys.executable, str(tmp_path / command), '--help'],
+                                cwd=tmp_path, capture_output=True)
+        assert result.returncode == 0, result.stderr.decode(errors='replace')
+        assert b'--database-url-env' in result.stdout
+
+
 def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, package_files):
     import hashlib
     import tarfile
@@ -169,9 +187,9 @@ def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, 
     assert audit['archiveVerified'] is True
     with tarfile.open(output / 'release.tar.gz', 'r:gz') as archive:
         manifest = json.load(archive.extractfile('release.json'))
-        assert manifest['migration'] == '0027'
-        assert manifest['overseasMigration'] == 'overseas_0013'
-        assert manifest['frontendVersion'] == '0.2.28'
+        assert manifest['migration'] == '0028'
+        assert manifest['overseasMigration'] == 'overseas_0014'
+        assert manifest['frontendVersion'] == '0.2.29'
         assert manifest['candidateId'] == 'reviewed-candidate'
         assert manifest['commit'] == commit
         for name, digest in manifest['files'].items():

@@ -4,10 +4,13 @@ import { createRequest } from './hengxin/http'
 import { noContent } from './hengxin/validate'
 import * as catalogGuard from './hengxin/validate-skill-catalog'
 import * as guard from './hengxin/validate-management'
+import { isApplication, isApplicationPage } from './identity/applications'
 export function createHttpManagement(baseUrl: string, fetcher: typeof fetch = fetch): ManagementService {
   const request = createRequest(baseUrl, fetcher)
   const queryString = (q: object) => { const p = new URLSearchParams(); Object.entries(q).forEach(([k, v]) => { if (v !== undefined) p.set(k, String(v)) }); return p.toString() }
   return {
+    listApplications: q => request(`/management/users/applications?${queryString(q)}`, isApplicationPage),
+    decideApplication: (id, input) => request(`/management/users/applications/${encodeURIComponent(id)}/decision`, isApplication, 'POST', input, 10000, { 'X-HX-Request': '1' }),
     listSkillCatalog: mode => request(`/skill-catalog${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, catalogGuard.catalogList),
     listManagedCatalog: () => request('/management/skill-catalog', catalogGuard.catalogList),
     syncSkillCatalog: () => request('/management/skill-catalog/sync', catalogGuard.syncAccepted, 'POST'),
@@ -33,6 +36,8 @@ export function createHttpManagement(baseUrl: string, fetcher: typeof fetch = fe
   }
 }
 export const managementApi: ManagementService = {
+  listApplications: async q => (await getService()).listApplications(q),
+  decideApplication: async (id, input) => (await getService()).decideApplication(id, input),
   listSkillCatalog: async (mode) => (await getService()).listSkillCatalog(mode),
   listManagedCatalog: async () => (await getService()).listManagedCatalog(),
   syncSkillCatalog: async () => (await getService()).syncSkillCatalog(),

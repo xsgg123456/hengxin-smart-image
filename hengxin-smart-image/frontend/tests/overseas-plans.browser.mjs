@@ -17,10 +17,10 @@ try {
   await context.route(`${base}/api/**`, async route => {
     const req = route.request(), p = new URL(req.url()).pathname; let body = {}, code = 200
     if (p.endsWith('/config')) body = { configured: true, corpId: 'test', clientId: 'test' }
-    else if (p === '/api/identity/v1/me') body = { name: '测试' }
+    else if (p === '/api/identity/v1/me') body = { name: '测试', sessionId: 'identity-test' }
     else if (p.endsWith('/tickets')) body = { ticket: 'test' }
-    else if (p === '/api/v1/auth/identity/session') code = 403
-    else if (p.includes('/auth/')) body = { id: 'actor', name: '测试', status: 'active', roles: ['designer'], capabilities: caps }
+    else if (p === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
+    else if (p.includes('/auth/')) { body = { id: 'actor', name: '测试', identitySessionId: 'identity-test', status: 'active', roles: ['designer'], capabilities: caps }; if (p.endsWith('/access')) body = { state: 'allowed', member: body } }
     else if (p.endsWith('/execution-events')) body = { items: events > Number(new URL(req.url()).searchParams.get('after')) ? [{ id: events, jobId: 'j1', status: 'succeeded', message: '分析完成', createdAt: '2026-10-12' }] : [], cursor: events }
     else if (p.endsWith('/jobs')) body = { items: [] }
     else if (p.endsWith('/materials')) body = []

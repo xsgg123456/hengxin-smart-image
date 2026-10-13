@@ -2,14 +2,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createOverseasRevalidator } from '../src/api/identity/revalidate'
 import { IdentityError, type Member } from '../src/api/identity/auth'
-const member: Member = { id: 'one', name: '成员', status: 'active', roles: ['operator'], capabilities: ['task.create'] }
+const member: Member = { id: 'one', name: '成员', status: 'active', identitySessionId: 'identity-1', roles: ['operator'], capabilities: ['task.create'] }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
 
 test('focus和visible并发只核验一次；核验前不替换成员及页面状态', async () => {
   const wait = deferred<Member>(), state = { member, draft: '未保存内容', pending: false }
   let identities = 0, members = 0, accepted = 0
   const check = createOverseasRevalidator({
-    identity: async () => { identities++; return { name: member.name } },
+    identity: async () => { identities++; return { name: member.name, sessionId: member.identitySessionId } },
     member: () => { members++; return wait.promise },
     accept: current => { state.member = current; accepted++ }, reject: assert.fail,
     pending: value => { state.pending = value }
@@ -18,19 +18,19 @@ test('focus和visible并发只核验一次；核验前不替换成员及页面�
   assert.equal(first, second); assert.equal(state.pending, true)
   assert.equal(state.member, member); assert.equal(state.draft, '未保存内容'); assert.equal(accepted, 0)
   wait.resolve({ ...member }); await first
-  assert.equal(identities, 1); assert.equal(members, 1); assert.equal(accepted, 1)
+  assert.equal(identities, 2); assert.equal(members, 1); assert.equal(accepted, 1)
   assert.equal(state.pending, false); assert.equal(state.draft, '未保存内容')
 })
 for (const status of [401,403,503]) test(`重验${status}拒绝旧身份且解除等待`, async () => {
   let accepted = false, rejected: unknown, pending = false
   const reason = new IdentityError(status, 'failed')
-  const check = createOverseasRevalidator({ identity: async () => ({ name: member.name }), member: async () => { throw reason },
+  const check = createOverseasRevalidator({ identity: async () => ({ name: member.name, sessionId: member.identitySessionId }), member: async () => { throw reason },
     accept: () => { accepted = true }, reject: error => { rejected = error }, pending: value => { pending = value } })
   await check.run(); assert.equal(accepted, false); assert.equal(rejected, reason); assert.equal(pending, false)
 })
 test('退出或切换后晚返回的重验不得恢复旧账号', async () => {
   const wait = deferred<Member>(); let accepted = false, pending = false
-  const check = createOverseasRevalidator({ identity: async () => ({ name: member.name }), member: () => wait.promise,
+  const check = createOverseasRevalidator({ identity: async () => ({ name: member.name, sessionId: member.identitySessionId }), member: () => wait.promise,
     accept: () => { accepted = true }, reject: assert.fail, pending: value => { pending = value } })
   const run = check.run(); await Promise.resolve(); check.invalidate(); wait.resolve(member); await run
   assert.equal(accepted, false); assert.equal(pending, false)
@@ -38,7 +38,19 @@ test('退出或切换后晚返回的重验不得恢复旧账号', async () => {
 test('真实换号和撤权返回服务端新身份，不复用旧权限', async () => {
   let current = member
   const changed = { ...member, id: 'two', roles: ['designer'], capabilities: ['task.read'] }
-  const check = createOverseasRevalidator({ identity: async () => ({ name: changed.name }), member: async () => changed,
+  const check = createOverseasRevalidator({ identity: async () => ({ name: changed.name, sessionId: changed.identitySessionId }), member: async () => changed,
     accept: value => { current = value }, reject: assert.fail, pending: () => {} })
   await check.run(); assert.equal(current.id, 'two'); assert.deepEqual(current.capabilities, ['task.read'])
+})
+test('同名不同统一身份不能接受旧业务会话', async () => {
+  let accepted = false, rejected: unknown
+  const check = createOverseasRevalidator({ identity: async () => ({ name: member.name, sessionId: 'identity-2' }), member: async () => member,
+    accept: () => { accepted = true }, reject: reason => { rejected = reason }, pending: () => {} })
+  await check.run(); assert.equal(accepted, false); assert.ok(rejected instanceof IdentityError && rejected.status === 401)
+})
+test('业务响应返回时统一身份已换号，迟到的同名旧资料不得回填', async () => {
+  let probes = 0, accepted = false, rejected: unknown
+  const check = createOverseasRevalidator({ identity: async () => ({ name: member.name, sessionId: ++probes === 1 ? member.identitySessionId : 'identity-new' }), member: async () => member,
+    accept: () => { accepted = true }, reject: reason => { rejected = reason }, pending: () => {} })
+  await check.run(); assert.equal(probes, 2); assert.equal(accepted, false); assert.ok(rejected instanceof IdentityError && rejected.status === 401)
 })

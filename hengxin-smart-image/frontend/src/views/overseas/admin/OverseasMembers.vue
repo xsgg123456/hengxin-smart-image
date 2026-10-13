@@ -5,6 +5,10 @@
         <p>{{ adapter.preview ? '配置仅用于本地管理交互预览。' : '成员身份来自企业钉钉，姓名只读；每位成员仅分配一个海外角色。' }}</p></div>
       <ElButton v-if="adapter.preview" type="primary" @click="edit()">新增成员</ElButton>
     </div>
+    <ElTabs v-model="directory"><ElTabPane label="成员" name="members" /><ElTabPane v-if="applicationAdapter" label="加入申请" name="applications" /><ElTabPane v-if="!adapter.preview" label="历史待核对" name="legacy" /></ElTabs>
+    <MembershipApplications v-if="directory === 'applications' && applicationAdapter" :adapter="applicationAdapter" business-name="海外" :roles="memberRoles" @changed="emit('changed')" @failure="failure" />
+    <template v-else>
+    <ElAlert v-if="directory === 'legacy'" title="历史来源尚未确认，仅供核对；需本人明确申请并审批，普通编辑不能授权。" type="info" :closable="false" class="hx-gap" />
     <div class="hx-filter">
       <ElInput v-model="query.search" class="hx-search" placeholder="搜索姓名" maxlength="100" clearable aria-label="搜索成员" @change="filter" />
       <ElSelect v-model="query.status" clearable placeholder="全部状态" aria-label="成员状态筛选" style="width: 150px" @change="filter"><ElOption v-for="(label,key) in statuses" :key="key" :value="key" :label="label" /></ElSelect>
@@ -16,10 +20,11 @@
     <ArtTable height="auto" empty-height="280px" :data="rows" :columns="columns" :loading="loading" :show-table-header="false" :show-pagination="false" empty-text="暂无符合条件的海外成员">
       <template #roles="{ row }">{{ row.roles.map((r: MemberRole) => memberRoles[r]).join('、') || '待授权' }}</template>
       <template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as MemberStatus] }}</ElTag></template>
-      <template #action="{ row }"><ElButton text type="primary" :disabled="loading || saving || !!error" @click="edit(row)">编辑</ElButton><ElButton v-if="adapter.preview" text :disabled="loading" @click="toggle(row)">{{ row.status === 'active' ? '禁用' : '启用' }}</ElButton><ElButton v-if="adapter.remove" text type="danger" @click="remove(row)">删除</ElButton></template>
+      <template #action="{ row }"><span v-if="directory === 'legacy'" class="hx-muted">仅供核对</span><template v-else><ElButton text type="primary" :disabled="loading || saving || !!error" @click="edit(row)">编辑</ElButton><ElButton v-if="adapter.preview" text :disabled="loading" @click="toggle(row)">{{ row.status === 'active' ? '禁用' : '启用' }}</ElButton><ElButton v-if="adapter.remove" text type="danger" @click="remove(row)">删除</ElButton></template></template>
     </ArtTable>
-    <div class="hx-filter hx-gap"><span>共 {{ total }} 位成员</span><ElPagination :current-page="query.page" :page-size="query.pageSize" :total="total" layout="prev, pager, next" :disabled="loading" @current-change="pageChanged" />
+    <div class="hx-filter hx-gap"><span>{{ loading ? '正在读取…' : `共 ${total} ${directory === 'legacy' ? '条待核对记录' : '位成员'}` }}</span><ElPagination :current-page="query.page" :page-size="query.pageSize" :total="total" layout="prev, pager, next" :disabled="loading" @current-change="pageChanged" />
       <ElSelect v-model="query.pageSize" aria-label="每页成员数" style="width: 110px" @change="filter"><ElOption v-for="size in [20,50,100]" :key="size" :value="size" :label="`${size}条/页`" /></ElSelect></div>
+    </template>
   </ElCard>
   <ElDialog v-model="open" :title="form.id ? '编辑海外成员' : '新增海外成员'" width="min(480px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
     <ElForm label-position="top" @submit.prevent="save">
@@ -32,13 +37,17 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import { memberRoles, type MembersAdapter, type OverseasMember, type MemberRole, type MemberStatus } from '@/api/overseas/members'
 import { IdentityError } from '@/api/identity/auth'
+import MembershipApplications from '@/views/auth/MembershipApplications.vue'
+import type { ApplicationsAdapter } from '@/api/identity/applications'
 const props = defineProps<{ adapter: MembersAdapter }>()
 const emit = defineEmits<{ changed: []; failure: [reason: unknown] }>()
+const directory = ref<'members' | 'applications' | 'legacy'>('members')
+const applicationAdapter = computed<ApplicationsAdapter | undefined>(() => props.adapter.listApplications && props.adapter.decideApplication ? { listApplications: q => props.adapter.listApplications!(q), decideApplication: (id, input) => props.adapter.decideApplication!(id, input) } : undefined)
 const query = reactive({ search: '', status: '', role: '', page: 1, pageSize: 20 })
 const rows = ref<OverseasMember[]>([]), total = ref(0), loading = ref(false), saving = ref(false)
 const open = ref(false), error = ref(''), formError = ref(''), conflict = ref(false)
@@ -52,21 +61,25 @@ function failure(reason: unknown) {
   if (!active) return
   error.value = reason instanceof Error ? reason.message : '成员加载失败，请重试'
   rows.value = []; total.value = 0; open.value = false
-  emit('failure', reason)
+  if (reason instanceof IdentityError && [401, 403].includes(reason.status)) emit('failure', reason)
 }
 async function load() {
   const epoch = ++generation
-  loading.value = true; error.value = ''; rows.value = []
-  try { const result = await props.adapter.list({ ...query }); if (active && epoch === generation) { rows.value = result.items; total.value = result.total } }
+  rows.value = []; open.value = false
+  if (directory.value === 'applications') { loading.value = false; return }
+  loading.value = true; error.value = ''
+  try { const result = await props.adapter.list({ ...query, directory: directory.value }); if (active && epoch === generation) { rows.value = result.items; total.value = result.total } }
   catch (reason) { if (epoch === generation) failure(reason) }
   finally { if (active && epoch === generation) loading.value = false }
 }
 function filter() { query.page = 1; void load() }
+watch(directory, filter)
 function pageChanged(page: number) { query.page = page; void load() }
 async function edit(member?: OverseasMember) {
-  if (loading.value || saving.value) return
+  if (loading.value || saving.value || directory.value === 'legacy' || member?.directoryState === 'legacy_unconfirmed') return
+  const epoch = generation
   saving.value = true; formError.value = ''; conflict.value = false
-  try { const value = member ? await props.adapter.get(member.id) : blank(); if (!active) return; Object.assign(form, value, { roles: [...value.roles] }); originalStatus = value.status; open.value = true }
+  try { const value = member ? await props.adapter.get(member.id) : blank(); if (!active || epoch !== generation) return; Object.assign(form, value, { roles: [...value.roles] }); originalStatus = value.status; open.value = true }
   catch (reason) { failure(reason) } finally { saving.value = false }
 }
 async function refreshEdit() { await edit({ ...form }); }

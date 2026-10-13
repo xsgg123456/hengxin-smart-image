@@ -27,10 +27,10 @@ try {
     const r=route.request(),u=new URL(r.url()),p=u.pathname
     let body={},status=200
     if(p.endsWith('/config')) body={configured:true,corpId:'test',clientId:'test'}
-    else if(p==='/api/identity/v1/me') body={name:'测试用户'}
+    else if(p==='/api/identity/v1/me') body={name:'测试用户',sessionId:'identity-test'}
     else if(p.endsWith('/tickets')) body={ticket:'test'}
-    else if(p==='/api/v1/auth/identity/session') status=403
-    else if(p.includes('/auth/')) body={id:'actor',name:'测试用户',status:'active',roles:[role],capabilities:caps}
+    else if(p==='/api/v1/auth/identity/access') body={state:'unregistered'}
+    else if(p.includes('/auth/')) { body={id:'actor',name:'测试用户',identitySessionId:'identity-test',status:'active',roles:[role],capabilities:caps}; if(p.endsWith('/access'))body={state:'allowed',member:body} }
     else if(p.endsWith('/management/usage')) {
       if(mode==='error'){await route.abort();return} body=summary
     } else if(p.endsWith('/management/jobs')){

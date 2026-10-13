@@ -93,7 +93,7 @@ def test_exchange_auth_code_maps_profile_and_rejects_other_enterprise(monkeypatc
         dingtalk.exchange_auth_code('one-time-code', settings)
 
 
-def test_new_member_is_pending_and_does_not_receive_a_session(files_env, monkeypatch):
+def test_new_member_is_not_registered_and_does_not_receive_a_session(files_env, monkeypatch):
     _, factory, _, _ = files_env
     settings = provider_settings(dingtalk_admin_user_id='admin-member')
     monkeypatch.setattr(dingtalk, 'get_settings', lambda: settings)
@@ -102,7 +102,8 @@ def test_new_member_is_pending_and_does_not_receive_a_session(files_env, monkeyp
         with pytest.raises(dingtalk.DingTalkAccountError) as error:
             dingtalk.authenticate_member(session, member)
         assert error.value.code == 'AUTH_PENDING'
-        assert session.query(UserRecord).filter_by(identity_source='dingtalk').count() == 1
+        assert session.query(UserRecord).filter_by(identity_source='dingtalk').count() == 0
+        assert session.query(UserIdentityRecord).count() == 0
 
 
 def test_configured_admin_member_is_activated_without_first_login_promotion(files_env, monkeypatch):
@@ -113,11 +114,20 @@ def test_configured_admin_member_is_activated_without_first_login_promotion(file
     monkeypatch.setattr(dingtalk, 'get_settings', lambda: settings)
     member = dingtalk.DingTalkMember('admin-member', '管理员', None, '', 'corp-1')
     with factory.begin() as session:
+        from app.membership.service import access
+        from app.modules.auth import membership
+        from app.modules.auth.application_models import MemberAudit
+        assertion = {'member': {'corp_id': 'corp-1', 'provider_user_id': 'admin-member'},
+                     'identity_session_id': 'explicit-bootstrap'}
+        assert access(session, membership, assertion)['state'] == 'unregistered'
+        assert session.query(UserRecord).filter_by(identity_source='dingtalk').count() == 0
         user, token = dingtalk.authenticate_member(session, member)
         assert token
         assert (user.role, user.status) == ('super_admin', 'active')
         identity = session.query(UserIdentityRecord).filter_by(provider_user_id='admin-member').one()
         assert identity.corp_id == 'corp-1'
+        assert session.query(membership.Application).count() == 0
+        assert session.query(MemberAudit).one().action == 'bootstrap'
 
 
 def test_each_configured_initial_admin_is_activated(files_env, monkeypatch):
@@ -237,3 +247,36 @@ def test_container_login_uses_jsapi_code_exchange(files_env, monkeypatch):
     assert response.json()['name'] == '管理员'
     assert calls == ['jsapi-code']
     assert any('HttpOnly' in value for value in response.headers.get_list('set-cookie'))
+
+
+def test_old_container_unknown_identity_has_no_implicit_registration(files_env, monkeypatch):
+    client, factory, _, identity = files_env
+    from app.modules.auth.sessions import issue_session, SESSION_COOKIE, resolve_session
+    from app.modules.auth.application_models import MembershipApplication
+    monkeypatch.setattr(dingtalk, 'get_settings', lambda: provider_settings())
+    monkeypatch.setattr(dingtalk, 'exchange_container_code', lambda code:
+        dingtalk.DingTalkMember('unknown', '同名员工', None, '', 'corp-1'))
+    with factory.begin() as session:
+        token = issue_session(session, identity[0])
+    client.cookies.set(SESSION_COOKIE, token)
+    assert client.post('/api/v1/auth/dingtalk/container', json={'code': 'code'}).status_code == 403
+    with factory() as session:
+        assert session.query(UserRecord).count() == 1
+        assert session.query(UserIdentityRecord).count() == 0
+        assert session.query(MembershipApplication).count() == 0
+        assert resolve_session(session, token) is None
+
+
+def test_explicit_domestic_bootstrap_never_repromotes_disabled_user(files_env, monkeypatch):
+    _, factory, _, _ = files_env
+    settings = provider_settings(dingtalk_admin_user_id='admin-member')
+    monkeypatch.setattr(dingtalk, 'get_settings', lambda: settings)
+    member = dingtalk.DingTalkMember('admin-member', '管理员', None, '', 'corp-1')
+    with factory.begin() as session:
+        user, _ = dingtalk.authenticate_member(session, member)
+        user_id = user.id
+        user.status = 'disabled'
+    with factory.begin() as session, pytest.raises(dingtalk.DingTalkAccountError):
+        dingtalk.authenticate_member(session, member)
+    with factory() as session:
+        assert session.get(UserRecord, user_id).status == 'disabled'

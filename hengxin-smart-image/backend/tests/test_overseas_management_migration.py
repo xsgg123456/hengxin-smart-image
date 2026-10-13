@@ -20,8 +20,11 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
     engine = create_engine(overseas)
     try:
         with engine.begin() as connection:
-            connection.execute(Member.__table__.insert().values(id=actor, corp_id='legacy',
-                provider_user_id='legacy', name='legacy', status='active'))
+            # Seed the historical schema without importing today's additional columns.
+            connection.execute(Table('overseas_members', MetaData(), autoload_with=connection).insert().values(
+                id=actor, corp_id='legacy', provider_user_id='legacy', name='legacy', status='active',
+                department='', version=1, created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)))
             connection.execute(MemberRole.__table__.insert().values(user_id=actor, role='designer'))
             connection.execute(Table('overseas_tasks', MetaData(), autoload_with=connection).insert().values(id=task, name='legacy', product_name='p',
                 brand='b', market='US', platform='Amazon', created_by=actor, designer_id=actor,
@@ -44,6 +47,8 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
             assert after[1][name] == [(*row, None) for row in rows]
         elif name == 'overseas_tasks':
             assert after[1][name] == [(*row, False, None, 'legacy') for row in rows]
+        elif name == 'overseas_members':
+            assert after[1][name] == [(*row, 'enrolled') for row in rows]
         elif name != 'overseas_alembic_version':
             assert after[1][name] == rows
     engine = create_engine(overseas)

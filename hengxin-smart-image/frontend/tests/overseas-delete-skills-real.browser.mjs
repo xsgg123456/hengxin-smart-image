@@ -20,7 +20,7 @@ async function call(context, method, path, data) {
 async function login(code = 'p18-admin') {
   const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, acceptDownloads: true })
   const auth = await context.request.post(`${base}/api/identity/v1/dingtalk/container`, { headers, data: { code } }); assert.equal(auth.status(), 200)
-  const ticket = await context.request.post(`${base}/api/identity/v1/tickets`, { headers, data: { business: 'overseas' } }); assert.equal(ticket.status(), 200)
+  const ticket = await context.request.post(`${base}/api/identity/v1/tickets`, { headers, data: { business: 'overseas', purpose: 'session' } }); assert.equal(ticket.status(), 200)
   await call(context, 'post', '/auth/identity/session', await ticket.json())
   const page = await context.newPage(); page.setDefaultTimeout(20000); page.on('pageerror', error => errors.push(error.message))
   return { context, page }

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import json
 from fastapi import HTTPException
 from app.identity.tokens import hash_token, new_token, utcnow, is_expired
-from app.identity.schemas import Member
+from app.identity.schemas import Member, TicketPurpose
 from pydantic import ValidationError
 
 PREFIX = 'hx:identity:'
@@ -54,14 +54,14 @@ class IdentityStore:
         if sid:
             self.redis.delete(PREFIX + 'session:' + sid)
 
-    def ticket(self, record, business):
+    def ticket(self, record, business, purpose: TicketPurpose = 'session'):
         ticket = new_token()
-        self.redis.set(PREFIX + 'ticket:' + business + ':' + hash_token(ticket),
+        self.redis.set(PREFIX + 'ticket:' + business + ':' + purpose + ':' + hash_token(ticket),
                        record['identity_session_id'], ex=60)
         return ticket
 
-    def redeem(self, ticket, business):
-        sid = self.redis.getdel(PREFIX + 'ticket:' + business + ':' + hash_token(ticket))
+    def redeem(self, ticket, business, purpose: TicketPurpose = 'session'):
+        sid = self.redis.getdel(PREFIX + 'ticket:' + business + ':' + purpose + ':' + hash_token(ticket))
         if isinstance(sid, bytes):
             sid = sid.decode()
         record = self.by_id(sid) if sid else None

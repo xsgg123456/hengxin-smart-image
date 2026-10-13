@@ -112,12 +112,12 @@ def test_pending_disabled_and_roleless_member_cannot_create_session(overseas, st
         assert session.scalar(select(BusinessSession)) is None
 
 
-def test_unknown_member_registered_pending_without_domestic_admin_promotion(overseas, monkeypatch):
+def test_unknown_member_not_registered_or_promoted_by_domestic_configuration(overseas, monkeypatch):
     client, factory, _ = overseas
     monkeypatch.setenv('DINGTALK_ADMIN_USER_IDS', 'member-1')
     assert login(client).status_code == 403
     with factory() as session:
-        assert session.scalar(select(Member)).status == 'pending'
+        assert session.scalar(select(Member)) is None
         assert session.scalar(select(MemberRole)) is None
         assert session.scalar(select(BusinessSession)) is None
 

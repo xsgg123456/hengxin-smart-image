@@ -25,20 +25,21 @@ const flush = async () => { for (let i = 0; i < 10; i++) { await Promise.resolve
 for (const failure of [0,401,403,503]) test(`真实IdentityPortal组件重验：${failure || '同身份保留草稿'}，含挂body弹层锁定`, async () => {
   const win = Object.assign(new EventTarget(), { location: { hash: '#/overseas/admin/users' } })
   const doc = Object.assign(new EventTarget(), { visibilityState: 'visible', body: { inert: false } })
-  const person: Member = { id: 'one', name: '测试成员', status: 'active', roles: ['super_admin'], capabilities: ['members.manage'] }
+  const person: Member = { id: 'one', name: '测试成员', status: 'active', identitySessionId: 'identity-1', roles: ['super_admin'], capabilities: ['members.manage'] }
   let mounted = 0, unmounted = 0, pending = false, checks = 0
   let finish!: () => void
   const draft = Vue.ref('未保存内容')
   const child = Vue.defineComponent({ setup() { Vue.onMounted(() => { mounted++ }); Vue.onUnmounted(() => { unmounted++ }); return () => Vue.h('input', { value: draft.value }) } })
   const empty = Vue.defineComponent({ render: () => Vue.h('span') })
   const api = {
-    config: async () => ({ configured: true }), me: async () => { checks++; return { name: person.name } },
+    config: async () => ({ configured: true }), me: async () => { checks++; return { name: person.name, sessionId: person.identitySessionId } },
     access: async () => ({ state: 'allowed', member: person }),
     overseasMe: async () => { if (pending) await new Promise<void>(resolve => { finish = resolve }); if (failure && pending) throw new IdentityError(failure, 'denied'); return person }
   }
   const module = { exports: {} as { default: Vue.Component } }
   const require = (name: string): unknown => {
     if (name === 'vue') return Vue
+    if (name === 'element-plus') return { ElMessage: { success: () => {} }, ElMessageBox: { confirm: async () => {}, close: () => {} } }
     if (name.endsWith('/revalidate')) return { createOverseasRevalidator }
     if (name.endsWith('/auth')) return { identityApi: api, IdentityError }
     if (name.endsWith('/container-auth')) return { requestContainerAuthCode: async () => '' }
@@ -57,7 +58,7 @@ for (const failure of [0,401,403,503]) test(`真实IdentityPortal组件重验：
   win.dispatchEvent(new Event('focus')); doc.dispatchEvent(new Event('visibilitychange')); await flush()
   assert.equal(doc.body.inert, true, 'body弹层必须一同锁定')
   assert.equal(mounted, 1); assert.equal(unmounted, 0, '不能先卸载再重建业务页')
-  assert.equal(checks, 2, '初始加载+一次去重核验')
+  assert.equal(checks, 4, '初始加载及准入/页面确认+一次去重核验')
   finish(); await flush()
   assert.equal(doc.body.inert, false)
   assert.equal(win.location.hash, '#/overseas/admin/users')

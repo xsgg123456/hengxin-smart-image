@@ -14,7 +14,7 @@ const task=()=>({id:taskId,workflow:'studio',name,productName:'产品',brand:'HX
 const button=(label,scope=page)=>scope.getByRole('button',{name:label,exact:true})
 try {
   assert.equal((await context.request.post(`${base}/api/identity/v1/dingtalk/container`,{headers,data:{code:'p18-admin'}})).status(),200)
-  const ticket=await context.request.post(`${base}/api/identity/v1/tickets`,{headers,data:{business:'overseas'}})
+  const ticket=await context.request.post(`${base}/api/identity/v1/tickets`,{headers,data:{business:'overseas',purpose:'session'}})
   assert.equal((await context.request.post(`${base}/api/overseas/v1/auth/identity/session`,{headers,data:await ticket.json()})).status(),200)
   await context.route(`${base}/api/overseas/v1/tasks**`,async route=>{
     const request=route.request(),path=new URL(request.url()).pathname

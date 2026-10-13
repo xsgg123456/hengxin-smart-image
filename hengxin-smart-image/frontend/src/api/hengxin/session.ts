@@ -18,6 +18,7 @@ export function getPreviewUser(search = globalThis.location?.search ?? ''): User
   const role = previewRoles.find(item => item.value === value) ?? previewRoles[3]
   const scenario = getLoginScenario(search)
   return { id: `mock-${role.value.replaceAll('_', '-')}`, name: `模拟${role.label}`,
+    identitySessionId: null,
     role: scenario === 'pending' ? null : role.value,
     status: scenario === 'pending' ? 'pending' : scenario === 'disabled' ? 'disabled' : 'active' }
 }

@@ -12,6 +12,7 @@ get_settings()
 from app.overseas.health import router  # noqa: E402 - validate context before loading resources
 from app.overseas.auth.router import router as auth_router
 from app.overseas.members.router import router as members_router
+from app.overseas.members.application_router import router as application_router
 from app.overseas.tasks.router import router as tasks_router
 from app.overseas.materials.router import router as materials_router
 
@@ -22,6 +23,7 @@ app.add_middleware(HttpTimingMiddleware)
 
 app.include_router(router)
 app.include_router(auth_router)
+app.include_router(application_router)
 app.include_router(members_router)
 app.include_router(tasks_router)
 app.include_router(materials_router)

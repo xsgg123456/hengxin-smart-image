@@ -21,21 +21,24 @@ def get_identity_id(session_token: str | None = Cookie(default=None, alias=SESSI
 
 
 def get_current_user(identity_id=Depends(get_identity_id), session: Session = Depends(get_session)):
+    identity_session_id = None
     if isinstance(identity_id, str):
         auth_session = resolve_session(session, identity_id)
         if auth_session is None:
             raise HTTPException(401, '登录身份无效或已过期')
         require_identity_session(auth_session.identity_session_id)
+        identity_session_id = auth_session.identity_session_id
         identity_id = auth_session.user_id
     user = session.get(UserRecord, identity_id)
     if user is None:
         raise HTTPException(401, '登录身份无效')
     if get_settings().app_env == 'production' and user.identity_source == 'development':
         raise HTTPException(401, '开发身份不可用于生产')
-    if user.status != 'active' or user.role not in (
+    if user.directory_state != 'enrolled' or user.status != 'active' or user.role not in (
         'super_admin', 'design_manager', 'designer', 'operator',
     ):
         raise HTTPException(403, '账号未授权或已停用')
+    user.identity_session_id = identity_session_id
     return user
 
 

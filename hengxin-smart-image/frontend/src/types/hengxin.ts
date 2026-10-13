@@ -6,6 +6,7 @@ export type TaskState = '排队中' | '执行中' | '待查看' | '部分失败'
 export interface User {
   id: string
   name: string
+  identitySessionId: string | null
   role: Role | null
   status: 'pending' | 'active' | 'disabled'
 }

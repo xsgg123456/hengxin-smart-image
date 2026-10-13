@@ -30,7 +30,7 @@ test('版本冲突保留结构化detail；拒绝非法成员及分页响应', as
 })
 test('正式海外身份必须提供服务端能力，不从角色推导管理权限', async () => {
   await assert.rejects(createIdentityApi(async () => json({ id: '1', name: '成员', status: 'active', roles: ['super_admin'] })).overseasMe(), /响应格式错误/)
-  const value = await createIdentityApi(async () => json({ id: '1', name: '成员', status: 'active', roles: ['super_admin'], capabilities: [] })).overseasMe()
+  const value = await createIdentityApi(async () => json({ id: '1', name: '成员', status: 'active', identitySessionId: 'identity-1', roles: ['super_admin'], capabilities: [] })).overseasMe()
   assert.deepEqual(value.capabilities, [])
 })
 

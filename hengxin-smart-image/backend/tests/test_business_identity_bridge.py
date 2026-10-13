@@ -47,7 +47,9 @@ def test_unified_session_keeps_domestic_cookie_and_authorization(bridge):
     assert response.status_code == 200
     assert response.headers['set-cookie'].startswith('hx_session=')
     assert 'HttpOnly' in response.headers['set-cookie']
-    assert client.get('/api/v1/auth/me').status_code == 200
+    me = client.get('/api/v1/auth/me')
+    assert me.status_code == 200
+    assert response.json()['identitySessionId'] == me.json()['identitySessionId'] == 'identity-session-1'
     with factory() as session:
         record = session.scalar(select(AuthSessionRecord))
         assert record.identity_session_id == 'identity-session-1'
@@ -75,7 +77,9 @@ def test_pending_and_disabled_do_not_get_domestic_business_access(bridge):
     assert exchange(client).status_code == 403
     with factory() as session:
         assert session.scalar(select(AuthSessionRecord)) is None
-        assert session.scalar(select(UserRecord).where(UserRecord.status == 'pending')) is not None
+        assert session.scalar(select(UserRecord).where(UserRecord.status == 'pending')) is None
+        assert len(list(session.scalars(select(UserRecord)))) == 1
+        assert len(list(session.scalars(select(UserIdentityRecord)))) == 1
 
 
 def test_failed_exchange_and_untrusted_request_create_no_session(bridge, monkeypatch):

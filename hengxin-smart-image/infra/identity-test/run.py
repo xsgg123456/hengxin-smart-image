@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--phase25', action='store_true')
     parser.add_argument('--requirements', action='store_true')
     parser.add_argument('--delete-skills', action='store_true')
+    parser.add_argument('--members', action='store_true')
     parser.add_argument('--origin')
     args = parser.parse_args()
     args.requirements = args.requirements or args.delete_skills
@@ -32,7 +33,7 @@ def main():
     args.phase21 = args.phase21 or args.phase22
     args.phase20 = args.phase20 or args.phase21 or args.requirements
     phase = '25' if args.phase25 else '24' if args.phase24 else '23' if args.phase23 else '22' if args.phase22 else '21' if args.phase21 else '20' if args.phase20 else '19' if args.phase19 else '18' if args.phase18 else '17'
-    prefix = 'hx-p' + phase + '-' + secrets.token_hex(6)
+    prefix = 'hx-' + ('members' if args.members else 'p' + phase) + '-' + secrets.token_hex(6)
     names = []
     environment = {k: v for k, v in os.environ.items() if not k.startswith(
         ('IDENTITY_', 'OVERSEAS_', 'DATABASE_', 'REDIS_', 'MINIO_'))}
@@ -86,6 +87,7 @@ def main():
                         *(['--phase25'] if args.phase25 else []),
                         *(['--requirements'] if args.requirements else []),
                         *(['--delete-skills'] if args.delete_skills else []),
+                        *(['--members'] if args.members else []),
                         *(['--origin', args.origin] if args.origin else [])))
         if args.serve:
             print('LOCAL PORTS ' + docker('port', runner), flush=True)

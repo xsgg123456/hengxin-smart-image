@@ -54,7 +54,9 @@ def test_0009_upgrade_preserves_tasks_jobs_and_materials(disposable_databases):
             assert connection.execute(text('SELECT count(*) FROM overseas_jobs')).scalar_one() == 1
         after = snapshot(overseas)[1]
         for table in before:
-            if table not in ('overseas_alembic_version', 'overseas_tasks'):
+            if table == 'overseas_members':
+                assert after[table] == [(*row, 'enrolled') for row in before[table]]
+            elif table not in ('overseas_alembic_version', 'overseas_tasks'):
                 assert before[table] == after[table]
         assert snapshot(domestic) == domestic_before
     finally:

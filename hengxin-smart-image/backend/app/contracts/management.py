@@ -131,6 +131,7 @@ class ManagedUser(User):
 
 
 class UserQuery(PageQuery):
+    directory: Literal['members', 'legacy'] = 'members'
     status: Literal['pending', 'active', 'disabled'] = omitted()
     role: Role = omitted()
 

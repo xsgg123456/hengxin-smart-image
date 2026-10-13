@@ -13,7 +13,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.28'
+VERSION = '0.2.29'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -24,6 +24,9 @@ EXACT = m.EXACT | {
     'infra/nginx.zhitu.qhhengxin.top.conf',
 }
 SCRIPTS = {'management-runtime.py', 'image-inputs-worker.py'}
+MAINTENANCE = {'audit-business-members.py', 'reconcile-business-members.py', 'member_audit.py', 'member_catalog.py',
+               'member_codec.py', 'member_cli.py', 'member_reconcile.py', 'member_restore.py'}
+MEMBER_RELEASE = {'deploy', 'runtime', 'drain', 'backup', 'verify'}
 REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-deploy.py', 'scripts/release/overseas-runtime.py',
     'scripts/release/overseas-verify.py', 'scripts/release/overseas-services.py',
@@ -38,6 +41,9 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/migrations/overseas/versions/0011_single_member_role.py',
     'backend/migrations/overseas/versions/0012_studio.py',
     'backend/migrations/overseas/versions/0013_task_deletion_archives.py',
+    'backend/migrations/versions/0028_member_applications.py',
+    'backend/migrations/overseas/versions/0014_member_applications.py',
+    'scripts/release/member-release-deploy.py',
     'backend/app/overseas/tasks/cleanup.py',
     'backend/app/overseas/tasks/deletion.py',
     'backend/app/overseas/archives/snapshot.py',
@@ -47,7 +53,8 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/app/main.py', 'backend/app/identity/main.py',
     'backend/app/overseas/main.py', 'backend/app/overseas/execution/worker.py',
     'backend/app/overseas/execution/outbox.py',
-}
+} | {'scripts/maintenance/' + name for name in MAINTENANCE} | {
+    'scripts/release/member-release-' + name + '.py' for name in MEMBER_RELEASE}
 
 
 def selected(path):
@@ -62,8 +69,10 @@ def selected(path):
     prefix = 'scripts/release/'
     if path.startswith(prefix):
         name = path[len(prefix):]
-        if '/' not in name and (name in SCRIPTS or re.fullmatch(r'overseas[\w-]*\.py', name)):
+        if '/' not in name and (name in SCRIPTS or re.fullmatch(r'(?:overseas|member-release)[\w-]*\.py', name)):
             return path
+    if path.startswith('scripts/maintenance/') and path.removeprefix('scripts/maintenance/') in MAINTENANCE:
+        return path
     return None
 
 
@@ -167,7 +176,7 @@ def build(repo):
     validate(files)
     release = 'overseas-20261013-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0027', overseasMigration='overseas_0013', frontendVersion=VERSION,
+                    migration='0028', overseasMigration='overseas_0014', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

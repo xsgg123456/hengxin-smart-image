@@ -28,10 +28,10 @@ try {
     calls.push(path)
     let status = 200, body = {}
     if (path.endsWith('/config')) body = { configured: true, corpId: 'test', clientId: 'test' }
-    else if (path === '/api/identity/v1/me') body = { name: '测试管理员' }
+    else if (path === '/api/identity/v1/me') body = { name: '测试管理员', sessionId: 'identity-test' }
     else if (path.endsWith('/tickets')) body = { ticket: 'test-ticket' }
-    else if (path === '/api/v1/auth/identity/session') status = 403
-    else if (path.includes('/auth/')) body = { id: 'actor', name: '测试管理员', status: 'active', roles: ['super_admin'], capabilities }
+    else if (path === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
+    else if (path.includes('/auth/')) { body = { id: 'actor', name: '测试管理员', status: 'active', identitySessionId: 'identity-test', roles: ['super_admin'], capabilities }; if (path.endsWith('/access')) body = { state: 'allowed', member: body } }
     else if (path === '/api/overseas/v1/members') {
       queries.push(Object.fromEntries(url.searchParams))
       if (delay) await new Promise(resolve => { release = resolve })
@@ -104,11 +104,11 @@ try {
   await page.setViewportSize({ width: 1280, height: 900 })
   mode = 'network'
   await page.getByRole('button', { name: '刷新成员', exact: true }).click()
-  await page.getByRole('button', { name: '重新连接', exact: true }).waitFor()
+  await page.getByRole('button', { name: '重试', exact: true }).waitFor()
   await unclipped(page.getByRole('alert').first())
   assert.equal(await page.getByText('海外测试成员', { exact: true }).count(), 0)
-  assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), 0)
-  mode = 'normal'; await page.getByRole('button', { name: '重新连接', exact: true }).click()
+  assert.equal(await page.getByRole('heading', { name: '海外成员目录', exact: true }).count(), 1, '短暂断网保留当前页面并允许重试')
+  mode = 'normal'; await page.getByRole('button', { name: '重试', exact: true }).click()
   await page.getByText('海外测试成员', { exact: true }).waitFor()
   for (const failure of ['403', '401']) {
     mode = failure
@@ -122,8 +122,8 @@ try {
   await page.getByRole('button', { name: '编辑', exact: true }).click()
   await page.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor()
   assert.equal(await page.getByRole('menuitem', { name: '管理中心', exact: true }).count(), 0)
-  assert.equal(calls.some(p => p.startsWith('/api/v1/') && !p.endsWith('/auth/identity/session')), false)
+  assert.equal(calls.some(p => p.startsWith('/api/v1/') && !p.endsWith('/auth/identity/access')), false)
   assert.deepEqual(errors, [])
   console.log('PASS：多角色/只读身份/冲突刷新/禁用确认/空态/窄屏/断网恢复/401/403/撤权与国内隔离')
-} catch (error) { console.error(await page.locator('body').innerText()); throw error }
+} catch (error) { console.error(JSON.stringify({ queries, calls })); console.error(await page.locator('body').innerText()); throw error }
 finally { release?.(); await context.close(); await browser.close() }

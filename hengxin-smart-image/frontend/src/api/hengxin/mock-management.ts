@@ -20,12 +20,12 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
     if (scenario === `${operation}-error` && !failures.has(operation)) { failures.add(operation); throw new ApiError('SIMULATED_FAILURE', '模拟请求失败，请重试', 503) }
     return user
   }
-  const users: ManagedUser[] = options.snapshot?.users ? copy(options.snapshot.users) : [
-    { id: 'mock-operator', name: '模拟运营', role: 'operator', status: 'active', department: '运营部', lastLoginAt: new Date().toISOString() },
-    { id: 'mock-design-manager', name: '模拟主管', role: 'design_manager', status: 'active', department: '设计部', lastLoginAt: null },
-    { id: 'mock-designer', name: '模拟设计', role: 'designer', status: 'active', department: '设计部', lastLoginAt: null },
-    { id: 'mock-super-admin', name: '模拟超管', role: 'super_admin', status: 'active', department: '管理部', lastLoginAt: null },
-    { id: 'mock-pending', name: '新成员', role: null, status: 'pending', department: '运营部', lastLoginAt: null }
+  const users: ManagedUser[] = options.snapshot?.users ? copy(options.snapshot.users).map(user => ({ ...user, identitySessionId: null })) : [
+    { id: 'mock-operator', name: '模拟运营', identitySessionId: null, role: 'operator', status: 'active', department: '运营部', lastLoginAt: new Date().toISOString() },
+    { id: 'mock-design-manager', name: '模拟主管', identitySessionId: null, role: 'design_manager', status: 'active', department: '设计部', lastLoginAt: null },
+    { id: 'mock-designer', name: '模拟设计', identitySessionId: null, role: 'designer', status: 'active', department: '设计部', lastLoginAt: null },
+    { id: 'mock-super-admin', name: '模拟超管', identitySessionId: null, role: 'super_admin', status: 'active', department: '管理部', lastLoginAt: null },
+    { id: 'mock-pending', name: '新成员', identitySessionId: null, role: null, status: 'pending', department: '运营部', lastLoginAt: null }
   ]
   let settings: ManagedSettings = options.snapshot?.settings ? copy(options.snapshot.settings) : { version: 1, capacity: 10, timeoutCapacity: 3600, concurrency: 1, timeoutSeconds: 600, maxUploadBytes: 10 * 1024 * 1024,
     defaultSkillIds: { wallpaper: skills.find(s => s.mode === 'wallpaper' && s.isDefault)?.id ?? null, product: skills.find(s => s.mode === 'product' && s.isDefault)?.id ?? null, text: skills.find(s => s.mode === 'text' && s.isDefault)?.id ?? null },
@@ -36,6 +36,8 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
   capture()
   const skillService = createSkillManagement(db, skills, check, { ...options, capture: state => options.capture?.(state) })
   const service: ManagementService & { snapshot: () => Partial<DemoState> } = {
+    async listApplications(query) { await check(true); return { items: [], total: 0, page: query.page, pageSize: query.pageSize } },
+    async decideApplication() { await check(true, 'save'); throw new ApiError('NOT_FOUND', '预览中暂无主动加入申请', 404) },
     ...skillService,
     ...createMockSkillCatalog(db, skills, check, options),
     getCatalogDefaults: () => service.getSkillDefaults(),
@@ -82,7 +84,7 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
     async listUsers(query) {
       await check(true)
       if (!Number.isInteger(query.page) || query.page < 1 || !Number.isInteger(query.pageSize) || query.pageSize < 1 || query.pageSize > 100) throw new ApiError('VALIDATION', '分页参数无效', 422)
-      const items = scenario === 'empty' ? [] : users.filter(u => (!query.search || `${u.name}${u.department}`.includes(query.search.trim())) && (!query.role || u.role === query.role) && (!query.status || u.status === query.status))
+      const items = scenario === 'empty' ? [] : users.filter(u => (query.directory === 'legacy' ? u.status === 'pending' : u.status !== 'pending') && (!query.search || `${u.name}${u.department}`.includes(query.search.trim())) && (!query.role || u.role === query.role) && (!query.status || u.status === query.status))
       return { items: copy(items.slice((query.page - 1) * query.pageSize, query.page * query.pageSize)), page: query.page, pageSize: query.pageSize, total: items.length }
     },
     async saveUser(input) {

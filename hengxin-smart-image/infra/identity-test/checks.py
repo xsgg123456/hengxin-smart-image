@@ -14,6 +14,7 @@ from uuid import uuid4
 import httpx
 from redis import Redis
 from sqlalchemy import create_engine, text
+from membership_checks import start_and_run as check_members
 
 DIRECTORY = Path(__file__).resolve().parent
 sys.path.insert(0, str(DIRECTORY.parents[1] / 'backend'))
@@ -98,8 +99,9 @@ def login(member='both'):
         assert 'HttpOnly' in cookie and 'Path=/api/identity/v1' in cookie and 'SameSite=lax' in cookie
         yield client
 
-def ticket(client, kind):
-    return expect(client.post(ID + PATH + '/tickets', json={'business': kind}), 200).json()['ticket']
+def ticket(client, kind, purpose='session'):
+    return expect(client.post(ID + PATH + '/tickets', json={
+        'business': kind, 'purpose': purpose}), 200).json()['ticket']
 
 def exchange(client, kind, value=None, status=200):
     response = client.post(''.join(BUSINESS[kind]) + '/identity/session',
@@ -133,7 +135,7 @@ def checks():
         exchange(client, 'domestic', value + 'tamper', 401)
         value = ticket(client, 'domestic')
         from hashlib import sha256
-        key = 'hx:identity:ticket:domestic:' + sha256(value.encode()).hexdigest()
+        key = 'hx:identity:ticket:domestic:session:' + sha256(value.encode()).hexdigest()
         assert 0 < REDIS.ttl(key) <= 60
         REDIS.pexpire(key, 1)
         time.sleep(.02)
@@ -224,7 +226,7 @@ def main():
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
                 from app.overseas.db import SCHEMA_REVISION
-                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0027'), version
+                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0028'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)
@@ -237,6 +239,8 @@ def main():
         start('overseas', 'app.overseas.main:app', 8009, environment('overseas'))
         checks()
         print('PASS ALL Phase 17 real HTTP integration', flush=True)
+        if '--members' in sys.argv:
+            check_members(sys.modules[__name__], identity_env)
         if any(flag in sys.argv for flag in ('--phase18', '--phase19', '--phase20')):
             start('identity', 'provider_app:app', 8010, identity_env)
             from phase18_fixtures import prepare
@@ -284,14 +288,8 @@ def main():
             phase25_validated = True
             print('PASS ALL Phase 25 cross-phase HTTP', flush=True)
         if '--serve' in sys.argv:
-            if PROCESSES['identity'].poll() is not None:
-                start('identity', 'provider_app:app', 8010, identity_env)
-            def stop(signum, frame):
-                raise SystemExit(0)
-            signal.signal(signal.SIGTERM, stop)
-            print('READY browser fixture codes: both domestic overseas neither', flush=True)
-            while True:
-                time.sleep(1)
+            from membership_checks import serve
+            serve(sys.modules[__name__], identity_env)
     finally:
         from shutdown import finish
         finish(PROCESSES, ENGINES, REDIS, restore_objects=phase25_validated)

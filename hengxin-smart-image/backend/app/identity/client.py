@@ -4,7 +4,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app.identity.schemas import IdentityGrant
+from app.identity.schemas import IdentityGrant, TicketPurpose
 
 
 def _post(service_url: str, service_key: str, path: str, body: dict) -> dict:
@@ -27,8 +27,9 @@ def _post(service_url: str, service_key: str, path: str, body: dict) -> dict:
         raise HTTPException(503, '统一身份服务暂不可用') from error
 
 
-def redeem_ticket(service_url: str, service_key: str, ticket: str) -> dict:
-    result = _post(service_url, service_key, 'redeem', {'ticket': ticket})
+def redeem_ticket(service_url: str, service_key: str, ticket: str,
+                  purpose: TicketPurpose = 'session') -> dict:
+    result = _post(service_url, service_key, 'redeem', {'ticket': ticket, 'purpose': purpose})
     try:
         return IdentityGrant.model_validate(result).model_dump(mode='json')
     except ValidationError as error:

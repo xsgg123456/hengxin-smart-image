@@ -1,15 +1,16 @@
 import { createIdentityRequest, record } from '../identity/request'
+import { createApplicationsApi, type ApplicationsAdapter } from '../identity/applications'
 
 export const memberRoles = { operator: '运营', operator_manager: '运营主管', designer: '设计', design_manager: '设计主管', super_admin: '超级管理员' }
 export type MemberRole = keyof typeof memberRoles
 export type MemberStatus = 'active' | 'pending' | 'disabled'
 export interface OverseasMember {
   id: string; name: string; department: string; roles: MemberRole[]; status: MemberStatus
-  version: number; createdAt: string; updatedAt: string
+  version: number; createdAt: string; updatedAt: string; directoryState?: 'enrolled' | 'legacy_unconfirmed'
 }
-export interface MemberQuery { search: string; status: string; role: string; page: number; pageSize: number }
+export interface MemberQuery { search: string; status: string; role: string; page: number; pageSize: number; directory?: 'members' | 'legacy' }
 export interface MemberPage { items: OverseasMember[]; total: number; page: number; pageSize: number }
-export interface MembersAdapter {
+export interface MembersAdapter extends Partial<ApplicationsAdapter> {
   preview?: boolean
   list(query: MemberQuery): Promise<MemberPage>
   get(id: string): Promise<OverseasMember>
@@ -25,6 +26,7 @@ export function isOverseasMember(v: unknown): v is OverseasMember {
 export function createMembersApi(fetcher: typeof fetch = fetch): MembersAdapter {
   const request = createIdentityRequest(fetcher), base = '/api/overseas/v1/members'
   return {
+    ...createApplicationsApi('overseas', fetcher),
     list: query => request(base, (v): v is MemberPage => record(v) && Array.isArray(v.items) && v.items.every(isOverseasMember)
       && Number.isInteger(v.total) && Number(v.total) >= 0 && Number.isInteger(v.page) && Number(v.page) > 0
       && Number.isInteger(v.pageSize) && Number(v.pageSize) > 0, undefined, { params: { ...query } }),

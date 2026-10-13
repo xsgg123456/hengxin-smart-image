@@ -5,6 +5,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.overseas.auth import models  # noqa: F401 - register only overseas metadata
 from app.overseas.members import models as member_models  # noqa: F401
+from app.overseas.members import application_models  # noqa: F401
 from app.overseas.tasks import models as task_models  # noqa: F401
 from app.overseas.materials import models as material_models  # noqa: F401
 from app.overseas.execution import models as execution_models  # noqa: F401
