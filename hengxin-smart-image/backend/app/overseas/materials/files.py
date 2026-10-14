@@ -10,7 +10,9 @@ from app.overseas.tasks.service import lock_actor
 from .models import Material
 from . import parsers, service
 
-MAX_BYTES = 20 * 1024 * 1024
+from app.overseas.upload_limits import MAX_UPLOAD_BYTES
+
+MAX_BYTES = MAX_UPLOAD_BYTES
 
 
 def save_upload(session, store, actor, data, filename, kind):

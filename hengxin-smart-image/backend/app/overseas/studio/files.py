@@ -13,7 +13,9 @@ from app.overseas.materials.parsers import CONTENT_TYPES
 from .models import Upload
 from . import queries
 
-MAX_BYTES = 20 * 1024 * 1024
+from app.overseas.upload_limits import MAX_UPLOAD_BYTES
+
+MAX_BYTES = MAX_UPLOAD_BYTES
 TYPES = {**CONTENT_TYPES, '.txt': 'text/plain', '.pptx':
          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
          '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
@@ -26,7 +28,7 @@ def validate(data, filename):
     if extension not in TYPES or not data:
         raise HTTPException(422, '文件为空或格式不支持')
     if len(data) > MAX_BYTES:
-        raise HTTPException(413, '单个附件不能超过20 MiB')
+        raise HTTPException(413, '单个附件不能超过 500 MB')
     signatures = {'.pdf': b'%PDF-', '.xls': bytes.fromhex('d0cf11e0a1b11ae1')}
     if extension in signatures and not data.startswith(signatures[extension]):
         raise HTTPException(422, '文件内容与扩展名不一致')

@@ -10,13 +10,13 @@ test('资料契约拒绝缺版本、空解析、无效状态；只允许未绑�
   assert.deepEqual(readyMaterialIds([material]), ['m/1'])
   for (const files of [[], [material, material], [{ ...material, taskId: 'bound' }]]) assert.throws(() => readyMaterialIds(files))
 })
-test('任意上传格式、空文件与20MiB边界', () => {
-  assert.doesNotThrow(() => validateFile({ name: 'A.PDF', size: 20 * 1024 * 1024 }, 'requirement'))
+test('任意上传格式、空文件与500 MB边界', () => {
+  assert.doesNotThrow(() => validateFile({ name: 'A.PDF', size: 500_000_000 }, 'requirement'))
   for (const name of ['a.xls', 'a.xlsx', 'a.csv']) assert.doesNotThrow(() => validateFile({ name, size: 1 }, 'competitor'))
   for (const name of ['a.doc', 'a.ppt', 'a.pptx', 'a.zip', '无扩展名']) for (const kind of ['requirement', 'competitor'] as const) assert.doesNotThrow(() => validateFile({ name, size: 1 }, kind))
   assert.deepEqual(readyMaterialIds([{ ...material, status: 'failed', text: '', error: '未解析' }]), ['m/1'])
   assert.throws(() => validateFile({ name: 'a.pdf', size: 0 }, 'requirement'), /为空/)
-  assert.throws(() => validateFile({ name: 'a.csv', size: 20 * 1024 * 1024 + 1 }, 'competitor'), /20 MiB/)
+  assert.throws(() => validateFile({ name: 'a.csv', size: 500_000_000 + 1 }, 'competitor'), /500 MB/)
   assert.doesNotThrow(() => validateFile({ name: 'a.pdf', size: 1 }, 'competitor'))
 })
 test('资料 API 使用海外路径、写保护、会话及受保护原件，无公开地址', async () => {

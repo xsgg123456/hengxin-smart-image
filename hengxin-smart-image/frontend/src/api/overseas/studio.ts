@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_BYTES } from './upload-limits'
 import { isSkill, type Skill } from './management'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export interface Asset { id: string; name: string; contentType: string; sizeBytes: number; url: string; source: 'task' | 'upload' }
@@ -41,7 +42,7 @@ export function isTranscriptPage(v: unknown): v is TranscriptPage {
       && ['message','reasoning','tool','notice'].includes(String(e.kind)) && ['running','completed','failed'].includes(String(e.state)))
 }
 export function validateStudioFile(file: Pick<File, 'name' | 'size'>) {
-  if (!file.size || file.size > 20 * 1024 * 1024) throw Error('请选择非空文件，单个最大 20 MiB')
+  if (!file.size || file.size > MAX_UPLOAD_BYTES) throw Error('请选择非空文件，单个最大 500 MB')
   const extension = file.name.split('.').pop()?.toLowerCase() || ''
   if (['doc', 'ppt'].includes(extension)) throw Error('请先将 DOC/PPT 转换为 DOCX/PPTX 或 PDF')
   if (!['jpg','jpeg','png','webp','pdf','docx','pptx','xls','xlsx','csv','txt'].includes(extension)) throw Error('不支持此文件格式')
@@ -62,7 +63,7 @@ export function createStudioApi(fetcher: typeof fetch = fetch) {
     async upload(id: string, file: File, signal: AbortSignal) {
       validateStudioFile(file); const body = new FormData(); body.append('file', file)
       const response = await fetcher(`${base(id)}/files`, { method: 'POST', body, credentials: 'include', headers: { 'X-HX-Request': '1' }, signal })
-      if (!response.ok) throw new IdentityError(response.status, '文件上传失败，请重试')
+      if (!response.ok) throw new IdentityError(response.status, response.status === 413 ? '单个附件不能超过 500 MB' : '文件上传失败，请重试')
       const value: unknown = await response.json(); if (!isAsset(value, id)) throw Error('文件响应格式错误'); return value
     },
     async content(url: string, id: string, signal: AbortSignal) {

@@ -26,7 +26,7 @@ try {
   const input = label => creator.locator('.el-form-item').filter({ has: creator.locator('.el-form-item__label', { hasText: label }) }).locator('input')
   await input('任务名称').fill(name); await input('品名').fill('手机壳'); await input('品牌').fill('HX'); await input('目标站点').fill('美国')
   await creator.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('BROWSER-A'); await button(creator, '添加 SKU').click(); await creator.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('BROWSER-B')
-  await creator.getByRole('textbox', { name: '搜索负责设计' }).fill('p18-designer'); await creator.waitForTimeout(400); await choose(creator, '测试成员-p18-designer')
+  await choose(creator, '测试成员-p18-designer')
   assert.equal(await button(creator, '提交图需').isDisabled(), true)
   await creator.locator('[data-material-kind="competitor"] input[type=file]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature\ncase,clear') }); await creator.getByText(/竞品.csv · 解析成功/).waitFor()
   await button(creator, '提交图需').click(); await creator.getByRole('heading', { name: '任务信息', exact: true }).waitFor(); const id = creator.url().split('/').pop()
@@ -41,7 +41,7 @@ try {
     const list = await (await api(context, 'get', `/tasks?search=${encodeURIComponent(name)}`)).json(); assert.equal(list.total, canRead ? 1 : 0)
   }
   const { page: manager, context: managerContext } = sessions.design_manager
-  await button(manager, '改派设计').click(); await manager.getByRole('textbox', { name: '搜索负责设计' }).fill('p19-designer2'); await manager.waitForTimeout(400); await choose(manager, '测试成员-p19-designer2')
+  await button(manager, '改派设计').click(); await choose(manager, '测试成员-p19-designer2')
   await button(manager, '确认改派').click(); await manager.getByText('负责设计：测试成员-p19-designer2', { exact: false }).waitFor()
   const changed = await (await api(managerContext, 'get', `/tasks/${id}`)).json(); assert.equal(changed.version, 2); assert.equal(changed.events.length, 2)
   const oldPage = sessions.designer.page; await button(oldPage, '刷新任务详情').click(); await oldPage.locator('.hx-page').filter({ hasText: /工作流任务|暂无此功能权限/ }).first().waitFor(); assert.equal(await oldPage.getByText(name, { exact: true }).count(), 0)

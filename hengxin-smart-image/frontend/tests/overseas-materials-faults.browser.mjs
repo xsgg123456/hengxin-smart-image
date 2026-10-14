@@ -40,7 +40,7 @@ try {
   })
   await page.goto(`${base}/#/overseas/create`); await button('提交图需').waitFor(); assert.equal(await button('提交图需').isDisabled(), true)
   await upload('空.csv', ''); await page.getByText('文件为空，请选择包含内容的文件', { exact: true }).waitFor(); assert.equal(uploadCount, 0)
-  await upload('超限.csv', 'x'.repeat(20 * 1024 * 1024 + 1)); await page.getByText('单个文件不能超过 20 MiB', { exact: true }).waitFor(); assert.equal(uploadCount, 0)
+  await page.locator('[data-material-kind="competitor"] input[type=file]').evaluate(input => { const file = new File(['x'], '超限.csv'); Object.defineProperty(file, 'size', { value: 500_000_001 }); const transfer = new DataTransfer(); transfer.items.add(file); input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true })) }); await page.getByText('单个文件不能超过 500 MB', { exact: true }).waitFor(); assert.equal(uploadCount, 0)
   mode = 'slow'; await upload(); await button('取消上传').waitFor(); assert.equal(await button('提交图需').isDisabled(), true); await button('取消上传').click(); await page.waitForTimeout(1800); assert.equal(await page.getByText(/竞品.csv · 解析成功/).count(), 0)
   mode = 'network'; await upload(); await page.getByText('资料服务连接失败，请重试', { exact: true }).waitFor(); assert.equal(await button('提交图需').isDisabled(), true)
   mode = 'malformed'; await upload(); await page.getByText('服务响应格式错误，请重试', { exact: true }).waitFor()

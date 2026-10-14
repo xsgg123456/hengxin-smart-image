@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_BYTES } from './upload-limits'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export type MaterialKind = 'requirement' | 'competitor'
 export interface ParseVersion { version: number; status: 'ready' | 'failed'; parserVersion: string; text: string; error: string | null; createdAt: string }
@@ -24,7 +25,7 @@ export function isMaterial(v: unknown): v is Material {
 }
 export function validateFile(file: Pick<File, 'name' | 'size'>, kind: MaterialKind) {
   if (!file.size) throw Error('文件为空，请选择包含内容的文件')
-  if (file.size > 20 * 1024 * 1024) throw Error('单个文件不能超过 20 MiB')
+  if (file.size > MAX_UPLOAD_BYTES) throw Error('单个文件不能超过 500 MB')
   if (!['requirement', 'competitor'].includes(kind)) throw Error('资料类别无效')
 }
 export function readyMaterialIds(files: Material[]) {
@@ -35,7 +36,7 @@ export function readyMaterialIds(files: Material[]) {
 export function materialError(reason: unknown) {
   if (reason instanceof IdentityError) {
     if (reason.status === 409) return '资料已被绑定或任务已变化，请刷新后重试'
-    if (reason.status === 413) return '单个文件不能超过 20 MiB'
+    if (reason.status === 413) return '单个文件不能超过 500 MB'
     if ([415, 422].includes(reason.status)) return '文件格式或内容不符合要求，请检查支持类型和文件内容'
   }
   return reason instanceof Error ? reason.message : '资料操作失败，请重试'
@@ -62,7 +63,7 @@ export function createMaterialsApi(fetcher: typeof fetch = fetch, xhrFactory = (
         if (signal.aborted) { reject(new Error('上传已取消')); return }
         const xhr = xhrFactory(), abort = () => xhr.abort()
         const cleanup = () => signal.removeEventListener('abort', abort)
-        xhr.open('POST', `${base}?kind=${kind}`); xhr.withCredentials = true; xhr.timeout = 120000
+        xhr.open('POST', `${base}?kind=${kind}`); xhr.withCredentials = true; xhr.timeout = 0
         xhr.setRequestHeader('X-HX-Request', '1'); xhr.setRequestHeader('Accept', 'application/json')
         xhr.upload.onprogress = event => { if (event.lengthComputable) progress(Math.round(event.loaded / event.total * 100)) }
         xhr.onload = () => {

@@ -11,8 +11,11 @@ from fastapi import HTTPException
 
 from app.modules.files.validation import safe_name
 
+from app.overseas.upload_limits import MAX_UPLOAD_BYTES
+
 PARSER_VERSION = 'overseas-documents-v1'
-MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
+MAX_DOCUMENT_BYTES = MAX_UPLOAD_BYTES
+MAX_PARSE_BYTES = 20 * 1024 * 1024
 MAX_TEXT_BYTES = 2 * 1024 * 1024
 PARSE_TIMEOUT_SECONDS = 15
 PARSE_SLOTS = BoundedSemaphore(2)
@@ -31,7 +34,7 @@ class ParseError(ValueError):
 
 def validate_document(data: bytes, filename: str, kind: str) -> tuple[str, str]:
     if len(data) > MAX_DOCUMENT_BYTES:
-        raise HTTPException(413, '单份资料不能超过 20 MiB')
+        raise HTTPException(413, '单份资料不能超过 500 MB')
     if not data:
         raise HTTPException(422, '资料不能为空')
     extension = Path((filename or '').replace('\\', '/')).suffix.lower()
@@ -43,8 +46,8 @@ def validate_document(data: bytes, filename: str, kind: str) -> tuple[str, str]:
 
 
 def parse_document(data: bytes, name: str) -> str:
-    if not data or len(data) > MAX_DOCUMENT_BYTES:
-        raise ParseError('资料为空或超过 20 MiB 限制')
+    if not data or len(data) > MAX_PARSE_BYTES:
+        raise ParseError('原件已保存，资料为空或超过自动解析的 20 MiB 限制，请下载原件查看；可直接提交审核')
     extension = Path(name).suffix.lower()
     if extension not in CONTENT_TYPES:
         raise ParseError('原件已保存，此格式暂不支持文字解析，请下载原件查看；可直接提交审核')

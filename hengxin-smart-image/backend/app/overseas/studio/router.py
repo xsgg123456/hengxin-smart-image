@@ -59,7 +59,7 @@ def complete(task_id: UUID, body: Complete, actor: CurrentMember, session: Datab
 async def upload(request: Request, task_id: UUID, actor: CurrentMember, session: Database,
                  store=Depends(get_store)):
     await run_in_threadpool(authorize_member, session, actor, 'task.design')
-    form, file = await parse_upload(request, files.MAX_BYTES, maximum=files.MAX_BYTES, label='附件')
+    form, file = await parse_upload(request, files.MAX_BYTES, maximum=files.MAX_BYTES, label='附件', size_label='500 MB')
     try:
         data = await file.read(files.MAX_BYTES + 1)
         return await run_in_threadpool(files.upload, session, store, actor, task_id, data, file.filename)

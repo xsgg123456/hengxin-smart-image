@@ -92,7 +92,9 @@ def test_scope_cross_task_attachments_and_cancel(studio):
     assert send(client, task, key='forbidden').status_code == 403
 
 
-def test_upload_original_content_formats_and_permissions(studio):
+def test_upload_original_content_formats_and_permissions(studio, monkeypatch):
+    from app.overseas.studio import files
+    monkeypatch.setattr(files, "MAX_BYTES", 20 * 1024 * 1024)
     client, factory, actor, task, _, _ = studio
     path = ROOT + '/tasks/' + task['id'] + '/studio/files'
     response = client.post(path, files={'file': ('notes.txt', b'hello')}, headers=HEADERS)
@@ -171,7 +173,9 @@ def test_legacy_workflow_and_unapproved_cannot_send(studio):
     assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').status_code == 409
 
 
-def test_upload_multipart_is_bounded_and_single_file(studio):
+def test_upload_multipart_is_bounded_and_single_file(studio, monkeypatch):
+    from app.overseas.studio import files
+    monkeypatch.setattr(files, "MAX_BYTES", 20 * 1024 * 1024)
     client, _, _, task, _, _ = studio
     path = ROOT + '/tasks/' + task['id'] + '/studio/files'
     response = client.post(path, files=[

@@ -86,7 +86,10 @@ def test_upload_content_and_versions(materials):
     (b'', 'test.csv', 'competitor', 422),
     (b'x' * (20 * 1024 * 1024 + 1), 'big.csv', 'competitor', 413),
 ], ids=['empty', 'oversize'])
-def test_validation(materials, data, name, kind, status):
+def test_validation(materials, data, name, kind, status, monkeypatch):
+    from app.overseas.materials import files
+    monkeypatch.setattr(files, "MAX_BYTES", 20 * 1024 * 1024)
+    monkeypatch.setattr(parsers, "MAX_DOCUMENT_BYTES", 20 * 1024 * 1024)
     client, factory, _, _, store = materials
     assert upload(client, data, name, kind).status_code == status
     assert not store.data

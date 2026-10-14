@@ -27,7 +27,7 @@ test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   for(const name of ['a.jpg','a.png','a.webp','a.pdf','a.docx','a.pptx','a.xls','a.xlsx','a.csv','a.txt'])assert.doesNotThrow(()=>validateStudioFile({name,size:1}))
   assert.throws(()=>validateStudioFile({name:'a.doc',size:1}),/转换/)
   assert.throws(()=>validateStudioFile({name:'a.ppt',size:1}),/转换/)
-  assert.throws(()=>validateStudioFile({name:'a.png',size:20*1024*1024+1}),/20 MiB/)
+  assert.throws(()=>validateStudioFile({name:'a.png',size:500_000_000+1}),/500 MB/)
   assert.throws(()=>validateStudioFile({name:'a.html',size:1}),/不支持/)
 })
 test('工作台 Skill 与管理目录共用中文名称和描述契约，不要求版本或阶段',()=>{
@@ -190,4 +190,39 @@ test('页面隐藏中止在途transcript并忽略晚到内容，返回按原游�
   let signal:AbortSignal|undefined,resolve!:(value:{items:never[];cursor:number;hasMore:boolean})=>void,calls=0
   const view=mount(fake({transcript:async(_id,_after,s)=>{calls++;signal=s;if(calls===1)return new Promise(done=>{resolve=done});return {items:[],cursor:0,hasMore:false}}}))
   try{await flush();page.visibilityState='hidden';page.dispatchEvent(new Event('visibilitychange'));assert.equal(signal?.aborted,true);resolve({items:[],cursor:12,hasMore:false});await flush();page.visibilityState='visible';page.dispatchEvent(new Event('visibilitychange'));await flush();assert.equal(calls,2);assert.equal(view.state.error.value,'')}finally{view.close();Reflect.deleteProperty(globalThis,'document')}
+})
+
+test('普通附件100项边界：超额批次不上传、引用去重、移除后可继续', async()=>{
+  storage.clear(); let uploads=0, sent=0
+  const view=mount(fake({upload:async()=>({...snapshot().materials[0],id:`upload:${++uploads}`}),send:async()=>{sent++;return snapshot()}}));await flush();const s=view.state
+  s.attachments.value=Array.from({length:99},(_,i)=>({...snapshot().materials[0],id:`upload:${i}`}))
+  await s.receive([new File(['x'],'a.txt'),new File(['x'],'b.txt')]);assert.equal(uploads,0);assert.match(s.error.value,/100 个附件/);assert.equal(s.attachments.value.length,99)
+  s.add(['task:m','task:m']);assert.equal(s.attachments.value.length,100)
+  s.add(['task:m']);assert.equal(s.attachments.value.length,100)
+  await s.receive([new File(['x'],'a.txt')]);assert.equal(uploads,0)
+  s.attachments.value.pop();await s.receive([new File(['x'],'a.txt')]);assert.equal(uploads,1);assert.equal(s.attachments.value.length,100)
+  assert.equal(s.canSend.value,true);await s.send();assert.equal(sent,1);view.close()
+})
+
+test('生成图片100张独立上限；绕过添加的101项发送兜底保留草稿',async()=>{
+  storage.clear();let sent=0
+  const view=mount(fake({send:async()=>{sent++;return snapshot()}}));await flush();const s=view.state
+  s.text.value='保留意见';s.attachments.value=Array.from({length:100},(_,i)=>({...snapshot().materials[0],id:`upload:${i}`}))
+  const picture={id:'p',name:'图',url:'/api/overseas/v1/tasks/t/studio/pictures/p/content',width:1,height:1,turnId:'r',sku:null,archived:false}
+  for(let i=0;i<100;i++)s.modify({...picture,id:`p${i}`})
+  s.modify({...picture,id:'p0'});assert.equal(s.references.value.length,100)
+  s.modify({...picture,id:'p100'});assert.equal(s.references.value.length,100);assert.match(s.error.value,/100 张/);assert.equal(s.canSend.value,true)
+  s.attachments.value.push({...snapshot().materials[0],id:'extra'});assert.equal(s.canSend.value,false);await s.send();assert.equal(sent,0);assert.match(s.limitError.value,/100 个/);assert.equal(s.text.value,'保留意见')
+  s.attachments.value.pop();s.references.value.push(picture);assert.equal(s.canSend.value,false);assert.match(s.limitError.value,/100 张/)
+  s.references.value.pop();await s.send();assert.equal(sent,1);view.close()
+})
+
+test('sessionStorage中的101项超限消息恢复为可移除草稿，不困在pending锁中',async()=>{
+  storage.clear();let calls=0
+  const value=snapshot();value.materials=Array.from({length:101},(_,i)=>({...snapshot().materials[0],id:`upload:${i}`}))
+  storage.set('hx-studio-pending::t',JSON.stringify({key:'oversized',kind:'send',body:{text:'原始草稿',skillId:'skill',attachmentIds:value.materials.map(a=>a.id),referencePictureIds:[]}}))
+  const view=mount(fake({get:async()=>value,send:async()=>{calls++;return snapshot()}}));await flush();const s=view.state
+  assert.equal(s.pending.value,undefined);assert.equal(storage.size,0);assert.equal(s.locked.value,false);assert.equal(s.text.value,'原始草稿');assert.equal(s.skill.value,'skill');assert.equal(s.attachments.value.length,101)
+  await s.send();assert.equal(calls,0);assert.match(s.limitError.value,/100 个附件/)
+  s.attachments.value.pop();await s.send();assert.equal(calls,1);view.close()
 })

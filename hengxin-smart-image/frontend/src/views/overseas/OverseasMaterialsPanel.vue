@@ -1,7 +1,7 @@
 <template>
   <ElCard class="art-card hx-section" shadow="never">
     <div class="section-heading"><h2>图需资料</h2><ElTag v-if="editable" type="info">至少提供一份</ElTag></div>
-    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类一份，单份不超过 20 MiB。支持 PPT/PPTX、Word、PDF、表格等各类文件；无法解析时可下载原件查看，不影响提交。</p>
+    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类一份，单份不超过 500 MB。支持 PPT/PPTX、Word、PDF、表格等各类文件；无法解析时可下载原件查看，不影响提交。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
     <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card">
       <h3>{{ kind.label }}</h3>
@@ -16,7 +16,7 @@
         </template>
       </template>
       <ElUpload v-else-if="editable" drag :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :data-material-kind="kind.key" :disabled="locked" :on-change="selected => upload(selected, kind.key)">
-        <div class="upload-copy"><strong>点击选择或拖入{{ kind.label }}</strong><span>不限文件格式（含 PPT/PPTX） · 单份不超过 20 MiB</span></div>
+        <div class="upload-copy"><strong>点击选择或拖入{{ kind.label }}</strong><span>不限文件格式（含 PPT/PPTX） · 单份不超过 500 MB</span></div>
       </ElUpload>
       <p v-else class="hx-muted">未提供{{ kind.label }}</p>
       <template v-if="uploading === kind.key">
