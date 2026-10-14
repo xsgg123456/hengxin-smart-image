@@ -1,10 +1,12 @@
 import { isSkill, type Skill } from './management'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export interface Asset { id: string; name: string; contentType: string; sizeBytes: number; url: string; source: 'task' | 'upload' }
-export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean }
-export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; createdAt: string }
-export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null }
+export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean; sourcePath?: string | null }
+export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; createdAt: string; conversationId?: string; deliveryError?: string | null }
+export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null; conversationId?: string | null }
 export interface StudioEvent { id: number; turnId: string; kind: string; text: string; createdAt: string }
+export interface StudioTranscript { id: number; turnId: string; itemId: string; kind: 'message' | 'reasoning' | 'tool' | 'notice'; text: string; state: 'running' | 'completed' | 'failed'; createdAt: string }
+export interface TranscriptPage { items: StudioTranscript[]; cursor: number; hasMore: boolean }
 export interface TurnInput { text: string; skillId: string | null; attachmentIds: string[]; referencePictureIds: string[] }
 const root = '/api/overseas/v1', base = (id: string) => `${root}/tasks/${encodeURIComponent(id)}/studio`
 const string = (v: unknown): v is string => typeof v === 'string'
@@ -17,10 +19,12 @@ export function isAsset(v: unknown, taskId: string): v is Asset {
 }
 export function isStudio(v: unknown, taskId: string): v is Studio {
   return record(v) && v.taskId === taskId && typeof v.completed === 'boolean' && (v.activeTurnId === null || string(v.activeTurnId))
+    && (v.conversationId === undefined || v.conversationId === null || string(v.conversationId))
     && Array.isArray(v.materials) && v.materials.every(a => isAsset(a, taskId))
     && Array.isArray(v.skills) && v.skills.every(isSkill)
     && Array.isArray(v.turns) && v.turns.every(t => record(t) && ['id','text','status','jobId','createdAt'].every(k => string(t[k])) && (t.reply === null || string(t.reply))
       && (t.skillName === null || string(t.skillName)) && (t.error === null || string(t.error)) && integer(t.jobVersion)
+      && (t.conversationId === undefined || string(t.conversationId)) && (t.deliveryError === undefined || t.deliveryError === null || string(t.deliveryError))
       && Array.isArray(t.attachments) && t.attachments.every(a => isAsset(a, taskId))
       && Array.isArray(t.pictures) && t.pictures.every(p => isStudioPicture(p, taskId) && p.turnId === t.id)
       && Array.isArray(t.referencePictures) && t.referencePictures.every(p => isStudioPicture(p, taskId)))
@@ -29,6 +33,12 @@ function isStudioPicture(p: unknown, taskId: string): p is StudioPicture {
   return record(p) && string(p.id) && string(p.name) && string(p.turnId)
     && p.url === `${base(taskId)}/pictures/${encodeURIComponent(p.id)}/content` && integer(p.width) && integer(p.height)
     && (p.sku === null || string(p.sku)) && typeof p.archived === 'boolean'
+    && (p.sourcePath === undefined || p.sourcePath === null || string(p.sourcePath))
+}
+export function isTranscriptPage(v: unknown): v is TranscriptPage {
+  return record(v) && integer(v.cursor) && typeof v.hasMore === 'boolean' && Array.isArray(v.items)
+    && v.items.every(e => record(e) && integer(e.id) && ['turnId','itemId','text','createdAt'].every(k => string(e[k]))
+      && ['message','reasoning','tool','notice'].includes(String(e.kind)) && ['running','completed','failed'].includes(String(e.state)))
 }
 export function validateStudioFile(file: Pick<File, 'name' | 'size'>) {
   if (!file.size || file.size > 20 * 1024 * 1024) throw Error('请选择非空文件，单个最大 20 MiB')
@@ -38,9 +48,12 @@ export function validateStudioFile(file: Pick<File, 'name' | 'size'>) {
 }
 export function createStudioApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store' }))
+  const read = (signal?: AbortSignal) => signal ? createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store', signal: options?.signal ? AbortSignal.any([signal, options.signal]) : signal })) : request
   const guard = (id: string) => (v: unknown): v is Studio => isStudio(v, id)
   return {
-    get: (id: string) => request(base(id), guard(id)),
+    get: (id: string, signal?: AbortSignal) => read(signal)(base(id), guard(id)),
+    transcript: (id: string, after: number, signal?: AbortSignal) => read(signal)(`${base(id)}/transcript`, isTranscriptPage, undefined, { params: { after } }),
+    newConversation: (id: string, key: string) => request(`${base(id)}/conversations`, guard(id), {}, { idempotencyKey: key }),
     send: (id: string, body: TurnInput, key: string) => request(`${base(id)}/turns`, guard(id), body, { idempotencyKey: key }),
     cancel: (id: string, turn: StudioTurn) => request(`${base(id)}/turns/${encodeURIComponent(turn.id)}/cancel`, guard(id), { version: turn.jobVersion }),
     archive: (id: string, pictureIds: string[], sku: string, key: string) => request(`${base(id)}/archive`, guard(id), { pictureIds, sku }, { idempotencyKey: key }),

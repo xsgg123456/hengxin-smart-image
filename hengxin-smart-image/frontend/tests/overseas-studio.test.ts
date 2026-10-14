@@ -18,7 +18,7 @@ function mount(api: StudioApi, current = () => task) {
   return {state,failures,close:()=>app.unmount()}
 }
 function fake(overrides:Partial<StudioApi>={}):StudioApi {
-  return {get:async()=>snapshot(),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],content:async()=>new Blob(),...overrides}
+  return {get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],content:async()=>new Blob(),...overrides}
 }
 test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   assert.equal(isStudio(snapshot(),'t'),true)
@@ -89,7 +89,7 @@ test('轮询响应晚于发送响应时不能回退历史；刷新保留草稿',
   await view.state.send();late?.(snapshot());await reading;assert.equal(view.state.data.value?.activeTurnId,'new-turn');view.close()
 })
 
-test('自动读取静默，空闲30秒，执行2.5秒，完成与卸载停止',async t=>{
+test('自动读取静默，空闲30秒，执行1秒，完成与卸载停止',async t=>{
   t.mock.timers.enable({apis:['setTimeout']});storage.clear()
   let calls=0,current=snapshot()
   const view=mount(fake({get:async()=>{calls++;return structuredClone(current)}}));await flush()
@@ -98,9 +98,9 @@ test('自动读取静默，空闲30秒，执行2.5秒，完成与卸载停止',a
   t.mock.timers.tick(29999);await flush();assert.equal(calls,1)
   current.activeTurnId='running';t.mock.timers.tick(1);await flush();assert.equal(calls,2)
   assert.equal(view.state.loading.value,false);assert.equal(view.state.text.value,'保留草稿');assert.equal(view.state.skill.value,'skill');assert.equal(view.state.attachments.value.length,1)
-  t.mock.timers.tick(2499);await flush();assert.equal(calls,2)
+  t.mock.timers.tick(999);await flush();assert.equal(calls,2)
   t.mock.timers.tick(1);await flush();assert.equal(calls,3)
-  current={...snapshot(),completed:true};t.mock.timers.tick(2500);await flush();assert.equal(calls,4)
+  current={...snapshot(),completed:true};t.mock.timers.tick(1000);await flush();assert.equal(calls,4)
   t.mock.timers.tick(60000);await flush();assert.equal(calls,4)
   await view.state.refresh();assert.equal(calls,5);view.close()
   t.mock.timers.tick(60000);await flush();assert.equal(calls,5)
@@ -147,4 +147,47 @@ test('自动权限拒绝停止轮询，手动重试可恢复',async t=>{
   const view=mount(fake({get:async()=>{calls++;if(denied)throw new IdentityError(403,'无权限');return snapshot()}}));await flush()
   t.mock.timers.tick(90000);await flush();assert.equal(calls,1)
   denied=false;await view.state.refresh();assert.equal(view.state.error.value,'');t.mock.timers.tick(30000);await flush();assert.equal(calls,3);view.close()
+})
+
+test('增量快照立即翻页、更新原位置、断线从最后确认游标恢复且保留失败文字',async()=>{
+  storage.clear();let fail=false;const cursors:number[]=[]
+  const entry=(id:number,itemId:string,text:string)=>({id,turnId:'r',itemId,text,kind:'message' as const,state:'completed' as const,createdAt:''})
+  const view=mount(fake({transcript:async(_id,after)=>{cursors.push(after);if(fail)throw Error('离线');return after===0?{items:[entry(1,'a','第一条'),entry(2,'b','第二条')],cursor:2,hasMore:true}:after===2?{items:[entry(3,'a','第一条完整更新')],cursor:3,hasMore:false}:{items:[entry(3,'a','不应覆盖')],cursor:3,hasMore:false}}}));await flush()
+  assert.deepEqual(cursors,[0,2]);assert.deepEqual(view.state.transcript.value.map(e=>e.text),['第一条完整更新','第二条'])
+  fail=true;await view.state.refresh();assert.equal(view.state.error.value,'离线');assert.equal(view.state.transcript.value.length,2)
+  fail=false;await view.state.refresh();assert.deepEqual(cursors,[0,2,3,3]);assert.equal(view.state.transcript.value[0].text,'第一条完整更新');assert.equal(view.state.error.value,'');view.close()
+})
+
+test('新会话未知结果保留草稿引用并以相同key重试，成功才清空且历史保留',async()=>{
+  storage.clear();let failed=true;const keys:string[]=[]
+  const old={...snapshot(),conversationId:'old'}
+  const view=mount(fake({get:async()=>old,newConversation:async(_id,key)=>{keys.push(key);if(failed)throw new IdentityError(0,'断线');return {...old,conversationId:'new'}}}));await flush()
+  const s=view.state;s.text.value='草稿';s.skill.value='skill';s.add(['task:m']);s.references.value=[{id:'p'}] as never;s.selected.value=['p']
+  assert.equal(s.canNewConversation.value,true);await s.newConversation();assert.equal(s.canNewConversation.value,false);assert.equal(s.text.value,'草稿');assert.equal(s.attachments.value.length,1)
+  await s.newConversation();assert.equal(keys.length,1);failed=false;await s.retry();assert.equal(keys[0],keys[1]);assert.equal(s.data.value?.conversationId,'new')
+  assert.equal(s.text.value,'');assert.equal(s.skill.value,'');assert.deepEqual(s.attachments.value,[]);assert.deepEqual(s.references.value,[]);assert.deepEqual(s.selected.value,[]);assert.equal(s.data.value?.materials.length,1);view.close()
+})
+
+test('新会话在执行中/只读禁用，发送正文保留前后空白',async()=>{
+  storage.clear();let writes=0,sent=''
+  const view=mount(fake({get:async()=>({...snapshot(),activeTurnId:'r'}),newConversation:async()=>{writes++;return snapshot()},send:async(_id,body)=>{sent=body.text;return snapshot()}}));await flush()
+  assert.equal(view.state.canNewConversation.value,false);await view.state.newConversation();assert.equal(writes,0)
+  view.state.data.value!.activeTurnId=null;view.state.text.value='  原样正文\n';await view.state.send();assert.equal(sent,'  原样正文\n');view.close()
+})
+
+test('新契约API携带会话幂等key、transcript游标并拒绝恶意状态',async()=>{
+  const calls:{url:string;options?:RequestInit}[]=[]
+  const api=createStudioApi(async(url,options)=>{calls.push({url:String(url),options});return new Response(JSON.stringify(String(url).includes('/transcript')?{items:[],cursor:8,hasMore:false}:{...snapshot(),conversationId:'c'}))})
+  await api.newConversation('t','conversation-key');await api.transcript('t',8)
+  assert.equal(calls[0].url,'/api/overseas/v1/tasks/t/studio/conversations');assert.equal(calls[0].options?.body,'{}');assert.equal((calls[0].options?.headers as Record<string,string>)['Idempotency-Key'],'conversation-key')
+  assert.match(calls[1].url,/transcript\?after=8/)
+  const bad=createStudioApi(async()=>new Response(JSON.stringify({items:[{id:1,turnId:'r',itemId:'x',kind:'secret',text:'x',state:'completed',createdAt:''}],cursor:1,hasMore:false})))
+  await assert.rejects(()=>bad.transcript('t',0),/响应格式/)
+})
+
+test('页面隐藏中止在途transcript并忽略晚到内容，返回按原游标补齐',async()=>{
+  storage.clear();const page=new EventTarget() as EventTarget & {visibilityState:string};page.visibilityState='visible';Object.defineProperty(globalThis,'document',{value:page,configurable:true})
+  let signal:AbortSignal|undefined,resolve!:(value:{items:never[];cursor:number;hasMore:boolean})=>void,calls=0
+  const view=mount(fake({transcript:async(_id,_after,s)=>{calls++;signal=s;if(calls===1)return new Promise(done=>{resolve=done});return {items:[],cursor:0,hasMore:false}}}))
+  try{await flush();page.visibilityState='hidden';page.dispatchEvent(new Event('visibilitychange'));assert.equal(signal?.aborted,true);resolve({items:[],cursor:12,hasMore:false});await flush();page.visibilityState='visible';page.dispatchEvent(new Event('visibilitychange'));await flush();assert.equal(calls,2);assert.equal(view.state.error.value,'')}finally{view.close();Reflect.deleteProperty(globalThis,'document')}
 })

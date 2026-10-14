@@ -6,7 +6,7 @@ from app.overseas.permissions import principal_for, require_task_access
 from app.overseas.materials.models import Material
 from app.overseas.management.installed_catalog import listing
 from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
-from .models import Turn, Upload, Picture
+from .models import Turn, Upload, Picture, Conversation, Transcript
 
 ROOT = '/api/overseas/v1'
 
@@ -52,7 +52,12 @@ def picture_dto(row):
     return dict(id=str(row.id), name=row.name,
                 url=f'{ROOT}/tasks/{row.task_id}/studio/pictures/{row.id}/content',
                 width=row.width, height=row.height, turnId=str(row.turn_id),
-                sku=row.sku, archived=row.sku is not None)
+                sku=row.sku, archived=row.sku is not None, sourcePath=row.source_path)
+
+
+def current_conversation(session, task_id):
+    return session.scalar(select(Conversation).where(Conversation.task_id == task_id)
+        .order_by(Conversation.created_at.desc(), Conversation.id.desc()).limit(1))
 
 
 def view(session, actor, task_id):
@@ -64,7 +69,8 @@ def view(session, actor, task_id):
         if job.status not in TERMINAL:
             active = str(turn.id)
         attachments = [asset(*attachment(session, task, identity)) for identity in turn.attachment_ids]
-        turns.append(dict(id=str(turn.id), text=turn.text, skillName=turn.skill_name,
+        turns.append(dict(id=str(turn.id), conversationId=str(turn.conversation_id),
+            text=turn.text, skillName=turn.skill_name, deliveryError=turn.delivery_error,
             status=job.status, reply=turn.reply, error=job.error, jobId=str(job.id),
             jobVersion=job.version, attachments=attachments,
             referencePictures=[picture_dto(picture(session, task, UUID(value)))
@@ -75,10 +81,22 @@ def view(session, actor, task_id):
     materials = session.scalars(select(Material).where(Material.task_id == task.id,
         Material.deleted_at.is_(None), Material.status == 'ready').order_by(Material.created_at))
     uploads = session.scalars(select(Upload).where(Upload.task_id == task.id).order_by(Upload.created_at))
-    return dict(taskId=str(task.id), completed=task.status == 'completed', turns=turns,
+    channel = current_conversation(session, task.id)
+    return dict(taskId=str(task.id), conversationId=str(channel.id) if channel else None,
+        completed=task.status == 'completed', turns=turns,
         materials=[asset(row, 'task') for row in materials] + [asset(row, 'upload') for row in uploads],
         skills=listing(),
         activeTurnId=active)
+
+
+def transcript(session, actor, task_id, after):
+    access(session, actor, task_id)
+    rows = list(session.scalars(select(Transcript).where(Transcript.task_id == task_id,
+        Transcript.id > after).order_by(Transcript.id).limit(501)))
+    more, rows = len(rows) > 500, rows[:500]
+    return dict(items=[dict(id=row.id, turnId=str(row.turn_id), itemId=row.item_id,
+        kind=row.kind, text=row.text, state=row.state, createdAt=row.created_at) for row in rows],
+        cursor=rows[-1].id if rows else after, hasMore=more)
 
 
 def events(session, actor, task_id, after):

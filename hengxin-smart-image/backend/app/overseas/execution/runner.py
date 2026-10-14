@@ -76,6 +76,7 @@ def run(factory, job_id):
     if not token:
         return
     spawning, exited = False, False
+    handler = workspace = job = None
     try:
         with heartbeat(factory, job_id, token, settings) as lost:
             with factory() as session:
@@ -125,7 +126,9 @@ def run(factory, job_id):
                               monitor, started)
             exited = True
             _exit(factory, job_id, token)
-            if hasattr(handler, 'poll'):
+            if hasattr(handler, 'final_poll'):
+                handler.final_poll(factory, job, token, workspace)
+            elif hasattr(handler, 'poll'):
                 handler.poll(factory, job, token, workspace)
             summary = parse_events(workspace.control / 'events.jsonl', getattr(workspace, 'previous_session', None))
             with factory.begin() as session:
@@ -152,6 +155,11 @@ def run(factory, job_id):
                                  publish=getattr(handler, 'publish', None)):
                 raise ValueError('Late result rejected')
     except Exception:
+        if workspace is not None and hasattr(handler, 'final_poll'):
+            try:
+                handler.final_poll(factory, job, token, workspace)
+            except Exception:
+                pass  # Preserve process fencing even when transcript storage is unavailable.
         if exited or not spawning:
             _exit(factory, job_id, token)
             _fail(factory, job_id, token)

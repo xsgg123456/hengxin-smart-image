@@ -9,7 +9,7 @@ from app.overseas.db import Base
 class Conversation(Timestamps, Base):
     __tablename__ = 'overseas_studio_conversations'
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), unique=True)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
     session_id: Mapped[str | None] = mapped_column(String(128))
 
 
@@ -25,6 +25,10 @@ class Turn(Timestamps, Base):
     attachment_ids: Mapped[list] = mapped_column(JSON, default=list)
     reference_ids: Mapped[list] = mapped_column(JSON, default=list)
     reply: Mapped[str | None] = mapped_column(Text)
+    delivery_error: Mapped[str | None] = mapped_column(Text)
+    event_offset: Mapped[int] = mapped_column(Integer, default=0)
+    event_session_id: Mapped[str | None] = mapped_column(String(128))
+    event_invalid: Mapped[bool] = mapped_column(Boolean, default=False)
     dispatched: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
@@ -54,3 +58,15 @@ class Picture(Timestamps, Base):
     width: Mapped[int] = mapped_column(Integer)
     height: Mapped[int] = mapped_column(Integer)
     sku: Mapped[str | None] = mapped_column(String(80))
+    source_path: Mapped[str | None] = mapped_column(Text)
+
+
+class Transcript(Timestamps, Base):
+    __tablename__ = 'overseas_studio_transcript'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    turn_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_studio_turns.id'), index=True)
+    item_id: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(20))
+    text: Mapped[str] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(String(20))

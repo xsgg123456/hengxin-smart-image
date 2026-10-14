@@ -50,7 +50,7 @@ def send(session, actor, task_id, body, key):
         raise HTTPException(409, '当前轮次尚未结束，请等待或停止执行')
     attachments = [queries.attachment(session, task, value)[0] for value in body.attachmentIds]
     references = [queries.picture(session, task, value) for value in body.referencePictureIds]
-    channel = session.scalar(select(Conversation).where(Conversation.task_id == task.id))
+    channel = queries.current_conversation(session, task.id)
     if channel is None:
         channel = Conversation(task_id=task.id)
         session.add(channel)
@@ -62,14 +62,22 @@ def send(session, actor, task_id, body, key):
               for row in attachments + references]
     job = enqueue(session, task.id, 'studio', f'studio:{turn_id}', {
         **frozen, 'turnId': str(turn_id), 'conversationId': str(channel.id),
-        'text': body.text, 'inputs': inputs, 'task': dict(productName=task.product_name,
-            brand=task.brand, platform=task.platform, market=task.market, remarks=task.remarks,
-            skus=list(session.scalars(select(TaskSku.code).where(TaskSku.task_id == task.id))))})
+        'text': body.text, 'inputs': inputs})
     skill = frozen.get('skill')
     session.add(Turn(id=turn_id, task_id=task.id, conversation_id=channel.id, job_id=job.id,
         actor_id=actor.id, text=body.text, skill_name=skill.get('displayName', skill['name']) if skill else None,
         attachment_ids=body.attachmentIds, reference_ids=[str(v) for v in body.referencePictureIds]))
     return finish(session, actor, task, key, digest, 'studio_send')
+
+
+def new_conversation(session, actor, task_id, body, key):
+    actor, task, digest, previous = mutate(session, actor, task_id, body, key, 'studio_conversation')
+    if previous:
+        return replay(session, actor, task)
+    if active(session, task):
+        raise HTTPException(409, '当前轮次尚未结束，请等待或停止执行')
+    session.add(Conversation(task_id=task.id))
+    return finish(session, actor, task, key, digest, 'studio_conversation')
 
 
 def cancel(session, actor, task_id, turn_id, version):

@@ -73,7 +73,7 @@ def test_revision_tree_has_only_overseas_revisions():
     script = ScriptDirectory.from_config(Config(str(BACKEND / 'alembic.overseas.ini')))
     assert script.get_heads() == [db.SCHEMA_REVISION]
     assert script.get_base() == 'overseas_0001'
-    assert len(list(script.walk_revisions())) == 14
+    assert len(list(script.walk_revisions())) == 15
 
 
 @pytest.mark.parametrize('context', ['domestic', 'invalid', ''])
@@ -169,6 +169,7 @@ def test_real_upgrades_are_repeatable_and_domestic_database_is_unchanged(disposa
             'overseas_execution_gate', 'overseas_jobs', 'overseas_job_outbox', 'overseas_execution_events', 'overseas_plans', 'overseas_pictures', 'overseas_picture_versions', 'overseas_archives',
             'overseas_skills', 'overseas_skill_versions', 'overseas_settings', 'overseas_management_audit',
             'overseas_studio_conversations', 'overseas_studio_turns', 'overseas_studio_uploads', 'overseas_studio_pictures',
+            'overseas_studio_transcript',
             'overseas_task_deletions', 'overseas_execution_objects', 'overseas_archive_assets',
             'overseas_membership_applications', 'overseas_membership_application_events',
         }

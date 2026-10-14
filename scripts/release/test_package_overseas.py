@@ -13,7 +13,7 @@ spec.loader.exec_module(p)
 @pytest.fixture
 def package_files():
     files = {name: b'' for name in p.REQUIRED}
-    files['frontend/package.json'] = json.dumps({'version': '0.2.31'}).encode()
+    files['frontend/package.json'] = json.dumps({'version': '0.2.32'}).encode()
     files['frontend/dist/index.html'] = b'<html><script src="/assets/main.js"></script></html>'
     files['frontend/dist/assets/main.js'] = b'console.log(1)'
     return files
@@ -28,6 +28,9 @@ def test_allowlist_covers_runtime_and_only_explicit_non_python_resources():
         assert p.selected(p.APP + path) == path
     assert p.selected('scripts/release/overseas-runtime.py')
     assert p.selected('scripts/release/member-release-deploy.py')
+    assert p.selected('scripts/release/native-studio-deploy.py')
+    assert p.selected('scripts/release/native-studio-runtime.py')
+    assert p.selected('scripts/release/native-studio-unapproved.py') is None
     for name in p.MAINTENANCE:
         assert p.selected('scripts/maintenance/' + name)
     for path in ('backend/.env', 'backend/app/.env.py', 'backend/app/private.db',
@@ -48,7 +51,7 @@ def test_every_required_file_is_enforced(package_files):
 
 
 def test_version_and_complete_production_entry(package_files):
-    for value in ('0.2.21', '0.2.23'):
+    for value in ('0.2.21', '0.2.23', '0.2.31'):
         with pytest.raises(ValueError, match='version'):
             p.validate({**package_files, 'frontend/package.json': json.dumps({'version': value}).encode()})
     with pytest.raises(ValueError, match='Missing frontend entry'):
@@ -188,9 +191,13 @@ def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, 
     with tarfile.open(output / 'release.tar.gz', 'r:gz') as archive:
         manifest = json.load(archive.extractfile('release.json'))
         assert manifest['migration'] == '0028'
-        assert manifest['overseasMigration'] == 'overseas_0014'
-        assert manifest['frontendVersion'] == '0.2.31'
+        assert manifest['overseasMigration'] == 'overseas_0015'
+        assert manifest['frontendVersion'] == '0.2.32'
         assert manifest['candidateId'] == 'reviewed-candidate'
         assert manifest['commit'] == commit
+        for name in ('native-studio-deploy.py', 'native-studio-runtime.py'):
+            assert 'scripts/release/' + name in manifest['files']
+            assert archive.extractfile('scripts/release/' + name) is not None
+        assert 'backend/migrations/overseas/versions/0015_studio_transcript.py' in manifest['files']
         for name, digest in manifest['files'].items():
             assert hashlib.sha256(archive.extractfile(name).read()).hexdigest() == digest

@@ -25,6 +25,7 @@ try {
     else if (path.endsWith('/tickets')) body = { ticket: 'test' }
     else if (path === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
     else if (path.includes('/auth/')) { body = { id: 'd', name: '设计', identitySessionId: 'identity-test', status: 'active', roles: ['designer'], capabilities: caps }; if (path.endsWith('/access')) body = { state: 'allowed', member: body } }
+    else if (path.endsWith('/studio/transcript')) body = { items: [], cursor: 0, hasMore: false }
     else if (path.endsWith('/studio/events')) body = { items: [], cursor: 0 }
     else if (path.endsWith('/studio')) { reads++; if (delay) await new Promise(done => setTimeout(done, delay)); body = state(); if (fail) { status = 503; body = { detail: '读取临时失败' } } }
     else if (path.endsWith('/tasks/t')) body = task

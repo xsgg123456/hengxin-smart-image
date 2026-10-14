@@ -34,7 +34,8 @@ def fake_runtime(studio, monkeypatch, tmp_path, image_count=0, crash=False):
         return ['fake-cli']
     monkeypatch.setattr(runner, 'sandbox_command', sandbox)
     def execute(command, prompt, control, timeout, monitor, started):
-        assert '用户意见' in prompt
+        assert '设计产品' in prompt
+        assert '商品背景' not in prompt and '用户意见' not in prompt
         workspace, args = commands[-1]
         started(123, 'boot', 'birth')
         if crash:
@@ -88,11 +89,53 @@ def test_runner_collects_arbitrary_multiple_images(studio, monkeypatch, tmp_path
     runner.run(factory, first['jobId'])
     view = client.get(ROOT + '/tasks/' + task['id'] + '/studio').json()
     assert view['turns'][0]['status'] == 'succeeded', view
-    assert '/work/' not in view['turns'][0]['reply']
+    assert '/work/' in view['turns'][0]['reply']
     pictures = view['turns'][0]['pictures']
     assert len(pictures) == 3 and len({p['id'] for p in pictures}) == 3
     for picture in pictures:
+        assert picture['sourcePath'].startswith('/work/output')
         assert client.get(picture['url']).status_code == 200
+
+
+@pytest.mark.parametrize('reply', [
+    '## 中间文件\n![预览](/work/output0.png)',
+    '这是草稿，暂不交付。\n\n![预览](/work/output0.png)',
+    '![预览](/work/output0.png)\n\n以上只是草稿，暂不交付。',
+    '这是草稿，暂不交付。\n\n![预览](/work/final.png)',
+    '以下图片仅供预览，并非最终交付。\n\n![预览](/work/output0.png)',
+    '这不是正式交付。\n\n![预览](/work/output0.png)',
+    'These are not final images.\n\n![Preview](/work/output0.png)',
+    'These are **not** final images.\n\n![Image](/work/output0.png)',
+    'These are not **final images**.\n\n![Image](/work/output0.png)',
+    '![**not** final images](/work/output0.png)',
+    '![Image](/work/output0.png "not final images")',
+    '![n&#111;t **final images**](/work/output0.png)',
+    '## Test images\nFor testing only.\n\n![Image](/work/output0.png)',
+    '## Experimental images\nFor experimentation.\n\n![Image](/work/output0.png)',
+    '这些是工作稿。\n\n![图片](/work/output0.png)',
+])
+def test_non_delivery_images_never_reach_api_but_text_survives(studio, monkeypatch, tmp_path, reply):
+    client, factory, _, task, _, _ = studio
+    commands = fake_runtime(studio, monkeypatch, tmp_path, image_count=1)
+    original = runner.execute
+    def execute(*args):
+        receipt = original(*args)
+        workspace = commands[-1][0]
+        if '/final.png' in reply:
+            (workspace.work / 'output0.png').replace(workspace.work / 'final.png')
+        path = args[2] / 'events.jsonl'
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        events[-2]['item']['text'] = reply
+        path.write_text('\n'.join(json.dumps(event) for event in events))
+        return receipt
+    monkeypatch.setattr(runner, 'execute', execute)
+    turn = send(client, task).json()['turns'][0]
+    runner.run(factory, turn['jobId'])
+    root = ROOT + '/tasks/' + task['id'] + '/studio'
+    result = client.get(root).json()['turns'][0]
+    assert result['status'] == 'succeeded' and result['pictures'] == []
+    assert result['reply'] == reply
+    assert client.get(root + '/transcript').json()['items'][0]['text'] == reply
 
 
 def test_crash_stays_uncertain_no_replacement_or_duplicate_spawn(studio, monkeypatch, tmp_path):

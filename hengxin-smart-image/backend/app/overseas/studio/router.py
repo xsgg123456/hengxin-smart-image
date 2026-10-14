@@ -29,6 +29,16 @@ def send(task_id: UUID, body: Send, actor: CurrentMember, session: Database, ide
     return service.send(session, actor, task_id, body, idempotency_key)
 
 
+@router.post('/conversations', dependencies=WRITE)
+def new_conversation(task_id: UUID, body: Complete, actor: CurrentMember, session: Database, idempotency_key: Key):
+    return service.new_conversation(session, actor, task_id, body, idempotency_key)
+
+
+@router.get('/transcript')
+def transcript(task_id: UUID, actor: CurrentMember, session: Database, after: int = Query(0, ge=0)):
+    return queries.transcript(session, actor, task_id, after)
+
+
 @router.post('/turns/{turn_id}/cancel', dependencies=WRITE)
 def cancel(task_id: UUID, turn_id: UUID, body: Cancel, actor: CurrentMember, session: Database):
     return service.cancel(session, actor, task_id, turn_id, body.version)

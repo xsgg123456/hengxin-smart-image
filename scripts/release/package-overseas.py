@@ -13,7 +13,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.31'
+VERSION = '0.2.32'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -23,7 +23,7 @@ EXACT = m.EXACT | {
     'infra/hengxin-overseas-worker.service', 'infra/hengxin-overseas-outbox.service',
     'infra/nginx.zhitu.qhhengxin.top.conf',
 }
-SCRIPTS = {'management-runtime.py', 'image-inputs-worker.py'}
+SCRIPTS = {'management-runtime.py', 'image-inputs-worker.py', 'native-studio-deploy.py', 'native-studio-runtime.py'}
 MAINTENANCE = {'audit-business-members.py', 'reconcile-business-members.py', 'member_audit.py', 'member_catalog.py',
                'member_codec.py', 'member_cli.py', 'member_reconcile.py', 'member_restore.py'}
 MEMBER_RELEASE = {'deploy', 'runtime', 'drain', 'backup', 'verify'}
@@ -44,6 +44,7 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/migrations/overseas/versions/0013_task_deletion_archives.py',
     'backend/migrations/versions/0028_member_applications.py',
     'backend/migrations/overseas/versions/0014_member_applications.py',
+    'backend/migrations/overseas/versions/0015_studio_transcript.py',
     'scripts/release/member-release-deploy.py',
     'backend/app/overseas/tasks/cleanup.py',
     'backend/app/overseas/tasks/deletion.py',
@@ -177,7 +178,7 @@ def build(repo):
     validate(files)
     release = 'overseas-20261014-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0028', overseasMigration='overseas_0014', frontendVersion=VERSION,
+                    migration='0028', overseasMigration='overseas_0015', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

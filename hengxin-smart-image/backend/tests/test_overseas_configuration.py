@@ -156,6 +156,8 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     assert business_paths == {
         '/api/overseas/v1/tasks/{task_id}/studio',
         '/api/overseas/v1/tasks/{task_id}/studio/events',
+        '/api/overseas/v1/tasks/{task_id}/studio/transcript',
+        '/api/overseas/v1/tasks/{task_id}/studio/conversations',
         '/api/overseas/v1/tasks/{task_id}/studio/turns',
         '/api/overseas/v1/tasks/{task_id}/studio/turns/{turn_id}/cancel',
         '/api/overseas/v1/tasks/{task_id}/studio/archive',
