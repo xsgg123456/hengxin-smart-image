@@ -18,7 +18,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.32'
+VERSION = '0.2.33'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -26,7 +26,7 @@ EXACT = m.EXACT | {
     'infra/compose.overseas.yaml', 'infra/compose.identity.yaml',
     'infra/overseas/bootstrap-postgres.sh', 'infra/overseas/bootstrap-minio.sh',
     'infra/hengxin-overseas-worker.service', 'infra/hengxin-overseas-outbox.service',
-    'infra/nginx.zhitu.qhhengxin.top.conf',
+    'infra/nginx.zhitu.qhhengxin.top.conf', 'infra/nginx.overseas-upload.inc',
 }
 SCRIPTS = {'management-runtime.py', 'image-inputs-worker.py', 'native-studio-deploy.py', 'native-studio-runtime.py'} | RELEASE_HELPERS
 MAINTENANCE = {'audit-business-members.py', 'reconcile-business-members.py', 'member_audit.py', 'member_catalog.py',
@@ -39,6 +39,8 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-update-deploy.py', 'scripts/release/overseas-update-runtime.py',
     'scripts/release/overseas-skills-runtime.py',
     'scripts/release/overseas-hotfix-deploy.py',
+    'scripts/release/overseas-upload-deploy.py', 'scripts/release/overseas-upload-proxy.py',
+    'scripts/release/overseas-upload-resources.py',
     'frontend/dist/index.html',
     'backend/migrations/env.py', 'backend/migrations/overseas/env.py',
     'backend/migrations/versions/0027_identity_session_binding.py',
