@@ -19,3 +19,15 @@
 - 浏览器隔离接口测试PASS：草稿/附件/Skill/滚动保持，手动与静默刷新、错误恢复、完成停止，390px长描述全文滚动及说明弹窗；output/studio-refresh-browser.log、output/playwright/studio/。可见性/卸载/竞争及权限由真实hook定时器测试覆盖。
 - 发布脚本13项、打包25项通过。依赖审计critical=0；既有high70/moderate48/low5，本次未修改依赖。
 - 生产只读预检：0.2.30、国内0028/海外0014、在途0、删除0、worker空闲。真实Skill14包181文件，保持不可变安装版本。
+
+## 生产发布结果
+- 发布0.2.31成功，2026-10-14北京时间约10:10恢复入口；源码53cf1de，包overseas-20261014-53cf1de。
+- 独立两阶段审查PASS，candidate ad0843abf633a7710f2bb13f7c16da45b3fd0595bb9448cf998964c70417db99；见docs/reviews/WORKBENCH-SKILLS-RELEASE-20261014.md。
+- 包1454文件/8636575字节，隐私PASS，SHA256 79156dacdc7febe38234fbfa85d2e3bb9f85601b0c8ba382a02f4b26081dfb9b；镜像564个后端源文件哈希一致。
+- 生产实际镜像安装回归1899 passed、184 skipped、1 deselected、15 warnings，419.48s；排除外部宿主专用测试与不随包部署的前端源码合同用例，未宣称跳过项通过。
+- prepare/deploy均exit0，PHASE complete；备份/opt/hengxin-backups/overseas-20261014-53cf1de。海外两轮排空后切换，国内/身份容器及国内原生进程保持不变，schema不变。
+- 生产只读验证14个Skill名称与description逐项匹配实际校验后的SKILL文件，原安装release未修改。
+- 正式已登录浏览器验证管理页与工作台实际名称、下拉完整描述和说明弹窗；截图output/workbench-production-management.png、workbench-production-skill.png。
+- 正式任务列表中原样例已显示2026-10-14 08:59:59；截图output/workbench-production-time.png。图需提交页两input accept均空，文案不限格式含PPT/PPTX、解析失败不阻止提交；截图output/workbench-production-upload.png。
+- 生产页面验收采用现有任务只读导航及本地Skill选择，未新建生产任务/上传测试资料/调用收费模型。上传实际提交与刷新故障/隐藏/并发由发布前隔离浏览器及后端测试覆盖；不把生产只读验收当成收费生成端到端验证。
+- 首次SSH构建连接超时、重试成功；切换开放后的首次探测503，经发布器重试恢复并通过正式入口检查，无回退或数据库恢复。
