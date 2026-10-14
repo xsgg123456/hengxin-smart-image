@@ -10,6 +10,8 @@ spec.loader.exec_module(h)
 m, u, r, verify = h.m, h.u, h.r, h.verify
 VERSION, PREVIOUS = '0.2.32', '0.2.31'
 OLD_SCHEMA, NEW_SCHEMA = 'overseas_0014', 'overseas_0015'
+STUDIO_ROUTE = 'tasks/00000000-0000-0000-0000-000000000000/studio'
+AUTH_ROUTES = ('auth/me', 'tasks', 'members/applications', STUDIO_ROUTE, STUDIO_ROUTE + '/transcript')
 
 
 def validate(work, release):
@@ -110,8 +112,8 @@ def installed(work, manifest, identity, data, native, target):
     m.skills.verify(u, work, target)
     for port, route in verify.HEALTH.values():
         verify.get(f'http://127.0.0.1:{port}' + route)
-    for route in ('auth/me', 'tasks', 'members/applications', 'studio/sessions'):
-        assert verify.status('http://127.0.0.1:18018/api/overseas/v1/' + route) in ('401', '403')
+    for route in AUTH_ROUTES:
+        assert verify.status('http://127.0.0.1:18018/api/overseas/v1/' + route) in ('401', '403'), route
     m.private(work / 'INSTALLED_VERIFIED', 'Image/native hashes, schema, sandbox Skills and untouched services verified')
 
 

@@ -1,6 +1,6 @@
 """Overseas native studio 0.2.32: drained, backed-up, forward-only 0014 -> 0015.
 
-CLI: RELEASE build|prepare|deploy. No Skill installation or domestic/identity restart.
+CLI: RELEASE build|prepare|deploy|recover. No Skill installation or domestic/identity restart.
 """
 import importlib.util
 import json
@@ -67,7 +67,18 @@ def deploy(work, source, manifest, image):
         m.compose(data['overseas'], 'up', '-d', '--no-deps', '--no-build', '--pull', 'never',
                   '--wait', '--wait-timeout', '180', 'api', overlay=overlay)
         m.run('systemctl', 'start', *u.UNITS)
-        phase = 'verify-installed'
+    except BaseException as exc:
+        s.failure(work, phase, exc, edge, data)
+        raise
+
+    finish(work, source, manifest, identity, data, native, target, edge)
+
+
+def finish(work, source, manifest, identity, data, native, target, edge):
+    overlay = work / 'overseas-overlay.json'
+    destination = BACKUPS / manifest['release']
+    phase = 'verify-installed'
+    try:
         m.private(work / 'PHASE', phase)
         s.installed(work, manifest, identity, data, native, target)
         m.run('docker', 'exec', r.PREFIX + 'web-1', 'nginx', '-t')
@@ -87,7 +98,8 @@ def deploy(work, source, manifest, image):
         u.reload_edge()
         verify.public()
         verify.frontend(source, manifest)
-        assert verify.status(r.ORIGIN + '/api/overseas/v1/studio/sessions') in ('401', '403')
+        for route in s.AUTH_ROUTES:
+            assert verify.status(r.ORIGIN + '/api/overseas/v1/' + route) in ('401', '403'), route
         h.resources_unchanged(data, native, {'native': target, 'overlay': overlay})
         s.schemas(s.NEW_SCHEMA)
         for name in ('OVERSEAS_RELEASE.json', 'FRONTEND_RELEASE.json'):
@@ -101,6 +113,55 @@ def deploy(work, source, manifest, image):
     except BaseException as exc:
         s.failure(work, phase, exc, edge, data)
         raise
+
+
+def recover(work, source, manifest, image):
+    """Resume only the inspected post-migration/pre-frontend auth-probe failure."""
+    assert not (work / 'RECOVERY_STARTED').exists(), 'Recovery requires inspected state, not replay'
+    assert (work / 'PHASE').read_text() == 'verify-installed'
+    failure = json.loads((work / 'FAILURE.json').read_text())
+    assert failure['phase'] == 'verify-installed' and failure['errorType'] == 'AssertionError'
+    assert failure['edgeClosed'] and failure['apiStopped'] and failure['migrationStarted']
+    assert (work / 'MIGRATION_VERIFIED').read_text() == s.NEW_SCHEMA
+    assert (BACKUPS / manifest['release'] / 'COMPLETE').exists()
+    assert not (work / 'INSTALLED_VERIFIED').exists() and not (work / 'verification.json').exists()
+    s.schemas(s.NEW_SCHEMA)
+    s.previous_version()
+    identity = m.image_id(work, image)
+    assert (work / 'PREPARED').read_text() == identity
+    data = json.loads((work / 'topology.json').read_text())
+    native = json.loads((work / 'domestic-native.json').read_text())
+    target = Path((work / 'native-target').read_text())
+    overlay = work / 'overseas-overlay.json'
+    assert json.loads(overlay.read_text()) == s.overlay(source, identity)
+    actual = m.live(u.API)
+    assert not actual['State']['Running'] and actual['Image'] == identity
+    assert actual['Mounts'] == data['overseas']['mounts'][u.API]
+    # The API is deliberately stopped: topology() lists running containers only.
+    assert h.domestic_native() == native
+    for baseline in data.values():
+        if not isinstance(baseline, dict) or 'ids' not in baseline:
+            continue
+        for name, expected_id in baseline['ids'].items():
+            if name != u.API:
+                resource = m.live(name)
+                assert resource['Id'] == expected_id and resource['State']['Running'], name
+                assert resource['Mounts'] == baseline['mounts'][name], name
+        assert all(m.digest(path) == digest for path, digest in baseline['files'].items())
+    s.prepared_settings(work, data, identity, source)
+    r.hashes(target.parent, {'files': {n: v for n, v in manifest['files'].items() if n.startswith('backend/')}})
+    h.closed()
+    h.wait_empty(work, 'recovery-idle')
+    edge = (work / 'edge-before.conf').read_text()
+    assert m.EDGE.read_text() == h.closed_config(edge)
+    m.private(work / 'RECOVERY_STARTED', 'Forward continuation of verified 0015; no migration or restore')
+    try:
+        m.compose(data['overseas'], 'up', '-d', '--no-deps', '--no-build', '--pull', 'never',
+                  '--wait', '--wait-timeout', '180', 'api', overlay=overlay)
+    except BaseException as exc:
+        s.failure(work, 'recovery-api-start', exc, edge, data)
+        raise
+    finish(work, source, manifest, identity, data, native, target, edge)
 
 
 def main():
@@ -118,6 +179,8 @@ def main():
         s.prepare(work, source, manifest, image)
     elif action == 'deploy':
         deploy(work, source, manifest, image)
+    elif action == 'recover':
+        recover(work, source, manifest, image)
     else:
         raise ValueError('Unknown native studio action')
 
