@@ -8,6 +8,11 @@ from pathlib import Path, PurePosixPath
 import re
 import tarfile
 
+RELEASE_HELPERS = {'release-retention.py', 'release-retention-state.py',
+                   'release-retention-docker.py', 'release-build.py'} | {
+    path.name for path in Path(__file__).parent.glob('release-retention*.py')}
+
+
 spec = importlib.util.spec_from_file_location('management_package', Path(__file__).with_name('package-management.py'))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
@@ -23,7 +28,7 @@ EXACT = m.EXACT | {
     'infra/hengxin-overseas-worker.service', 'infra/hengxin-overseas-outbox.service',
     'infra/nginx.zhitu.qhhengxin.top.conf',
 }
-SCRIPTS = {'management-runtime.py', 'image-inputs-worker.py', 'native-studio-deploy.py', 'native-studio-runtime.py'}
+SCRIPTS = {'management-runtime.py', 'image-inputs-worker.py', 'native-studio-deploy.py', 'native-studio-runtime.py'} | RELEASE_HELPERS
 MAINTENANCE = {'audit-business-members.py', 'reconcile-business-members.py', 'member_audit.py', 'member_catalog.py',
                'member_codec.py', 'member_cli.py', 'member_reconcile.py', 'member_restore.py'}
 MEMBER_RELEASE = {'deploy', 'runtime', 'drain', 'backup', 'verify'}
@@ -60,6 +65,8 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
 
 
 def selected(path):
+    if path in {'scripts/release/' + name for name in RELEASE_HELPERS}:
+        return path
     parts = PurePosixPath(path).parts
     if '\\' in path or path.startswith('/') or any(p.startswith('.') for p in parts):
         return None

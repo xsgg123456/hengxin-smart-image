@@ -1,11 +1,13 @@
 """Stage the pinned CLI and a native-only patch, without changing live services."""
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import urllib.request
 
@@ -93,4 +95,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    spec = importlib.util.spec_from_file_location('release_retention', Path(__file__).with_name('release-retention.py'))
+    retention = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(retention)
+    retention.managed(main, [sys.argv[0], RELEASE, 'prepare'])

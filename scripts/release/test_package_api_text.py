@@ -50,6 +50,7 @@ class PackageTests(unittest.TestCase):
                  'backend/migrations/versions/0022_api_text_operation_kind.py': b'',
                  'frontend/package.json': b'{"version":"0.2.14"}',
                  **{'scripts/release/' + n: b'' for n in ('api-text-deploy.py', 'api-text-runtime.py', 'api-text-verify.py', 'image-inputs-worker.py')}}
+        files.update({'scripts/release/' + name: b'' for name in package.RELEASE_HELPERS})
         package.validate(files)
         for name in files:
             with self.assertRaises((AssertionError, KeyError)):

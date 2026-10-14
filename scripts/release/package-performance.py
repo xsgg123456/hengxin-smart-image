@@ -9,6 +9,11 @@ from pathlib import Path
 import subprocess
 import tarfile
 
+RELEASE_HELPERS = {'release-retention.py', 'release-retention-state.py',
+                   'release-retention-docker.py', 'release-build.py'} | {
+    path.name for path in Path(__file__).parent.glob('release-retention*.py')}
+
+
 spec = importlib.util.spec_from_file_location('delivery_package', Path(__file__).with_name('package-delivery.py'))
 common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
@@ -20,6 +25,8 @@ ASSET_SENSITIVE = re.compile(common.SENSITIVE.pattern.replace('sk-', r'(?<![A-Za
 
 
 def selected(path):
+    if path in {'scripts/release/' + name for name in RELEASE_HELPERS}:
+        return path
     prefix = 'hengxin-smart-image/'
     if path.startswith(prefix):
         name = path[len(prefix):]
@@ -102,6 +109,7 @@ def build(repo):
     manifest = {'release': release, 'commit': commit, 'candidateId': status['currentId'],
         'migration': '0019', 'frontendVersion': '0.2.8',
         'files': {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())}}
+    assert {'scripts/release/' + name for name in RELEASE_HELPERS} <= files.keys()
     files['release.json'] = json.dumps(manifest, indent=2).encode()
     assert common.reviewed_status(repo)['currentId'] == status['currentId']
     assert not git('status', '--porcelain', '--untracked-files=no').strip()

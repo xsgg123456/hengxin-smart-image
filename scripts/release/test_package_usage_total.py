@@ -29,6 +29,7 @@ def test_release_requires_correct_version_and_complete_runtime():
     for name in ('app/contracts/api_usage.py', 'app/modules/management/api_usage.py',
                  'app/modules/management/api_usage_summary.py', 'tests/test_usage_generated_totals.py'):
         files['backend/' + name] = b''
+    files.update({'scripts/release/' + name: b'' for name in p.RELEASE_HELPERS})
     p.validate(files)
     with pytest.raises(AssertionError):
         p.validate({**files, 'frontend/package.json': b'{"version":"0.2.20"}'})

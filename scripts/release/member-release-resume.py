@@ -95,10 +95,17 @@ def resume(work, recovery_commit):
         raise
 
 
-if __name__ == '__main__':
+def main():
     os.umask(0o077)
     assert not sys.flags.optimize and os.geteuid() == 0
     release, recovery_commit = sys.argv[1:3]
     assert re.fullmatch(r'overseas-20261013-[0-9a-f]{7}', release)
     assert re.fullmatch(r'[0-9a-f]{40}', recovery_commit)
     resume(Path('/opt/hengxin-releases') / release, recovery_commit)
+
+
+if __name__ == '__main__':
+    spec = importlib.util.spec_from_file_location('release_retention', Path(__file__).with_name('release-retention.py'))
+    retention = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(retention)
+    retention.managed(main, [sys.argv[0], sys.argv[1], 'resume'])

@@ -15,6 +15,10 @@ REPOSITORY_ONLY_TESTS = ('test_local_codex', 'test_local_codex_control', 'test_l
     'test_phase11a_checks', 'test_phase11a_environment', 'test_phase11a_supervisor')
 
 
+spec = importlib.util.spec_from_file_location('release_build', Path(__file__).with_name('release-build.py'))
+builder = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(builder)
+
 def installed_test_args():
     return ['-m', 'pytest', '-q', *('--ignore=tests/' + name + '.py' for name in REPOSITORY_ONLY_TESTS),
             '--deselect=tests/test_contracts.py::test_top_level_fields_match_frontend_interfaces']
@@ -42,7 +46,7 @@ def evidence(source, image):
 def build(work, source, image):
     for name in ('INSTALL_TEST_IMAGE_ID', 'INSTALL_TEST_EVIDENCE.json'):
         (work / name).unlink(missing_ok=True)
-    r.run('docker', 'build', '-t', image, '-f', str(source / 'infra/Dockerfile.backend'), str(source))
+    builder.build(source, image, r.run)
     tested = image_id(image)
     with (work / 'installation-tests.log').open('w') as log:
         subprocess.run(['docker', 'run', '--rm', '--init', '--network', 'none', '--entrypoint', 'python',
@@ -119,4 +123,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    spec = importlib.util.spec_from_file_location('release_retention', Path(__file__).with_name('release-retention.py'))
+    retention = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(retention)
+    retention.managed(main)

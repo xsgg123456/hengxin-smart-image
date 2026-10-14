@@ -52,6 +52,7 @@ class PackageTests(unittest.TestCase):
                  'backend/migrations/versions/0023_api_cli_conversations.py': b'',
                  'frontend/package.json': b'{"version":"0.2.17"}',
                  **{'scripts/release/' + n: b'' for n in ('api-edit-deploy.py', 'api-edit-runtime.py', 'api-edit-verify.py', 'image-inputs-worker.py')}}
+        files.update({'scripts/release/' + name: b'' for name in package.RELEASE_HELPERS})
         package.validate(files)
         for name in files:
             with self.assertRaises((AssertionError, KeyError)):

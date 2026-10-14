@@ -9,6 +9,11 @@ from pathlib import Path
 import subprocess
 import tarfile
 
+RELEASE_HELPERS = {'release-retention.py', 'release-retention-state.py',
+                   'release-retention-docker.py', 'release-build.py'} | {
+    path.name for path in Path(__file__).parent.glob('release-retention*.py')}
+
+
 spec = importlib.util.spec_from_file_location('delivery_package', Path(__file__).with_name('package-delivery.py'))
 common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
@@ -20,6 +25,8 @@ ASSET_SENSITIVE = re.compile(common.SENSITIVE.pattern.replace('sk-', r'(?<![A-Za
 
 
 def selected(path):
+    if path in {'scripts/release/' + name for name in RELEASE_HELPERS}:
+        return path
     prefix = 'hengxin-smart-image/'
     if path.startswith(prefix):
         name = path[len(prefix):]
@@ -115,6 +122,7 @@ def build(repo):
 
 
 def validate(files):
+    assert {'scripts/release/' + name for name in RELEASE_HELPERS} <= files.keys()
     assert 'backend/migrations/versions/0020_builtin_text_tasks.py' in files
     assert json.loads(files['frontend/package.json'])['version'] == '0.2.11'
     assert {'scripts/release/' + n for n in (

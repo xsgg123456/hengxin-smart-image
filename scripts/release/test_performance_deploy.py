@@ -75,7 +75,8 @@ class RecoveryTests(unittest.TestCase):
                 events.append(('install',))
                 (native / 'app/version.py').write_text('new')
 
-            with patch.object(deploy, 'Path', side_effect=lambda p: root / Path(p).name), \
+            with patch.object(deploy.builder, 'build', side_effect=lambda source, image, runner: runner('build-image', image)), \
+                 patch.object(deploy, 'Path', side_effect=lambda p: root / Path(p).name), \
                  patch.object(deploy.os, 'umask'), \
                  patch.object(sys, 'argv', ['deploy', release, 'deploy']), \
                  patch.multiple(deploy.r, NATIVE=native, APP=root / 'app',

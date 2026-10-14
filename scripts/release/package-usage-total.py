@@ -4,6 +4,11 @@ import importlib.util
 import json
 from pathlib import Path
 
+RELEASE_HELPERS = {'release-retention.py', 'release-retention-state.py',
+                   'release-retention-docker.py', 'release-build.py'} | {
+    path.name for path in Path(__file__).parent.glob('release-retention*.py')}
+
+
 spec = importlib.util.spec_from_file_location('management_package', Path(__file__).with_name('package-management.py'))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
@@ -11,6 +16,8 @@ SCRIPTS = {'management-runtime.py', 'usage-total-deploy.py', 'usage-total-runtim
 
 
 def selected(path):
+    if path in {'scripts/release/' + name for name in RELEASE_HELPERS}:
+        return path
     if path.startswith('hengxin-smart-image/'):
         return m.selected(path)
     if path.startswith('scripts/release/') and Path(path).name in SCRIPTS:
@@ -19,6 +26,7 @@ def selected(path):
 
 
 def validate(files):
+    assert {'scripts/release/' + name for name in RELEASE_HELPERS} <= files.keys()
     assert m.EXACT <= files.keys()
     assert {'scripts/release/' + name for name in SCRIPTS} <= files.keys()
     assert 'frontend/dist/index.html' in files

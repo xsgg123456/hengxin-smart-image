@@ -202,6 +202,7 @@ def test_build_blocks_installation_when_image_bytes_differ(tmp_path, monkeypatch
     (tmp_path / 'release.json').write_text(json.dumps({'files': {'backend/app/main.py': 'expected'}}))
     calls = []
     monkeypatch.setattr(d.r, 'run', lambda *args, **kwargs: calls.append(args) or 'sha256:image')
+    monkeypatch.setattr(d.builder, 'build', lambda source, image, runner: calls.append(('build-image', image)))
     def mismatch(args, **kwargs):
         assert '-i' in args and '-c' in args
         assert json.loads(kwargs['input']) == {'app/main.py': 'expected'}
@@ -209,6 +210,6 @@ def test_build_blocks_installation_when_image_bytes_differ(tmp_path, monkeypatch
     monkeypatch.setattr(d.subprocess, 'run', mismatch)
     with pytest.raises(subprocess.CalledProcessError):
         d.build(tmp_path, tmp_path, 'test-image')
-    assert '--no-cache' in calls[0]
+    assert calls[0] == ('build-image', 'test-image')
     assert not (tmp_path / 'INSTALL_TEST_IMAGE_ID').exists()
     assert not (tmp_path / 'installation-tests.log').exists()

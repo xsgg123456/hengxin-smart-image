@@ -16,6 +16,10 @@ REPOSITORY_ONLY_TESTS = ('test_local_codex', 'test_local_codex_control',
     'test_phase11a_supervisor')
 
 
+spec = importlib.util.spec_from_file_location('release_build', Path(__file__).with_name('release-build.py'))
+builder = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(builder)
+
 def installed_test_args():
     return ['-m', 'pytest', '-q',
         *('--ignore=tests/' + name + '.py' for name in REPOSITORY_ONLY_TESTS),
@@ -55,7 +59,7 @@ def main():
     def native(action):
         r.run('python3', str(helper), 'run-native-' + action, '120')
     if mode == 'build':
-        r.run('docker', 'build', '-t', image, '-f', str(source / 'infra/Dockerfile.backend'), str(source))
+        builder.build(source, image, r.run)
         with (work / 'installation-tests.log').open('w') as log:
             subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python',
                 '-e', 'APP_ENV=test', '-e', 'ENABLE_DEV_IDENTITY=false', image,
@@ -160,4 +164,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    spec = importlib.util.spec_from_file_location('release_retention', Path(__file__).with_name('release-retention.py'))
+    retention = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(retention)
+    retention.managed(main)

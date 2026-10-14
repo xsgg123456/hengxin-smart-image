@@ -186,4 +186,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if sys.flags.optimize:
+        raise RuntimeError('Python -O disables release safety assertions')
+    spec = importlib.util.spec_from_file_location('release_retention', Path(__file__).with_name('release-retention.py'))
+    retention = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(retention)
+    retention.managed(main)

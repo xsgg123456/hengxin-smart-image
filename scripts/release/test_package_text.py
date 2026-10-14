@@ -48,6 +48,7 @@ class PackageTests(unittest.TestCase):
         files = {'backend/migrations/versions/0020_builtin_text_tasks.py': b'',
                  'frontend/package.json': b'{"version":"0.2.11"}',
                  **{'scripts/release/' + n: b'' for n in ('text-deploy.py', 'text-runtime.py', 'image-inputs-worker.py')}}
+        files.update({'scripts/release/' + name: b'' for name in package.RELEASE_HELPERS})
         package.validate(files)
         for name in files:
             with self.assertRaises((AssertionError, KeyError)):

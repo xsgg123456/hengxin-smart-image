@@ -14,6 +14,10 @@ spec.loader.exec_module(r)
 s = r.module('overseas-services')
 
 
+spec = importlib.util.spec_from_file_location('release_build', Path(__file__).with_name('release-build.py'))
+builder = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(builder)
+
 def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
@@ -23,7 +27,7 @@ def validate(work, release):
 
 
 def build(work, source, image):
-    r.run('docker', 'build', '--no-cache', '-t', image, '-f', str(source / 'infra/Dockerfile.backend'), str(source))
+    builder.build(source, image, r.run)
     identity = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', image, capture=True)
     expected = {name.removeprefix('backend/'): digest for name, digest in
                 json.loads((source / 'release.json').read_text())['files'].items()
@@ -167,4 +171,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    spec = importlib.util.spec_from_file_location('release_retention', Path(__file__).with_name('release-retention.py'))
+    retention = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(retention)
+    retention.managed(main)

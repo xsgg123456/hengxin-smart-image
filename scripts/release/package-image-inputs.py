@@ -8,6 +8,11 @@ import sys
 import tarfile
 from pathlib import Path
 
+RELEASE_HELPERS = {'release-retention.py', 'release-retention-state.py',
+                   'release-retention-docker.py', 'release-build.py'} | {
+    path.name for path in Path(__file__).parent.glob('release-retention*.py')}
+
+
 repo = Path(__file__).resolve().parents[2]
 app = repo / 'hengxin-smart-image'
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
@@ -33,6 +38,7 @@ for file in (app / 'frontend/dist').rglob('*'):
         names.append(file.relative_to(app).as_posix())
 names.extend('scripts/release/' + name for name in (
     'image-inputs-deploy.sh', 'image-inputs-worker.py', 'image-inputs-frontend.py', 'image-inputs-native.py'))
+names.extend('scripts/release/' + name for name in sorted(RELEASE_HELPERS))
 for name in names:
     source = (repo if name.startswith('scripts/') else app) / name
     target = stage / name

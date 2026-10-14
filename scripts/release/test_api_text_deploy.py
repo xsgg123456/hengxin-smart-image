@@ -97,7 +97,8 @@ class RecoveryTests(unittest.TestCase):
                 for name in markers: (root / 'app' / name).write_text('new-marker')
                 raise RuntimeError('publication interrupted')
 
-            with patch.object(deploy, 'Path', side_effect=lambda p: root / Path(p).name), \
+            with patch.object(deploy.builder, 'build', side_effect=lambda source, image, runner: runner('build-image', image)), \
+                 patch.object(deploy, 'Path', side_effect=lambda p: root / Path(p).name), \
                  patch.object(deploy.os, 'umask'), \
                  patch.object(sys, 'argv', ['deploy', release, mode]), \
                  patch.object(deploy.subprocess, 'run'), \

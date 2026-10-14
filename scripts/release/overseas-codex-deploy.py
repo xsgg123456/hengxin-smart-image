@@ -216,6 +216,10 @@ def deploy():
         raise
 
 
-if __name__ == '__main__':
+def main():
     assert os.geteuid() == 0 and not sys.flags.optimize
     deploy()
+
+
+if __name__ == '__main__':
+    module('release-retention').managed(main, [sys.argv[0], p.RELEASE, 'deploy'])

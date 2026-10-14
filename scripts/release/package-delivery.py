@@ -9,12 +9,17 @@ import sys
 import tarfile
 from pathlib import Path
 
+RELEASE_HELPERS = {'release-retention.py', 'release-retention-state.py',
+                   'release-retention-docker.py', 'release-build.py'} | {
+    path.name for path in Path(__file__).parent.glob('release-retention*.py')}
+
+
 APP = 'hengxin-smart-image/'
 PREVIOUS_IMAGE = 'hengxin-smart-image-backend:materials-20260924-2cdb4ff'
 EXACT = {'backend/pyproject.toml', 'backend/uv.lock', 'backend/alembic.ini',
          'infra/Dockerfile.backend', 'backend/tests/fixtures/cli_revision_briefs.json',
          'backend/tests/fixtures/unannotated_revision_briefs.json'}
-SCRIPTS = {'delivery-deploy.sh', 'delivery-native.py', 'image-inputs-worker.py'}
+SCRIPTS = {'delivery-deploy.sh', 'delivery-native.py', 'image-inputs-worker.py'} | RELEASE_HELPERS
 TESTS = {'test_delivery_deploy.py', 'test_delivery_native.py', 'test_package_delivery.py'}
 SENSITIVE = re.compile(
     r'sk-[A-Za-z0-9_-]{16,}|-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----|'

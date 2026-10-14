@@ -61,6 +61,7 @@ class PackageTests(unittest.TestCase):
                  **{'scripts/release/' + n: b'' for n in ('management-deploy.py', 'management-runtime.py', 'management-verify.py', 'image-inputs-worker.py')}}
         files.update({'backend/migrations/versions/' + n: b'' for n in ('0024_cli_retention.py', '0025_api_usage_facts.py', '0026_api_worker_heartbeat.py')})
         files.update({'backend/app/' + n: b'' for n in ('retention/worker.py', 'modules/management/api_stats/backfill.py', 'modules/management/api_usage.py', 'modules/management/api_monitor.py', 'modules/management/execution_settings.py')})
+        files.update({'scripts/release/' + name: b'' for name in package.RELEASE_HELPERS})
         package.validate(files)
         for name in files:
             with self.assertRaises((AssertionError, KeyError)):

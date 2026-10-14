@@ -35,6 +35,7 @@ class DeployTests(unittest.TestCase):
         self.runtime.run.side_effect = lambda *a, **kw: 'old-id' if a[-1] == 'old-image' else 'new-id'
         self.addCleanup(patch.stopall)
         patch.object(d, 'r', self.runtime).start()
+        patch.object(d.builder, 'build', side_effect=lambda source, image, runner: runner('build-image', image)).start()
         (self.work / 'INSTALL_TEST_EVIDENCE.json').write_text(json.dumps(d.evidence(self.source, self.image)))
 
     def deploy(self):
