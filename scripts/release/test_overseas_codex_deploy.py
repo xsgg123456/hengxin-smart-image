@@ -30,6 +30,47 @@ def test_ambiguous_edge_aborts():
         d.closed_config(EDGE + 'location ^~ /api/overseas/v1/ { return 200; }')
 
 
+def test_close_waits_for_both_routes_after_graceful_reload(monkeypatch):
+    statuses = iter(['503', '401', '503', '503'])
+    sleeps = []
+    monkeypatch.setattr(d, 'admission_status', lambda _, timeout: next(statuses))
+    monkeypatch.setattr(d.time, 'sleep', sleeps.append)
+    d.closed()
+    assert sleeps == [1]
+
+
+def test_close_timeout_never_accepts_partial_closure(monkeypatch):
+    statuses = iter(['503', '401'])
+    monkeypatch.setattr(d, 'admission_status', lambda _, timeout: next(statuses))
+    with pytest.raises(AssertionError, match='Admission not closed'):
+        d.closed(timeout=0)
+
+
+def test_late_success_cannot_pass_deadline(monkeypatch):
+    clock = iter([0, 1, 10, 21])
+    budgets = []
+    monkeypatch.setattr(d.time, 'monotonic', lambda: next(clock))
+    def status(_, timeout):
+        budgets.append(timeout)
+        return '503'
+    monkeypatch.setattr(d, 'admission_status', status)
+    with pytest.raises(AssertionError, match='Admission not closed'):
+        d.closed(timeout=20)
+    assert budgets == [19, 10]
+
+
+def test_network_probe_obeys_remaining_budget(monkeypatch):
+    calls = []
+    def output(args, **kwargs):
+        calls.append((args, kwargs))
+        raise d.subprocess.TimeoutExpired(args, kwargs['timeout'])
+    monkeypatch.setattr(d.subprocess, 'check_output', output)
+    with pytest.raises(d.subprocess.TimeoutExpired):
+        d.admission_status('https://example.test', 0.5)
+    assert calls[0][1]['timeout'] == 0.5
+    assert calls[0][0][2] == '0.5'
+
+
 def test_domestic_override_only_changes_runtime_file():
     text = d.dropin(d.UNITS[0], Path('/new/backend'))
     assert 'EnvironmentFile=' in text

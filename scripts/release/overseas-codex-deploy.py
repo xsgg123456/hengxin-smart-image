@@ -41,9 +41,26 @@ def closed_config(original):
     return changed
 
 
-def closed():
-    for path in ('/api/v1/auth/me', '/api/overseas/v1/auth/me'):
-        assert h.verify.status(r.ORIGIN + path) == '503', 'Admission not closed'
+def admission_status(url, timeout):
+    return subprocess.check_output(['curl', '--max-time', str(timeout), '-sS', '-o', '/dev/null',
+                                    '-w', '%{http_code}', url], text=True, timeout=timeout).strip()
+
+
+def closed(timeout=20):
+    deadline = time.monotonic() + timeout
+    while True:
+        statuses = []
+        for path in ('/api/v1/auth/me', '/api/overseas/v1/auth/me'):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AssertionError('Admission not closed')
+            statuses.append(admission_status(r.ORIGIN + path, remaining))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AssertionError('Admission not closed')
+        if statuses == ['503', '503']:
+            return
+        time.sleep(min(1, remaining))
 
 
 def idle_evidence():
