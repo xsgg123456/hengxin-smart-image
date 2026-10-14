@@ -18,7 +18,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.33'
+VERSION = '0.2.34'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -41,6 +41,7 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-hotfix-deploy.py',
     'scripts/release/overseas-upload-deploy.py', 'scripts/release/overseas-upload-proxy.py',
     'scripts/release/overseas-upload-resources.py',
+    'scripts/release/overseas-attachments-deploy.py',
     'frontend/dist/index.html',
     'backend/migrations/env.py', 'backend/migrations/overseas/env.py',
     'backend/migrations/versions/0027_identity_session_binding.py',

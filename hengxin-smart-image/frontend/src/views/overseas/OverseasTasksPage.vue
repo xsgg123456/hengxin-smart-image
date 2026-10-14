@@ -20,7 +20,7 @@
         </template>
       </OverseasRequirementsReview>
       <div v-if="detail && !deleting && studio" class="hx-filter studio-task-meta"><span>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · {{ detail.market }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
-      <OverseasStudio :actor-id="actorId" v-if="detail && !deleting && studio" :key="detail.id" :task="detail" :materials-api="materialsApi" @failure="failure" @changed="refreshDetail" />
+      <OverseasStudio :actor-id="actorId" v-if="detail && !deleting && studio" :key="detail.id" :task="detail" @failure="failure" @changed="refreshDetail" />
       <OverseasTaskInfo v-if="detail && !deleting && !preReview && !studio" :task="detail" class="hx-gap">
         <template #assignment>
           <div v-if="detail.capabilities.includes('task.reassign')" class="hx-gap">

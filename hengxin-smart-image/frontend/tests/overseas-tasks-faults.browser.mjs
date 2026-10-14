@@ -59,7 +59,7 @@ try {
   await input('任务名称').fill('真实多SKU任务'); await input('品名').fill('手机壳'); await input('品牌').fill('HX'); await input('目标站点').fill('美国')
   await page.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('A'); await button('添加 SKU').click(); await page.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('B')
   assert.equal(await button('提交图需').isDisabled(), true)
-  await page.locator('[data-material-kind="competitor"] input[type=file]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature') }); await page.getByText(/竞品.csv · 解析成功/).waitFor()
+  await page.locator('[data-material-kind="competitor"] input[type=file]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature') }); await page.getByText(/竞品.csv/).waitFor()
   mode = 'unknown'; await button('提交图需').click(); await page.getByText('服务连接失败，请稍后重试').waitFor(); assert.equal(await input('任务名称').inputValue(), '真实多SKU任务')
   mode = 'normal'; await button('提交图需').click(); await page.getByRole('heading', { name: '任务信息', exact: true }).waitFor(); assert.equal(attempts, 2); assert.equal(keys[0], keys[1]); assert.equal(saved.skus.length, 2); assert.equal(saved.designerId, 'd2')
   assert.equal(await page.getByText('预览图需资料').count(), 0)

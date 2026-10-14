@@ -182,7 +182,7 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/tasks/{task_id}/assignment', '/api/overseas/v1/task-designers',
         '/api/overseas/v1/tasks/{task_id}/requirements-review', '/api/overseas/v1/tasks/{task_id}/resubmit',
         '/api/overseas/v1/materials', '/api/overseas/v1/materials/{material_id}',
-        '/api/overseas/v1/materials/{material_id}/content', '/api/overseas/v1/materials/{material_id}/retry',
+        '/api/overseas/v1/materials/{material_id}/content',
         '/api/overseas/v1/tasks/{task_id}/materials',
         '/api/overseas/v1/tasks/{task_id}/jobs',
         '/api/overseas/v1/tasks/{task_id}/execution-events',

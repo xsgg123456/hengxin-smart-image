@@ -57,8 +57,8 @@ def run(h):
             return result.json()
 
         material = upload()
-        assert material['status'] == 'ready' and 'charger' in material['text']
-        assert material['version'] == 1 and material['taskId'] is None
+        assert material['status'] == 'ready' and 'text' not in material
+        assert 'version' not in material and material['taskId'] is None
         url = base + '/materials/' + material['id']
         h.expect(outsider.get(url), 403)
         h.expect(old.get(url + '/content'), 403)
@@ -68,29 +68,30 @@ def run(h):
         assert content.headers['x-content-type-options'] == 'nosniff'
         assert 'attachment' in content.headers['content-disposition']
         assert 'bucket' not in material and 'objectKey' not in material
-        for name, data, kind in [('empty.csv', b'', 'competitor'), ('wrong.exe', b'MZ', 'requirement'),
-                                 ('old.doc', b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1', 'requirement')]:
-            upload(data, name, kind, 422)
-        upload(b'x' * (20 * 1024 * 1024 + 1), status=413)
+        h.expect(operator.head(url + '/content'), 200)
+        h.expect(outsider.head(url + '/content'), 403)
+        upload(b'', status=422)
+        for name in ('wrong.exe', 'old.doc'):
+            assert upload(b'opaque original', name, 'requirement')['status'] == 'ready'
         failed = upload(b'%PDF-1.7\nbroken', 'broken.pdf', 'requirement')
-        assert failed['status'] == 'failed' and failed['error']
+        assert failed['status'] == 'ready' and 'error' not in failed
         failed_url = base + '/materials/' + failed['id']
-        retried = h.expect(operator.post(failed_url + '/retry', timeout=40), 200).json()
-        assert retried['version'] == 2 and len(retried['versions']) == 2
-        assert retried['status'] == 'failed'
+        h.expect(operator.post(failed_url + '/retry'), 404)
         body = dict(name='Phase20 real materials', productName='Charger', brand='HX', platform='Amazon',
                     market='US', remarks='', skus=[{'code': 'MAT-20'}], designerId=designer,
                     materialIds=[material['id']])
         key = {'Idempotency-Key': str(uuid4())}
         h.expect(outsider.post(base + '/tasks', json=body, headers=key), 403)
-        h.expect(operator.post(base + '/tasks', json={**body, 'materialIds': [failed['id']]}, headers=key), 422)
+        compatible = h.expect(operator.post(base + '/tasks', json={**body, 'materialIds': [failed['id']]},
+            headers={'Idempotency-Key': str(uuid4())}), 201).json()
+        assert compatible['status'] == 'pending_review'
         result = h.expect(operator.post(base + '/tasks', json=body, headers=key), 201).json()
-        assert result['status'] == 'analyzing'
+        assert result['status'] == 'pending_review'
         assert h.expect(operator.post(base + '/tasks', json=body, headers=key), 200).json()['id'] == result['id']
         materials = h.expect(old.get(base + '/tasks/' + result['id'] + '/materials'), 200).json()
         assert materials[0]['id'] == material['id']
         h.expect(operator.delete(url), 409)
-        h.expect(operator.post(url + '/retry'), 409)
+        h.expect(operator.post(url + '/retry'), 404)
         h.expect(operator.post(base + '/tasks', json=body, headers={'Idempotency-Key': str(uuid4())}), 409)
         h.expect(admin.patch(base + '/tasks/' + result['id'] + '/assignment',
                             json={'designerId': next_designer, 'version': result['version']},
@@ -103,8 +104,11 @@ def run(h):
         h.expect(operator.get(base + '/materials/' + domestic_file + '/content'), 404)
         h.expect(operator.post(base + '/tasks', json={**body, 'materialIds': [domestic_file]},
                                headers={'Idempotency-Key': str(uuid4())}), 404)
-        h.expect(operator.delete(failed_url), 204)
-        h.expect(operator.get(failed_url), 404)
+        h.expect(operator.delete(failed_url), 409)
+        disposable = upload()
+        disposable_url = base + '/materials/' + disposable['id']
+        h.expect(operator.delete(disposable_url), 204)
+        h.expect(operator.head(disposable_url + '/content'), 404)
         spare = upload()
         metadata = {k: v for k, v in body.items() if k != 'materialIds'}
         saved = h.expect(operator.post(base + '/tasks', json=metadata,
@@ -113,7 +117,7 @@ def run(h):
         submit_body = {'materialIds': [spare['id']], 'version': saved['version']}
         h.expect(operator.post(submit_url, json={**submit_body, 'version': 99}, headers=key), 409)
         submitted = h.expect(operator.post(submit_url, json=submit_body, headers=key), 200).json()
-        assert submitted['status'] == 'analyzing' and submitted['version'] == saved['version'] + 1
+        assert submitted['status'] == 'pending_review' and submitted['version'] == saved['version'] + 1
         assert h.expect(operator.post(submit_url, json=submit_body, headers=key), 200).json()['id'] == saved['id']
         document = BytesIO()
         with ZipFile(document, 'w') as archive:
@@ -122,7 +126,7 @@ def run(h):
                 'wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Actual document requirements'
                 '</w:t></w:r></w:p></w:body></w:document>')
         requirement = upload(document.getvalue(), 'requirements.docx', 'requirement')
-        assert 'Actual document requirements' in requirement['text']
+        assert requirement['status'] == 'ready' and 'text' not in requirement
         pair = [requirement['id'], upload()['id']]
         both = h.expect(operator.post(base + '/tasks', json={**body, 'materialIds': pair},
                                       headers={'Idempotency-Key': str(uuid4())}), 201).json()
@@ -142,5 +146,5 @@ def run(h):
             assert error.code in ('AccessDenied', 'InvalidAccessKeyId', 'SignatureDoesNotMatch')
         else:
             raise AssertionError('Private overseas storage accessible across credentials')
-    print('PASS Phase20 real MinIO bytes/private credentials; upload/parse/retry/versions/delete; '
+    print('PASS Phase20 real MinIO bytes/private credentials; upload/download/HEAD/removed retry; '
           'ownership/atomic binding/idempotency/reassignment; domestic DB and objects unchanged', flush=True)

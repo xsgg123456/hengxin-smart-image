@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3015', headers = { 'X-HX-Request': '1', Origin: base }
@@ -24,40 +23,33 @@ try {
   const draft = { name: `资料补充-${Date.now()}`, productName: '手机壳', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'P20-A' }], designerId: sessions.designer.member.id }
   const metadata = await api(context, 'post', '/tasks', draft, crypto.randomUUID()); assert.equal(metadata.status(), 201); const task = await metadata.json(); assert.equal(task.status, 'created')
   await page.goto(`${base}/#/overseas/tasks/${task.id}`); await button(page, '提交补充资料').waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), true)
-  await upload(page, '旧资料.pptx', 'original', 'requirement'); await page.getByText(/旧资料.pptx · 已上传，需下载原件查看/).waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), false)
-  await button(page, '移除资料').click(); await button(page, '确认移除').click(); await page.getByText(/旧资料.pptx · 已上传/).waitFor({ state: 'detached' })
-  await upload(page, '损坏.pdf', '%PDF-1.4 broken', 'requirement'); await page.getByText(/损坏.pdf · 已上传，需下载原件查看/).waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), false)
-  await button(page, '重试解析').click(); await page.getByText(/损坏.pdf · 已上传，需下载原件查看 · 第 2 版/).waitFor()
-  await button(page, '预览资料').click(); await page.getByRole('dialog', { name: '图需资料预览' }).waitFor(); await page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: '解析版本' }) }).click(); await page.getByRole('option', { name: /第 1 版/ }).click(); await button(page, '关闭').click()
-  await button(page, '移除资料').click(); await button(page, '取消').click(); assert.equal(await page.getByText(/损坏.pdf · 已上传，需下载原件查看/).count(), 1)
-  await button(page, '移除资料').click(); await button(page, '确认移除').click(); await page.getByText(/损坏.pdf · 已上传，需下载原件查看/).waitFor({ state: 'detached' })
-  const pdf = execFileSync(process.env.PYTHON_EXE || (process.platform === 'win32' ? '../backend/.venv/Scripts/python.exe' : '../backend/.venv/bin/python'), ['-c', 'from tests.test_overseas_material_parsers import pdf; import sys; sys.stdout.buffer.write(pdf("Actual requirements for browser PDF preview"))'], { cwd: '../backend' })
-  await page.locator('[data-material-kind="requirement"] input[type=file]').setInputFiles({ name: '真实图需.pdf', mimeType: 'application/pdf', buffer: pdf }); await page.getByText(/真实图需.pdf · 解析成功/).waitFor()
-  await button(page, '预览资料').click(); await page.getByRole('radio', { name: '解析文本', exact: true }).check(); await page.locator('.reader-paper').getByText('Actual requirements', { exact: false }).waitFor(); const opened = page.waitForEvent('popup'); await button(page, '新窗口打开').click(); const pdfPage = await opened
-  await pdfPage.waitForURL('blob:**'); await pdfPage.waitForTimeout(1500)
-  const viewer = pdfPage.frames().find(frame => frame.url().startsWith('chrome-extension://'))
-  assert.ok(viewer, '原件应加载Chromium原生PDF查看器')
-  await viewer.locator('embed').waitFor()
-  assert.equal(await viewer.locator('pdf-viewer').evaluate(el => el.documentDimensions?.pageDimensions?.length), 1, 'PDF查看器应成功解析1页原件')
-  assert.equal(await pdfPage.evaluate(() => window.opener), null)
-  await mkdir('../../output/playwright/phase20', { recursive: true }); await pdfPage.screenshot({ path: '../../output/playwright/phase20/pdf-preview.png', fullPage: true })
-  await button(page, '关闭').click(); assert.equal(pdfPage.isClosed(), true)
-  await upload(page, '竞品.csv', 'product,feature\nCase,<script>alert(1)</script>'); await page.getByText(/竞品.csv · 解析成功/).waitFor()
-  await button(page, '预览资料').first().click(); await page.getByRole('tab', { name: '竞品.csv' }).click(); await page.locator('.reader-paper').getByText('<script>alert(1)</script>', { exact: false }).waitFor()
-  const download = page.waitForEvent('download'); await button(page, '下载原文件').click(); assert.equal((await download).suggestedFilename(), '竞品.csv'); await button(page, '关闭').click()
+  await upload(page, '旧资料.pptx', 'original', 'requirement'); await page.getByText('旧资料.pptx', { exact: true }).waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), false)
+  assert.equal(await button(page, '预览资料').count(), 0); assert.equal(await button(page, '重试解析').count(), 0)
+  await button(page, '移除资料').click(); await button(page, '取消').click(); assert.equal(await page.getByText('旧资料.pptx', { exact: true }).count(), 1)
+  await button(page, '移除资料').click(); await button(page, '确认移除').click(); await page.getByText('旧资料.pptx', { exact: true }).waitFor({ state: 'detached' })
+  // Arbitrary originals, including invalid PDF, remain downloadable without parsing.
+  await upload(page, '原件.pdf', '%PDF-1.4 broken', 'requirement'); await page.getByText('原件.pdf', { exact: true }).waitFor()
+  const longName = 'ZZZ-13圆形杂志桌灯-竞品listing-杨陈玉-20260804-'.repeat(3) + '.csv'
+  await upload(page, longName, 'product,feature\nCase,<script>alert(1)</script>'); await page.getByText(longName, { exact: true }).waitFor()
+  assert.equal(await button(page, '新窗口打开').count(), 0); assert.equal(await button(page, '放大查看').count(), 0)
+  const download = page.waitForEvent('download'); await button(page, '下载原文件').last().click(); const saved = await download
+  assert.equal(saved.suggestedFilename(), longName); const chunks = []; for await (const chunk of await saved.createReadStream()) chunks.push(chunk)
+  assert.equal(Buffer.concat(chunks).toString(), 'product,feature\nCase,<script>alert(1)</script>')
   await button(page, '提交补充资料').click(); await page.getByRole('heading', { name: '图需审核', exact: true }).waitFor(); assert.equal(await button(page, '移除资料').count(), 0)
   const materials = await (await api(context, 'get', `/tasks/${task.id}/materials`)).json(); assert.equal(materials.length, 2); const id = materials.find(m => m.kind === 'competitor').id
   assert.equal((await api(context, 'delete', `/materials/${id}`)).status(), 409)
-  assert.equal((await api(context, 'post', `/materials/${id}/retry`, {})).status(), 409)
+  assert.equal((await api(context, 'post', `/materials/${id}/retry`, {})).status(), 404)
   for (const role of Object.keys(sessions)) {
     const allowed = !['operator2', 'designer2'].includes(role), result = await api(sessions[role].context, 'get', `/materials/${id}/content`)
     assert.equal(result.status(), allowed ? 200 : 403, role)
+    assert.equal((await api(sessions[role].context, 'head', `/materials/${id}/content`)).status(), allowed ? 200 : 403, role + ' HEAD')
+    if (allowed) assert.match(result.headers()['content-disposition'], /^attachment/)
   }
   const assignment = await api(sessions.design_manager.context, 'patch', `/tasks/${task.id}/assignment`, { designerId: sessions.designer2.member.id, version: 2 }, crypto.randomUUID()); assert.equal(assignment.status(), 200)
   assert.equal((await api(sessions.designer.context, 'get', `/materials/${id}/content`)).status(), 403)
   assert.equal((await api(sessions.designer2.context, 'get', `/materials/${id}/content`)).status(), 200)
-  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(500); await button(page, '下载原文件').scrollIntoViewIfNeeded(); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
-  await unclipped(button(page, '下载原文件')); await unclipped(page.getByRole('tab', { name: '真实图需.pdf' }));
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(500); await button(page, '下载原文件').last().scrollIntoViewIfNeeded(); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+  await unclipped(button(page, '下载原文件').last()); await unclipped(page.getByText(longName, { exact: true }));
   await mkdir('../../output/playwright/phase20', { recursive: true }); await page.screenshot({ path: '../../output/playwright/phase20/materials-real-mobile.png', fullPage: true })
-  assert.deepEqual(errors, []); console.log('PASS real materials: PPTX retained; unparsed originals submittable; failed PDF/retry versions; delete confirmation; actual PDF native viewer/no opener/close cleanup; CSV parse/text-safe/download; metadata supplement; frozen binding; five-role and reassignment authorization; narrow UI')
+  assert.deepEqual(errors, []); console.log('PASS real materials: arbitrary originals retained/submittable; no preview/retry; native download bytes/name; delete confirmation; frozen binding; GET/HEAD five-role and reassignment authorization; long-name narrow UI')
 } catch (error) { if (sessions.operator) console.error(await sessions.operator.page.locator('body').innerText()); throw error } finally { await browser.close() }

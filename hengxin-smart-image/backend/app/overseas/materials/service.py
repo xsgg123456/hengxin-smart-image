@@ -38,15 +38,10 @@ def readable(session, material_id, actor):
 
 
 def describe(session, record):
-    versions = list(session.scalars(select(ParseVersion).where(ParseVersion.material_id == record.id)
-                                   .order_by(ParseVersion.version)))
-    items = [{'version': v.version, 'status': v.status, 'parserVersion': v.parser_version,
-              'text': v.text, 'error': v.error, 'createdAt': v.created_at} for v in versions]
-    current = next(v for v in items if v['version'] == record.version)
     return {'id': str(record.id), 'kind': record.kind, 'name': record.name,
             'sizeBytes': record.size_bytes, 'contentType': record.content_type,
             'taskId': str(record.task_id) if record.task_id else None,
-            **current, 'createdAt': record.created_at, 'versions': items}
+            'status': record.status, 'createdAt': record.created_at}
 
 
 def parse_revision(session, record, data):
@@ -69,10 +64,6 @@ def bind(session, actor, task, material_ids, *, resubmit=False):
     for record in records:
         if not (resubmit and record.task_id == task.id):
             owned(session, record, actor)
-        version = session.scalar(select(ParseVersion).where(
-            ParseVersion.material_id == record.id, ParseVersion.version == record.version))
-        if version is None:
-            raise HTTPException(422, '资料上传未完成，请重新上传')
     for record in records:
         record.task_id = task.id
     task.material_ids = [str(record.id) for record in records]

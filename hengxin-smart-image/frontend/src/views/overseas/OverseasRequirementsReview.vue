@@ -12,7 +12,7 @@
         <ElAlert v-if="!task.designer.eligible || task.designer.status !== 'active'" title="当前负责设计已停用或失去设计资格，请联系主管改派。" type="warning" :closable="false" />
         <slot name="assignment" />
       </ElCard>
-      <OverseasMaterialReader :files="files" :api="materialsApi" @failure="$emit('failure', $event)" />
+      <OverseasMaterialsPanel :model-value="files" :editable="false" :api="materialsApi" @failure="$emit('failure', $event)" />
       <ElCard class="art-card review-panel" shadow="never">
         <h2>审核结论</h2>
         <template v-if="canReview">
@@ -39,7 +39,7 @@ import { ElMessageBox } from 'element-plus'
 import { IdentityError } from '@/api/identity/request'
 import { createRequestKeys, taskError, taskStatuses, type TaskDetail, type TasksApi } from '@/api/overseas/tasks'
 import type { Material, MaterialsApi } from '@/api/overseas/materials'
-import OverseasMaterialReader from './OverseasMaterialReader.vue'
+import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
 import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
 import { formatTaskTime } from './requirements'
 const props = defineProps<{ task: TaskDetail; files: Material[]; api: TasksApi; materialsApi: MaterialsApi }>()

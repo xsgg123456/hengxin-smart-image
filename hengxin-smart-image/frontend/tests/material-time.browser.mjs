@@ -6,7 +6,7 @@ page.setDefaultTimeout(15000)
 const errors = [], keys = [], queries = []
 page.on('pageerror', e => errors.push(e.message))
 let mode = 'normal', caps = ['task.create', 'task.read', 'task.reassign'], saved, attempts = 0, version = 1
-const parsed = { version: 1, status: 'failed', parserVersion: 'test', text: '', error: '原件已保存，请下载查看', createdAt: '2026-10-12' }
+const parsed = { version: 1, status: 'ready', parserVersion: 'test', text: '', error: '原件已保存，请下载查看', createdAt: '2026-10-12' }
 const material = { ...parsed, id: 'material-1', kind: 'requirement', name: '图需.pptx', sizeBytes: 12, contentType: 'application/octet-stream', taskId: null, versions: [parsed] }
 const task = () => ({ id: 'task-1', name: '真实多SKU任务', productName: '手机壳', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '核对图需', skus: [{ code: 'A' }, { code: 'B' }], status: 'pending_review', version, createdAt: '2026-10-14T00:59:59.091561+00:00', updatedAt: '2026-10-14T00:59:59.091561+00:00', createdBy: { id: 'actor', name: '测试运营' }, designer: { id: 'd1', name: '设计一', status: 'active', eligible: true }, capabilities: caps.filter(c => c !== 'task.create'), events: [{ id: 'e1', kind: 'task.created', actorId: 'actor', actorName: '测试运营', title: '图需已保存', at: '2026-10-14T00:59:59.091561+00:00', beforeDesignerId: null, afterDesignerId: 'd1', version: 1 }] })
 async function unclipped(locator) {
@@ -62,7 +62,7 @@ try {
   assert.equal(await page.getByText('未设置部门', { exact: false }).count(), 0)
   await page.getByText('单份不超过 500 MB', { exact: false }).first().waitFor()
   await page.locator('[data-material-kind="requirement"] input[type=file]').setInputFiles({ name: '图需.pptx', mimeType: 'application/octet-stream', buffer: Buffer.from('PPTX original') })
-  await page.getByText(/图需.pptx · 已上传，需下载原件查看/).waitFor()
+  await page.getByText(/图需.pptx/).waitFor()
   assert.equal(await button('提交图需').isDisabled(), false)
   await page.screenshot({ path: '../../output/material-time-upload.png', fullPage: true })
   await button('提交图需').click()

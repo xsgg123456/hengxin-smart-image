@@ -8,6 +8,8 @@ from zipfile import ZipFile, BadZipFile
 from fastapi import HTTPException, Response
 from app.core.config import get_settings
 from app.modules.files.validation import safe_name
+from app.modules.files.delivery import FileDelivery
+from app.overseas.attachment_delivery import deliver
 from app.overseas.tasks.service import lock_actor
 from app.overseas.materials.parsers import CONTENT_TYPES
 from .models import Upload
@@ -111,10 +113,14 @@ def upload(session, store, actor, task_id, data, filename):
     return result
 
 
-def content(session, store, actor, task_id, identity, is_picture=False):
+def content(session, store, actor, task_id, identity, is_picture=False, *, head=False):
     task = queries.access(session, actor, task_id)
     row = (queries.picture(session, task, identity) if is_picture else
            queries.attachment(session, task, 'upload:' + str(identity))[0])
+    row = FileDelivery.capture(row)
+    session.close()
+    if not is_picture:
+        return deliver(store, row, head=head)
     data = read(store, row)
     disposition = 'inline' if row.content_type.startswith('image/') or row.content_type == 'application/pdf' else 'attachment'
     return Response(data, media_type=row.content_type, headers={

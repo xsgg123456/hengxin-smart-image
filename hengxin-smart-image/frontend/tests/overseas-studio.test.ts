@@ -18,7 +18,7 @@ function mount(api: StudioApi, current = () => task) {
   return {state,failures,close:()=>app.unmount()}
 }
 function fake(overrides:Partial<StudioApi>={}):StudioApi {
-  return {get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],content:async()=>new Blob(),...overrides}
+  return {get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
 }
 test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   assert.equal(isStudio(snapshot(),'t'),true)

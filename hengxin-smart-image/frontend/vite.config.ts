@@ -8,7 +8,6 @@ import AutoImport from 'unplugin-auto-import/vite'
 import ElementPlus from 'unplugin-element-plus/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import tailwindcss from '@tailwindcss/vite'
-import { pdfAssets } from './vite.pdf-assets'
 // import { visualizer } from 'rollup-plugin-visualizer'
 
 export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPreview?: boolean }) => {
@@ -83,7 +82,6 @@ export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPrevi
       }
     },
     plugins: [
-      pdfAssets(),
       vue(),
       tailwindcss(),
       // 自动按需导入 API

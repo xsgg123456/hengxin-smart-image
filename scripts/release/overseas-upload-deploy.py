@@ -21,13 +21,20 @@ BACKUPS = Path('/opt/hengxin-backups')
 proxy = m.module('overseas-upload-proxy')
 resources = m.module('overseas-upload-resources')
 DELETING = "SELECT count(*) FROM overseas_task_deletions WHERE status='deleting'"
+TARGET_VERSION = '0.2.33'
+BASE_VERSION = '0.2.32'
+
+
+def preflight():
+    """Version-specific read-only prerequisites, before prepare or cutover writes."""
+    pass
 
 def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
-    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.33'
+    assert manifest['release'] == release and manifest['frontendVersion'] == TARGET_VERSION
     assert manifest['migration'] == '0028' and manifest['overseasMigration'] == 'overseas_0015'
-    assert json.loads((source / 'frontend/package.json').read_text())['version'] == '0.2.33'
+    assert json.loads((source / 'frontend/package.json').read_text())['version'] == TARGET_VERSION
     r.hashes(source, manifest)
     return source, manifest, 'hengxin-smart-image-backend:' + release
 
@@ -86,7 +93,8 @@ def prepare(work, source, manifest, image):
     identity = m.image_id(work, image)
     assert (work / 'UPLOAD_CAPACITY_IMAGE_ID').read_text() == identity
     schemas()
-    assert json.loads((m.APP / 'frontend/package.json').read_text())['version'] == '0.2.32'
+    assert json.loads((m.APP / 'frontend/package.json').read_text())['version'] == BASE_VERSION
+    preflight()
     m.assets_safe(source)
     data = m.topology()
     assert data['overseas']['env'], 'Explicit overseas Compose env file required for backup'
@@ -184,6 +192,7 @@ def deploy(work, source, manifest, image):
     data = json.loads((work / 'topology.json').read_text())
     native = json.loads((work / 'domestic-native.json').read_text())
     assert m.topology() == data and domestic_native() == native, 'Topology drift since prepare'
+    preflight()
     prepared_settings(work, data, identity, source)
     proxy.unchanged(work, m)
     m.assets_safe(source)

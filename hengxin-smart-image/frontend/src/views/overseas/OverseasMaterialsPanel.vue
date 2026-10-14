@@ -1,17 +1,16 @@
 <template>
   <ElCard class="art-card hx-section" shadow="never">
     <div class="section-heading"><h2>图需资料</h2><ElTag v-if="editable" type="info">至少提供一份</ElTag></div>
-    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类一份，单份不超过 500 MB。支持 PPT/PPTX、Word、PDF、表格等各类文件；无法解析时可下载原件查看，不影响提交。</p>
+    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类一份，单份不超过 500 MB。支持 PPT/PPTX、Word、PDF、表格等各类文件；上传后下载原件查看。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
-    <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card">
+    <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card" :data-material-id="file(kind.key)?.id">
       <h3>{{ kind.label }}</h3>
       <template v-if="file(kind.key)">
-        <p class="file-name">{{ file(kind.key)?.name }} · {{ file(kind.key)?.status === 'ready' ? '解析成功' : '已上传，需下载原件查看' }} · 第 {{ file(kind.key)?.version }} 版</p>
-        <p v-if="file(kind.key)?.error" role="alert">{{ file(kind.key)?.error }}</p>
-        <ElButton :disabled="locked" @click="preview = true">预览资料</ElButton>
+        <p class="file-name">{{ file(kind.key)?.name }}</p>
+        <p class="hx-muted">{{ formatAttachmentSize(file(kind.key)!.sizeBytes) }}</p>
+        <AttachmentDownload :url="`/api/overseas/v1/materials/${encodeURIComponent(file(kind.key)!.id)}/content`" :name="file(kind.key)!.name" @failure="$emit('failure', $event)" />
         <ElButton v-if="editable && replaceable && file(kind.key)?.taskId" text type="danger" :disabled="locked" @click="detach(file(kind.key)!)">更换资料</ElButton>
         <template v-if="editable && !file(kind.key)?.taskId">
-          <ElButton v-if="file(kind.key)?.status === 'failed'" :disabled="locked" @click="retry(file(kind.key)!)">重试解析</ElButton>
           <div class="hx-gap"><ElButton type="danger" text :disabled="locked" @click="remove(file(kind.key)!)">移除资料</ElButton></div>
         </template>
       </template>
@@ -21,12 +20,11 @@
       <p v-else class="hx-muted">未提供{{ kind.label }}</p>
       <template v-if="uploading === kind.key">
         <ElProgress :percentage="progress" />
-        <p role="status">{{ progress === 100 ? '上传完成，正在解析…' : '正在上传…' }}</p>
+        <p role="status">{{ progress === 100 ? '上传完成，正在保存…' : '正在上传…' }}</p>
         <ElButton @click="cancel">取消上传</ElButton>
       </template>
     </div></div>
     <p v-if="editable" class="review-notice">提交后先由设计人工审核，审核通过后才能继续 AI 设计；资料不完整时退回运营修改。</p>
-    <OverseasMaterialPreview v-model="preview" :files="files" :api="api" @failure="failed" />
   </ElCard>
 </template>
 <script setup lang="ts">
@@ -34,12 +32,13 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { ElMessageBox, type UploadFile } from 'element-plus'
 import { IdentityError } from '@/api/identity/request'
 import { materialError, validateFile, type Material, type MaterialKind, type MaterialsApi } from '@/api/overseas/materials'
-import OverseasMaterialPreview from './OverseasMaterialPreview.vue'
+import AttachmentDownload from './AttachmentDownload.vue'
+import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 const files = defineModel<Material[]>({ required: true })
 const props = defineProps<{ api: MaterialsApi; editable: boolean; disabled?: boolean; replaceable?: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean]; failure: [reason: unknown] }>()
 const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '竞品分析表格' }] as const
-const busy = ref(false), progress = ref(0), uploading = ref<MaterialKind>(), error = ref(''), preview = ref(false), inputKey = ref(0)
+const busy = ref(false), progress = ref(0), uploading = ref<MaterialKind>(), error = ref(''), inputKey = ref(0)
 const locked = computed(() => busy.value || props.disabled), file = (kind: MaterialKind) => files.value.find(f => f.kind === kind)
 let generation = 0, controller: AbortController | undefined
 watch(busy, value => emit('busy', value), { flush: 'sync' })
@@ -47,7 +46,7 @@ function cancel() { ++generation; controller?.abort(); controller = undefined; b
 function failed(reason: unknown) {
   error.value = materialError(reason)
   if (reason instanceof IdentityError && reason.status === 409) files.value = []
-  if (reason instanceof IdentityError && [401, 403, 404].includes(reason.status)) { files.value = []; preview.value = false; emit('failure', reason) }
+  if (reason instanceof IdentityError && [401, 403, 404].includes(reason.status)) { files.value = []; emit('failure', reason) }
 }
 async function upload(selected: UploadFile, kind: MaterialKind) {
   if (locked.value || !props.editable || !selected.raw || file(kind)) return
@@ -56,13 +55,6 @@ async function upload(selected: UploadFile, kind: MaterialKind) {
   try { const result = await props.api.upload(selected.raw, kind, value => { if (current === generation) progress.value = value }, controller.signal); if (current === generation) files.value = [...files.value, result] }
   catch (reason) { if (current === generation) failed(reason) }
   finally { if (current === generation) { busy.value = false; uploading.value = undefined; inputKey.value++ } }
-}
-async function retry(material: Material) {
-  if (locked.value || !props.editable || material.taskId) return
-  const current = ++generation; busy.value = true; error.value = ''
-  try { const value = await props.api.retry(material.id); if (current === generation) files.value = files.value.map(f => f.id === value.id ? value : f) }
-  catch (reason) { if (current === generation) failed(reason) }
-  finally { if (current === generation) busy.value = false }
 }
 async function remove(material: Material) {
   if (locked.value || !props.editable || material.taskId) return
@@ -79,7 +71,7 @@ function detach(material: Material) {
   if (!props.editable || !props.replaceable || locked.value) return
   files.value = files.value.filter(file => file.id !== material.id)
 }
-watch(() => props.editable, () => { cancel(); preview.value = false })
+watch(() => props.editable, () => { cancel() })
 onUnmounted(cancel)
 </script>
 <style scoped>

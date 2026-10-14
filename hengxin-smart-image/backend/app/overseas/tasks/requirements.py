@@ -41,7 +41,7 @@ def replay(session, task, actor):
     return result
 
 
-def review(session, actor, task_id, body, key):
+def review(session, actor, task_id, body, key, store=None):
     actor, task, digest, previous = mutation(
         session, actor, task_id, body, key, 'requirements_review', 'task.design')
     if previous:
@@ -63,7 +63,7 @@ def review(session, actor, task_id, body, key):
         task.status = 'studio'
     elif task.requirements_approved:
         from app.overseas.plans.service import enqueue_analysis
-        enqueue_analysis(session, task)
+        enqueue_analysis(session, task, store=store)
     return finish(session, actor, task, 'requirements_review', key, digest,
                   'task.requirements_approved' if task.requirements_approved else 'task.requirements_rejected')
 

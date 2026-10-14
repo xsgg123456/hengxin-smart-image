@@ -5,8 +5,7 @@ import { resubmitMaterialIds, taskToDraft } from '../src/views/overseas/requirem
 import { STAGES, STATUS_STEP } from '../src/views/overseas/types'
 import type { Material } from '../src/api/overseas/materials'
 const task: TaskDetail = { ...emptyTaskDraft(), name: '审核任务', productName: '手机壳', brand: '品牌', market: '美国', skus: [{ code: 'A' }], id: 'task/1', version: 3, status: 'pending_review', createdAt: '2026-10-13', updatedAt: '2026-10-13', createdBy: { id: 'o', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.requirements.review'], events: [], requirementsReviews: [] }
-const parsed = { version: 1, status: 'ready' as const, parserVersion: 'test', text: '真实资料', error: null, createdAt: '2026-10-13' }
-const material: Material = { ...parsed, id: 'm', kind: 'requirement', name: '图需.pdf', sizeBytes: 30, contentType: 'application/pdf', taskId: task.id, versions: [parsed] }
+const material: Material = { status: 'ready', createdAt: '2026-10-12', id: 'm', kind: 'requirement', name: '图需.pdf', sizeBytes: 30, contentType: 'application/pdf', taskId: task.id }
 test('审核与重提使用真实契约、版本和幂等键', async () => {
   const calls: {url: string; options?: RequestInit}[] = []
   const api = createTasksApi(async (url, options) => { calls.push({url: String(url), options}); return new Response(JSON.stringify(task)) })

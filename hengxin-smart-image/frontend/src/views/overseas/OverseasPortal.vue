@@ -113,9 +113,7 @@ const materialsAdapter: MaterialsApi = {
   async upload(file, kind, progress, signal) { await taskAuthorize('task.create'); return materialsApi.upload(file, kind, progress, signal) },
   async get(id) { await taskAuthorize('task.read'); return materialsApi.get(id) },
   async list(id) { await taskAuthorize('task.read'); return materialsApi.list(id) },
-  async retry(id) { await taskAuthorize('task.create'); return materialsApi.retry(id) },
   async remove(id) { await taskAuthorize('task.create'); return materialsApi.remove(id) },
-  async content(id, download, signal) { await taskAuthorize('task.read'); return materialsApi.content(id, download, signal) }
 }
 async function managementFailure(reason: unknown) {
   if (reason instanceof IdentityError && [401,403].includes(reason.status)) await taskFailure(reason)

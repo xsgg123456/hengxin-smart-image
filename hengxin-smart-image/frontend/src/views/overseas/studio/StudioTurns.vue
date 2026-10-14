@@ -3,7 +3,7 @@
     <div v-if="!turns.length" class="studio-empty"><h2>从你的设计需求开始</h2><p>按需选择 Skill，引用任务素材，直接告诉 Codex 你想怎么做。</p></div>
     <template v-for="(turn, index) in turns" :key="turn.id">
       <div v-if="index === 0 || turn.conversationId !== turns[index - 1].conversationId" class="studio-conversation-divider">{{ turn.conversationId && turn.conversationId === conversationId ? '当前对话' : '历史对话' }}</div>
-      <article class="studio-message user"><div class="studio-message-name">设计师</div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><div class="studio-attachments"><ElButton v-for="asset in turn.attachments" :key="asset.id" size="small" @click="$emit('preview', asset)">{{ asset.name }}</ElButton></div><div v-if="turn.referencePictures.length" class="studio-attachments"><div v-for="(picture, index) in turn.referencePictures" :key="picture.id" class="studio-attachment"><ElImage :src="picture.url" :preview-src-list="turn.referencePictures.map(p => p.url)" :initial-index="index" preview-teleported fit="contain" /><span :title="picture.name">引用图片：{{ picture.name }}</span></div></div></div></article>
+      <article class="studio-message user"><div class="studio-message-name">设计师</div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><div class="studio-attachments"><div v-for="asset in turn.attachments" :key="asset.id" class="studio-attachment"><span>{{ asset.name }} · {{ formatAttachmentSize(asset.sizeBytes) }}</span><AttachmentDownload :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" /></div></div><div v-if="turn.referencePictures.length" class="studio-attachments"><div v-for="(picture, index) in turn.referencePictures" :key="picture.id" class="studio-attachment"><ElImage :src="picture.url" :preview-src-list="turn.referencePictures.map(p => p.url)" :initial-index="index" preview-teleported fit="contain" /><span :title="picture.name">引用图片：{{ picture.name }}</span></div></div></div></article>
       <article class="studio-message assistant"><div class="studio-message-name">Codex <small>{{ labels[turn.status] || turn.status }}</small></div><div class="studio-bubble">
         <StudioTranscript :entries="byTurn.get(turn.id) || []" :running="isRunning(turn)" />
         <StudioMarkdown v-if="turn.reply && !byTurn.get(turn.id)?.some(e => e.kind === 'message')" :text="turn.reply" />
@@ -21,11 +21,13 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUpdate, onUpdated, ref } from 'vue'
-import type { Asset, StudioTranscript as Transcript, StudioPicture, StudioTurn } from '@/api/overseas/studio'
+import type { StudioTranscript as Transcript, StudioPicture, StudioTurn } from '@/api/overseas/studio'
 import StudioMarkdown from './StudioMarkdown.vue'
+import AttachmentDownload from '../AttachmentDownload.vue'
+import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import StudioTranscript from './StudioTranscript.vue'
 const props = defineProps<{ turns: StudioTurn[]; transcript: Transcript[]; conversationId?: string | null; selected: string[]; disabled: boolean }>()
-defineEmits<{ preview: [asset: Asset]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()
+defineEmits<{ failure: [reason: unknown]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()
 const labels: Record<string, string> = { queued: '排队中', running: '执行中', collecting: '收取结果中', cancelling: '正在停止', uncertain: '执行状态待核实', succeeded: '已回复', failed: '执行失败', cancelled: '已停止' }
 const isRunning = (turn: StudioTurn) => ['queued', 'running', 'collecting', 'cancelling', 'uncertain'].includes(turn.status)
 const byTurn = computed(() => {

@@ -89,21 +89,21 @@ def test_upload_revalidates_permission_after_staging(materials, monkeypatch):
     assert client.get(ROOT + '/materials/' + str(record.id)).status_code == 404
 
 
-def test_retry_storage_failure_and_checksum_mismatch_preserve_revision(materials, monkeypatch):
+def test_content_storage_failure_and_size_mismatch(materials, monkeypatch):
     client, factory, _, _, store = materials
     data = upload(client).json()
     path = ROOT + '/materials/' + data['id']
     with factory() as session:
         key = session.get(Material, UUID(data['id'])).object_key
     store.data[key] = b'corrupted'
-    assert client.post(path + '/retry', headers=HEADERS).status_code == 503
-    assert client.get(path).json()['version'] == 1
+    assert client.get(path + '/content').status_code == 503
+    assert client.head(path + '/content').status_code == 503
     def fail(*_):
         raise RuntimeError('private endpoint')
-    monkeypatch.setattr(store, 'open', fail)
-    for response in (client.get(path + '/content'), client.post(path + '/retry', headers=HEADERS)):
-        assert response.status_code == 503 and 'private endpoint' not in response.text
-    assert client.get(path).json()['version'] == 1
+    monkeypatch.setattr(store, 'stat', fail)
+    response = client.get(path + '/content')
+    assert response.status_code == 503 and 'private endpoint' not in response.text
+    assert client.get(path).json()['status'] == 'ready'
 
 
 def test_manager_supplement_own_files_and_regular_operator_refused(materials):
@@ -118,13 +118,13 @@ def test_manager_supplement_own_files_and_regular_operator_refused(materials):
     assert submit(client, task['id'], [data['id']]).status_code == 200
 
 
-def test_two_kinds_submitted_and_pdf_inline(materials, monkeypatch):
+def test_two_kinds_submitted_and_pdf_download(materials, monkeypatch):
     client, factory, _, designer, _ = materials
     competitor = upload(client).json()
     monkeypatch.setattr(parsers, 'parse_document', lambda *_: '图需文字')
     requirement = upload(client, b'%PDF-test', 'test.pdf', 'requirement').json()
     path = ROOT + '/materials/' + requirement['id'] + '/content'
-    assert client.get(path).headers['content-disposition'].startswith('inline')
+    assert client.get(path).headers['content-disposition'].startswith('attachment')
     assert client.get(path + '?download=true').headers['content-disposition'].startswith('attachment')
     response = create(client, {**payload(designer), 'materialIds': [competitor['id'], requirement['id']]})
     assert response.status_code == 201

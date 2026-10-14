@@ -31,11 +31,6 @@ def metadata(material_id: UUID, actor: CurrentMember, session: Database):
     return service.describe(session, service.readable(session, material_id, actor))
 
 
-@router.post('/materials/{material_id}/retry', dependencies=[Depends(browser_request)])
-def retry(material_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
-    return files.retry(session, store, actor, material_id)
-
-
 @router.delete('/materials/{material_id}', status_code=204, dependencies=[Depends(browser_request)])
 def delete(material_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
     files.delete(session, store, actor, material_id)
@@ -44,8 +39,13 @@ def delete(material_id: UUID, actor: CurrentMember, session: Database, store=Dep
 
 @router.get('/materials/{material_id}/content')
 def content(material_id: UUID, actor: CurrentMember, session: Database,
-            download: bool = False, store=Depends(get_store)):
-    return files.content(session, store, actor, material_id, download)
+            store=Depends(get_store)):
+    return files.content(session, store, actor, material_id)
+
+
+@router.head('/materials/{material_id}/content')
+def preflight(material_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
+    return files.content(session, store, actor, material_id, head=True)
 
 
 @router.get('/tasks/{task_id}/materials')

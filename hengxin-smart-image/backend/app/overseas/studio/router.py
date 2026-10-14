@@ -72,6 +72,11 @@ def content(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Databas
     return files.content(session, store, actor, task_id, file_id)
 
 
+@router.head('/files/{file_id}/content')
+def preflight(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
+    return files.content(session, store, actor, task_id, file_id, head=True)
+
+
 @router.get('/pictures/{picture_id}/content')
 def picture(task_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
     return files.content(session, store, actor, task_id, picture_id, True)

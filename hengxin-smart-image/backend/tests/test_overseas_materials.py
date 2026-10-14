@@ -64,22 +64,24 @@ def submit(client, task, ids, key='submit', version=1):
                        headers={**HEADERS, 'Idempotency-Key': key})
 
 
-def test_upload_content_and_versions(materials):
+def test_upload_content_without_parsing(materials):
     client, factory, _, _, store = materials
     response = upload(client)
     assert response.status_code == 201, response.text
     data = response.json()
-    assert data['status'] == 'ready' and data['version'] == 1 and '42' in data['text']
+    assert data['status'] == 'ready'
+    with factory() as session:
+        assert session.scalar(select(ParseVersion)) is None
     assert set(data) == {'id', 'kind', 'name', 'sizeBytes', 'contentType', 'status', 'taskId',
-                         'version', 'parserVersion', 'text', 'error', 'createdAt', 'versions'}
+                         'createdAt'}
     content = client.get(ROOT + '/materials/' + data['id'] + '/content')
     assert content.content == b'name,value\nitem,42\n'
     assert content.headers['content-disposition'].startswith('attachment')
     assert 'no-store' in content.headers['cache-control']
     assert content.headers['x-content-type-options'] == 'nosniff'
     retry = client.post(ROOT + '/materials/' + data['id'] + '/retry', headers=HEADERS)
-    assert retry.status_code == 200 and len(retry.json()['versions']) == 2
-    assert retry.json()['versions'][0] == data['versions'][0]
+    assert retry.status_code == 404
+
 
 
 @pytest.mark.parametrize('data,name,kind,status', [
@@ -97,15 +99,20 @@ def test_validation(materials, data, name, kind, status, monkeypatch):
         assert session.scalar(select(Material)) is None
 
 
-def test_parse_failure_retains_original_and_retry(materials, monkeypatch):
+def test_historical_parse_failure_retains_original_and_binds(materials):
     client, factory, _, designer, store = materials
     data = upload(client, b'%PDF-broken', 'test.pdf', 'requirement').json()
-    assert data['status'] == 'failed' and data['error']
+    with factory.begin() as session:
+        record = session.get(Material, UUID(data['id']))
+        record.version = 1
+        session.add(ParseVersion(material_id=record.id, version=1, status='failed',
+            parser_version='old', text='', error='old preview failure'))
+    assert client.get(ROOT + '/materials/' + data['id']).json()['status'] == 'ready'
     assert client.get(ROOT + '/materials/' + data['id'] + '/content').content == b'%PDF-broken'
-    monkeypatch.setattr(parsers, 'parse_document', lambda *_: '恢复的文字')
-    retry = client.post(ROOT + '/materials/' + data['id'] + '/retry', headers=HEADERS).json()
-    assert retry['status'] == 'ready' and retry['version'] == 2
-    assert retry['versions'][0]['status'] == 'failed'
+    result = create(client, {**payload(designer), 'materialIds': [data['id']]})
+    assert result.status_code == 201, result.text
+    with factory() as session:
+        assert session.scalar(select(ParseVersion)).error == 'old preview failure'
 
 
 def test_atomic_create_and_bound_immutability(materials):
@@ -121,7 +128,7 @@ def test_atomic_create_and_bound_immutability(materials):
     path = ROOT + '/materials/' + data['id']
     assert client.get(path).json()['taskId'] == task['id']
     assert client.get(ROOT + '/tasks/' + task['id'] + '/materials').json()[0]['id'] == data['id']
-    assert client.post(path + '/retry', headers=HEADERS).status_code == 409
+    assert client.post(path + '/retry', headers=HEADERS).status_code == 404
     assert client.delete(path, headers=HEADERS).status_code == 409
     assert create(client, body, 'other-task').status_code == 409
     assert counts(factory) == [1, 2, 1, 1, 1]
@@ -149,7 +156,7 @@ def test_ownership_revocation_and_unrecognized_ids(materials):
     path = ROOT + '/materials/' + data['id']
     for suffix in ('', '/content'):
         assert client.get(path + suffix).status_code == 403
-    assert client.post(path + '/retry', headers=HEADERS).status_code == 403
+    assert client.post(path + '/retry', headers=HEADERS).status_code == 404
     assert client.delete(path, headers=HEADERS).status_code == 403
     assert create(client, {**payload(designer), 'materialIds': [data['id']]}).status_code == 403
     assert client.get(ROOT + '/materials/' + str(uuid4())).status_code == 404
@@ -229,8 +236,7 @@ def test_unparsed_original_can_submit_and_download(materials, name):
     response = upload(client, original, name, 'requirement')
     assert response.status_code == 201, response.text
     material = response.json()
-    if not name.endswith('.csv'):
-        assert material['status'] == 'failed' and material['text'] == ''
+    assert material['status'] == 'ready' and 'text' not in material
     task = create(client, {**payload(designer), 'materialIds': [material['id']]} )
     assert task.status_code == 201, task.text
     assert task.json()['status'] == 'pending_review'

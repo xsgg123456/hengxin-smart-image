@@ -66,12 +66,7 @@ export function createStudioApi(fetcher: typeof fetch = fetch) {
       if (!response.ok) throw new IdentityError(response.status, response.status === 413 ? '单个附件不能超过 500 MB' : '文件上传失败，请重试')
       const value: unknown = await response.json(); if (!isAsset(value, id)) throw Error('文件响应格式错误'); return value
     },
-    async content(url: string, id: string, signal: AbortSignal) {
-      const suffix = url.startsWith(`${base(id)}/`) ? url.slice(base(id).length) : ''
-      if (!/^\/(files|pictures)\/[a-zA-Z0-9-]+\/content$/.test(suffix) && !/^\/api\/overseas\/v1\/materials\/[a-zA-Z0-9-]+\/content$/.test(url)) throw Error('文件地址无效')
-      const response = await fetcher(url, { credentials: 'include', cache: 'no-store', headers: { 'X-HX-Request': '1' }, signal })
-      if (!response.ok) throw new IdentityError(response.status, '文件读取失败'); return response.blob()
-    }
+
   }
 }
 export type StudioApi = ReturnType<typeof createStudioApi>

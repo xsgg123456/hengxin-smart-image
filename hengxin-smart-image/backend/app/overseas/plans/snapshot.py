@@ -16,7 +16,7 @@ Do not generate images, contact external services, or access paths outside /work
 '''}}
 
 
-def freeze(session, task):
+def freeze(session, task, store=None):
     session.flush()
     from app.overseas.materials.service import current_materials
     records = current_materials(session, task)
@@ -26,6 +26,13 @@ def freeze(session, task):
     for item in records:
         parsed = session.scalar(select(ParseVersion).where(ParseVersion.material_id == item.id,
                                                           ParseVersion.version == item.version))
+        if item.status == 'ready' and (parsed is None or parsed.status != 'ready'):
+            from app.storage.minio_store import get_store
+            from app.overseas.studio.files import read
+            from app.overseas.materials.service import parse_revision
+            parse_revision(session, item, read(store or get_store(), item))
+            parsed = session.scalar(select(ParseVersion).where(
+                ParseVersion.material_id == item.id, ParseVersion.version == item.version))
         if item.status != 'ready' or not parsed or parsed.status != 'ready' or not parsed.text.strip():
             raise HTTPException(422, '资料解析成功后才能分析')
         materials.append({'id': str(item.id), 'kind': item.kind, 'name': item.name,

@@ -43,7 +43,7 @@ def history(session, actor, task_id):
         'content': p.content, 'createdAt': p.created_at} for p in plans], 'taskVersion': task.version}
 
 
-def enqueue_analysis(session, task, feedback=''):
+def enqueue_analysis(session, task, feedback='', store=None):
     if task.workflow != 'legacy' or not task.requirements_approved or task.status in ('created', 'pending_review', 'returned'):
         raise HTTPException(409, '设计审核通过后才能开始分析')
     previous = latest(session, task.id)
@@ -55,7 +55,7 @@ def enqueue_analysis(session, task, feedback=''):
             raise HTTPException(409, '方案已经确认')
         if previous.status == 'ready' and not feedback.strip():
             raise HTTPException(422, '请填写修改意见')
-    snapshot = freeze(session, task)
+    snapshot = freeze(session, task, store)
     identity, version = uuid4(), previous.version + 1 if previous else 1
     job = enqueue(session, task.id, 'reanalysis' if previous else 'analysis', f'plan:{identity}',
         {**snapshot, 'planId': str(identity), 'feedback': feedback,
@@ -89,7 +89,7 @@ def complete(session, actor, task, operation, target, key, digest):
     return result
 
 
-def analyze(session, actor, task_id, body, key):
+def analyze(session, actor, task_id, body, key, store=None):
     target = str(task_id)
     actor, task, digest, previous = mutation(session, actor, task_id, body, key, 'analysis', target)
     if previous:
@@ -98,7 +98,7 @@ def analyze(session, actor, task_id, body, key):
         return result
     if task.status not in ('submitted', 'analyzing', 'plan'):
         raise HTTPException(409, '当前任务不能开始分析')
-    enqueue_analysis(session, task, body.feedback)
+    enqueue_analysis(session, task, body.feedback, store)
     return complete(session, actor, task, 'analysis', target, key, digest)
 
 

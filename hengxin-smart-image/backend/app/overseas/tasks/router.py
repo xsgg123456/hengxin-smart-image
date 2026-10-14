@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 from app.core.browser_auth import browser_request
+from app.storage.minio_store import get_store
 from app.db.session import get_session
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.permissions import authorize_member
@@ -58,8 +59,9 @@ def assign(task_id: UUID, body: Assignment, actor: CurrentMember, session: Datab
 
 
 @router.post('/tasks/{task_id}/requirements-review', dependencies=[Depends(browser_request)])
-def review(task_id: UUID, body: RequirementsReview, actor: CurrentMember, session: Database, idempotency_key: Key):
-    return requirements.review(session, actor, task_id, body, idempotency_key)
+def review(task_id: UUID, body: RequirementsReview, actor: CurrentMember, session: Database,
+           idempotency_key: Key, store=Depends(get_store)):
+    return requirements.review(session, actor, task_id, body, idempotency_key, store)
 
 
 @router.post('/tasks/{task_id}/resubmit', dependencies=[Depends(browser_request)])

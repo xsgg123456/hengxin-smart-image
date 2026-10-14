@@ -160,7 +160,7 @@
         当前为运营视角；方案确认、图片审核与归档由海外设计负责。
       </p>
     </ElCard>
-    <OverseasTaskInfo :task="task"><template #materials><ElDivider /><h3>原始图需资料</h3><ElButton text type="primary" @click="materialPreview = true">预览图需资料</ElButton><p v-for="f in task.files" :key="f.kind" class="hx-footnote">{{ f.name }} · {{ f.sample ? '示例资料' : '仅记录文件名，未解析' }}</p><OverseasMaterialPreview v-model="materialPreview" :files="task.files" /></template></OverseasTaskInfo>
+    <OverseasTaskInfo :task="task"><template #materials><ElDivider /><h3>原始图需资料</h3><p v-for="f in task.files" :key="f.kind" class="hx-footnote">{{ f.name }} · {{ f.sample ? '示例资料' : '仅记录文件名' }}</p></template></OverseasTaskInfo>
   </div>
   <OverseasAnnotation
     v-if="editing"
@@ -176,8 +176,6 @@ import { computed, ref } from "vue";
 import { ElMessageBox } from "element-plus";
 import type { AnnotationMark } from "../hengxin/components/annotation/annotation-model";
 import OverseasTaskInfo from "./OverseasTaskInfo.vue";
-import OverseasMaterialPreview from "./OverseasMaterialPreview.vue";
-const materialPreview = ref(false);
 import OverseasPictures from "./OverseasPictures.vue";
 import OverseasAnnotation from "./OverseasAnnotation.vue";
 import type { Picture, Role, Task } from "./types";

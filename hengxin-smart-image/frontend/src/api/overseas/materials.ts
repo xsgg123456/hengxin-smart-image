@@ -1,27 +1,18 @@
 import { MAX_UPLOAD_BYTES } from './upload-limits'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export type MaterialKind = 'requirement' | 'competitor'
-export interface ParseVersion { version: number; status: 'ready' | 'failed'; parserVersion: string; text: string; error: string | null; createdAt: string }
-export interface Material extends ParseVersion { id: string; kind: MaterialKind; name: string; sizeBytes: number; contentType: string; taskId: string | null; versions: ParseVersion[] }
+export interface Material { id: string; kind: MaterialKind; name: string; sizeBytes: number; contentType: string; taskId: string | null; createdAt: string; status: 'ready' }
 export interface MaterialsApi {
   upload(file: File, kind: MaterialKind, progress: (percent: number) => void, signal: AbortSignal): Promise<Material>
   get(id: string): Promise<Material>
   list(taskId: string): Promise<Material[]>
-  retry(id: string): Promise<Material>
   remove(id: string): Promise<void>
-  content(id: string, download: boolean, signal: AbortSignal): Promise<Blob>
 }
 const text = (v: unknown): v is string => typeof v === 'string'
-function isVersion(v: unknown): v is ParseVersion {
-  return record(v) && Number.isInteger(v.version) && Number(v.version) > 0 && ['ready', 'failed'].includes(String(v.status))
-    && text(v.parserVersion) && text(v.text) && text(v.createdAt) && (v.error === null || text(v.error))
-    && (v.status !== 'ready' || v.text.trim().length > 0)
-}
 export function isMaterial(v: unknown): v is Material {
-  return isVersion(v) && record(v) && ['id', 'name', 'contentType'].every(k => text(v[k]))
+  return record(v) && ['id', 'name', 'contentType', 'createdAt'].every(k => text(v[k])) && v.status === 'ready'
     && ['requirement', 'competitor'].includes(String(v.kind)) && Number.isInteger(v.sizeBytes) && Number(v.sizeBytes) > 0
-    && (v.taskId === null || text(v.taskId)) && Array.isArray(v.versions) && v.versions.length > 0 && v.versions.every(isVersion)
-    && v.versions.some(item => item.version === v.version && item.status === v.status)
+    && (v.taskId === null || text(v.taskId))
 }
 export function validateFile(file: Pick<File, 'name' | 'size'>, kind: MaterialKind) {
   if (!file.size) throw Error('文件为空，请选择包含内容的文件')
@@ -54,9 +45,7 @@ export function createMaterialsApi(fetcher: typeof fetch = fetch, xhrFactory = (
   return {
     get: id => request(path(id), isMaterial),
     list: id => request(`/api/overseas/v1/tasks/${encodeURIComponent(id)}/materials`, (v): v is Material[] => Array.isArray(v) && v.every(isMaterial)),
-    retry: id => request(`${path(id)}/retry`, isMaterial, {}, { timeoutMs: 120000 }),
     async remove(id) { await binary(path(id), 'DELETE') },
-    async content(id, download, signal) { return (await binary(`${path(id)}/content?download=${download}`, 'GET', signal)).blob() },
     async upload(file, kind, progress, signal) {
       validateFile(file, kind)
       return new Promise<Material>((resolve, reject) => {
