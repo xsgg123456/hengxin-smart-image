@@ -1,5 +1,6 @@
 """Upload validation and bounded, disposable document parser processes."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -34,19 +35,11 @@ def validate_document(data: bytes, filename: str, kind: str) -> tuple[str, str]:
     if not data:
         raise HTTPException(422, '资料不能为空')
     extension = Path((filename or '').replace('\\', '/')).suffix.lower()
-    if extension == '.doc':
-        raise HTTPException(422, '暂不支持旧版 DOC，请另存为 DOCX 或 PDF 后上传')
-    allowed = {'requirement': {'.pdf', '.docx'},
-               'competitor': {'.xls', '.xlsx', '.csv'}}
-    if extension not in allowed.get(kind, set()):
-        raise HTTPException(422, '资料类型不匹配：图需支持 PDF/DOCX，竞品支持 XLS/XLSX/CSV')
-    signatures = {'.pdf': b'%PDF-', '.docx': b'PK\x03\x04',
-                  '.xlsx': b'PK\x03\x04', '.xls': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'}
-    if extension in signatures and not data.startswith(signatures[extension]):
-        raise HTTPException(422, '文件内容与扩展名不一致')
-    if extension == '.csv' and b'\x00' in data:
-        raise HTTPException(422, 'CSV 必须是 UTF-8 或 GB18030 文本文件')
-    return safe_name(filename, extension), CONTENT_TYPES[extension]
+    if kind not in {'requirement', 'competitor'}:
+        raise HTTPException(422, '资料类别无效')
+    # Unknown formats are private downloadable originals, never inline content.
+    return safe_name(filename, re.sub(r'[^a-z0-9.]', '_', extension)[:30]), CONTENT_TYPES.get(extension, 'application/octet-stream')
+
 
 
 def parse_document(data: bytes, name: str) -> str:
@@ -54,7 +47,7 @@ def parse_document(data: bytes, name: str) -> str:
         raise ParseError('资料为空或超过 20 MiB 限制')
     extension = Path(name).suffix.lower()
     if extension not in CONTENT_TYPES:
-        raise ParseError('不支持的资料格式，请转换后重试')
+        raise ParseError('原件已保存，此格式暂不支持文字解析，请下载原件查看；可直接提交审核')
     # Files avoid unbounded stdout pipes and pipe backpressure/deadlocks.
     with PARSE_SLOTS, TemporaryDirectory(prefix='overseas-parse-') as folder:
         source = Path(folder) / ('source' + extension)

@@ -38,15 +38,15 @@
 </template>
 
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { ref, watch } from 'vue'
 import type { Round } from '@/types/hengxin'
 import RoundMaterials from './RoundMaterials.vue'
 const props = defineProps<{ taskId: string; rounds: Round[]; active: boolean; identity: string }>()
 const sections = ref<string[]>([]),
   expanded = ref('')
-function formatTime(value: string) {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
-}
+function formatTime(value: string) { return formatBeijingTime(value, '—') }
 watch(
   [() => props.taskId, () => props.identity, () => props.active],
   () => {

@@ -71,8 +71,8 @@ def bind(session, actor, task, material_ids, *, resubmit=False):
             owned(session, record, actor)
         version = session.scalar(select(ParseVersion).where(
             ParseVersion.material_id == record.id, ParseVersion.version == record.version))
-        if version is None or version.status != 'ready':
-            raise HTTPException(422, '资料解析成功后才能提交')
+        if version is None:
+            raise HTTPException(422, '资料上传未完成，请重新上传')
     for record in records:
         record.task_id = task.id
     task.material_ids = [str(record.id) for record in records]

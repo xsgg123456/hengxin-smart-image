@@ -1,3 +1,4 @@
+import { formatBeijingTime } from '@/utils/beijing-time'
 import { reactive } from 'vue'
 import { DEFAULT_WALLPAPER_PROMPT } from './default-wallpaper-prompt'
 import type { Picture } from '@/types/hengxin'
@@ -27,7 +28,7 @@ export const preview = reactive({
 let serial = 0
 let seeded = false
 const active = (state: ItemState) => ['等待处理', '处理中', '等待重试'].includes(state)
-const stamp = () => new Date().toLocaleString('zh-CN', { hour12: false })
+const stamp = () => formatBeijingTime(new Date())
 function record(task: EditTask, message: string) {
   task.events.unshift(`${stamp()} · ${currentOperator} · ${message}`)
 }

@@ -1,3 +1,4 @@
+import * as BeijingTime from '../src/utils/beijing-time'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { compileScript, parse } from '@vue/compiler-sfc'
@@ -20,12 +21,12 @@ export function compile(path: string, deps: Record<string, unknown>) {
   const content = compileScript(parse(source).descriptor, { id: path, inlineTemplate: true }).content
   const code = ts.transpileModule(content, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
   const module = { exports: {} as { default: Vue.Component } }
-  new Function('require', 'module', 'exports', code)((name: string) => { if (name === 'vue') return Vue; if (name in deps) return deps[name]; throw new Error(`Unexpected test dependency ${name}`) }, module, module.exports)
+  new Function('require', 'module', 'exports', code)((name: string) => { if (name === 'vue') return Vue; if (name === '@/utils/beijing-time') return BeijingTime; if (name in deps) return deps[name]; throw new Error(`Unexpected test dependency ${name}`) }, module, module.exports)
   return module.exports.default
 }
 export function mount(component: Vue.Component, props = {}) {
   const root = node('root'), app = renderer.createApp({ render: () => Vue.h(component, props) })
-  for (const name of ['ElAlert', 'ElButton', 'ElCard', 'ElDialog', 'ElForm', 'ElFormItem', 'ElInput', 'ElOption', 'ElPagination', 'ElSelect', 'ElSwitch', 'ElTabs', 'ElTabPane', 'ElTag', 'ElRadioGroup', 'ElRadio']) app.component(name, simple(name))
+  for (const name of ['ElAlert', 'ElButton', 'ElCard', 'ElDialog', 'ElForm', 'ElFormItem', 'ElInput', 'ElOption', 'ElPagination', 'ElSelect', 'ElSwitch', 'ElTabs', 'ElTabPane', 'ElTag', 'ElRadioGroup', 'ElRadio', 'ElRadioButton']) app.component(name, simple(name))
   app.mount(root); return { root, close: () => app.unmount() }
 }
 export const all = (n: Node): Node[] => [n, ...n.children.flatMap(all)]

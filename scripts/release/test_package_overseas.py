@@ -13,7 +13,7 @@ spec.loader.exec_module(p)
 @pytest.fixture
 def package_files():
     files = {name: b'' for name in p.REQUIRED}
-    files['frontend/package.json'] = json.dumps({'version': '0.2.30'}).encode()
+    files['frontend/package.json'] = json.dumps({'version': '0.2.31'}).encode()
     files['frontend/dist/index.html'] = b'<html><script src="/assets/main.js"></script></html>'
     files['frontend/dist/assets/main.js'] = b'console.log(1)'
     return files
@@ -189,7 +189,7 @@ def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, 
         manifest = json.load(archive.extractfile('release.json'))
         assert manifest['migration'] == '0028'
         assert manifest['overseasMigration'] == 'overseas_0014'
-        assert manifest['frontendVersion'] == '0.2.30'
+        assert manifest['frontendVersion'] == '0.2.31'
         assert manifest['candidateId'] == 'reviewed-candidate'
         assert manifest['commit'] == commit
         for name, digest in manifest['files'].items():

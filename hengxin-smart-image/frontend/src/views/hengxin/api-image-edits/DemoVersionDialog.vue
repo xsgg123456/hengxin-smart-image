@@ -6,7 +6,7 @@
         <div class="version-list">
           <button v-for="version in versions" :key="version.number" type="button" class="version-option" :class="{ selected: selectedNumber === version.number }" :aria-pressed="selectedNumber === version.number" @click="selectVersion(version.number)">
             <span class="version-option-title"><strong>V{{ version.number }}</strong><ElTag v-if="version.number === currentNumber" size="small">当前</ElTag></span>
-            <span>{{ version.created }}</span><span>{{ version.operator || '未记录操作人' }}</span>
+            <span>{{ formatBeijingTime(version.created) }}</span><span>{{ version.operator || '未记录操作人' }}</span>
           </button>
         </div>
         <p class="version-note">版本按生成时间倒序排列，历史结果始终保留。</p>
@@ -19,7 +19,7 @@
         </div>
         <p class="version-note">点击图片可放大查看。当前结果用于后续修改与整套 ZIP 下载。</p>
         <section class="version-description" aria-label="选中版本详情">
-          <div class="version-meta"><span>生成时间：{{ selected.created || '未记录' }}</span><span>操作人：{{ selected.operator || '未记录' }}</span><ElTag size="small" type="info">{{ selected.baseVersion ? `基于 V${selected.baseVersion}` : '初始生成' }}</ElTag></div>
+          <div class="version-meta"><span>生成时间：{{ formatBeijingTime(selected.created, '未记录') }}</span><span>操作人：{{ selected.operator || '未记录' }}</span><ElTag size="small" type="info">{{ selected.baseVersion ? `基于 V${selected.baseVersion}` : '初始生成' }}</ElTag></div>
           <h3>修改说明</h3><p class="version-text">{{ selected.text || '初始生成结果，暂无修改说明。' }}</p>
           <div v-if="selected.annotation" class="version-annotation"><strong>标注图</strong><div><PicturePreview :picture="selected.annotation" :title="`V${selected.number} 的修改标注图`" /></div></div>
         </section>
@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PicturePreview from '../components/PicturePreview.vue'

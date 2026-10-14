@@ -52,6 +52,8 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -119,7 +121,7 @@ const editable = computed(() => actions.value.canRevise)
 const lastFailed = computed(() => data.value?.rounds.find(r => r.id === task.value?.currentRoundId && ['失败', '部分失败'].includes(r.state)))
 watch([() => props.taskId, identity], () => { feedbackOpen.value = false; archivedResult.value = undefined; expandedSections.value = [] })
 watch(visible, shown => { if (!shown && !submitting.value) feedbackOpen.value = false })
-function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
+function formatTime(value: string) { return formatBeijingTime(value, '—') }
 function closeDrawer(done: () => void) { if (!busy.value) { feedbackOpen.value = false; open.value = false; done() } }
 function closeFeedback(done: () => void) { if (!submitting.value) done() }
 function edit(slot: number | null, version?: ResultVersion) {

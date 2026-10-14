@@ -5,11 +5,13 @@
   </div></ElCard>
   <p v-if="loading" role="status">正在加载成品…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" />
   <ElEmpty v-if="!loading && !error && !items.length" description="暂无匹配成品；设计归档后的图片会显示在这里" />
-  <div class="hx-library-grid hx-gap"><ElCard v-for="item in items" :key="item.id" class="art-card hx-library-card" shadow="never"><div class="hx-library-info"><div class="hx-row"><ElTag>{{ item.brand }}</ElTag><ElTag type="success">已归档</ElTag></div><h3>{{ item.productName }}</h3><p>{{ item.skus.map(s => s.code).join(' · ') }}</p><p v-if="item.sourceDeleted || !item.taskId" class="hx-footnote">原任务已删除</p><p class="hx-footnote">{{ item.platform }}</p><p class="hx-footnote">{{ item.pictureCount }} 张图片 · {{ item.createdAt }}</p><div class="hx-row"><ElButton text type="primary" @click="selected = item.id">查看成品</ElButton><ElButton :loading="downloading === item.id" @click="download(item)">下载整套成品</ElButton></div></div></ElCard></div>
+  <div class="hx-library-grid hx-gap"><ElCard v-for="item in items" :key="item.id" class="art-card hx-library-card" shadow="never"><div class="hx-library-info"><div class="hx-row"><ElTag>{{ item.brand }}</ElTag><ElTag type="success">已归档</ElTag></div><h3>{{ item.productName }}</h3><p>{{ item.skus.map(s => s.code).join(' · ') }}</p><p v-if="item.sourceDeleted || !item.taskId" class="hx-footnote">原任务已删除</p><p class="hx-footnote">{{ item.platform }}</p><p class="hx-footnote">{{ item.pictureCount }} 张图片 · {{ formatBeijingTime(item.createdAt) }}</p><div class="hx-row"><ElButton text type="primary" @click="selected = item.id">查看成品</ElButton><ElButton :loading="downloading === item.id" @click="download(item)">下载整套成品</ElButton></div></div></ElCard></div>
   <ElPagination v-if="!error && total" class="hx-gap" layout="prev, pager, next" :current-page="page" :page-size="20" :total="total" @current-change="page = $event" />
   <OverseasArchiveDetail v-if="selected" :id="selected" :api="api" @close="selected = ''" @source="router.push(`/overseas/tasks/${$event}`)" @failure="fail" />
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'

@@ -121,7 +121,7 @@ def test_resubmit_authority_and_retained_materials(materials):
     assert post(client, task, '/resubmit', body).status_code == 200
 
 
-def test_resubmit_rejects_foreign_and_failed_materials_atomically(materials):
+def test_resubmit_rejects_foreign_but_accepts_unparsed_materials_atomically(materials):
     client, factory, actor, designer, _ = materials
     task, original = pending(materials)
     failed = upload(client, b'%PDF-invalid', 'bad.pdf', 'requirement').json()
@@ -130,12 +130,14 @@ def test_resubmit_rejects_foreign_and_failed_materials_atomically(materials):
     change_roles(factory, actor, ('super_admin',))
     review(client, task, 'reject', '补充')
     body = {**payload(designer), 'version': 2, 'name': '不能写入', 'materialIds': [failed['id']]}
-    assert post(client, task, '/resubmit', body).status_code == 422
     assert post(client, task, '/resubmit', {**body, 'materialIds': [foreign['id']]}).status_code == 409
     assert post(client, task, '/resubmit', {**body, 'materialIds': []}).status_code == 422
     assert post(client, task, '/resubmit', {**body, 'materialIds': [original['id']], 'version': 1}).status_code == 409
     result = client.get(ROOT + '/tasks/' + task['id']).json()
     assert result['name'] == task['name'] and result['version'] == 2 and result['status'] == 'returned'
+    accepted = post(client, task, '/resubmit', body)
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()['status'] == 'pending_review'
 
 
 def test_assigned_designer_can_review_and_marker_blocks_direct_analysis(materials):

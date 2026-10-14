@@ -9,7 +9,7 @@
     <ElAlert v-if="error" class="hx-gap" :title="error" type="error" :closable="false"><ElButton text @click="load">重试加载申请</ElButton></ElAlert>
     <ArtTable height="auto" empty-height="280px" :data="rows" :columns="columns" :loading="loading" :show-table-header="false" :show-pagination="false" empty-text="暂无符合条件的加入申请">
       <template #status="{ row }"><ElTag :type="row.status === 'pending' ? 'warning' : 'info'">{{ applicationStatuses[row.status as MembershipApplication['status']] }}</ElTag></template>
-      <template #createdAt="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
+      <template #createdAt="{ row }">{{ formatBeijingTime(row.createdAt) }}</template>
       <template #reason="{ row }">{{ row.reason || '—' }}</template>
       <template #action="{ row }"><ElButton v-if="row.status === 'pending'" text type="primary" :disabled="loading || saving" @click="edit(row)">审批申请</ElButton><span v-else class="hx-muted">已结束</span></template>
     </ArtTable>
@@ -27,6 +27,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ArtTable from '@/components/core/tables/art-table/index.vue'

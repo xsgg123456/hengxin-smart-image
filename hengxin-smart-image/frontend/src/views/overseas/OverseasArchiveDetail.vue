@@ -5,7 +5,7 @@
     <ElButton :loading="loading" @click="load">刷新成品详情</ElButton>
     <template v-if="detail">
       <h2 class="hx-gap">{{ detail.productName }}</h2><p>{{ detail.brand }} · {{ detail.platform }} · {{ detail.skus.map(sku => sku.code).join(' · ') }}</p>
-      <p class="hx-footnote">{{ detail.pictureCount }} 张图片 · 归档于 {{ detail.createdAt }}</p>
+      <p class="hx-footnote">{{ detail.pictureCount }} 张图片 · 归档于 {{ formatBeijingTime(detail.createdAt) }}</p>
       <p v-if="detail.sourceDeleted || !detail.taskId" class="hx-gap">原任务已删除</p>
       <ElButton v-else text type="primary" @click="$emit('source', detail.taskId)">查看原任务</ElButton>
       <div class="archive-pictures hx-gap"><OverseasArchivePicture v-for="picture in detail.pictures" :key="detail.id + picture.id + revision" :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" /></div>
@@ -14,6 +14,8 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { onUnmounted, ref, watch } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import type { ArchiveDetail, ArchivesApi } from '@/api/overseas/archives'

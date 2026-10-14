@@ -1,3 +1,4 @@
+import * as BeijingTime from '../src/utils/beijing-time'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
@@ -31,7 +32,7 @@ function compile(name: string) {
   const content = compileScript(parse(source).descriptor, { id: name, inlineTemplate: true }).content
   const code = ts.transpileModule(content, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
   const module = { exports: {} as { default: Vue.Component } }
-  new Function('require', 'module', 'exports', code)((key: string) => { if (key in deps) return deps[key]; throw new Error(`unexpected dependency ${key}`) }, module, module.exports)
+  new Function('require', 'module', 'exports', code)((key: string) => { if (key === '@/utils/beijing-time') return BeijingTime; if (key in deps) return deps[key]; throw new Error(`unexpected dependency ${key}`) }, module, module.exports)
   return module.exports.default
 }
 const detail = compile('ApiUsageDetail')

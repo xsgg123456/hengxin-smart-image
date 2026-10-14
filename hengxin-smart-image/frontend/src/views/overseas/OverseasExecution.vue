@@ -6,15 +6,17 @@
     <p v-if="loaded && !jobs.length" class="hx-muted">暂无执行记录，尚未开始分析或生成。</p>
     <div v-for="job in jobs" :key="job.id" class="hx-gap">
       <h3>{{ executionKinds[job.kind] }} <ElTag>{{ executionStatuses[job.status] }}</ElTag></h3>
-      <p class="hx-muted">创建时间：{{ job.createdAt }}</p>
+      <p class="hx-muted">创建时间：{{ formatBeijingTime(job.createdAt) }}</p>
       <p v-if="job.error" role="alert">{{ job.error }}</p>
       <p v-if="job.status === 'uncertain'" role="alert">执行结果尚未确认，请联系管理员核实，切勿重复执行。</p>
       <div v-if="canCancel && ['queued', 'running', 'collecting'].includes(job.status)" class="hx-gap"><ElButton type="danger" text :disabled="busy || stopping || !!error" @click="cancel(job)">停止执行</ElButton></div>
     </div>
-    <ElCollapse v-if="events.length" class="hx-gap"><ElCollapseItem title="执行记录" name="events"><p v-for="event in events" :key="event.id">{{ event.createdAt }} · {{ event.message }}</p></ElCollapseItem></ElCollapse>
+    <ElCollapse v-if="events.length" class="hx-gap"><ElCollapseItem title="执行记录" name="events"><p v-for="event in events" :key="event.id">{{ formatBeijingTime(event.createdAt) }} · {{ event.message }}</p></ElCollapseItem></ElCollapse>
   </ElCard>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { onUnmounted, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { IdentityError } from '@/api/identity/request'

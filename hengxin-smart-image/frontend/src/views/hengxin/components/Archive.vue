@@ -43,6 +43,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import PicturePreview from './PicturePreview.vue'
 import PictureMosaic from './PictureMosaic.vue'
 import { ref, watch, onBeforeUnmount } from 'vue'
@@ -115,10 +117,7 @@ async function downloadOne(p: Picture, key: string) {
   downloading.value = key
   try { await downloadPicture(p) } finally { downloading.value = '' }
 }
-function formatTime(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
-}
+function formatTime(value: string) { return formatBeijingTime(value, '—') }
 async function remove(a: Archive) {
   if (deleting.value) return
   deleting.value = a.id

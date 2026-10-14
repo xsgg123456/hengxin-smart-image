@@ -28,6 +28,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { useRouter } from 'vue-router'
 import { getApiMonitor } from '@/api/execution-management'
 import { useAdminQuery } from './use-admin-query'
@@ -37,5 +39,5 @@ const names = {api:'API 生图',cli:'CLI 图片修改'}
 const states = {available:'在线',unavailable:'不可用',unknown:'未知'}
 const phases: Record<string,string> = {queued:'排队',running:'运行',retry_wait:'等待重试',collecting:'收图',cancelling:'取消中',uncertain:'待核实',failed:'当前失败'}
 const count = (value: number|null) => value === null ? '未知' : value
-const time = (value: string) => new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})
+const time = (value: string) => formatBeijingTime(value)
 </script>

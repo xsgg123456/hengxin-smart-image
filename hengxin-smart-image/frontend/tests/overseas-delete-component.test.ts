@@ -1,3 +1,4 @@
+import * as BeijingTime from '../src/utils/beijing-time'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -29,6 +30,7 @@ function component(name: string): Vue.Component {
   const module = { exports: {} as { default: Vue.Component } }
   const require = (path: string): unknown => {
     if (path === 'vue') return Vue
+    if (path === '@/utils/beijing-time') return BeijingTime
     if (path.endsWith('/tasks')) return Tasks
     if (path.endsWith('/archives')) return Archives
     if (path.endsWith('/management')) return Management

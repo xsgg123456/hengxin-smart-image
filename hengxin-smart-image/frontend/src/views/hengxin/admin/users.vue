@@ -9,7 +9,7 @@
       <ElAlert v-if="directory === 'legacy'" title="历史来源尚未确认，仅供核对；需本人明确申请并审批，普通编辑不能授权。" type="info" :closable="false" class="hx-gap" />
       <div class="hx-filter"><ElInput v-model="search" class="hx-search" clearable placeholder="搜索姓名或部门" aria-label="搜索成员" :disabled="loading && !data" /><ElSelect v-model="status" clearable placeholder="全部状态" style="width: 160px" aria-label="成员状态" :disabled="loading && !data"><ElOption v-for="(label,key) in statuses" :key="key" :label="label" :value="key" /></ElSelect><ElButton :loading="loading" @click="load">刷新成员</ElButton></div>
       <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text @click="load">重试加载</ElButton></ElAlert>
-      <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roles[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString('zh-CN') : '尚未登录' }}</template><template #action="{ row }"><span v-if="directory === 'legacy'" class="hx-muted">仅供核对</span><ElButton v-else text type="primary" :disabled="loading || saving" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
+      <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roles[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? formatBeijingTime(row.lastLoginAt) : '尚未登录' }}</template><template #action="{ row }"><span v-if="directory === 'legacy'" class="hx-muted">仅供核对</span><ElButton v-else text type="primary" :disabled="loading || saving" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
       <div class="hx-filter hx-gap"><span>{{ loading ? '正在读取…' : `共 ${total} ${directory === 'legacy' ? '条待核对记录' : '位成员'}` }}</span><ElPagination v-model:current-page="page" :page-size="12" :total="total" layout="prev,pager,next" :disabled="loading" /></div>
       </template>
     </ElCard>
@@ -21,6 +21,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listUsers, saveUser, managementApi } from '@/api/management'

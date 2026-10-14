@@ -16,11 +16,13 @@
         <h2 class="hx-gap">钉钉接入</h2><p class="hx-muted">配置状态：{{dingStates[data.dingtalk.state]}}，不代表真实登录已验证。钉钉接入由部署环境管理，网页只读；AppSecret 和 CLI 凭据不在网页输入或回传。</p>
         <div class="hx-template-options"><ElFormItem label="企业 CorpId"><ElInput :model-value="data.dingtalk.corpId" readonly aria-label="企业 CorpId" /></ElFormItem><ElFormItem label="应用 App 标识"><ElInput :model-value="data.dingtalk.appId" readonly aria-label="应用 App 标识" /></ElFormItem><ElFormItem label="HTTPS 回调域名"><ElInput :model-value="data.dingtalk.callbackDomain" readonly aria-label="HTTPS 回调域名" /></ElFormItem></div>
       </ElForm><div class="hx-save-row"><span class="hx-muted" role="status">{{ dirty ? '有未保存的修改' : '当前配置已保存' }}</span><ElButton type="primary" :loading="saving" :disabled="loading || !!error || data.timeoutCapacity < 60 || !dirty" @click="save">保存配置</ElButton></div></ElCard>
-      <ElCard class="art-card hx-section"><h2>配置变更记录（最近 100 条）</h2><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data.audit" :columns="columns" :show-pagination="false" empty-text="尚无配置变更"><template #changedAt="{row}">{{new Date(row.changedAt).toLocaleString('zh-CN')}}</template><template #fields="{row}">{{row.fields.map((field: string)=>fieldLabels[field] || field).join('、')}}</template></ArtTable></ElCard>
+      <ElCard class="art-card hx-section"><h2>配置变更记录（最近 100 条）</h2><ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data.audit" :columns="columns" :show-pagination="false" empty-text="尚无配置变更"><template #changedAt="{row}">{{formatBeijingTime(row.changedAt)}}</template><template #fields="{row}">{{row.fields.map((field: string)=>fieldLabels[field] || field).join('、')}}</template></ArtTable></ElCard>
     </div>
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getSettings,saveSettings,listManagedCatalog } from '@/api/management'

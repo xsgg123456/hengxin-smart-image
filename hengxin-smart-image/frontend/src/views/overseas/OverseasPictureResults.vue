@@ -16,7 +16,7 @@
           <ElButton v-if="allowed && !archived" text type="primary" :disabled="locked || picture.status !== 'ready' || picture.approved" @click="start('approve', picture)">审核通过</ElButton>
           <ElButton v-if="allowed && !archived && picture.url" text :disabled="locked || !['ready', 'failed'].includes(picture.status)" @click="editing = picture; conflict = false">标注修改</ElButton>
         </div>
-        <details v-if="picture.history.length"><summary>版本历史</summary><div v-for="h in picture.history" :key="h.version" class="hx-gap"><p class="hx-footnote">v{{ h.version }} · {{ h.createdAt }} · {{ h.note || '初次生成' }}</p><ElImage :src="h.url" :alt="`历史 v${h.version}`" fit="contain" :preview-src-list="[h.url]" preview-teleported /><ElButton text @click="download(picture.id, h.version)">下载 v{{ h.version }}</ElButton></div></details>
+        <details v-if="picture.history.length"><summary>版本历史</summary><div v-for="h in picture.history" :key="h.version" class="hx-gap"><p class="hx-footnote">v{{ h.version }} · {{ formatBeijingTime(h.createdAt) }} · {{ h.note || '初次生成' }}</p><ElImage :src="h.url" :alt="`历史 v${h.version}`" fit="contain" :preview-src-list="[h.url]" preview-teleported /><ElButton text @click="download(picture.id, h.version)">下载 v{{ h.version }}</ElButton></div></details>
       </ElCard>
     </div>
     <div v-if="allowed && !archived" class="actions hx-gap"><ElButton v-for="code in failedSkus" :key="code" :disabled="locked" @click="start('retry', undefined, code)">重试失败 SKU {{ code }}</ElButton><ElButton type="primary" :disabled="locked || !canArchive(items, task.status)" @click="start('archive')">整套归档到成品库</ElButton></div>
@@ -25,6 +25,8 @@
   </ElCard>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { canArchive, createPicturesApi, saveBlob, pictureFilename, type Picture, type PictureCommand } from '@/api/overseas/pictures'

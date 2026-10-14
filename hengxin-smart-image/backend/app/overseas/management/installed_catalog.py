@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import HTTPException
+from markdown_it import MarkdownIt
 from app.core.config import get_business_context, get_settings
 from .installed_tree import NAME, digest, read_file, safe_directory, tree, tree_stamp
 
@@ -61,14 +62,34 @@ def verify_package(directory, item, protected=False):
     return package
 
 
+def package_title(package, fallback):
+    """Derive presentation from verified bytes, without rewriting release identity."""
+    document = package.files['SKILL.md'].decode('utf-8-sig')
+    # Use the same frontmatter boundary as package_validator; YAML comments and
+    # multiline descriptions must not become headings.
+    body = re.sub(r'\A---\s*\r?\n(.*?)\r?\n---(?:\s*\r?\n|$)', '', document, count=1, flags=re.S)
+    tokens = MarkdownIt('commonmark').parse(body)
+    for index, token in enumerate(tokens):
+        if token.type == 'heading_open' and token.tag == 'h1':
+            children = tokens[index + 1].children or []
+            title = ''.join(' ' if child.type in ('softbreak', 'hardbreak') else child.content
+                            for child in children
+                            if child.type in ('text', 'code_inline', 'image', 'softbreak', 'hardbreak'))
+            return title.strip() or fallback
+    return fallback
+
+
 @lru_cache(maxsize=8)
 def verified_release(root_value, release, stamp, protected):
     directory, manifest = release_manifest(Path(root_value), release, protected)
+    items = []
     for item in manifest['items']:
-        verify_package(directory, item, protected)
+        package = verify_package(directory, item, protected)
+        items.append(dict(item, displayName=package_title(package, item['displayName']),
+                          description=package.description))
     if tree_stamp(directory, protected=protected) != stamp:
         raise ValueError('Skill release changed during verification')
-    return manifest['items']
+    return items
 
 
 def read_catalog(root, protected=False):

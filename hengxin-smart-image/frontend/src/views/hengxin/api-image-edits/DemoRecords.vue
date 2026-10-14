@@ -11,7 +11,7 @@
         <template #status="{ row }"><ElTag :type="taskState(row) === '全部成功' ? 'success' : taskState(row).includes('失败') ? 'danger' : 'primary'">{{ taskState(row) }}</ElTag></template>
         <template #progress="{ row }"><span>{{ row.items.filter((item: EditItem) => item.state === '成功').length }} / {{ row.items.length }} 张已出图</span><p class="hx-footnote">{{ revisionSummary(row) || `第 ${batchInfo(row).current}/${batchInfo(row).total} 批 · ${batchInfo(row).running} 张处理中` }}</p></template>
         <template #operator="{ row }"><span class="demo-operator">{{ row.operator || '演示操作人' }}</span></template>
-        <template #created="{ row }"><span :title="row.created">{{ friendlyTime(row.created) }}</span></template>
+        <template #created="{ row }"><span :title="friendlyTime(row.created)">{{ friendlyTime(row.created) }}</span></template>
         <template #action="{ row }"><ElButton text type="primary" @click="show(row.id)">查看详情</ElButton><ElButton text type="danger" :disabled="['排队中', '处理中'].includes(taskState(row))" @click="remove(row)">删除</ElButton></template>
       </ArtTable>
     </ElCard>
@@ -19,6 +19,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
@@ -51,7 +53,7 @@ function revisionSummary(task: EditTask) { const count = task.items.filter(item 
 function versionExample() { filter.value = '全部'; search.value = ''; show(startVersionExample()) }
 function run(scenario: Scenario) { filter.value = '全部'; search.value = ''; show(startScenario(scenario)) }
 async function refresh() { if (refreshing.value) return; refreshing.value = true; await new Promise(resolve => setTimeout(resolve, 350)); refreshing.value = false }
-function friendlyTime(value: string) { const date = new Date(value); if (Number.isNaN(date.getTime())) return value; const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }); return date.toDateString() === new Date().toDateString() ? `今天 ${time}` : `${date.getMonth() + 1}月${date.getDate()}日 ${time}` }
+function friendlyTime(value: string) { return formatBeijingTime(value) }
 function show(id: string) { selectedId.value = id; open.value = true }
 watch(() => route.query.task, value => { if (typeof value === 'string') show(value) }, { immediate: true })
 async function remove(task: EditTask) {

@@ -25,12 +25,10 @@ export function isMaterial(v: unknown): v is Material {
 export function validateFile(file: Pick<File, 'name' | 'size'>, kind: MaterialKind) {
   if (!file.size) throw Error('文件为空，请选择包含内容的文件')
   if (file.size > 20 * 1024 * 1024) throw Error('单个文件不能超过 20 MiB')
-  const extension = file.name.split('.').pop()?.toLowerCase()
-  if (extension === 'doc') throw Error('暂不支持 DOC，请另存为 DOCX 或 PDF 后上传')
-  if (!(kind === 'requirement' ? ['pdf', 'docx'] : ['xls', 'xlsx', 'csv']).includes(extension || '')) throw Error('文件类型不符合资料要求')
+  if (!['requirement', 'competitor'].includes(kind)) throw Error('资料类别无效')
 }
 export function readyMaterialIds(files: Material[]) {
-  if (!files.length || files.length > 2 || files.some(f => f.status !== 'ready' || f.taskId !== null)) throw Error('至少提供一份解析成功的资料；请先移除或重试失败资料')
+  if (!files.length || files.length > 2 || files.some(f => f.taskId !== null)) throw Error('至少提供一份已上传的未绑定资料')
   if (new Set(files.map(f => f.kind)).size !== files.length || new Set(files.map(f => f.id)).size !== files.length) throw Error('每类资料仅支持一份')
   return files.map(f => f.id)
 }

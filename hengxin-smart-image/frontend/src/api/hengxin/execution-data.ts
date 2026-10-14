@@ -1,3 +1,4 @@
+import { formatBeijingTime } from '@/utils/beijing-time'
 export const stages = {
   queued: '排队中', preparing: '准备素材', starting: '启动执行器', generating: '模型处理',
   validating: '校验结果', storing: '存储图片', publishing: '发布结果', completed: '已完成',
@@ -55,5 +56,5 @@ export function activityIsStale(data: ExecutionData, now: number) {
   return executionPollDelay(data.status) !== null && !!activity && now - Date.parse(activity) >= 60000
 }
 export function formatExecutionTime(value: string | null) {
-  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '未提供'
+  return formatBeijingTime(value, '未提供')
 }

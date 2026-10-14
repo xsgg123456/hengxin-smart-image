@@ -108,9 +108,7 @@
           ><ElDescriptionsItem label="SKU">{{
             selected.skus.map((s) => s.code).join("、")
           }}</ElDescriptionsItem
-          ><ElDescriptionsItem label="创建时间">{{
-            selected.createdAt
-          }}</ElDescriptionsItem
+          ><ElDescriptionsItem label="创建时间">{{ formatBeijingTime(selected.createdAt) }}</ElDescriptionsItem
           ><ElDescriptionsItem label="当前返工图片"
             >{{
               selected.pictures.filter((p) => p.reworking).length
@@ -124,7 +122,7 @@
           ><ElTimelineItem
             v-for="(event, i) in selected.events"
             :key="i"
-            :timestamp="event.at"
+            :timestamp="formatBeijingTime(event.at)"
             >{{ event.title }}</ElTimelineItem
           ></ElTimeline
         ><ElEmpty v-else description="暂无流程记录" />
@@ -133,6 +131,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, ref } from "vue";
 import {
   ElButton,

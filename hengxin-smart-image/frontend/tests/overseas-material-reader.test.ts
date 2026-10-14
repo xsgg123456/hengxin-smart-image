@@ -1,3 +1,4 @@
+import * as BeijingTime from '../src/utils/beijing-time'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -17,7 +18,7 @@ function mount(name:string,props:Record<string,unknown>){
  const descriptor=parse(readFileSync(new URL(`../src/views/overseas/${name}.vue`,import.meta.url),'utf8')).descriptor
  const code=ts.transpileModule(compileScript(descriptor,{id:'reader-test',inlineTemplate:true}).content,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
  const module={exports:{} as {default:Vue.Component}}
- const require=(p:string):unknown=>{if(p==='vue')return Vue;if(p.endsWith('/materials'))return Materials;if(p.endsWith('/request'))return {IdentityError};if(p==='./material-reader-data')return Data;if(p.endsWith('.vue'))return {default:stub(p),__esModule:true};throw Error(p)}
+ const require=(p:string):unknown=>{if(p==='vue')return Vue;if(p==='@/utils/beijing-time')return BeijingTime;if(p.endsWith('/materials'))return Materials;if(p.endsWith('/request'))return {IdentityError};if(p==='./material-reader-data')return Data;if(p.endsWith('.vue'))return {default:stub(p),__esModule:true};throw Error(p)}
  new Function('require','module','exports',code)(require,module,module.exports)
  const app=renderer.createApp(module.exports.default,props)
  for(const s of ['ElCard','ElEmpty','ElTabs','ElTabPane','ElButton','ElSelect','ElOption','ElRadioGroup','ElRadioButton','ElAlert','ElDialog'])app.component(s,stub(s))

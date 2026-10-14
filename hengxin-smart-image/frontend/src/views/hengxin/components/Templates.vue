@@ -40,6 +40,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import PictureMosaic from './PictureMosaic.vue'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -80,10 +82,7 @@ function use(template: Template) {
   void router.push({ path: `/image-processing/${template.mode}`, query: { template: template.id, newTask: crypto.randomUUID() } })
 }
 function saved() { dialog.value = false; void load() }
-function formatTime(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '更新时间未知' : date.toLocaleString('zh-CN', { hour12: false })
-}
+function formatTime(value: string) { return formatBeijingTime(value, '更新时间未知') }
 async function remove(template: Template) {
   if (deleting.value) return
   deleting.value = template.id

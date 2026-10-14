@@ -1,4 +1,4 @@
-"""Overseas 0.2.30 hotfix: no migration, Skill installation or business deletion.
+"""Overseas 0.2.31 hotfix: no migration, Skill installation or business deletion.
 
 CLI: RELEASE build|prepare|deploy. Failed cutovers stay closed for inspected recovery;
 never replay deploy or restore a database over potentially accepted business writes.
@@ -24,9 +24,9 @@ DELETING = "SELECT count(*) FROM overseas_task_deletions WHERE status='deleting'
 def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
-    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.30'
+    assert manifest['release'] == release and manifest['frontendVersion'] == '0.2.31'
     assert manifest['migration'] == '0028' and manifest['overseasMigration'] == 'overseas_0014'
-    assert json.loads((source / 'frontend/package.json').read_text())['version'] == '0.2.30'
+    assert json.loads((source / 'frontend/package.json').read_text())['version'] == '0.2.31'
     r.hashes(source, manifest)
     return source, manifest, 'hengxin-smart-image-backend:' + release
 
@@ -92,7 +92,7 @@ def prepare(work, source, manifest, image):
     assert not (work / 'PREPARED').exists()
     identity = m.image_id(work, image)
     schemas()
-    assert json.loads((m.APP / 'frontend/package.json').read_text())['version'] == '0.2.29'
+    assert json.loads((m.APP / 'frontend/package.json').read_text())['version'] == '0.2.30'
     m.assets_safe(source)
     data = m.topology()
     assert data['overseas']['env'], 'Explicit overseas Compose env file required for backup'

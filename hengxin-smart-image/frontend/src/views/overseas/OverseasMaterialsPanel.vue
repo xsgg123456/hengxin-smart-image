@@ -1,12 +1,12 @@
 <template>
   <ElCard class="art-card hx-section" shadow="never">
     <div class="section-heading"><h2>图需资料</h2><ElTag v-if="editable" type="info">至少提供一份</ElTag></div>
-    <p v-if="editable" class="hx-muted hx-gap">至少一份解析成功的资料，每类一份，每份不超过 20 MiB。PDF 须包含可抽取文字；DOC 请另存为 DOCX 或 PDF。</p>
+    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类一份，单份不超过 20 MiB。支持 PPT/PPTX、Word、PDF、表格等各类文件；无法解析时可下载原件查看，不影响提交。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
     <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card">
       <h3>{{ kind.label }}</h3>
       <template v-if="file(kind.key)">
-        <p class="file-name">{{ file(kind.key)?.name }} · {{ file(kind.key)?.status === 'ready' ? '解析成功' : '解析失败' }} · 第 {{ file(kind.key)?.version }} 版</p>
+        <p class="file-name">{{ file(kind.key)?.name }} · {{ file(kind.key)?.status === 'ready' ? '解析成功' : '已上传，需下载原件查看' }} · 第 {{ file(kind.key)?.version }} 版</p>
         <p v-if="file(kind.key)?.error" role="alert">{{ file(kind.key)?.error }}</p>
         <ElButton :disabled="locked" @click="preview = true">预览资料</ElButton>
         <ElButton v-if="editable && replaceable && file(kind.key)?.taskId" text type="danger" :disabled="locked" @click="detach(file(kind.key)!)">更换资料</ElButton>
@@ -15,8 +15,8 @@
           <div class="hx-gap"><ElButton type="danger" text :disabled="locked" @click="remove(file(kind.key)!)">移除资料</ElButton></div>
         </template>
       </template>
-      <ElUpload v-else-if="editable" drag :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :accept="kind.accept" :disabled="locked" :on-change="selected => upload(selected, kind.key)">
-        <div class="upload-copy"><strong>点击选择或拖入{{ kind.label }}</strong><span>{{ kind.accept }} · 单份不超过 20 MiB</span></div>
+      <ElUpload v-else-if="editable" drag :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :data-material-kind="kind.key" :disabled="locked" :on-change="selected => upload(selected, kind.key)">
+        <div class="upload-copy"><strong>点击选择或拖入{{ kind.label }}</strong><span>不限文件格式（含 PPT/PPTX） · 单份不超过 20 MiB</span></div>
       </ElUpload>
       <p v-else class="hx-muted">未提供{{ kind.label }}</p>
       <template v-if="uploading === kind.key">
@@ -38,7 +38,7 @@ import OverseasMaterialPreview from './OverseasMaterialPreview.vue'
 const files = defineModel<Material[]>({ required: true })
 const props = defineProps<{ api: MaterialsApi; editable: boolean; disabled?: boolean; replaceable?: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean]; failure: [reason: unknown] }>()
-const kinds = [{ key: 'requirement', label: '图片需求文件', accept: '.pdf,.docx' }, { key: 'competitor', label: '竞品分析表格', accept: '.xls,.xlsx,.csv' }] as const
+const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '竞品分析表格' }] as const
 const busy = ref(false), progress = ref(0), uploading = ref<MaterialKind>(), error = ref(''), preview = ref(false), inputKey = ref(0)
 const locked = computed(() => busy.value || props.disabled), file = (kind: MaterialKind) => files.value.find(f => f.kind === kind)
 let generation = 0, controller: AbortController | undefined

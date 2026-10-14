@@ -39,7 +39,7 @@ export function validateDraft(d: Draft) {
   d.files.forEach(validateMaterial);
 }
 export function log(task: Task, title: string) {
-  task.events.unshift({ title, at: new Date().toLocaleString("zh-CN") });
+  task.events.unshift({ title, at: new Date().toISOString() });
 }
 export function createTask(draft: Draft, role: Role, id: string): Task {
   requireRole(role, "operator");
@@ -55,7 +55,7 @@ export function createTask(draft: Draft, role: Role, id: string): Task {
     })),
     id,
     status: "analyzing",
-    createdAt: new Date().toLocaleString("zh-CN"),
+    createdAt: new Date().toISOString(),
     planVersion: 1,
     feedback: [],
     pictures: [],

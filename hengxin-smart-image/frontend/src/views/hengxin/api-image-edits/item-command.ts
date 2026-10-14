@@ -1,3 +1,4 @@
+import { formatBeijingTime } from '@/utils/beijing-time'
 import { reactive } from 'vue'
 import { errorText, uncertainResponse } from '@/api/api-image-edits'
 import type { RevisionReference } from './revision-references'
@@ -39,4 +40,4 @@ export function saveBlob(blob: Blob, name: string) {
   link.href = url; link.download = name; document.body.append(link); link.click(); link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
-export const friendlyTime = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) }
+export const friendlyTime = (value: string) => formatBeijingTime(value)

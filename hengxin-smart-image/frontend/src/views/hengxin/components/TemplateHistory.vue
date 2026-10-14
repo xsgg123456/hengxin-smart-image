@@ -5,7 +5,7 @@
       <ElEmpty v-if="!loading && !versions.length && !error" description="暂无历史版本" />
       <ElCollapse v-model="expanded">
         <ElCollapseItem v-for="item in versions" :key="item.version" :name="item.version" :title="`v${item.version} · ${item.name}`">
-          <p>{{ labels[item.mode] }} · {{ new Date(item.updatedAt).toLocaleString('zh-CN') }}</p>
+          <p>{{ labels[item.mode] }} · {{ formatBeijingTime(item.updatedAt) }}</p>
           <p style="overflow-wrap:anywhere">保存的 Skill：{{ item.skill || '未绑定' }} <span v-if="item.skillVersionId">（{{ item.skillVersionId }}）</span></p>
           <p>绑定方式：{{ item.skillBinding === 'module_default' ? '保存时的模块默认' : '专用版本' }} · {{ item.images.length }} 张图片</p>
           <p v-if="item.notes">{{ item.notes }}</p>
@@ -21,6 +21,8 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import PicturePreview from './PicturePreview.vue'
 import { onBeforeUnmount, ref } from 'vue'
 import { getTemplateVersions } from '@/api/templates'

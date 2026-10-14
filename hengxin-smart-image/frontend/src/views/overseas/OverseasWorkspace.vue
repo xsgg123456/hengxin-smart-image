@@ -51,6 +51,7 @@
           <template #status="{ row }"
             ><ElTag :type="row.status === 'delete_failed' ? 'danger' : row.status === 'deleting' ? 'warning' : 'primary'">{{ labels[row.status as keyof typeof labels] }}</ElTag><p v-if="row.deletionError" class="task-deletion-error">{{ row.deletionError }}</p></template
           >
+          <template #createdAt="{ row }">{{ formatBeijingTime(row.createdAt) }}</template>
           <template #action="{ row }"
             ><ElButton text type="primary" @click="$emit('open', row.id)">查看详情</ElButton
             ><slot name="action" :row="row" /></template
@@ -63,6 +64,8 @@
       </ElCard>
 </div></template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed } from 'vue'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import { taskStatuses, type TaskSummary } from '@/api/overseas/tasks'
@@ -76,7 +79,7 @@ const columns = [
   { prop: 'brand', label: '品牌', minWidth: 100 },
   { prop: 'platform', label: '平台', minWidth: 100 },
   { prop: 'status', label: '当前节点', minWidth: 120, useSlot: true },
-  { prop: 'createdAt', label: '提交时间', minWidth: 170 },
+  { prop: 'createdAt', label: '提交时间', minWidth: 170, useSlot: true },
   { prop: 'action', label: '操作', minWidth: 180, useSlot: true },
 ]
 </script>

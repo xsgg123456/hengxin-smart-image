@@ -9,7 +9,7 @@
             <ElSelect v-model="selectedVersion" aria-label="解析版本" class="hx-gap">
               <ElOption v-for="version in realMaterial(kind.key)?.versions" :key="version.version" :value="version.version" :label="`第 ${version.version} 版 · ${version.status === 'ready' ? '成功' : '失败'}`" />
             </ElSelect>
-            <p class="hx-muted hx-gap">{{ parsed(kind.key)?.createdAt }}</p>
+            <p class="hx-muted hx-gap">{{ formatBeijingTime(parsed(kind.key)?.createdAt) }}</p>
             <ElAlert v-if="parsed(kind.key)?.error" :title="parsed(kind.key)?.error || ''" type="error" :closable="false" />
             <pre class="material-text hx-gap">{{ parsed(kind.key)?.text || '本版本未解析出可读内容' }}</pre>
             <p class="hx-muted hx-gap">{{ realMaterial(kind.key)?.contentType === 'application/pdf' ? 'PDF 可预览原件或下载。' : '此格式请下载后使用本地应用打开。' }}</p>
@@ -34,6 +34,8 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, ref, watch, onUnmounted } from 'vue'
 import OverseasMaterialReader from './OverseasMaterialReader.vue'
 import type { Material as PreviewMaterial } from './types'

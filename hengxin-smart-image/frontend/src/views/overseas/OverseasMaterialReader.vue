@@ -9,7 +9,7 @@
           <div class="reader-actions"><ElButton @click="expanded = true">放大查看</ElButton><ElButton :loading="opening" @click="original(false)">新窗口打开</ElButton><ElButton type="primary" :loading="downloading" @click="original(true)">下载原文件</ElButton></div>
         </div>
         <div class="version-bar"><ElSelect v-model="version" aria-label="解析版本"><ElOption v-for="item in current.versions" :key="item.version" :value="item.version" :label="`第 ${item.version} 版 · ${item.status === 'ready' ? '成功' : '失败'}`" /></ElSelect>
-          <ElRadioGroup v-if="isPdf" v-model="view"><ElRadioButton value="original">PDF 原件</ElRadioButton><ElRadioButton value="text">解析文本</ElRadioButton></ElRadioGroup><span class="hx-muted">{{ parsed?.createdAt }}</span></div>
+          <ElRadioGroup v-if="isPdf" v-model="view"><ElRadioButton value="original">PDF 原件</ElRadioButton><ElRadioButton value="text">解析文本</ElRadioButton></ElRadioGroup><span class="hx-muted">{{ formatBeijingTime(parsed?.createdAt) }}</span></div>
         <ElAlert v-if="error || parsed?.error" :title="error || parsed?.error || ''" type="warning" :closable="false" />
         <template v-if="!expanded"><MaterialPdfReader v-if="isPdf && view === 'original'" :key="current.id" :file="current" :api="api" @failure="failure" /><MaterialTextReader v-else :key="`${current.id}-${version}`" :text="parsed?.text || ''" :name="current.name" /></template>
         <p class="reader-hint">在线阅读或下载原件后用本地软件审核。解析版本仅对应文本，下载始终为上传的原文件。</p>
@@ -24,6 +24,8 @@
   </ElCard>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { materialError, type Material, type MaterialsApi } from '@/api/overseas/materials'

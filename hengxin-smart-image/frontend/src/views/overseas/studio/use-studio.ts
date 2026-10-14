@@ -12,7 +12,10 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   const activeTurn = computed(() => data.value?.turns.find(t => t.id === data.value?.activeTurnId))
   const locked = computed(() => !editable.value || busy.value || uploading.value || !!pending.value)
   const canSend = computed(() => !locked.value && !data.value?.activeTurnId && !!(text.value.trim() || attachments.value.length || references.value.length))
-  let alive = true, cursor = 0, operation = 0, refreshError = false, timer: ReturnType<typeof setTimeout> | undefined
+  let alive = true, cursor = 0, operation = 0, refreshError = false, denied = false, timer: ReturnType<typeof setTimeout> | undefined
+  let reading: Promise<void> | undefined
+  const page = typeof document === 'undefined' ? undefined : document
+  const visible = () => page?.visibilityState !== 'hidden'
   const controller = new AbortController()
   function fail(reason: unknown, fromRefresh = false) {
     if (!alive) return
@@ -20,29 +23,40 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     error.value = reason instanceof IdentityError && [409,422].includes(reason.status)
       ? (typeof reason.detail === 'string' ? reason.detail : '任务状态或输入已变化，请检查附件、SKU 与执行状态后重试')
       : reason instanceof Error ? reason.message : '工作台请求失败，请重试'
-    if (reason instanceof IdentityError && [401,403,404].includes(reason.status)) { data.value = undefined; failure(reason) }
+    if (reason instanceof IdentityError && [401,403,404].includes(reason.status)) { denied = true; clearTimeout(timer); data.value = undefined; failure(reason) }
   }
   function savePending(value?: Pending) { pending.value = value; try { if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey) } catch { /* Same-page key remains available. */ } }
-  async function refresh() {
-    if (loading.value || busy.value || !alive) return
+  function schedule() {
+    clearTimeout(timer)
+    if (alive && visible() && !denied && !busy.value && !data.value?.completed) timer = setTimeout(() => { void sync() }, data.value?.activeTurnId ? 2500 : 30000)
+  }
+  async function read() {
     const snapshot = operation
-    loading.value = true
     try {
       const value = await api.get(task().id)
       if (!alive || snapshot !== operation) return
-      data.value = value
       const result = await api.events(task().id, cursor)
       if (!alive || snapshot !== operation) return
+      data.value = value; denied = false
       const ids = new Set(events.value.map(e => e.id)); events.value.push(...result.items.filter(e => !ids.has(e.id))); cursor = result.cursor
       if (refreshError) { error.value = ''; refreshError = false }
-    } catch (reason) { fail(reason, true) }
-    finally { loading.value = false }
+    } catch (reason) { if (alive && snapshot === operation) fail(reason, true) }
   }
-  async function poll() { await refresh(); if (alive) timer = setTimeout(poll, 2500) }
-  void poll()
+  async function sync(manual = false) {
+    if (!alive || busy.value || (!manual && (!visible() || denied))) return
+    clearTimeout(timer)
+    if (manual) loading.value = true
+    // A manual refresh can join an automatic read without creating a second request.
+    if (!reading) reading = read().finally(() => { reading = undefined; if (alive) { loading.value = false; schedule() } })
+    await reading
+  }
+  function refresh() { return sync(true) }
+  function visibilityChanged() { clearTimeout(timer); if (visible()) void sync() }
+  page?.addEventListener('visibilitychange', visibilityChanged)
+  void sync()
   async function run(value: Pending) {
     if (busy.value || !task().capabilities.includes('task.design') || (!editable.value && pending.value?.key !== value.key)) return
-    savePending(value); ++operation; busy.value = true; error.value = ''
+    savePending(value); ++operation; clearTimeout(timer); busy.value = true; error.value = ''
     try {
       const result = value.kind === 'send' ? await api.send(task().id, value.body, value.key)
         : value.kind === 'archive' ? await api.archive(task().id, value.body.pictureIds, value.body.sku, value.key)
@@ -56,7 +70,7 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
       // Unknown response keeps the exact payload/key, including across a browser refresh.
       if (reason instanceof IdentityError && reason.status >= 400 && reason.status < 500 && reason.status !== 408) savePending()
       fail(reason); return false
-    } finally { busy.value = false }
+    } finally { busy.value = false; schedule() }
   }
   function send() { if (canSend.value) return run({ key: crypto.randomUUID(), kind: 'send', body: { text: text.value.trim(), skillId: skill.value || null, attachmentIds: attachments.value.map(a => a.id), referencePictureIds: references.value.map(p => p.id) } }) }
   function retry() { if (pending.value) return run(pending.value) }
@@ -64,9 +78,9 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   function complete() { if (!locked.value && !data.value?.activeTurnId) return run({ key: crypto.randomUUID(), kind: 'complete' }) }
   async function stop() {
     if (!activeTurn.value || !editable.value || busy.value) return
-    ++operation; busy.value = true; error.value = ''
+    ++operation; clearTimeout(timer); busy.value = true; error.value = ''
     try { const value = await api.cancel(task().id, activeTurn.value); if (alive) data.value = value }
-    catch (reason) { fail(reason) } finally { busy.value = false }
+    catch (reason) { fail(reason) } finally { busy.value = false; schedule() }
   }
   function add(ids: string[]) { if (locked.value) return; for (const id of ids) { const asset = data.value?.materials.find(a => a.id === id); if (asset && !attachments.value.some(a => a.id === id)) attachments.value.push(asset) } }
   async function receive(files: File[]) {
@@ -78,6 +92,6 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   function modify(picture: StudioPicture) { if (!locked.value && !references.value.some(p => p.id === picture.id)) references.value.push(picture) }
   function toggle(id: string) { selected.value = selected.value.includes(id) ? selected.value.filter(p => p !== id) : [...selected.value, id] }
   function toggleGroup(pictures: StudioPicture[]) { const ids = pictures.map(p => p.id), all = ids.every(id => selected.value.includes(id)); selected.value = all ? selected.value.filter(id => !ids.includes(id)) : [...new Set([...selected.value, ...ids])] }
-  onUnmounted(() => { alive = false; clearTimeout(timer); controller.abort() })
+  onUnmounted(() => { alive = false; clearTimeout(timer); page?.removeEventListener('visibilitychange', visibilityChanged); controller.abort() })
   return { api, data, text, skill, attachments, references, selected, events, error, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, refresh, send, retry, archive, complete, stop, add, receive, modify, toggle, toggleGroup, fail }
 }

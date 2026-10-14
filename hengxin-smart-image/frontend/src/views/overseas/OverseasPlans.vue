@@ -9,7 +9,7 @@
         <ElOption v-for="plan in plans" :key="plan.id" :value="plan.id" :label="`方案 v${plan.version} · ${planStatuses[plan.status]}${plan.id === latest?.id ? '（最新）' : '（历史只读）'}`" />
       </ElSelect>
       <template v-if="selected">
-        <p class="hx-footnote">{{ selected.createdAt }} · {{ planStatuses[selected.status] }}</p>
+        <p class="hx-footnote">{{ formatBeijingTime(selected.createdAt) }} · {{ planStatuses[selected.status] }}</p>
         <ElAlert v-if="selected.feedback" title="本轮方案修改意见" :description="selected.feedback" type="info" :closable="false" />
         <ElAlert v-if="selected.status === 'uncertain'" title="分析结果尚未确认，请联系管理员核实，切勿重复提交。" type="warning" :closable="false" />
         <p v-if="selected.status === 'pending'" role="status">分析任务已提交，正在等待执行结果。排队与执行状态见下方执行记录。</p>
@@ -36,6 +36,8 @@
   </ElCard>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { createPlansApi, planStatuses, type Plan } from '@/api/overseas/plans'

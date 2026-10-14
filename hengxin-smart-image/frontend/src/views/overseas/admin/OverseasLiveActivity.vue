@@ -7,8 +7,8 @@
         <ElInput v-model="query.taskId" class="hx-search" aria-label="任务 ID" placeholder="任务 ID" clearable />
         <ElSelect v-model="query.kind" aria-label="执行类型" placeholder="全部类型" clearable style="width:160px"><ElOption v-for="(label,key) in kinds" :key="key" :value="key" :label="label" /></ElSelect>
         <ElSelect v-model="query.status" aria-label="执行状态" placeholder="全部状态" clearable style="width:160px"><ElOption v-for="(label,key) in statuses" :key="key" :value="key" :label="label" /></ElSelect>
-        <ElDatePicker v-model="from" type="datetime" aria-label="开始时间" placeholder="开始时间" style="max-width:100%" />
-        <ElDatePicker v-model="to" type="datetime" aria-label="结束时间" placeholder="结束时间" style="max-width:100%" />
+        <ElDatePicker v-model="from" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" aria-label="开始时间（北京时间）" placeholder="开始时间（北京时间）" style="max-width:100%" />
+        <ElDatePicker v-model="to" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" aria-label="结束时间（北京时间）" placeholder="结束时间（北京时间）" style="max-width:100%" />
         <ElButton type="primary" :disabled="loading" @click="filter">应用筛选</ElButton>
       </div>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
@@ -21,10 +21,12 @@
       <div class="hx-filter hx-gap"><span>共 {{ total }} 个作业</span><ElPagination :current-page="query.page" :page-size="query.pageSize" :total="total" layout="prev, pager, next" :disabled="loading" @current-change="changePage" /></div>
       <p class="hx-footnote">执行次数不等于模型 API 调用次数。费用：{{ usage?.cost ?? '未提供' }}；Token 缺失时显示未提供。</p>
     </ElCard>
-    <ElDrawer :model-value="!!selected" title="海外执行记录" size="min(600px, 100vw)" @close="selected = null"><template v-if="selected"><h2>{{ selected.taskName }}</h2><ElDescriptions :column="1" border><ElDescriptionsItem label="作业 ID">{{ selected.id }}</ElDescriptionsItem><ElDescriptionsItem label="状态">{{ statuses[selected.status] || selected.status }}</ElDescriptionsItem><ElDescriptionsItem label="创建时间">{{ selected.createdAt }}</ElDescriptionsItem><ElDescriptionsItem label="开始时间">{{ selected.startedAt || '尚未开始' }}</ElDescriptionsItem><ElDescriptionsItem label="完成时间">{{ selected.completedAt || '尚未完成' }}</ElDescriptionsItem><ElDescriptionsItem label="执行次数">{{ selected.executionCount }}</ElDescriptionsItem><ElDescriptionsItem label="错误摘要">{{ selected.error || '无' }}</ElDescriptionsItem></ElDescriptions></template></ElDrawer>
+    <ElDrawer :model-value="!!selected" title="海外执行记录" size="min(600px, 100vw)" @close="selected = null"><template v-if="selected"><h2>{{ selected.taskName }}</h2><ElDescriptions :column="1" border><ElDescriptionsItem label="作业 ID">{{ selected.id }}</ElDescriptionsItem><ElDescriptionsItem label="状态">{{ statuses[selected.status] || selected.status }}</ElDescriptionsItem><ElDescriptionsItem label="创建时间">{{ formatBeijingTime(selected.createdAt) }}</ElDescriptionsItem><ElDescriptionsItem label="开始时间">{{ formatBeijingTime(selected.startedAt, '尚未开始') }}</ElDescriptionsItem><ElDescriptionsItem label="完成时间">{{ formatBeijingTime(selected.completedAt, '尚未完成') }}</ElDescriptionsItem><ElDescriptionsItem label="执行次数">{{ selected.executionCount }}</ElDescriptionsItem><ElDescriptionsItem label="错误摘要">{{ selected.error || '无' }}</ElDescriptionsItem></ElDescriptions></template></ElDrawer>
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime, beijingFilterTime } from '@/utils/beijing-time'
+
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElDescriptions, ElDescriptionsItem } from 'element-plus'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
@@ -32,7 +34,7 @@ import { managementError, stages, type ManagementApi, type ManagementQuery, type
 const props = defineProps<{ page: 'usage' | 'monitor'; api: ManagementApi }>()
 const emit = defineEmits<{ failure: [reason: unknown] }>()
 const query = reactive<ManagementQuery>({ from: '', to: '', taskId: '', kind: '', status: '', page: 1, pageSize: 20 })
-const from = ref<Date>(), to = ref<Date>(), rows = ref<Job[]>([]), selected = ref<Job | null>(null), usage = ref<Usage | null>(null), total = ref(0), loading = ref(false), error = ref('')
+const from = ref<string>(), to = ref<string>(), rows = ref<Job[]>([]), selected = ref<Job | null>(null), usage = ref<Usage | null>(null), total = ref(0), loading = ref(false), error = ref('')
 const kinds: Record<string,string> = { ...stages, reanalysis: '重新分析' }
 const statuses: Record<string,string> = { queued: '排队中', running: '执行中', collecting: '收集产物', cancelling: '取消中', uncertain: '待核实', succeeded: '成功', failed: '失败', cancelled: '已取消' }
 let active = true, generation = 0
@@ -40,7 +42,7 @@ const cards = computed(() => (props.page === 'usage' ? [['作业总数','jobs'],
 async function load() {
   const current = ++generation
   loading.value = true; error.value = ''; rows.value = []; usage.value = null; total.value = 0; selected.value = null
-  query.from = from.value?.toISOString() || ''; query.to = to.value?.toISOString() || ''
+  query.from = beijingFilterTime(from.value); query.to = beijingFilterTime(to.value)
   if (query.from && query.to && query.from > query.to) { error.value = '开始时间不能晚于结束时间'; loading.value = false; return }
   try { const [summary, jobs] = await Promise.all([props.api.usage({...query}), props.api.jobs({...query})]); if (active && current === generation) { usage.value = summary; rows.value = jobs.items; total.value = jobs.total } }
   catch (reason) { if (active && current === generation) { error.value = managementError(reason); emit('failure', reason) } }

@@ -34,6 +34,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -69,7 +71,7 @@ function syncChanged(update?: { taskId: string; state: Task['state']; progress: 
 function create(mode: Mode) {
   void router.push({ path: `/image-processing/${mode}`, query: { newTask: crypto.randomUUID() } })
 }
-function formatTime(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
+function formatTime(value: string) { return formatBeijingTime(value, '—') }
 async function remove(task: Task) {
   if (deleting.value) return
   deleting.value = task.id

@@ -28,7 +28,7 @@ try {
   await creator.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('BROWSER-A'); await button(creator, '添加 SKU').click(); await creator.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('BROWSER-B')
   await creator.getByRole('textbox', { name: '搜索负责设计' }).fill('p18-designer'); await creator.waitForTimeout(400); await choose(creator, '测试成员-p18-designer')
   assert.equal(await button(creator, '提交图需').isDisabled(), true)
-  await creator.locator('input[type=file][accept=".xls,.xlsx,.csv"]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature\ncase,clear') }); await creator.getByText(/竞品.csv · 解析成功/).waitFor()
+  await creator.locator('[data-material-kind="competitor"] input[type=file]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature\ncase,clear') }); await creator.getByText(/竞品.csv · 解析成功/).waitFor()
   await button(creator, '提交图需').click(); await creator.getByRole('heading', { name: '任务信息', exact: true }).waitFor(); const id = creator.url().split('/').pop()
   await creator.reload(); await creator.getByText('BROWSER-B', { exact: true }).waitFor(); assert.equal(await button(creator, '改派设计').count(), 0)
   const created = await (await api(operator, 'get', `/tasks/${id}`)).json(); assert.equal(created.skus.length, 2); assert.equal(created.designer.id, sessions.designer.member.id)

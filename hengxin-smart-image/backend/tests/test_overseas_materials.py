@@ -83,10 +83,9 @@ def test_upload_content_and_versions(materials):
 
 
 @pytest.mark.parametrize('data,name,kind,status', [
-    (b'', 'test.csv', 'competitor', 422), (b'x', 'test.doc', 'requirement', 422),
-    (b'x', 'test.pdf', 'requirement', 422), (b'x', 'test.csv', 'requirement', 422),
+    (b'', 'test.csv', 'competitor', 422),
     (b'x' * (20 * 1024 * 1024 + 1), 'big.csv', 'competitor', 413),
-], ids=['empty', 'legacy-doc', 'bad-signature', 'wrong-kind', 'oversize'])
+], ids=['empty', 'oversize'])
 def test_validation(materials, data, name, kind, status):
     client, factory, _, _, store = materials
     assert upload(client, data, name, kind).status_code == status
@@ -100,7 +99,6 @@ def test_parse_failure_retains_original_and_retry(materials, monkeypatch):
     data = upload(client, b'%PDF-broken', 'test.pdf', 'requirement').json()
     assert data['status'] == 'failed' and data['error']
     assert client.get(ROOT + '/materials/' + data['id'] + '/content').content == b'%PDF-broken'
-    assert create(client, {**payload(designer), 'materialIds': [data['id']]}).status_code == 422
     monkeypatch.setattr(parsers, 'parse_document', lambda *_: '恢复的文字')
     retry = client.post(ROOT + '/materials/' + data['id'] + '/retry', headers=HEADERS).json()
     assert retry['status'] == 'ready' and retry['version'] == 2
@@ -219,3 +217,21 @@ def test_browser_write_protection_and_malformed_multipart(materials):
     response = client.post(ROOT + '/materials?kind=competitor', content=b'not multipart',
                            headers={**HEADERS, 'Content-Type': 'multipart/form-data; boundary=x'})
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize('name', ['brief.ppt', 'brief.pptx', 'brief.doc', 'reference.zip', 'notes', 'table.csv'])
+def test_unparsed_original_can_submit_and_download(materials, name):
+    client, factory, _, designer, store = materials
+    original = b'opaque original file bytes'
+    response = upload(client, original, name, 'requirement')
+    assert response.status_code == 201, response.text
+    material = response.json()
+    if not name.endswith('.csv'):
+        assert material['status'] == 'failed' and material['text'] == ''
+    task = create(client, {**payload(designer), 'materialIds': [material['id']]} )
+    assert task.status_code == 201, task.text
+    assert task.json()['status'] == 'pending_review'
+    content = client.get(ROOT + '/materials/' + material['id'] + '/content')
+    assert content.content == original
+    assert content.headers['content-disposition'].startswith('attachment')
+    assert content.headers['x-content-type-options'] == 'nosniff'

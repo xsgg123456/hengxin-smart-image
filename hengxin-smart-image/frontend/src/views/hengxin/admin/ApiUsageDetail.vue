@@ -22,6 +22,8 @@
   </ElDrawer>
 </template>
 <script setup lang="ts">
+import { formatBeijingTime } from '@/utils/beijing-time'
+
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getApiUsage } from '@/api/api-management-usage'
@@ -34,7 +36,7 @@ const page = ref(1), router = useRouter()
 const { data: report, loading, error, load } = useAdminQuery(() => getApiUsage({ from: props.row.date, to: props.row.date, userId: props.row.userId || undefined, unassigned: props.row.userId === null ? true : undefined, category: props.category, generationType: props.generationType, outputsOnly: props.outputsOnly, page: page.value, pageSize: 20 }))
 const kindLabels: Record<string, string> = { generation: '首次生成', revision: '图片修改', text_edit: '文字修改', text_repair: '文案修复', image_edit: '图片修改', legacy_unknown: '历史类型待核实', initial: '首次生成', task_created: '创建任务', cli_submission: 'CLI 提交', adopt: '手动采用', restore: '恢复版本' }
 const stateLabels: Record<string, string> = { succeeded: '成功', success: '成功', failed: '失败', running: '进行中', queued: '排队中', unknown: '待核实', unverified: '启动证据不足', candidate: '已产出候选', adopted: '已采用', published: '已发布', restored: '已恢复', submitted: '已提交', created: '已创建', waiting_user: '等待补充', cancelled: '已取消', completed: '已完成', stopped: '已停止', retryable: '失败（可重试）', uncertain: '结果待核实', channel: '渠道异常', permanent: '失败（不可重试）', rejected: '已拒绝' }
-const time = (v: string) => new Date(v).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
+const time = (v: string) => formatBeijingTime(v)
 function changePage(value: number) { page.value = value; void load() }
 function openTask(task: string) { void router.push({ path: '/api-image-edits/records', query: { task } }) }
 </script>

@@ -59,10 +59,7 @@ def xlsx(rows):
 
 
 @pytest.mark.parametrize('filename,kind,data,message', [
-    ('a.doc', 'requirement', b'x', 'DOC'),
-    ('a.pdf', 'competitor', b'%PDF-', '类型不匹配'),
-    ('a.xlsx', 'competitor', b'not zip', '扩展名'),
-    ('a.csv', 'competitor', b'a\x00b', '文本文件'),
+    ('a.doc', 'unknown', b'x', '类别'),
     ('a.pdf', 'requirement', b'', '不能为空'),
 ])
 def test_upload_rejects_invalid(filename, kind, data, message):

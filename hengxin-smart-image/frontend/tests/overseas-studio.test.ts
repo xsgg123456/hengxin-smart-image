@@ -88,3 +88,63 @@ test('轮询响应晚于发送响应时不能回退历史；刷新保留草稿',
   view.state.text.value='草稿';const reading=view.state.refresh();await flush();assert.equal(view.state.text.value,'草稿')
   await view.state.send();late?.(snapshot());await reading;assert.equal(view.state.data.value?.activeTurnId,'new-turn');view.close()
 })
+
+test('自动读取静默，空闲30秒，执行2.5秒，完成与卸载停止',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});storage.clear()
+  let calls=0,current=snapshot()
+  const view=mount(fake({get:async()=>{calls++;return structuredClone(current)}}));await flush()
+  assert.equal(calls,1);assert.equal(view.state.loading.value,false)
+  view.state.text.value='保留草稿';view.state.skill.value='skill';view.state.add(['task:m'])
+  t.mock.timers.tick(29999);await flush();assert.equal(calls,1)
+  current.activeTurnId='running';t.mock.timers.tick(1);await flush();assert.equal(calls,2)
+  assert.equal(view.state.loading.value,false);assert.equal(view.state.text.value,'保留草稿');assert.equal(view.state.skill.value,'skill');assert.equal(view.state.attachments.value.length,1)
+  t.mock.timers.tick(2499);await flush();assert.equal(calls,2)
+  t.mock.timers.tick(1);await flush();assert.equal(calls,3)
+  current={...snapshot(),completed:true};t.mock.timers.tick(2500);await flush();assert.equal(calls,4)
+  t.mock.timers.tick(60000);await flush();assert.equal(calls,4)
+  await view.state.refresh();assert.equal(calls,5);view.close()
+  t.mock.timers.tick(60000);await flush();assert.equal(calls,5)
+})
+
+test('隐藏页暂停自动请求，恢复可见立即同步并移除卸载监听',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']})
+  const page=new EventTarget() as EventTarget & {visibilityState:string};page.visibilityState='visible'
+  Object.defineProperty(globalThis,'document',{value:page,configurable:true})
+  let calls=0
+  const view=mount(fake({get:async()=>{calls++;return snapshot()}}))
+  try {
+    await flush();page.visibilityState='hidden';page.dispatchEvent(new Event('visibilitychange'))
+    t.mock.timers.tick(90000);await flush();assert.equal(calls,1)
+    page.visibilityState='visible';page.dispatchEvent(new Event('visibilitychange'));await flush();assert.equal(calls,2)
+    assert.equal(view.state.loading.value,false)
+    view.close();page.dispatchEvent(new Event('visibilitychange'));t.mock.timers.tick(90000);await flush();assert.equal(calls,2)
+  } finally {Reflect.deleteProperty(globalThis,'document')}
+})
+
+test('手动刷新加入后台在途请求显示loading，无重叠；网络错误恢复自动重试',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']})
+  let resolve!: (value:Studio)=>void,calls=0,failRead=false
+  const view=mount(fake({get:async()=>{calls++;if(failRead)throw Error('网络中断');if(calls===2)return new Promise(done=>{resolve=done});return snapshot()}}));await flush()
+  t.mock.timers.tick(30000);await flush();assert.equal(calls,2);assert.equal(view.state.loading.value,false)
+  const manual=view.state.refresh();assert.equal(view.state.loading.value,true);assert.equal(calls,2)
+  t.mock.timers.tick(90000);await flush();assert.equal(calls,2)
+  resolve(snapshot());await manual;assert.equal(view.state.loading.value,false)
+  failRead=true;t.mock.timers.tick(30000);await flush();assert.equal(view.state.error.value,'网络中断');assert.equal(view.state.loading.value,false)
+  failRead=false;t.mock.timers.tick(30000);await flush();assert.equal(view.state.error.value,'');assert.equal(calls,4);view.close()
+})
+
+test('过期读取错误和卸载后的响应不能覆盖新的操作结果或报错',async()=>{
+  storage.clear();let reject!: (reason:Error)=>void,calls=0
+  const view=mount(fake({get:async()=>{if(++calls===1)return snapshot();return new Promise((_resolve,fail)=>{reject=fail})},send:async()=>({...snapshot(),activeTurnId:'latest'})}));await flush()
+  const pending=view.state.refresh();view.state.text.value='新轮次';await view.state.send()
+  reject(new IdentityError(403,'旧请求权限失败'));await pending
+  assert.equal(view.state.data.value?.activeTurnId,'latest');assert.equal(view.failures.length,0);assert.equal(view.state.error.value,'')
+  const later=view.state.refresh();view.close();reject(Error('已卸载'));await later;assert.equal(view.state.error.value,'')
+})
+
+test('自动权限拒绝停止轮询，手动重试可恢复',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});let denied=true,calls=0
+  const view=mount(fake({get:async()=>{calls++;if(denied)throw new IdentityError(403,'无权限');return snapshot()}}));await flush()
+  t.mock.timers.tick(90000);await flush();assert.equal(calls,1)
+  denied=false;await view.state.refresh();assert.equal(view.state.error.value,'');t.mock.timers.tick(30000);await flush();assert.equal(calls,3);view.close()
+})

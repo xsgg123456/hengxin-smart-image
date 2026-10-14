@@ -31,5 +31,5 @@ test('重提回填独立草稿，可保留绑定资料和新资料，拒绝跨�
   const draft = taskToDraft(task); draft.skus[0].code = 'B'; assert.equal(task.skus[0].code, 'A')
   assert.deepEqual(resubmitMaterialIds([material], task.id), ['m'])
   assert.deepEqual(resubmitMaterialIds([material, { ...material, id: 'n', kind: 'competitor', taskId: null }], task.id), ['m', 'n'])
-  for (const files of [[], [{ ...material, taskId: 'foreign' }], [{ ...material, status: 'failed' as const }], [material, { ...material, id: 'n' }]]) assert.throws(() => resubmitMaterialIds(files, task.id))
+  for (const files of [[], [{ ...material, taskId: 'foreign' }], [material, { ...material, id: 'n' }]]) assert.throws(() => resubmitMaterialIds(files, task.id))
 })
