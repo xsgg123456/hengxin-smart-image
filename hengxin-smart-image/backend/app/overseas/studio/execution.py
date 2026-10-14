@@ -38,7 +38,8 @@ class StudioProtocol:
         return workspace
 
     def arguments(self, workspace):
-        args = ['exec', '--sandbox', 'workspace-write']
+        args = ['exec', '--model', 'gpt-6-astra', '-c', 'model_reasoning_effort="high"',
+                '--sandbox', 'workspace-write']
         if workspace.previous_session:
             args += ['resume', '--skip-git-repo-check', '--json', workspace.previous_session]
         else:
