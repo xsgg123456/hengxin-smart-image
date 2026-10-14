@@ -21,7 +21,7 @@
 - 发布相关重点回归：73 passed、26 subtests passed，见output/native-studio-release-tests.log。
 - 发布目录全回归：242 passed、1 skipped、117 subtests passed，另1个历史断言失败：test_release_native.py:100要求annotation旧overlay排末尾，而HEAD的image-inputs-frontend.py已以materials overlay结尾；本次两文件均未修改，不影响新发布路径。
 
-本记录为进行中证据，部署结果待最终验证后补充。
+以下为按时间保留的实施证据；最终发布结论见文末，早期失败和待审状态不代表最终状态。
 - 最新生产只读浏览器检查：旧测试任务5917eff2-07a3-4f10-ab17-4011fcd3a936已不可访问，全部任务加载完成为0条。本次不创建生产测试业务；上线后可验证正式入口与空列表/图需/Skill等页面，有数据工作台及新对话功能由隔离浏览器和同版安装测试覆盖，不能宣称已在现有生产会话现场完成操作验证。
 - 后端专项与真实隔离PostgreSQL：66 passed、0 skipped（48.13s），见output/native-studio-backend-pg-20261014.log。覆盖完整长文/半行UTF8、取消失败、图片失败、旧数据迁移与重复迁移、禁止降级、并发新会话/发送竞争和权限。
 - 前端全量：356 passed、0 failed，pnpm typecheck exit0，见output/native-studio-frontend-tests.log和native-studio-frontend-typecheck.log。
@@ -43,3 +43,16 @@
 
 ## 发布核验修正与前进恢复
 安装镜像2174项通过后，0015迁移成功；verify-installed阶段将不存在的studio/sessions作为鉴权探针，返回非401/403而触发失败关闭。计划只修正发布探针为真实任务工作台及transcript端点，新增仅支持此已迁移、未发布前端阶段的前进恢复：校验备份/镜像/源文件/0015/入口关闭及空队列，启动同一已测镜像，重做全部安装核验并发布前端。不得重新迁移、恢复旧库或跳过检查；应用代码和镜像不变。修正需专项测试及独立两阶段审查后执行。
+
+
+## 最终生产结果：已完成
+- 应用提交：7479264（feat: 完善原生对话播报与正式图片交付）。发布修正提交：54bfae0（fix: 修正工作台发布探针并支持迁移后恢复）。两个快照分别获得独立两阶段PASS；当前修正快照537f0df11334b8d5c1b47a625e0a8c542231bdbb64e3d7e4591ef76e08effced，报告docs/reviews/NATIVE-STUDIO-RECOVERY-20261014.md。
+- 发布包：overseas-20261014-7479264，1469文件、8745113字节；归档SHA256 fc5be7e4f4e1ddca6d8b325baa535d43d5304da1c29b9c65d49225fd80c81c51。隐私及归档完整性检查通过。
+- 首次构建镜像db.py仍为旧0014，572文件校验拦截。原发布包/提取源码为正确0015；逐文件验证后只刷新backend文件时间元数据、内容未变，再次构建全部572后端文件hash PASS。具体缓存根因未作确定断言。
+- 实际安装镜像：sha256:e4a0cc7c067063f5ba11e7f2e9f3a7a1f72c1d713843fd018d9c04ec1e650497。镜像内测试2174 passed、187 skipped、1 deselected、15 warnings，432.96秒；见output/native-studio-installed-tests.log。按既有镜像测试配置排除6个依赖本地CLI/外部环境的测试模块及1个需前端源文件的契约测试，跳过/排除不冒称通过。真实PG迁移和前端契约另有前述独立验证。
+- 正式迁移前双轮DB/broker排空、执行器停止和备份校验完成；完整备份/opt/hengxin-backups/overseas-20261014-7479264，COMPLETE已验证；0014→0015迁移只执行一次。
+- 首次切换在verify-installed的错误studio/sessions鉴权探针处失败关闭。用同一镜像、假配置、无网络TestClient实测旧路径404、真实工作台及transcript路径401，见output/native-studio-probe-check.log；未访问生产业务数据库。
+- 探针及前进恢复专项85 passed、26 subtests；reviewer独立60 passed、26 subtests及额外11个非空资源/漂移边界通过。恢复包与原src分开保存，91份脚本hash PASS，包SHA256 7e2d092de3a59399041cd8d0c00edea59cdf634940f5e6d4c8a0aab7c5c11c88；仅发布逻辑修正，业务镜像和原包保持不变。未回滚/重迁移/恢复旧数据库，原FAILURE.json保留为历史事故证据。
+- 恢复流程exit0，PHASE=complete，INSTALLED_VERIFIED与verification.json齐全；NATIVE_STUDIO_COMPLETE。生产frontendVersion=0.2.32，海外overseas_0015，国内0028；同一已测试镜像用于迁移和API。海外原生执行器、安装源码hash、挂载、队列、内部健康、真实匿名鉴权和公网前端资源校验通过。国内及身份资源/国内原生PID不变，14 Skill和181文件保持原不可变版本。详见output/native-studio-production-verification.json、native-studio-production-recovery.log。
+- 生产浏览器只读验收：提交图需显示不限文件格式（含PPT/PPTX）、单份20MiB；Skill管理14条实际标题及完整描述正常，包含“OUTON · Wayfair新品整套图片生成”，截图output/native-studio-production-skills.png已目视检查；任务列表加载完成且0条。生产无可用任务，本轮没有创建测试业务、没有收费模型调用；有数据工作台、正式图片、完整文字/播报、新对话与归档使用隔离测试证明，不能冒称已在生产真实会话生图验收。
+- 正式图片只经已验证交付卡片展示；正文图片/本地文件引用保留为文字，草稿和中间文件不渲染。全量公开文字和执行播报保留；预览/引用修改/SKU归档沿用。此前0.2.31的上传放宽、北京时间、Skill标题/描述与静默刷新修复均包含在当前版本。
