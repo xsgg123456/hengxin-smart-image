@@ -40,8 +40,6 @@ def request(session, actor, task_id, body):
         return result
     if task is None:
         raise HTTPException(404, '海外任务不存在')
-    if body.confirmationName != task.name:
-        raise HTTPException(422, '请输入完整任务名称确认删除')
     if row is None:
         if task.version != body.version:
             raise HTTPException(409, '任务已修改，请刷新后重新确认删除')

@@ -23,7 +23,7 @@ try {
       polls++;if(polls===1){await route.abort();return}
       status=writes.length===1?'delete_failed':'deleted';body={taskId,status,error:status==='delete_failed'?failure:null}
     } else if(path===`/api/overseas/v1/tasks/${taskId}`){
-      if(request.method()==='DELETE'){const input=request.postDataJSON();assert.deepEqual(input,{version,confirmationName:name});writes.push(input);version++;status='deleting';body={taskId,status,error:null}}
+      if(request.method()==='DELETE'){const input=request.postDataJSON();assert.deepEqual(input,{version});writes.push(input);version++;status='deleting';body={taskId,status,error:null}}
       else body=task()
     }else if(path==='/api/overseas/v1/tasks')body={items:status==='deleted'?[]:[task()],total:status==='deleted'?0:1,page:1,pageSize:20}
     else{await route.continue();return}
@@ -32,19 +32,19 @@ try {
   await page.goto(base+'/#/overseas/tasks');const row=page.getByRole('row').filter({hasText:name});await button('删除',row).click()
   const dialog=page.getByRole('dialog',{name:'永久删除任务',exact:true})
   await page.setViewportSize({width:390,height:844});await dialog.getByText('任务：'+name,{exact:true}).waitFor()
-  await page.getByRole('textbox',{name:'确认删除任务名称',exact:true}).fill(name)
+  assert.equal(await dialog.getByRole('textbox').count(),0)
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))
   await page.screenshot({path:output+'/delete-confirm-mobile.png',fullPage:true,animations:'disabled'})
-  await button('确认永久删除',dialog).click();await dialog.waitFor({state:'hidden'});await button('正在删除',row).waitFor();assert.equal(writes.length,1)
+  await button('确认删除',dialog).click();await dialog.waitFor({state:'hidden'});await button('正在删除',row).waitFor();assert.equal(writes.length,1)
   await page.setViewportSize({width:1366,height:900});await row.getByText('服务连接失败，请稍后重试',{exact:true}).waitFor();assert.equal(await row.count(),1)
   await button('重试删除',row).waitFor();await row.getByText(failure,{exact:true}).waitFor();assert.equal(await row.count(),1)
   await page.screenshot({path:output+'/delete-failure-desktop.png',fullPage:true,animations:'disabled'})
   await button('刷新任务').click();await button('重试删除',row).waitFor();await row.getByText(failure,{exact:true}).waitFor()
   checks.push('模拟轮询断网不移除任务，随后安全失败提示；刷新仍显示删除失败和重试')
-  await button('重试删除',row).click();assert.equal(await button('确认永久删除',dialog).isEnabled(),false)
-  await page.getByRole('textbox',{name:'确认删除任务名称',exact:true}).fill(name);await button('确认永久删除',dialog).click();await button('正在删除',row).waitFor();assert.equal(writes.length,2)
+  await button('重试删除',row).click();assert.equal(await button('确认删除',dialog).isEnabled(),true)
+  assert.equal(await dialog.getByRole('textbox').count(),0);await button('确认删除',dialog).click();await button('正在删除',row).waitFor();assert.equal(writes.length,2)
   await row.waitFor({state:'hidden'});assert.equal(status,'deleted');assert.deepEqual(writes.map(write=>write.version),[1,2])
-  checks.push('重试重新确认完整名称和最新版本，后端终态前保留任务，确认deleted后移除')
+  checks.push('重试仅二次弹框确认并使用最新版本，后端终态前保留任务，确认deleted后移除')
   assert.deepEqual(errors,[]);await writeFile(output+'/fault-result.json',JSON.stringify({checks,errors,mocked:true},null,2));console.log(JSON.stringify({passed:checks.length,checks,errors},null,2))
 } catch(error){console.error(await page.locator('body').innerText());await page.screenshot({path:output+'/fault-failure.png',fullPage:true});throw error}
 finally{await context.close();await browser.close()}

@@ -51,22 +51,23 @@ function mount(name: string, props: Record<string, unknown>) {
   return { app, root, find, button, async click(label: string) { const target = button(label); assert.ok(target, label); assert.ok(!target.props.disabled, label); (target.props.onClick as () => void)(); await flush() }, async type(value: string) { (find('ElInput').props['onUpdate:modelValue'] as (value: string) => void)(value); await flush() } }
 }
 const task = (capabilities = ['task.read', 'task.delete']): Tasks.TaskDetail => ({ ...Tasks.emptyTaskDraft(), id: 'task', name: '完整任务名称', version: 2, status: 'studio', createdAt: '', updatedAt: '', createdBy: { id: 'a', name: '管理员' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities, events: [] })
-test('真实删除 SFC：无权限隐藏，名称严格确认，进行中不伪报删除、轮询失败及版本化重试', async () => {
+test('真实删除 SFC：无权限隐藏，仅二次确认，进行中不伪报删除、轮询失败及版本化重试', async () => {
   const denied = mount('OverseasTaskDelete', { task: task(['task.read']), api: {} }); assert.equal(denied.button('删除'), undefined); denied.app.unmount()
   const changes: Tasks.TaskDeletion[] = [], writes: unknown[] = []
   let resolve!: (value: Tasks.TaskDeletion) => void, mode = 'pending'
-  const api = { get: async () => ({ ...task(), version: mode === 'retry' ? 4 : 2 }), remove: async (_id: string, version: number, confirmation: string) => { writes.push({ version, confirmation }); return mode === 'retry' ? { taskId: 'task', status: 'deleted', error: null } : new Promise<Tasks.TaskDeletion>(r => { resolve = r }) }, deletion: async () => ({ taskId: 'task', status: 'delete_failed', error: '文件暂不可用，请重试' }) }
+  const api = { get: async () => ({ ...task(), version: mode === 'retry' ? 4 : 2 }), remove: async (_id: string, version: number) => { writes.push({ version }); return mode === 'retry' ? { taskId: 'task', status: 'deleted', error: null } : new Promise<Tasks.TaskDeletion>(r => { resolve = r }) }, deletion: async () => ({ taskId: 'task', status: 'delete_failed', error: '文件暂不可用，请重试' }) }
   const view = mount('OverseasTaskDelete', { task: task(), api, onChanged: (value: Tasks.TaskDeletion) => changes.push(value) })
-  await view.click('删除'); assert.equal(view.button('确认永久删除')?.props.disabled, true)
-  await view.type('完整任务'); assert.equal(view.button('确认永久删除')?.props.disabled, true)
-  await view.type('完整任务名称'); await view.click('确认永久删除')
-  assert.equal(changes.length, 0); assert.equal(view.find('ElInput').props.disabled, true); assert.equal(view.find('ElDialog').props['show-close'], false)
+  await view.click('删除'); assert.equal(view.button('确认删除')?.props.disabled, false)
+  assert.equal(view.find('ElInput'), undefined); assert.ok(textOf(view.root).includes('任务：完整任务名称')); assert.equal(writes.length, 0)
+  const confirm = view.button('确认删除')!.props.onClick as () => void
+  await view.click('确认删除'); confirm(); await flush(); assert.equal(writes.length, 1)
+  assert.equal(changes.length, 0); assert.equal(view.button('确认删除')?.props.disabled, true); assert.equal(view.find('ElDialog').props['show-close'], false)
   resolve({ taskId: 'task', status: 'deleting', error: null }); await flush()
   assert.equal(changes[0].status, 'deleting'); assert.equal(view.button('正在删除')?.props.disabled, true)
   await new Promise(resolve => setTimeout(resolve, 2100)); await flush()
   assert.equal(changes.at(-1)?.status, 'delete_failed'); assert.ok(textOf(view.root).includes('文件暂不可用'))
-  mode = 'retry'; await view.click('重试删除'); await view.type('完整任务名称'); await view.click('确认永久删除')
-  assert.equal(changes.at(-1)?.status, 'deleted'); assert.deepEqual(writes, [{ version: 2, confirmation: '完整任务名称' }, { version: 4, confirmation: '完整任务名称' }]); view.app.unmount()
+  mode = 'retry'; await view.click('重试删除'); assert.equal(view.find('ElInput'), undefined); await view.click('确认删除')
+  assert.equal(changes.at(-1)?.status, 'deleted'); assert.deepEqual(writes, [{ version: 2 }, { version: 4 }]); view.app.unmount()
 })
 test('真实删除 SFC：取消不写入，409保留确认并更新版本，网络未知只读核实，卸载忽略迟到结果', async () => {
   let writes = 0, reads = 0, current = 2, mode = 'conflict', resolve!: (value: Tasks.TaskDeletion) => void
@@ -74,10 +75,10 @@ test('真实删除 SFC：取消不写入，409保留确认并更新版本，网�
   const api = { get: async () => ({ ...task(), version: current }), remove: async (_id: string, version: number) => { writes++; if (mode === 'conflict') { current++; throw new IdentityError(409, '冲突') } if (mode === 'unknown') throw new IdentityError(0, '连接中断'); assert.equal(version, current); return new Promise<Tasks.TaskDeletion>(r => { resolve = r }) }, deletion: async () => { reads++; return { taskId: 'task', status: 'deleting', error: null } } }
   const view = mount('OverseasTaskDelete', { task: task(), api, onChanged: (value: Tasks.TaskDeletion) => changes.push(value) })
   await view.click('删除'); await view.click('取消'); assert.equal(writes, 0)
-  await view.click('删除'); await view.type('完整任务名称'); await view.click('确认永久删除'); assert.equal(view.find('ElInput').props.modelValue, '完整任务名称')
-  mode = 'unknown'; await view.click('确认永久删除'); assert.equal(reads, 1); assert.equal(writes, 2); assert.equal(changes.at(-1)?.status, 'deleting'); view.app.unmount()
+  await view.click('删除'); await view.click('确认删除'); assert.equal(writes, 1); assert.equal(view.find('ElInput'), undefined)
+  mode = 'unknown'; await view.click('确认删除'); assert.equal(reads, 1); assert.equal(writes, 2); assert.equal(changes.at(-1)?.status, 'deleting'); view.app.unmount()
   mode = 'slow'; const late = mount('OverseasTaskDelete', { task: task(), api, onChanged: (value: Tasks.TaskDeletion) => changes.push(value) })
-  await late.click('删除'); await late.type('完整任务名称'); await late.click('确认永久删除'); late.app.unmount(); const count = changes.length; resolve({ taskId: 'task', status: 'deleted', error: null }); await flush(); assert.equal(changes.length, count)
+  await late.click('删除'); await late.click('确认删除'); late.app.unmount(); const count = changes.length; resolve({ taskId: 'task', status: 'deleted', error: null }); await flush(); assert.equal(changes.length, count)
 })
 test('实际 Skill SFC：两列只读、名称描述搜索、空/失败区分、刷新恢复与权限拒绝', async () => {
   let mode = 'data'; const failures: unknown[] = []

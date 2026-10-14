@@ -41,7 +41,7 @@ def test_assignment_delete_serialize_on_parent_task(ready, monkeypatch, assign_f
                         Assignment(designerId=next_designer, version=expected_version), 'assign')
                 else:
                     deletion.request(session, session.get(Member, other_admin), task,
-                        DeleteTask(version=expected_version, confirmationName='待删除任务'))
+                        DeleteTask(version=expected_version))
                 return 200
             except HTTPException as exc:
                 return exc.status_code

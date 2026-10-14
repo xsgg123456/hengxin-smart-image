@@ -63,10 +63,10 @@ def run(h):
         preserved.mkdir(parents=True)
         (preserved / 'other-task.txt').write_text('keep unrelated workspace')
         detail = h.expect(admin.get(path), 200).json()
-        body = {'version': detail['version'], 'confirmationName': target.name}
+        body = {'version': detail['version']}
         for client in (designer, operator, stranger):
             h.expect(client.request('DELETE', path, json=body), 403)
-        h.expect(admin.request('DELETE', path, json={**body, 'confirmationName': 'wrong'}), 422)
+        h.expect(admin.request('DELETE', path, json={}), 422)
         h.expect(admin.request('DELETE', path, json={**body, 'version': body['version'] + 1}), 409)
         deleting = h.expect(admin.request('DELETE', path, json=body), 200).json()
         assert deleting['status'] == 'deleting'
@@ -104,7 +104,7 @@ def run(h):
         print('DELETE_SKILLS_FIXTURES ' + json.dumps(dict(deletedTask=task_id, archiveId=archive['id'],
             remainingStudio=str(other.id), modelCalls=0)), flush=True)
     assert domestic_snapshot(h) == before_domestic
-    print('PASS super-admin-only DELETE, stale/name checks, new work fenced, independent archive '
+    print('PASS super-admin-only DELETE, version-only body/stale checks, new work fenced, independent archive '
           'view/PNG/ZIP bytes and permissions after deletion, owned objects/memory gone, other task/Skills/domestic retained', flush=True)
 
 

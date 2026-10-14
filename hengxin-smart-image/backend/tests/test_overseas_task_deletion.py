@@ -29,7 +29,7 @@ def deletion(studio, tmp_path):
 def request(client, task, **overrides):
     current = client.get(ROOT + '/tasks/' + task['id']).json()
     return client.request('DELETE', ROOT + '/tasks/' + task['id'],
-        json=dict(version=current.get('version', 1), confirmationName=task['name'], **overrides), headers=HEADERS)
+        json=dict(version=current.get('version', 1), **overrides), headers=HEADERS)
 
 
 def generated(fixture, count=2):
@@ -117,14 +117,20 @@ def test_delete_cleans_task_and_exact_archived_versions_survive(deletion, count)
 def test_confirmation_version_browser_and_duplicate_guards(deletion):
     client, factory, _, task, _, store = deletion
     url = ROOT + '/tasks/' + task['id']
-    for body, status in [(dict(version=2, confirmationName='wrong'), 422),
-                         (dict(version=1, confirmationName=task['name']), 409)]:
+    for body, status in [({}, 422), (dict(version=0), 422), (dict(version='2'), 422),
+                         (dict(version=1), 409)]:
         assert client.request('DELETE', url, json=body, headers=HEADERS).status_code == status
-    assert client.request('DELETE', url, json=dict(version=2, confirmationName=task['name'])).status_code == 403
+    assert client.request('DELETE', url, json=dict(version=2)).status_code == 403
     assert request(client, task).json()['status'] == 'deleting'
     assert request(client, task).json()['status'] == 'deleting'
     assert cleanup_once(factory, store) == 1
     assert cleanup_once(factory, store) == 0
+
+
+def test_old_client_name_field_is_optional_and_not_a_confirmation_gate(deletion):
+    client, factory, _, task, _, store = deletion
+    assert request(client, task, confirmationName='旧客户端名称').json()['status'] == 'deleting'
+    assert cleanup_once(factory, store) == 1
 
 
 def test_running_unknown_and_late_publication_remain_fenced(deletion):

@@ -57,7 +57,7 @@ def remove(ready):
     factory, _, (actor, task, _) = ready
     with factory() as session:
         return deletion.request(session, session.get(Member, actor), task,
-            DeleteTask(version=1, confirmationName='待删除任务'))
+            DeleteTask(version=1))
 
 
 def save(ready):

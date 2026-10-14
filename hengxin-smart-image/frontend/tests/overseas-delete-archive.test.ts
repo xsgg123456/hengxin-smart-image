@@ -14,13 +14,13 @@ test('删除状态契约、确认正文、路径编码与权限失败不隐瞒',
   assert.equal(isTaskDeletion({taskId:task.id,status:'deleted',error:3}),false)
   const calls: {url:string;options?:RequestInit}[] = []
   const api = createTasksApi(async(url,options)=>{calls.push({url:String(url),options});return json({taskId:task.id,status:'deleting',error:null})})
-  const value = await api.remove(task.id,3,task.name); assert.equal(value.status,'deleting')
+  const value = await api.remove(task.id,3); assert.equal(value.status,'deleting')
   await api.deletion(task.id)
   assert.equal(calls[0].url,'/api/overseas/v1/tasks/t%2Fa'); assert.equal(calls[0].options?.method,'DELETE')
   assert.equal(calls[0].options?.credentials,'include'); assert.equal((calls[0].options?.headers as Record<string,string>)['X-HX-Request'],'1')
-  assert.deepEqual(JSON.parse(String(calls[0].options?.body)),{version:3,confirmationName:task.name})
+  assert.deepEqual(JSON.parse(String(calls[0].options?.body)),{version:3})
   assert.equal(calls[1].url,'/api/overseas/v1/tasks/t%2Fa/deletion')
-  for(const status of [401,403,409,500]) await assert.rejects(createTasksApi(async()=>json({},status)).remove(task.id,3,task.name),(error:unknown)=>error instanceof IdentityError && error.status===status)
+  for(const status of [401,403,409,500]) await assert.rejects(createTasksApi(async()=>json({},status)).remove(task.id,3),(error:unknown)=>error instanceof IdentityError && error.status===status)
   await assert.rejects(createTasksApi(async()=>json({taskId:'other',status:'deleted',error:null})).deletion(task.id),/格式错误/)
 })
 test('任务不存在时归档仍独立读取与下载；拒绝外部/跨成品图片地址及错误元数据', async () => {

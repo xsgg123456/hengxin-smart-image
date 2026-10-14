@@ -4,10 +4,9 @@
     <span v-if="error && !open && error !== task.deletionError" class="task-delete-error" role="alert">{{ error }}</span>
     <ElDialog v-model="open" title="永久删除任务" width="min(560px, 94vw)" append-to-body :close-on-click-modal="false" :close-on-press-escape="!sending" :show-close="!sending">
       <p class="task-delete-name">任务：{{ snapshot?.name }}</p>
-      <ElAlert title="任务资料、对话、未归档图片及本任务的 CLI 临时数据将永久删除，已归档成品保留。" type="warning" :closable="false" />
-      <ElForm label-position="top" class="hx-gap" @submit.prevent="remove"><ElFormItem label="输入完整任务名称以确认删除"><ElInput v-model="confirmationName" aria-label="确认删除任务名称" :disabled="sending" autocomplete="off" /></ElFormItem></ElForm>
+      <ElAlert title="任务资料、对话和未归档图片将永久删除，已归档成品保留。" type="warning" :closable="false" />
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
-      <template #footer><ElButton :disabled="sending" @click="open = false">取消</ElButton><ElButton type="danger" :loading="sending" :disabled="!confirmed" @click="remove">确认永久删除</ElButton></template>
+      <template #footer><ElButton :disabled="sending" @click="open = false">取消</ElButton><ElButton type="danger" :loading="sending" :disabled="!confirmed" @click="remove">确认删除</ElButton></template>
     </ElDialog>
   </span>
 </template>
@@ -17,11 +16,11 @@ import { IdentityError } from '@/api/identity/request'
 import { taskError, type TaskDeletion, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
 const props = defineProps<{ task: TaskSummary; api: Pick<TasksApi, 'get' | 'remove' | 'deletion'> }>()
 const emit = defineEmits<{ changed: [value: TaskDeletion]; failure: [reason: unknown] }>()
-const open = ref(false), opening = ref(false), sending = ref(false), confirmationName = ref(''), error = ref(''), snapshot = ref<TaskSummary>()
+const open = ref(false), opening = ref(false), sending = ref(false), error = ref(''), snapshot = ref<TaskSummary>()
 const state = ref<TaskDeletion>()
 const currentStatus = computed(() => state.value?.status || props.task.deletionStatus || props.task.status)
 const canDelete = computed(() => props.task.capabilities.includes('task.delete'))
-const confirmed = computed(() => !!snapshot.value?.capabilities.includes('task.delete') && confirmationName.value === snapshot.value.name && canDelete.value && !sending.value && currentStatus.value !== 'deleting')
+const confirmed = computed(() => open.value && !!snapshot.value?.capabilities.includes('task.delete') && canDelete.value && !sending.value && !['deleting', 'deleted'].includes(currentStatus.value))
 let alive = true, timer: ReturnType<typeof setTimeout> | undefined
 function fail(reason: unknown) {
   error.value = taskError(reason)
@@ -41,7 +40,7 @@ async function poll() {
 }
 async function openDialog() {
   if (!canDelete.value || sending.value || opening.value || currentStatus.value === 'deleting') return
-  opening.value = true; error.value = ''; confirmationName.value = ''
+  opening.value = true; error.value = ''
   try {
     const value = await props.api.get(props.task.id)
     if (!alive) return
@@ -55,7 +54,7 @@ async function openDialog() {
 async function remove() {
   if (!confirmed.value || !snapshot.value) return
   const task = snapshot.value; sending.value = true; error.value = ''
-  try { const value = await props.api.remove(task.id, task.version, confirmationName.value); if (alive) apply(value) }
+  try { const value = await props.api.remove(task.id, task.version); if (alive) apply(value) }
   catch (reason) {
     if (!alive || fail(reason)) return
     if (reason instanceof IdentityError && reason.status === 409) {
@@ -63,7 +62,6 @@ async function remove() {
         const latest = await props.api.get(task.id)
         if (alive) {
           snapshot.value = latest
-          if (latest.name !== task.name) confirmationName.value = ''
           if (latest.status === 'deleting') apply({ taskId: task.id, status: 'deleting', error: latest.deletionError || null })
         }
       } catch (refreshError) { if (alive) fail(refreshError) }

@@ -52,7 +52,8 @@ class Assignment(StrictBody):
 
 class DeleteTask(StrictBody):
     version: int = Field(ge=1, strict=True)
-    confirmationName: Text80
+    # Older open clients may still send this field; confirmation now lives in the dialog.
+    confirmationName: Text80 | None = None
 
 
 class RequirementsReview(StrictBody):

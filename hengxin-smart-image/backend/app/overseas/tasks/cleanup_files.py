@@ -1,6 +1,7 @@
 """Exact owned-object inventory and link-safe, bounded workspace erasure."""
 import shutil
 import os
+import re
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from uuid import UUID
@@ -71,6 +72,17 @@ def linked(path):
     return path.is_symlink() or (hasattr(path, 'is_junction') and path.is_junction())
 
 
+def cli_tool_link(path, workspace):
+    # The isolated CLI creates these arg0 shims pointing at its sandbox binary.
+    # They may be dangling on the host. rmtree removes the link, never its target.
+    parts = path.relative_to(workspace).parts
+    return (shutil.rmtree.avoids_symlink_attacks and path.is_symlink()
+        and len(parts) == 6 and parts[:4] == ('home', '.codex', 'tmp', 'arg0')
+        and re.fullmatch(r'codex-arg0[A-Za-z0-9]+', parts[4]) is not None
+        and parts[5] in ('apply_patch', 'applypatch', 'codex-execve-wrapper', 'codex-linux-sandbox')
+        and os.readlink(path) == '/opt/codex' and not path.is_dir())
+
+
 def validate_directories(manifest):
     root = Path(manifest['root'])
     if root != Path(get_settings().codex_execution_root).absolute():
@@ -94,6 +106,8 @@ def validate_directories(manifest):
         for directory, folders, files in os.walk(target, followlinks=False):
             for name in folders + files:
                 path = Path(directory) / name
+                if cli_tool_link(path, target):
+                    continue
                 if linked(path) or (path.is_file() and path.stat().st_nlink != 1):
                     raise ValueError('Linked workspace cannot be erased')
         targets.append(target)

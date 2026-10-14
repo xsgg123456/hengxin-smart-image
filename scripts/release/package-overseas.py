@@ -13,7 +13,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.29'
+VERSION = '0.2.30'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -33,6 +33,7 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-topology.py',
     'scripts/release/overseas-update-deploy.py', 'scripts/release/overseas-update-runtime.py',
     'scripts/release/overseas-skills-runtime.py',
+    'scripts/release/overseas-hotfix-deploy.py',
     'frontend/dist/index.html',
     'backend/migrations/env.py', 'backend/migrations/overseas/env.py',
     'backend/migrations/versions/0027_identity_session_binding.py',
@@ -174,7 +175,7 @@ def build(repo):
         files[name] = raw
     files.update(collect_assets(repo / APP / 'frontend/dist'))
     validate(files)
-    release = 'overseas-20261013-' + commit[:7]
+    release = 'overseas-20261014-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
                     migration='0028', overseasMigration='overseas_0014', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})

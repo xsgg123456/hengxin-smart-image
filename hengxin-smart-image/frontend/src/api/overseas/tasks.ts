@@ -19,7 +19,7 @@ export interface TaskQuery { search: string; scope: string; status: string; page
 export interface TasksApi {
   list(query: TaskQuery): Promise<Page<TaskSummary>>
   get(id: string): Promise<TaskDetail>
-  remove(id: string, version: number, confirmationName: string): Promise<TaskDeletion>
+  remove(id: string, version: number): Promise<TaskDeletion>
   deletion(id: string): Promise<TaskDeletion>
   create(draft: TaskDraft, key: string): Promise<TaskDetail>
   submitMaterials(id: string, materialIds: string[], version: number, key: string): Promise<TaskDetail>
@@ -71,7 +71,7 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
   return {
     list: query => request(base, pageOf(isTask), undefined, { params: { ...query } }),
     get: id => request(`${base}/${encodeURIComponent(id)}`, isTaskDetail),
-    remove: (id, version, confirmationName) => request(`${base}/${encodeURIComponent(id)}`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id, { version, confirmationName }, { method: 'DELETE' }),
+    remove: (id, version) => request(`${base}/${encodeURIComponent(id)}`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id, { version }, { method: 'DELETE' }),
     deletion: id => request(`${base}/${encodeURIComponent(id)}/deletion`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id),
     create: (draft, key) => request(base, isTaskDetail, cleanDraft(draft), { idempotencyKey: key }),
     submitMaterials: (id, materialIds, version, key) => request(`${base}/${encodeURIComponent(id)}/materials`, isTaskDetail, { materialIds, version }, { idempotencyKey: key }),

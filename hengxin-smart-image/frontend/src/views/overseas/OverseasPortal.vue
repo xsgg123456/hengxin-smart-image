@@ -99,7 +99,7 @@ const tasksApi = createTasksApi()
 const tasksAdapter: TasksApi = {
   async list(query) { await taskAuthorize('task.read'); return tasksApi.list(query) },
   async get(id) { await taskAuthorize('task.read'); return tasksApi.get(id) },
-  async remove(id, version, confirmationName) { await taskAuthorize('task.delete'); return tasksApi.remove(id, version, confirmationName) },
+  async remove(id, version) { await taskAuthorize('task.delete'); return tasksApi.remove(id, version) },
   async deletion(id) { await taskAuthorize('task.read'); return tasksApi.deletion(id) },
   async create(draft, key) { await taskAuthorize('task.create'); return tasksApi.create(draft, key) },
   async submitMaterials(id, ids, version, key) { await taskAuthorize('task.create'); return tasksApi.submitMaterials(id, ids, version, key) },
