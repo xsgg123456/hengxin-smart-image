@@ -26,3 +26,16 @@
 首次切换在 `verify-installed` 阶段被原生 WorkingDirectory 验收拦下：生产已有 `95-codex-astra.conf`，覆盖发布器的 `90-overseas-update.conf`。海外入口保持关闭、API 停止，备份 COMPLETE；数据库未迁移、前端及代理容量尚未发布。现有原生 execution.py 与本次候选逐字一致，后续恢复必须保留其代码行为与环境。
 
 恢复规划：固定失败阶段、源包/镜像/容量凭据/备份及无漂移前提；重新排空并停海外执行器；把本次无效的 90 配置恢复成备份原文，保留 95 配置，增加更高优先级且未占用的 99 配置；启动已安装测试的候选 API/原生执行器，重新执行全部 installed/代理/前端/公开入口验收。失败继续关入口，禁止重放恢复或数据库覆盖。恢复代码另行审查、提交及哈希验证后执行。
+
+### 最终验收：通过
+
+- 版本 0.2.33，运行发布包 `overseas-20261014-00720c0`；功能提交 `e700d87`，发布提交 `00720c0`，恢复提交 `87b3171`。恢复脚本单独提交、传输哈希验证后运行，未修改已安装测试的原发布包。
+- 恢复专项 8 passed、两阶段独立审查 PASS；恢复执行退出码 0、生产 PHASE=complete。海外入口从北京时间 17:30:32 暂停至 17:44:47 重新开放，期间国内和身份服务未重建。
+- API 镜像 `sha256:5bf0a0ebece331a1fea358cd790115509e46ad7f6f9276af925f95e92c617f05`；实际内存额度 3,221,225,472 bytes，健康状态 healthy。
+- 原生服务实际目录、已安装后端源码、挂载、Skills 校验通过；国内与身份服务容器及国内原生进程身份保持不变。两个海外原生服务使用 `99-overseas-upload.conf`，原 90 配置恢复备份内容，95 配置保留。后续发布需遵循这一实际 drop-in 优先级，不能再假设 90 为最高优先级。
+- 两层代理配置与预期相符，nginx -t/reload 成功；公网与内层的请求头探测均验证 500,000,000 bytes 进入鉴权（401/403）、500,065,537 bytes 返回 413。代理允许 64 KiB multipart 包络，应用仍严格限制单文件 500,000,000 bytes。
+- 三个公开入口 `/api/v1/health/ready`、`/api/overseas/v1/health/ready`、`/api/identity/v1/config` 均 HTTP 200；前端资源哈希与发布包一致。
+- 正式浏览器重新进入海外业务：图需两处 500 MB 文案、设计人选仅姓名且无搜索框、现有任务工作台“最多 100 个附件 · 单个最大 500 MB”均实际渲染并截图目视核验；未新建业务任务或调用模型。
+- 证据：`output/upload-release-build.log`、`output/upload-release-recover.log`、`output/upload-final-verify.json`、`output/upload-production-create.jpg`、`output/upload-production-studio.jpg`；服务端完整安装日志和备份保存在此次 release/backup 目录。
+
+验收边界：线上执行了页面、配置、代理准入和健康校验；真实 500 MB 字节及 multipart 测试在隔离的实际发布镜像中完成，未向生产业务存储写入 500 MB 测试文件，也未验证所有格式与多用户并发峰值。格式、像素和解析资源保护仍生效。
