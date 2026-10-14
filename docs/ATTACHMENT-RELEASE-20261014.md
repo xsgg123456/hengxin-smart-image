@@ -48,3 +48,35 @@ $releaseTests = Get-ChildItem scripts/release/*-tests.py | ForEach-Object { $_.F
 结果：113 passed、3 skipped、26 subtests passed。
 
 `hengxin-smart-image/backend/.venv/Scripts/python.exe -m compileall -q scripts/release` 与 `git diff --check` 均退出码0。以上离线验证不替代正式发布镜像安装测试和部署后验证。
+
+## 部署结果：0.2.34 已上线
+
+- Git 功能及发布提交 `3b09fbc`；审查候选 `e885f1039c2bf459ca78a90294e012615f80b66dbdf8cb0c35027a2e1d7f9460` 两阶段 PASS，报告见 `docs/reviews/ATTACHMENT-RELEASE-20261014.md`。
+- 实际使用发布包内最新 `scripts/release/overseas-attachments-deploy.py`，依次执行 build、prepare、deploy；最外层使用最新 `release-retention.managed` 和共用台账，没有重放历史发布脚本。
+- 发布包 `overseas-20261014-3b09fbc`：1,284 个文件，5,589,195 bytes，SHA256 `b09fde556a16cfe55d1298d17c2ede71e02508b9a8f5aad1bdaea13967e17601`；隐私、压缩包及服务器传输校验 PASS。
+- 服务器实际镜像安装验证：577 个后端源码哈希一致，2193 passed、187 skipped、1 deselected（438.08 秒）；3 GiB 内存下上传容量专项 4 passed。镜像 ID `sha256:0336a72fbb4f3bafd1ccfd41e031e47ae0750fbf30077f17ce0c661750c44185`。
+- 北京时间约 20:01:03 关闭海外接纳、排空后备份并切换；20:04:29 开始恢复代理并轮询公开入口生效，最终 PHASE=complete、deploy exit 0。原生 99 指针、生效目录、源码、Skills、挂载及前端资源全部验证；90/95 配置保留，国内与身份服务身份未变。无数据库迁移或业务数据删除。
+- 备份 `/opt/hengxin-backups/overseas-20261014-3b09fbc`，COMPLETE 存在。三个公开健康/配置入口 HTTP 200，两层 500 MB 代理边界保持。
+
+## 镜像保留与清理：已执行
+
+- 海外 current 更新为 `3b09fbc`，previous 为 `00720c0`；国内与身份仍保留 `da722ad` / `c9bd4d2`。
+- 自动清理已删除旧海外镜像 `hengxin-smart-image-backend:overseas-20261014-7479264`（`sha256:e4a0cc7c067063f5ba11e7f2e9f3a7a1f72c1d713843fd018d9c04ec1e650497`）。当前项目镜像仅上述四个；台账 pending 为空，再次 preview 的 remove 为空。
+- 已执行专用 `hengxin-release` builder 的 2 GB 缓存保留清理；未使用全局 prune，未删除业务存储、数据库、备份或原生发布目录。清理结果来自 `/var/lib/hengxin-release/cleanup-result.json`，不是根据镜像日期推断。
+
+## 生产下载与视觉验收
+
+使用用户已登录的正式 Chrome 页面，刷新原任务 `c62d3c51-ad77-4807-8197-ff3597197a34` 后点击两个“下载原文件”。原任务保持待审核、版本1；未提交审核、创建业务任务或调用模型。
+
+| 原件 | 实际下载字节 | SHA256 与数据库原件 |
+|---|---:|---|
+| PPTX 图片需求 | 47,131,519 | `6d31fffdf4152c28c7da4803c1b8a547cf8cc45075618ea9d88f0d8be8c71d08`，一致 |
+| XLSX 竞品表格 | 86,062,183 | `0af5c45cd81bb9ff37452efaf75a30e725e66c2cb2dd45af9553aec87ac2b402`，一致 |
+
+两份文件已在本机 Downloads 完整落盘，中文文件名保持。服务端 GET / HEAD 均200；按钮完成预检后恢复可用，显示“已发起下载，请在浏览器中查看进度。”。完整落盘与哈希校验才记为下载成功。浏览器自动化下载等待发生超时，之后用实际落盘文件完成独立校验；不把工具超时当作产品失败，也不据此宣称固定下载速率。
+
+正式1920px页面截图目视核验：资料为两张卡片，完整名称未互相覆盖；不再显示预览、解析失败、版本选择或放大/新窗口入口。提交图需页面仍显示500 MB，设计人选仅姓名、没有搜索框，上传文案改为下载原件查看。
+
+证据：`output/attachment-release-{build,prepare,deploy}.log`、`output/attachment-release-final-server.log`、`output/attachment-production-download-verification.json`；正式截图 `output/attachment-production-cards.png`、`output/attachment-production-download-feedback.png`、`output/attachment-production-create.png`。
+
+验收边界：生产当前没有可进入工作台的 studio/completed 任务，未为验收改变现有任务审核状态；工作台素材/历史附件及390px长名布局的实际流程证据来自发布前隔离真实服务测试。此次浏览器视口覆盖未在既有Chrome标签生效，已恢复默认，没有将1920px截图当作线上手机验收。未向生产上传500 MB测试数据或做并发压测；500 MB真实边界在实际发布镜像隔离验证。
