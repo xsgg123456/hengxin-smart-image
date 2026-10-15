@@ -1,6 +1,6 @@
 # 国内 API 换套图执行提示与真实删除
 
-状态：开发与独立两阶段审查完成，已提交并打包，正在执行服务器安装测试；尚未完成生产发布。用户已授权开发、Git 提交、打包及部署。
+状态：已完成开发、独立两阶段审查、Git提交、打包与生产部署；0.2.37于2026-10-15 16:31（北京时间）恢复服务并通过上线验收。
 
 ## 产品合同
 
@@ -42,6 +42,15 @@
 - 首轮两项HIGH已修复，重新固定候选 `899a00b62e7b111b3a033b7599fc30f910608fc137c4c796f88f6a09e090c378`；最终独立审查 Stage 1/Stage 2 均 PASS，报告 `docs/reviews/DOMESTIC-TASK-DELETION-20261015-FINAL.md`。复审独立后端专项55通过、国内发布21通过、前端客户端与轮询5通过、类型检查通过，隔离浏览器lists=11/deletes=2/errors=[]，同组件空闲邻居与活动渲染、窄屏、删除失败及完成截图已目视核对。此前失败报告仅保留审查轨迹，不作为批准依据。
 
 ## 发布记录
+
+最终上线包：`domestic-20261015-4c64c1a`；功能提交 `217926d`、发布等待修复提交 `4c64c1aa59e37498662b7cbb3b90a704146ce038`。归档1337文件、5,654,494字节，SHA256 `5127996e079f0752ace9abcc08ecc46f3b89d271575ab421df8da36e9dcf1082`，隐私/归档校验PASS。增量审查报告 `docs/reviews/DOMESTIC-PROXY-WAIT-20261015.md` 两阶段PASS，最终受控快照 `5396e6962780aecacb48f0f5ba24f4cdbd8eeda9cf1bf286eabdbbf142b29164` 与批准一致。
+
+- 新旧包实际源码逐文件核对，只有服务器运行的domestic-gate.py改变；全部backend、frontend、infra及dockerignore一致。在统一retention锁内复核619个镜像文件、安装日志SHA、旧ImageID，再新增tag、记录复用与pending保护。最终镜像仍为 `sha256:6b65ffa999af5ed1740ea066733256e2d141587af4b3a153e7b6d1fd0bdcac12`，复用同镜像2407通过/194条件跳过/1排除的安装结果；没有伪称重新执行。
+- 国内关流、两阶段稳定排空成功，durable/variants/Celery/队列优先级/unacked均为空；随后完整备份并在隔离PostgreSQL恢复，逐表全行哈希一致。备份位置 `/opt/hengxin-backups/domestic-20261015-4c64c1a`，保留COMPLETE及迁移前后指纹。
+- 国内迁移0028→0029仅新增空api_task_deletions表，既有业务行哈希不变；海外仍overseas_0016。国内五项服务、原生Codex worker健康，新增删除服务以codex用户运行，retention关闭，实际schema只读扫描及两轮成功空循环通过。
+- 内外入口国内/海外/身份健康、正式前端入口与包一致；channel已恢复未暂停；海外及身份容器ID、其他原生目录不变。发布返回DEPLOY_COMPLETE，VERIFIED与台账completed齐全，当前包无pending/RECOVERY_REQUIRED。
+- 生产列表65条、详情3张当前V1成品、永久删除具名确认框实际打开并目视核对，取消后任务仍在。截图 `output/playwright/domestic-production/list.jpg`、`detail.jpg`、`delete-confirm.jpg`。没有确认删除、没有付费生成；验收时删除回执0。活动标签及真正清理/失败重试通过隔离浏览器、真实PG与文件权限测试验证，没有伪称在生产制造活动或删除数据。
+- 本地证据 `output/release/domestic-20261015-4c64c1a/POST_DEPLOY_SUMMARY.json`、`INSTALL_TEST_REUSE.json`、`package-audit.json`；服务器同发布目录保留prepare/deploy日志、排空、备份、服务就绪及镜像复用凭据。临时PG测试容器和预览服务已关闭，验收临时浏览器页已关闭。
 
 发布证据：代码提交 `217926d`；包 `domestic-20261015-217926d`，版本0.2.37，1337文件，5,654,341字节，SHA256 `5ccbd5b4336a84a3a8a92057809399e8b64fee36ce5d56bcb0645cb75c511b93`。正式包隐私及归档内容复核PASS，已上传正确生产主机并校验相同SHA，随后验证全部归档成员是无路径穿越的普通文件再解包。最终报告收尾引用更新后已重新登记同一代码快照批准，提交内报告与冻结文件一致。
 
