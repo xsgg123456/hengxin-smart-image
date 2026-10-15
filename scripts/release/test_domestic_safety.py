@@ -48,8 +48,42 @@ def test_both_gateway_layers_and_regex_route_are_verified(monkeypatch):
     assert sum('--resolve' in row for row in calls) == 2
     assert sum('conversation/events' in row[-1] for row in calls) == 3
     monkeypatch.setattr(g.m, 'run', lambda *args, **kwargs: '200')
-    with pytest.raises(AssertionError, match='not closed'):
-        g.verify_closed()
+    with pytest.raises(AssertionError, match='did not reach HTTP 503'):
+        g.verify_closed(timeout=0)
+
+
+@pytest.mark.parametrize('expected,paths', [('503', g.PATHS), ('200', g.PATHS[:1])])
+def test_proxy_reload_waits_for_all_routes_in_one_bounded_round(monkeypatch, expected, paths):
+    calls, tick = [], [0.0]
+    monkeypatch.setattr(g.time, 'monotonic', lambda: tick[0])
+    monkeypatch.setattr(g.time, 'sleep', lambda value: tick.__setitem__(0, tick[0] + value))
+
+    def run(*args, **kwargs):
+        calls.append((args, kwargs))
+        assert 0 < kwargs['timeout'] <= 5
+        return '502' if len(calls) == 3 else expected
+
+    monkeypatch.setattr(g.m, 'run', run)
+    g.wait_routes(paths, expected)
+    assert len(calls) == len(paths) * 6
+    assert tick[0] == 0.5
+
+
+@pytest.mark.parametrize('error', [subprocess.CalledProcessError(7, 'curl'),
+                                 subprocess.TimeoutExpired('curl', 1)])
+def test_proxy_failure_deadline_bounds_each_probe_and_never_passes(monkeypatch, error):
+    tick, limits = [0.0], []
+    monkeypatch.setattr(g.time, 'monotonic', lambda: tick[0])
+
+    def run(*args, **kwargs):
+        limits.append(kwargs['timeout'])
+        tick[0] += kwargs['timeout']
+        raise error
+
+    monkeypatch.setattr(g.m, 'run', run)
+    with pytest.raises(AssertionError, match='did not reach HTTP 503'):
+        g.verify_closed(timeout=6)
+    assert limits == [5, 1]
 
 
 def test_deletion_service_only_runs_explicit_deletions_with_native_env():

@@ -2,6 +2,8 @@
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
+import time
 
 spec = importlib.util.spec_from_file_location('member_runtime', Path(__file__).with_name('member-release-runtime.py'))
 m = importlib.util.module_from_spec(spec)
@@ -43,19 +45,38 @@ def close(work):
     verify_closed()
 
 
-def verify_closed():
-    for path in PATHS:
-        for origin, options in (
-            ('http://127.0.0.1:18080', ()),
-            (m.r.ORIGIN, ('--resolve', 'zhitu.qhhengxin.top:443:127.0.0.1')),
-            (m.r.ORIGIN, ()),
-        ):
-            code = m.run('curl', '--max-time', '15', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
-                         *options, origin + path, capture=True)
-            assert code == '503', 'Domestic intake is not closed: ' + origin + path
+def wait_routes(paths, expected, timeout=30):
+    deadline = time.monotonic() + timeout
+    while True:
+        matched = True
+        for path in paths:
+            for origin, options in (
+                ('http://127.0.0.1:18080', ()),
+                (m.r.ORIGIN, ('--resolve', 'zhitu.qhhengxin.top:443:127.0.0.1')),
+                (m.r.ORIGIN, ()),
+            ):
+                remaining = deadline - time.monotonic()
+                assert remaining > 0, 'Domestic intake did not reach HTTP ' + expected
+                limit = min(5, remaining)
+                try:
+                    code = m.run('curl', '--max-time', str(limit), '-sS', '-o', '/dev/null',
+                                 '-w', '%{http_code}', *options, origin + path,
+                                 capture=True, timeout=limit)
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    code = ''
+                matched = matched and code == expected
+        assert time.monotonic() < deadline, 'Domestic intake did not reach HTTP ' + expected
+        if matched:
+            return
+        time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+
+
+def verify_closed(timeout=30):
+    wait_routes(PATHS, '503', timeout)
 
 
 def open_intake(work):
     m.EDGE.write_text((work / 'edge-before.conf').read_text())
     (m.APP / 'infra/nginx.vps.conf').write_text((work / 'web-before.conf').read_text())
     reload_all()
+    wait_routes(PATHS[:1], '200')
