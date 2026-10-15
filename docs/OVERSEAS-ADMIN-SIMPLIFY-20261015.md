@@ -29,3 +29,12 @@
 - 第一轮审查提出发布脚本长度问题，已把资源一致性检查完整移至已有resources模块，主脚本299行；最后发布专项91 passed、48 subtests，见output/admin-release-final.log。新快照b180b482bd6cc678b70fd25dc98af277dfcc9c5d93ecee30896e60d42def5d94待独立复审。
 
 - 独立R2两阶段PASS，报告docs/reviews/OVERSEAS-ADMIN-20261015-R2.md；同一快照已登记批准。reviewer独立发布65 passed/24 subtests，管理/操作者/迁移8 passed；结束时快照一致。生产再检0015、活动作业0、删除0。
+
+## 生产发布完成
+
+- 源码提交adf861b（包含此前6022d1a），发布overseas-20261015-adf861b，前端0.2.35。包1293文件/5598233字节，SHA256 4c4fe8840385418dfe7330071dbcd9213490bdd74b25a126085846bdfb8699b0；隐私及归档校验PASS。
+- 首次构建源文件哈希检查拦截db.py和test_overseas_database.py不一致；核对服务器包内586文件与manifest一致后，仅刷新mtime重新构建，未修改字节或绕过检查。最终586文件全部PASS。
+- 最终镜像sha256:24aa9f4389b6bf7e5c10a799f765257b09f5562b08326bfd0af62615f4138b25；安装测试2240 passed、187 skipped、1 deselected、15 warnings（435.08秒），上传容量测试4 passed（8.41秒）。
+- prepare/deploy均exit0；PHASE=complete；备份/opt/hengxin-backups/overseas-20261015-adf861b/COMPLETE存在；海外0016且usage列数量0；国内0028、国内/identity实例及原生进程不变、技能校验通过；活动作业0。代理重载期间503由既有有界轮询等待恢复，最终验证通过。
+- 正式Chrome登录态目视成品库单搜索框、统计全员提示/三业务卡/无Token费用、人员下拉与筛选、监控成功1失败0；生产目前只有1作业，多人员覆盖由隔离真实后端测试验证，未插入生产测试数据。
+- 历史误报记录先dry-run eligible，再apply succeeded；事件SHA256及4条公开消息匹配，完成时间2026-10-15 01:08:24.416711 UTC、执行次数1保持；再次dry-run already_recovered。正式任务页面显示Codex已回复、完整原文与无终态错误。未重跑CLI或触发收费生成。
