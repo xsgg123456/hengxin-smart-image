@@ -13,7 +13,8 @@ def prepare(job, workspace):
     # Queue copies JSON transactionally. Keep the exact input for later audit.
     encoded = json.dumps(job.payload, ensure_ascii=False, allow_nan=False)
     (workspace.control / 'input.json').write_text(encoded, encoding='utf-8')
-    (workspace.work / 'input.json').write_text(encoded, encoding='utf-8')
+    work = getattr(workspace, 'round_work', workspace.work)
+    (work / 'input.json').write_text(encoded, encoding='utf-8')
     skill = job.payload.get('skill')
     workspace.use_skill = skill is not None
     if skill is None:
@@ -21,9 +22,9 @@ def prepare(job, workspace):
     if skill.get('installedRelease'):
         from app.overseas.management.installed_catalog import frozen_package
         package = frozen_package(skill)
-        root = workspace.work / 'skills' / package.name
+        root = work / 'skills' / package.name
         from .skill_copy import write_package
-        write_package(root, package.files, workspace.work)
+        write_package(root, package.files, work)
         workspace.skill_name = package.name
         workspace.local_skill = root
         return
@@ -36,7 +37,7 @@ def prepare(job, workspace):
     if set(files) & set(assets):
         raise ValueError('Duplicate frozen Skill resource')
     validate_files({**files, **{path: 'resource' for path in assets}})
-    root = workspace.work / 'skills' / name
+    root = work / 'skills' / name
     for relative, content in files.items():
         path = PurePosixPath(relative)
         if (not relative or path.is_absolute() or ':' in relative or '\\' in relative

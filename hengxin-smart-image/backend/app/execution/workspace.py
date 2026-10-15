@@ -90,6 +90,9 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
             argv += ['--ro-bind', name, name]
     argv += ['--bind', str(workspace.home), '/home/runner',
              '--bind', str(workspace.work), '/work']
+    if getattr(workspace, 'persistent', False):
+        from .persistent_mounts import mounts
+        argv += mounts(workspace)
     skill = workspace.local_skill or workspace.work / 'skills' / workspace.skill_name
     agents = workspace.home / '.agents'
     if agents.is_symlink() or (hasattr(agents, 'is_junction') and agents.is_junction()):
@@ -102,6 +105,8 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
                  '--tmpfs', '/home/runner/.agents',
                  '--dir', '/home/runner/.agents/skills',
                  '--ro-bind', str(skill), '/home/runner/.agents/skills/' + workspace.skill_name]
+    if getattr(workspace, 'persistent', False):
+        argv += ['--remount-ro', '/work/skills']
     argv += ['--ro-bind', str(binary), '/opt/codex',
              '--ro-bind', str(helper), '/opt/codex-code-mode-host',
              '--chdir', '/work', '--', '/opt/codex', *arguments]

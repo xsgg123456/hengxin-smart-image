@@ -18,7 +18,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.35'
+VERSION = '0.2.36'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -42,6 +42,8 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'scripts/release/overseas-upload-deploy.py', 'scripts/release/overseas-upload-proxy.py',
     'scripts/release/overseas-upload-resources.py',
     'scripts/release/overseas-attachments-deploy.py',
+    'scripts/release/overseas-context-deploy.py',
+    'scripts/release/overseas-context-recovery.py',
     'frontend/dist/index.html',
     'backend/migrations/env.py', 'backend/migrations/overseas/env.py',
     'backend/migrations/versions/0027_identity_session_binding.py',
@@ -61,6 +63,14 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/app/overseas/management/installed_catalog.py',
     'backend/app/overseas/management/skill_install.py',
     'backend/app/overseas/studio/router.py',
+    'backend/app/execution/persistent_mounts.py',
+    'backend/app/overseas/studio/context_assets.py',
+    'backend/app/overseas/studio/context_fs.py',
+    'backend/app/overseas/studio/context_migration.py',
+    'backend/app/overseas/studio/context_workspace.py',
+    'backend/app/overseas/studio/restore_context.py',
+    'backend/app/overseas/studio/work_baseline.py',
+    'backend/tests/studio_context_probe.py',
     'backend/app/main.py', 'backend/app/identity/main.py',
     'backend/app/overseas/main.py', 'backend/app/overseas/execution/worker.py',
     'backend/app/overseas/execution/outbox.py',

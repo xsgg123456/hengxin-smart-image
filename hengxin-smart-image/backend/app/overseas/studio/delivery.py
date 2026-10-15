@@ -14,8 +14,9 @@ from app.execution.diagnostics import _safe_read
 from app.execution.final_delivery import _local_file
 from app.execution.output_collector import OutputCollectionError, _root
 from app.modules.files.validation import MAX_UPLOAD_BYTES, validate_image
+from .work_baseline import IMAGE_EXTENSIONS, check_work_version
 
-EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
+EXTENSIONS = IMAGE_EXTENSIONS
 NON_DELIVERY = re.compile(
     r'临时|草稿|初稿|工作稿|试验|测试图|中间(?:产物|文件|图片|图|结果|版本)|过程(?:文件|图片|图)|候选|'
     r'未交付|不交付|未(?:定稿|完成|完稿)|非正式|'
@@ -154,14 +155,18 @@ def collect_delivery(workspace, summary):
         try:
             if logical is None:
                 raise OutputCollectionError('invalid_image_reference')
-            path, _ = _local_file(logical, workspace.work, workspace.home / '.codex',
-                                  root, workspace.baseline)
+            path, boundary = _local_file(logical, workspace.work, workspace.home / '.codex',
+                                        root, workspace.baseline)
             identity = path.resolve()
             if identity in seen:
                 continue
             data = _safe_read(path, MAX_UPLOAD_BYTES, allow_windows_fallback=True)
             image = validate_image(SimpleNamespace(file=BytesIO(data), filename=path.name,
                                                     content_type=None))
+            if boundary == workspace.work:
+                baseline = getattr(workspace, 'work_baseline',
+                                   None if getattr(workspace, 'persistent', False) else {})
+                check_work_version(path, workspace.work, baseline, image.checksum)
             delivered.append((target, image))
             seen.add(identity)
         except (OutputCollectionError, HTTPException, OSError, ValueError):

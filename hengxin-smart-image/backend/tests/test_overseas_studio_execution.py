@@ -72,14 +72,24 @@ def test_runner_text_then_resume_and_original_inputs(studio, monkeypatch, tmp_pa
         assert session.get(Job, UUID(first['jobId'])).status == 'succeeded'
         assert session.scalar(select(Conversation)).session_id == 'session-123'
     workspace = commands[0][0]
-    assert (workspace.work / 'inputs/1.csv').read_bytes() == b'name,value\nitem,42\n'
+    original = workspace.inputs_root / Path(workspace.input_paths[0]['path']).relative_to('/work/inputs')
+    assert original.read_bytes() == b'name,value\nitem,42\n'
+    (workspace.work / 'research.txt').write_text('previous round research')
     second = send(client, task, key='second').json()['turns'][-1]
     runner.run(factory, second['jobId'])
     assert 'resume' in commands[1][1] and 'session-123' in commands[1][1]
     assert commands[0][0].home == commands[1][0].home
-    assert commands[0][0].work != commands[1][0].work
+    assert commands[0][0].work == commands[1][0].work
+    assert commands[0][0].round_work != commands[1][0].round_work
+    assert original.read_bytes() == b'name,value\nitem,42\n'
+    assert (commands[1][0].work / 'research.txt').read_text() == 'previous round research'
+    third = send(client, task, key='third').json()['turns'][-1]
+    runner.run(factory, third['jobId'])
+    assert commands[2][0].work == workspace.work
+    assert original.read_bytes() == b'name,value\nitem,42\n'
+    assert (commands[2][0].work / 'research.txt').read_text() == 'previous round research'
     view = client.get(ROOT + '/tasks/' + task['id'] + '/studio').json()
-    assert [t['status'] for t in view['turns']] == ['succeeded', 'succeeded']
+    assert [t['status'] for t in view['turns']] == ['succeeded'] * 3
 
 
 def test_runner_collects_arbitrary_multiple_images(studio, monkeypatch, tmp_path):
