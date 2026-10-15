@@ -37,7 +37,9 @@ def mark_uncertain(session, job):
 def end(session, job, status, error=None, result=None):
     if status not in TERMINAL:
         raise ValueError('Invalid terminal status')
-    job.status, job.error, job.result = status, MESSAGES[status] if error else None, result
+    from .events import failure_message
+    message = failure_message(error) if status == 'failed' else MESSAGES[status]
+    job.status, job.error, job.result = status, message if error else None, result
     job.completed_at, job.lease_until = utcnow(), None
     job.version += 1
     row = session.get(JobOutbox, job.id)

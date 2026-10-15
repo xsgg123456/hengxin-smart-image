@@ -36,7 +36,7 @@ class AttachmentReleaseTests(t.UploadReleaseTests):
         script = Path(__file__).with_name('overseas-attachments-deploy.py')
         for flags, optimize in ((['-O'], '0'), ([], '1')):
             result = subprocess.run([sys.executable, *flags, str(script),
-                'overseas-20261014-abcdef0', 'build'], capture_output=True, text=True,
+                'overseas-20261015-abcdef0', 'build'], capture_output=True, text=True,
                 env={**os.environ, 'PYTHONOPTIMIZE': optimize}, timeout=30)
             assert result.returncode != 0
             assert 'Python -O disables release safety assertions' in result.stderr
@@ -56,8 +56,8 @@ t.t.HotfixTests = AttachmentReleaseTests
 @pytest.fixture
 def baseline(monkeypatch, tmp_path):
     (tmp_path / 'frontend').mkdir()
-    (tmp_path / 'frontend/package.json').write_text('{"version":"0.2.33"}')
-    (tmp_path / 'OVERSEAS_RELEASE.json').write_text('{"release":"overseas-20261014-00720c0"}')
+    (tmp_path / 'frontend/package.json').write_text('{"version":"0.2.34"}')
+    (tmp_path / 'OVERSEAS_RELEASE.json').write_text('{"release":"overseas-20261014-3b09fbc"}')
     monkeypatch.setattr(d.m, 'APP', tmp_path)
     monkeypatch.setattr(a, 'SYSTEMD', tmp_path / 'systemd')
     monkeypatch.setattr(d.m, 'EDGE', tmp_path / 'edge.conf')
@@ -131,12 +131,12 @@ def test_proxy_preparation_preserves_original_and_rejects_package_drift(baseline
 def test_target_and_legacy_versions_remain_isolated(tmp_path, monkeypatch):
     legacy = load('overseas-upload-deploy')
     assert (legacy.TARGET_VERSION, legacy.BASE_VERSION, legacy.u.DROP) == ('0.2.33', '0.2.32', '90-overseas-update.conf')
-    assert (d.TARGET_VERSION, d.BASE_VERSION, d.u.DROP) == ('0.2.34', '0.2.33', '99-overseas-upload.conf')
+    assert (d.TARGET_VERSION, d.BASE_VERSION, d.u.DROP) == ('0.2.35', '0.2.34', '99-overseas-upload.conf')
     source = tmp_path / 'src'
     (source / 'frontend').mkdir(parents=True)
-    manifest = {'release': 'fixture', 'frontendVersion': '0.2.34', 'migration': '0028', 'overseasMigration': 'overseas_0015'}
+    manifest = {'release': 'fixture', 'frontendVersion': '0.2.35', 'migration': '0028', 'overseasMigration': 'overseas_0015'}
     (source / 'release.json').write_text(json.dumps(manifest))
-    (source / 'frontend/package.json').write_text('{"version":"0.2.34"}')
+    (source / 'frontend/package.json').write_text('{"version":"0.2.35"}')
     monkeypatch.setattr(d.r, 'hashes', Mock())
     assert d.validate(tmp_path, 'fixture')[1] == manifest
     with pytest.raises(AssertionError):
@@ -155,3 +155,27 @@ def test_switch_updates_only_effective_99_pointer(baseline, monkeypatch):
     for unit in d.u.UNITS:
         assert (a.SYSTEMD / (unit + '.service.d') / d.u.DROP).read_text() == a.native_pointer(target, unit)
     assert all(path.read_bytes() == body for path, body in originals.items())
+
+
+@pytest.mark.parametrize('entry,date', [
+    ('overseas-attachments-deploy', '20261015'), ('overseas-upload-deploy', '20261014')])
+def test_cli_release_date_is_pinned_per_entry(monkeypatch, entry, date):
+    module = load(entry)
+    runtime = module.d if entry == 'overseas-attachments-deploy' else module
+    monkeypatch.setattr(runtime.os, 'geteuid', lambda: 0, raising=False)
+    monkeypatch.setattr(runtime.os, 'umask', Mock())
+    validate = Mock(return_value=(Path('/source'), {}, 'image'))
+    prepare = Mock()
+    monkeypatch.setattr(runtime, 'validate', validate)
+    monkeypatch.setattr(runtime, 'prepare', prepare)
+    release = f'overseas-{date}-abcdef0'
+    monkeypatch.setattr(sys, 'argv', [entry, release, 'prepare'])
+    runtime.main()
+    validate.assert_called_once_with(Path('/opt/hengxin-releases') / release, release)
+    prepare.assert_called_once()
+    validate.reset_mock()
+    other = '20261014' if date == '20261015' else '20261015'
+    monkeypatch.setattr(sys, 'argv', [entry, f'overseas-{other}-abcdef0', 'prepare'])
+    with pytest.raises(AssertionError):
+        runtime.main()
+    validate.assert_not_called()

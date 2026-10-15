@@ -1,4 +1,4 @@
-"""Pinned 0.2.33 -> 0.2.34 attachment release; no migration or business deletion.
+"""Pinned 0.2.34 -> 0.2.35 studio hotfix; no migration or business deletion.
 
 Reuse the tested upload cutover, preserving its installed 3 GiB / 500 MB settings
 and the effective 99 native pointer. Failure requires inspected recovery, not replay.
@@ -12,7 +12,8 @@ import sys
 spec = importlib.util.spec_from_file_location('attachment_cutover', Path(__file__).with_name('overseas-upload-deploy.py'))
 d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
-d.TARGET_VERSION, d.BASE_VERSION = '0.2.34', '0.2.33'
+d.TARGET_VERSION, d.BASE_VERSION = '0.2.35', '0.2.34'
+d.RELEASE_PATTERN = r'overseas-20261015-[0-9a-f]{7}'
 d.u.DROP = '99-overseas-upload.conf'
 SYSTEMD = Path('/etc/systemd/system')
 
@@ -35,7 +36,7 @@ def proxy_baseline(body):
 
 def preflight():
     assert json.loads((d.m.APP / 'frontend/package.json').read_text())['version'] == d.BASE_VERSION
-    assert json.loads((d.m.APP / 'OVERSEAS_RELEASE.json').read_text())['release'] == 'overseas-20261014-00720c0', 'Overseas release baseline drift'
+    assert json.loads((d.m.APP / 'OVERSEAS_RELEASE.json').read_text())['release'] == 'overseas-20261014-3b09fbc', 'Overseas release baseline drift'
     live = d.m.live(d.u.API)
     assert live['State']['Running'] and live['State']['Health']['Status'] == 'healthy'
     assert live['HostConfig']['Memory'] == d.resources.API_MEMORY, 'API memory baseline drift'

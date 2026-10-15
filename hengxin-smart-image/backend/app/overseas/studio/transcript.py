@@ -1,9 +1,9 @@
 """Persist only the CLI's public stream, with durable byte cursors and ownership."""
-import json
 import os
 import re
 from uuid import UUID
 from sqlalchemy import select
+from app.execution.event_json import decode_event
 from app.overseas.execution import claims
 from .models import Conversation, Turn, Transcript
 
@@ -66,10 +66,10 @@ def consume(session, turn, channel, stream, final):
             turn.event_offset = stream.tell()
             continue
         try:
-            event = json.loads(raw)
+            event = decode_event(raw)
             if not isinstance(event, dict):
                 raise ValueError('Invalid public event')
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, RecursionError):
             turn.event_invalid = True
             break
         turn.event_offset = stream.tell()

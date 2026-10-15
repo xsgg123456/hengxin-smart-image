@@ -1,5 +1,6 @@
 """Isolated overseas CLI, with durable ownership and verified exit fencing."""
 import shutil
+import logging
 import subprocess
 import threading
 from contextlib import contextmanager
@@ -59,11 +60,11 @@ def _exit(factory, job_id, token):
             job.process_exited = True
 
 
-def _fail(factory, job_id, token):
+def _fail(factory, job_id, token, error=True):
     with factory.begin() as session:
         job = claims.locked_job(session, job_id)
         if job and job.claim_token == token and job.status in ACTIVE and job.process_exited:
-            claims.end(session, job, 'cancelled' if job.cancel_requested else 'failed', error=True)
+            claims.end(session, job, 'cancelled' if job.cancel_requested else 'failed', error=error)
 
 
 def run(factory, job_id):
@@ -77,6 +78,7 @@ def run(factory, job_id):
         return
     spawning, exited = False, False
     handler = workspace = job = None
+    failure = True
     try:
         with heartbeat(factory, job_id, token, settings) as lost:
             with factory() as session:
@@ -138,6 +140,9 @@ def run(factory, job_id):
             if receipt.get('exit_code') != 0 or receipt.get('reason'):
                 raise ValueError('CLI did not complete')
             if summary.error or not summary.turn_completed or not summary.session_id:
+                failure = summary.error or True
+                logging.getLogger(__name__).warning('CLI event validation failed job=%s code=%s',
+                                                   job_id, summary.error or 'incomplete_stream')
                 raise ValueError('Protocol stream incomplete')
             with factory.begin() as session:
                 current = claims.locked_job(session, job_id)
@@ -162,7 +167,7 @@ def run(factory, job_id):
                 pass  # Preserve process fencing even when transcript storage is unavailable.
         if exited or not spawning:
             _exit(factory, job_id, token)
-            _fail(factory, job_id, token)
+            _fail(factory, job_id, token, error=failure)
         else:
             # execute may have spawned before its callback failed. Never infer exit.
             with factory.begin() as session:

@@ -62,11 +62,11 @@ class StudioProtocol:
         parts = []
         if not workspace.previous_session:
             parts.append('你是设计师的协作助手，按设计师的要求提供帮助。')
+        if skill:
+            parts.append('$' + workspace.skill_name)
         parts.append(job.payload['text'])
         if paths:
             parts.append('附件文件：' + json.dumps(paths, ensure_ascii=False))
-        if skill:
-            parts.append('Skill文件：' + workspace.skill_path + '/SKILL.md')
         return '\n\n'.join(parts)
 
     def before_execute(self, factory, job, token):

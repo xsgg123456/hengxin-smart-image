@@ -1,10 +1,10 @@
 """Interpret one invocation consistently for accounting and final delivery."""
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.execution.diagnostics import _safe_read, _unique_object
+from app.execution.diagnostics import _safe_read
+from app.execution.event_json import decode_event
 
 MAX_EVENTS_BYTES = 64 * 1024 * 1024
 
@@ -33,7 +33,7 @@ def parse_events(path: Path, expected_session: str | None = None) -> EventSummar
         for line in raw.decode('utf-8').splitlines():
             if not line.strip():
                 continue
-            event = json.loads(line, object_pairs_hook=_unique_object)
+            event = decode_event(line)
             if not isinstance(event, dict) or not isinstance(event.get('type'), str):
                 raise ValueError
             kind = event['type']

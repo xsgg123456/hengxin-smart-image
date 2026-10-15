@@ -18,7 +18,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
-VERSION = '0.2.34'
+VERSION = '0.2.35'
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -186,7 +186,7 @@ def build(repo):
         files[name] = raw
     files.update(collect_assets(repo / APP / 'frontend/dist'))
     validate(files)
-    release = 'overseas-20261014-' + commit[:7]
+    release = 'overseas-20261015-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
                     migration='0028', overseasMigration='overseas_0015', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})

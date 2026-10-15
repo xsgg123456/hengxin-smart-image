@@ -23,6 +23,7 @@ resources = m.module('overseas-upload-resources')
 DELETING = "SELECT count(*) FROM overseas_task_deletions WHERE status='deleting'"
 TARGET_VERSION = '0.2.33'
 BASE_VERSION = '0.2.32'
+RELEASE_PATTERN = r'overseas-20261014-[0-9a-f]{7}'
 
 
 def preflight():
@@ -279,7 +280,7 @@ def main():
         raise RuntimeError('Python -O disables release safety assertions')
     assert os.geteuid() == 0, 'Production release requires root'
     release, action = sys.argv[1:]
-    assert re.fullmatch(r'overseas-20261014-[0-9a-f]{7}', release)
+    assert re.fullmatch(RELEASE_PATTERN, release)
     work = Path('/opt/hengxin-releases') / release
     source, manifest, image = validate(work, release)
     if action == 'build':
