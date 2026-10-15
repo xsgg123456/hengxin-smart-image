@@ -101,6 +101,11 @@ def test_partial_retry_revision_history_review_archive(materials, monkeypatch, t
     archived = post(client, task, '/archive', {'version': approved['version']}, 'archive')
     assert archived.status_code == 200 and archived.json()['status'] == 'archived'
     assert action(client, b, '/revisions', archived.json()['version'], 'after', note='x', marks=[]).status_code == 409
+    for term in ('B', '手机', '品牌'):
+        found = client.get(ROOT + '/archives', params={'search': term, 'pageSize': 1}).json()
+        assert found['total'] >= 1 and len(found['items']) == 1
+        assert client.get(ROOT + '/archives', params={'search': term, 'page': 999}).json()['items'] == []
+    assert client.get(ROOT + '/archives?search=nonexistent-term').json()['total'] == 0
     archives = client.get(ROOT + '/archives?sku=B&product=手机&brand=品牌').json()
     assert archives['total'] == 1
     zip_response = client.get(ROOT + '/archives/' + archives['items'][0]['id'] + '/download')

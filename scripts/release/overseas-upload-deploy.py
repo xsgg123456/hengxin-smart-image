@@ -23,8 +23,9 @@ resources = m.module('overseas-upload-resources')
 DELETING = "SELECT count(*) FROM overseas_task_deletions WHERE status='deleting'"
 TARGET_VERSION = '0.2.33'
 BASE_VERSION = '0.2.32'
+TARGET_MIGRATION = 'overseas_0015'
+MIGRATION_RECOVERY = ''
 RELEASE_PATTERN = r'overseas-20261014-[0-9a-f]{7}'
-
 
 def preflight():
     """Version-specific read-only prerequisites, before prepare or cutover writes."""
@@ -34,7 +35,7 @@ def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
     assert manifest['release'] == release and manifest['frontendVersion'] == TARGET_VERSION
-    assert manifest['migration'] == '0028' and manifest['overseasMigration'] == 'overseas_0015'
+    assert manifest['migration'] == '0028' and manifest['overseasMigration'] == TARGET_MIGRATION
     assert json.loads((source / 'frontend/package.json').read_text())['version'] == TARGET_VERSION
     r.hashes(source, manifest)
     return source, manifest, 'hengxin-smart-image-backend:' + release
@@ -42,6 +43,13 @@ def validate(work, release):
 def schemas():
     assert r.sql('SELECT version_num FROM alembic_version') == '0028'
     assert u.sql('SELECT version_num FROM overseas_alembic_version') == 'overseas_0015'
+
+def installed_schemas():
+    schemas()
+
+def before_switch(work, source, identity, data, destination):
+    """Version-specific migration hook; legacy releases perform no migration."""
+    pass
 
 def domestic_native():
     unit = m.UNITS[0]
@@ -141,24 +149,11 @@ def closed(timeout=30):
         time.sleep(1)
 
 def resources_unchanged(data, native, target):
-    current = m.topology()
-    for group in ('domestic', 'identity'):
-        assert current[group] == data[group], 'Unrelated topology changed: ' + group
-    before, after = data['overseas'], current['overseas']
-    assert set(before['ids']) == set(after['ids']), 'Overseas resource set changed'
-    assert before['mounts'] == after['mounts'], 'Overseas mount drift'
-    assert all(after['ids'][name] == identity for name, identity in before['ids'].items() if name != u.API)
-    assert all(m.digest(path) == digest for path, digest in before['files'].items()), 'Existing Compose configuration changed'
-    assert all(after[key] == before[key] for key in ('project', 'cwd', 'env'))
-    assert after['paths'] == [*before['paths'], str(target['overlay'])]
-    assert domestic_native() == native, 'Domestic native process changed'
-    assert current['native'] == {**data['native'], **{unit: str(target['native']) for unit in u.UNITS}}
-    pointers = {str(Path('/etc/systemd/system') / (unit + '.service.d') / u.DROP) for unit in u.UNITS}
-    assert {p: h for p, h in current['nativeFiles'].items() if p not in pointers} == {
-        p: h for p, h in data['nativeFiles'].items() if p not in pointers}, 'Native config/environment drift'
+    resources.unchanged(data, native, target, m, u, domestic_native)
+
 
 def installed(work, manifest, identity, data, native, target):
-    schemas()
+    installed_schemas()
     expected = {n.removeprefix('backend/'): h for n, h in manifest['files'].items() if n.startswith('backend/')}
     assert expected
     actual = m.live(u.API)
@@ -206,9 +201,10 @@ def deploy(work, source, manifest, image):
     m.private(work / 'edge-before.conf', edge)
     m.private(work / 'RECOVERY.txt', 'Keep overseas edge closed. Inspect PHASE, FAILURE.json and queue evidence. '
         'Do not force-stop unknown executors or replay deploy. After proving jobs, deletion cleanup and broker idle, '
-        'a reviewed application recovery may use the original Compose config and native pointers from the verified '
-        'backup, then restore frontend entry files and validate before opening edge. Never auto-restore the database; '
-        'the dump may predate newly accepted work. Domestic and identity must remain unchanged.')
+        'follow the version-specific recovery guidance. Never auto-restore the database; '
+        'the dump may predate newly accepted work. Domestic and identity must remain unchanged. ' +
+        (MIGRATION_RECOVERY or 'A reviewed application recovery may use the original Compose config and '
+         'native pointers from the verified backup, then restore frontend entry files and validate before opening edge.'))
     m.private(work / 'DEPLOY_STARTED', manifest['release'])
     phase = 'close-intake'
     try:
@@ -225,6 +221,9 @@ def deploy(work, source, manifest, image):
         assert (destination / 'COMPLETE').exists(), 'No verified complete backup'
         m.private(destination / 'edge.conf', edge)
         m.private(destination / 'full-topology.json', data)
+        phase = 'migration'
+        m.private(work / 'PHASE', phase)
+        before_switch(work, source, identity, data, destination)
         phase = 'switch'
         m.private(work / 'PHASE', phase)
         u.switch_native(target)
@@ -256,7 +255,7 @@ def deploy(work, source, manifest, image):
         for name in ('OVERSEAS_RELEASE.json', 'FRONTEND_RELEASE.json'):
             m.private(m.APP / name, manifest)
         m.private(work / 'verification.json', dict(release=manifest['release'], image=identity,
-            migration='0028', overseasMigration='overseas_0015', backup=str(destination),
+            migration='0028', overseasMigration=TARGET_MIGRATION, backup=str(destination),
             sourceHashes=True, domesticIdentityUnchanged=True, skillsVerified=True, businessDeletion=False))
         m.private(work / 'PHASE', 'complete')
         print('OVERSEAS_HOTFIX_COMPLETE ' + manifest['release'], flush=True)

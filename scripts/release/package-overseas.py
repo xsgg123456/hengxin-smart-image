@@ -53,6 +53,7 @@ REQUIRED = EXACT | {'scripts/release/' + n for n in SCRIPTS} | {
     'backend/migrations/versions/0028_member_applications.py',
     'backend/migrations/overseas/versions/0014_member_applications.py',
     'backend/migrations/overseas/versions/0015_studio_transcript.py',
+    'backend/migrations/overseas/versions/0016_remove_job_usage.py',
     'scripts/release/member-release-deploy.py',
     'backend/app/overseas/tasks/cleanup.py',
     'backend/app/overseas/tasks/deletion.py',
@@ -188,7 +189,7 @@ def build(repo):
     validate(files)
     release = 'overseas-20261015-' + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0028', overseasMigration='overseas_0015', frontendVersion=VERSION,
+                    migration='0028', overseasMigration='overseas_0016', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

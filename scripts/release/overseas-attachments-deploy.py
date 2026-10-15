@@ -1,4 +1,4 @@
-"""Pinned 0.2.34 -> 0.2.35 studio hotfix; no migration or business deletion.
+"""Pinned 0.2.34 -> 0.2.35 studio/admin release with forward-only overseas_0016 migration.
 
 Reuse the tested upload cutover, preserving its installed 3 GiB / 500 MB settings
 and the effective 99 native pointer. Failure requires inspected recovery, not replay.
@@ -14,6 +14,11 @@ d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
 d.TARGET_VERSION, d.BASE_VERSION = '0.2.35', '0.2.34'
 d.RELEASE_PATTERN = r'overseas-20261015-[0-9a-f]{7}'
+d.TARGET_MIGRATION = 'overseas_0016'
+d.MIGRATION_RECOVERY = (' This release drops overseas_jobs.usage. Once MIGRATION_STARTED exists, '
+    'never restore old application code or downgrade automatically. Keep intake closed, inspect the actual '
+    'revision and column state, and use reviewed forward recovery with the new runtime. Restoring the '
+    'verified full database backup requires a separate reviewed recovery and proof of no subsequent writes.')
 d.u.DROP = '99-overseas-upload.conf'
 SYSTEMD = Path('/etc/systemd/system')
 
@@ -65,6 +70,42 @@ def prepare_proxy(work, source, m):
             m.private(work / f'upload-{label}-{stage}.conf', before)
 
 
+USAGE_COLUMN = ("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' "
+                "AND table_name='overseas_jobs' AND column_name='usage'")
+
+
+def installed_schemas():
+    assert d.r.sql('SELECT version_num FROM alembic_version') == '0028'
+    assert d.u.sql('SELECT version_num FROM overseas_alembic_version') == d.TARGET_MIGRATION
+    assert d.u.sql(USAGE_COLUMN) == '0', 'Overseas usage column still exists'
+
+
+def migrate(work, source, identity, data, destination):
+    assert (destination / 'COMPLETE').exists(), 'No verified complete backup'
+    assert (work / 'EXECUTORS_STOPPED').exists(), 'Executors were not drained and stopped'
+    d.schemas()
+    assert d.u.sql(USAGE_COLUMN) == '1', 'Unexpected overseas usage baseline'
+    # Separate owner-role migration service; keep the API-only deployment overlay unchanged.
+    overlay = work / 'overseas-migration-overlay.json'
+    d.m.private(overlay, {'services': {'migrate': {'image': identity,
+        'build': {'context': str(source), 'dockerfile': 'infra/Dockerfile.backend'}}}})
+    before = json.loads((work / 'overseas-compose.private.json').read_text())
+    current = json.loads(d.m.compose(data['overseas'], 'config', '--format', 'json', capture=True))
+    assert before == current, 'Migration Compose baseline drift'
+    after = json.loads(d.m.compose(data['overseas'], 'config', '--format', 'json',
+                                   overlay=overlay, capture=True))
+    d.m.same_settings(before, after, ['migrate'])
+    assert after['services']['migrate']['image'] == identity, 'Migration image drift'
+    d.m.private(work / 'MIGRATION_STARTED', d.MIGRATION_RECOVERY)
+    d.m.compose(data['overseas'], 'run', '--rm', '--no-deps', '--pull', 'never',
+                'migrate', 'alembic', '-c', 'alembic.overseas.ini', 'upgrade', d.TARGET_MIGRATION,
+                overlay=overlay)
+    installed_schemas()
+    d.m.private(work / 'MIGRATION_VERIFIED', d.TARGET_MIGRATION + ': overseas_jobs.usage absent')
+
+
+d.before_switch = migrate
+d.installed_schemas = installed_schemas
 d.preflight = preflight
 d.proxy.prepare = prepare_proxy
 main = d.main

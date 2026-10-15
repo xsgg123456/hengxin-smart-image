@@ -191,7 +191,7 @@ def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, 
     with tarfile.open(output / 'release.tar.gz', 'r:gz') as archive:
         manifest = json.load(archive.extractfile('release.json'))
         assert manifest['migration'] == '0028'
-        assert manifest['overseasMigration'] == 'overseas_0015'
+        assert manifest['overseasMigration'] == 'overseas_0016'
         assert manifest['frontendVersion'] == '0.2.35'
         assert manifest['candidateId'] == 'reviewed-candidate'
         assert manifest['commit'] == commit
@@ -199,5 +199,6 @@ def test_build_records_review_migrations_and_byte_hashes(monkeypatch, tmp_path, 
             assert 'scripts/release/' + name in manifest['files']
             assert archive.extractfile('scripts/release/' + name) is not None
         assert 'backend/migrations/overseas/versions/0015_studio_transcript.py' in manifest['files']
+        assert 'backend/migrations/overseas/versions/0016_remove_job_usage.py' in manifest['files']
         for name, digest in manifest['files'].items():
             assert hashlib.sha256(archive.extractfile(name).read()).hexdigest() == digest

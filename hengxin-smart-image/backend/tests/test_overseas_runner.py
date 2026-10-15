@@ -232,7 +232,7 @@ def test_exit_zero_without_completed_stream_cannot_succeed(execution, monkeypatc
 
 
 @pytest.mark.parametrize('failure', [False, True])
-def test_real_usage_survives_failure_and_frozen_timeout_is_local(execution, monkeypatch, failure):
+def test_usage_is_not_persisted_and_frozen_timeout_is_local(execution, monkeypatch, failure):
     factory, new, settings = execution
     original = settings.codex_timeout_seconds
     timeouts = []
@@ -251,5 +251,5 @@ def test_real_usage_survives_failure_and_frozen_timeout_is_local(execution, monk
     assert timeouts == [120, original] and settings.codex_timeout_seconds == original
     with factory() as session:
         job = session.get(Job, identity)
-        assert job.usage == {'input_tokens': 10, 'output_tokens': 20}
+        assert not hasattr(job, 'usage')
         assert job.status == ('failed' if failure else 'succeeded')

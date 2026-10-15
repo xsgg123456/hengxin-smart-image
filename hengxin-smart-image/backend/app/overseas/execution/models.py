@@ -45,7 +45,6 @@ class Job(Timestamps, Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     execution_count: Mapped[int] = mapped_column(Integer, default=0)
-    usage: Mapped[dict | None] = mapped_column(JSON)
 
 
 class JobOutbox(Timestamps, Base):

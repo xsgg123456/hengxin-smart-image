@@ -23,8 +23,6 @@ try {
       await page.getByLabel('任务 ID', { exact: true }).fill(list[0].id)
       await page.getByRole('button', { name: '应用筛选', exact: true }).click()
       await page.getByText('共 1 个作业', { exact: true }).waitFor()
-      assert.equal(await page.locator('.hx-admin-kpi').filter({ hasText: '输入 Token' }).locator('strong').innerText(), '10')
-      assert.equal(await page.locator('.hx-admin-kpi').filter({ hasText: '输出 Token' }).locator('strong').innerText(), '20')
       await page.getByRole('button', { name: '查看记录', exact: true }).click()
       await page.getByText('海外执行记录', { exact: true }).waitFor()
       await page.keyboard.press('Escape')

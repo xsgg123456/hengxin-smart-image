@@ -7,7 +7,7 @@ from app.overseas.db import SCHEMA_REVISION
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
-def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_databases):
+def test_0008_upgrade_removes_usage_and_domestic_unchanged(disposable_databases):
     overseas, domestic = disposable_databases
     env = migration_environment(overseas)
     command = [sys.executable, '-m', 'alembic', '-c', 'alembic.overseas.ini', 'upgrade', 'overseas_0008']
@@ -44,7 +44,7 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
     assert snapshot(domestic) == domestic_before
     for name, rows in before[1].items():
         if name == 'overseas_jobs':
-            assert after[1][name] == [(*row, None) for row in rows]
+            assert after[1][name] == rows
         elif name == 'overseas_tasks':
             assert after[1][name] == [(*row, False, None, 'legacy') for row in rows]
         elif name == 'overseas_members':
@@ -53,7 +53,7 @@ def test_0008_upgrade_seed_nullable_usage_and_domestic_unchanged(disposable_data
             assert after[1][name] == rows
     engine = create_engine(overseas)
     try:
-        assert next(c for c in inspect(engine).get_columns('overseas_jobs') if c['name'] == 'usage')['nullable']
+        assert 'usage' not in {c['name'] for c in inspect(engine).get_columns('overseas_jobs')}
     finally:
         engine.dispose()
 

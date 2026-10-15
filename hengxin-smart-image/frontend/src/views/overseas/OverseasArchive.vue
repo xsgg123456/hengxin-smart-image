@@ -2,36 +2,13 @@
   <div class="hx-heading">
     <div>
       <h1>成品库</h1>
-      <p>沿用提交信息，按品名 → 品牌 → SKU 查找海外成品。</p>
+      <p>搜索品名、品牌或 SKU，任一项匹配即可。</p>
     </div>
     <ElTag type="success">{{ rows.length }} 个 SKU 已归档</ElTag>
   </div>
   <ElCard class="art-card hx-section" shadow="never"
     ><div class="hx-filter">
-      <ElSelect
-        v-model="product"
-        clearable
-        aria-label="筛选品名"
-        placeholder="全部品名"
-        @change="
-          brand = '';
-          sku = '';
-        "
-        ><ElOption v-for="v in products" :key="v" :value="v" /></ElSelect
-      ><ElSelect
-        v-model="brand"
-        clearable
-        aria-label="筛选品牌"
-        placeholder="全部品牌"
-        @change="sku = ''"
-        ><ElOption v-for="v in brands" :key="v" :value="v" /></ElSelect
-      ><ElSelect
-        v-model="sku"
-        clearable
-        aria-label="筛选 SKU"
-        placeholder="全部 SKU"
-        ><ElOption v-for="v in skus" :key="v" :value="v" /></ElSelect
-      ><ElInput
+      <ElInput
         v-model="query"
         clearable
         class="hx-search"
@@ -39,9 +16,6 @@
         aria-label="搜索成品"
       /><ElButton
         @click="
-          product = '';
-          brand = '';
-          sku = '';
           query = '';
         "
         >重置筛选</ElButton
@@ -104,10 +78,7 @@ import { overseasTasks } from "./preview-adapter";
 import { removeArchive } from "./workflow";
 const props = defineProps<{ role: Role }>();
 defineEmits<{ open: [task: Task] }>();
-const product = ref(""),
-  brand = ref(""),
-  sku = ref(""),
-  query = ref("");
+const query = ref("");
 const rows = computed(() =>
   overseasTasks
     .filter((t) => t.status === "archived")
@@ -119,37 +90,11 @@ const rows = computed(() =>
       })),
     ),
 );
-const products = computed(() => [
-  ...new Set(rows.value.map((r) => r.task.productName)),
-]);
-const brands = computed(() => [
-  ...new Set(
-    rows.value
-      .filter((r) => !product.value || r.task.productName === product.value)
-      .map((r) => r.task.brand),
-  ),
-]);
-const skus = computed(() => [
-  ...new Set(
-    rows.value
-      .filter(
-        (r) =>
-          (!product.value || r.task.productName === product.value) &&
-          (!brand.value || r.task.brand === brand.value),
-      )
-      .map((r) => r.sku.code),
-  ),
-]);
 const filtered = computed(() =>
   rows.value.filter(
     (r) =>
-      (!product.value || r.task.productName === product.value) &&
-      (!brand.value || r.task.brand === brand.value) &&
-      (!sku.value || r.sku.code === sku.value) &&
       [r.task.productName, r.task.brand, r.sku.code]
-        .join(" ")
-        .toLowerCase()
-        .includes(query.value.trim().toLowerCase()),
+        .some(value => value.toLowerCase().includes(query.value.trim().toLowerCase())),
   ),
 );
 async function remove(task: Task) {
@@ -170,8 +115,9 @@ async function remove(task: Task) {
 }
 </script>
 <style scoped>
-.hx-filter > .el-select {
-  width: 180px;
+.hx-filter > .hx-search {
+  width: 320px;
+  max-width: 100%;
 }
 .hx-library-mosaic .el-image {
   height: 106px;
@@ -181,7 +127,6 @@ async function remove(task: Task) {
   overflow-wrap: anywhere;
 }
 @media (max-width: 600px) {
-  .hx-filter > .el-select,
   .hx-filter > .hx-search {
     width: 100%;
     max-width: none;

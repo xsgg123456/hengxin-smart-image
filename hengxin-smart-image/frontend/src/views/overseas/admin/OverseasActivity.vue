@@ -22,7 +22,7 @@
           <p>
             {{
               page === "usage"
-                ? "流程记录不是模型调用回执，实际 API 请求、Token 和费用均未接入。删除任务会同步移除此处的预览记录。"
+                ? "流程记录不是模型调用回执。删除任务会同步移除此处的预览记录。"
                 : "来自本地任务的实时状态；未接入 Worker 心跳，不能据此判断真实服务是否在线。"
             }}
           </p>
@@ -85,7 +85,7 @@
       <p class="hx-footnote">
         {{
           page === "usage"
-            ? "API 请求次数 / Token / 费用：未提供。图片数仅统计生成完成后的当前图片，不将排版方案占位图计为产出。"
+            ? "图片数仅统计生成完成后的当前图片，不将排版方案占位图计为产出。"
             : "失败任务由设计在任务工作台重试；管理员在此只读观察执行状态。"
         }}
       </p>
@@ -114,8 +114,6 @@
               selected.pictures.filter((p) => p.reworking).length
             }}
             张</ElDescriptionsItem
-          ><ElDescriptionsItem label="Token / 费用"
-            >未提供</ElDescriptionsItem
           ></ElDescriptions
         >
         <ElTimeline v-if="selected.events.length" class="hx-gap"

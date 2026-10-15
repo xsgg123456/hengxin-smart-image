@@ -3,7 +3,7 @@ import type { Page } from './tasks'
 export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string }
 export interface ArchivePicture { id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
 export interface ArchiveDetail extends Archive { pictures: ArchivePicture[] }
-export interface ArchiveQuery { product: string; brand: string; sku: string; search: string; page: number; pageSize: number }
+export interface ArchiveQuery { search: string; page: number; pageSize: number }
 const root = '/api/overseas/v1/archives'
 const positive = (value: unknown) => Number.isInteger(value) && Number(value) > 0
 const text = (value: unknown): value is string => typeof value === 'string'

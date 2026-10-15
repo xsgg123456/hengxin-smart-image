@@ -67,7 +67,7 @@ def test_settings_bounds_binding_csrf_and_secret_rejection(overseas):
     assert client.get(MANAGE + '/settings').json()['version'] == 1
 
 
-def test_scoped_stats_filters_pagination_and_unknown_tokens(overseas):
+def test_scoped_stats_filters_pagination_without_usage(overseas):
     client, factory, actor, designer = setup(overseas)
     task = create(client, payload(designer)).json()
     other = add_member(factory, ('operator',))
@@ -83,14 +83,14 @@ def test_scoped_stats_filters_pagination_and_unknown_tokens(overseas):
             job.created_at = utcnow() + timedelta(seconds=i)
             if i < 2:
                 job.status, job.execution_count, job.error = 'failed', 1, 'private log'
-                job.usage = {'input_tokens': 10, 'output_tokens': 20} if i == 0 else {'input_tokens': 5}
     response = client.get(MANAGE + '/jobs?pageSize=1&page=2&status=failed').json()
     assert response['total'] == 2 and len(response['items']) == 1
     assert 'private' not in str(response) and 'secret' not in str(response)
     counts = client.get(MANAGE + '/usage').json()
     assert counts['jobs'] == 3 and counts['queued'] == 1 and counts['failed'] == 2
-    assert counts['inputTokens'] == 15 and counts['outputTokens'] is None and counts['cost'] is None
-    assert client.get(MANAGE + '/usage?status=queued').json()['inputTokens'] is None
+    assert not {'inputTokens', 'outputTokens', 'cost'} & counts.keys()
+    assert not {'inputTokens', 'outputTokens', 'cost'} & response['items'][0].keys()
+    assert response['items'][0]['operatorId'] is None
     assert client.get(MANAGE + '/jobs?kind=revision').json()['total'] == 0
     assert client.get(MANAGE + '/jobs?from=2026-01-02&to=2026-01-01').status_code == 422
     change_roles(factory, actor, ('designer',))

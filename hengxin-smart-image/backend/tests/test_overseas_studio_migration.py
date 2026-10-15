@@ -36,7 +36,7 @@ def test_0014_history_survives_repeatable_transcript_migration(disposable_databa
             conn.execute(tables['overseas_studio_conversations'].insert().values(id=channel_id,
                 task_id=task_id, session_id='old-cli-thread', **times))
             conn.execute(tables['overseas_jobs'].insert().values(id=job_id, task_id=task_id,
-                kind='studio', dedupe_key='old', payload={}, status='succeeded', version=1,
+                kind='studio', dedupe_key='old', payload={}, usage={'input_tokens': 123}, status='succeeded', version=1,
                 process_exited=True, cancel_requested=False, execution_count=1, **times))
             conn.execute(tables['overseas_studio_turns'].insert().values(id=turn_id, task_id=task_id,
                 conversation_id=channel_id, job_id=job_id, actor_id=owner, text='历史输入', reply=reply,
@@ -45,9 +45,13 @@ def test_0014_history_survives_repeatable_transcript_migration(disposable_databa
                 task_id=task_id, turn_id=turn_id, name='old.png', content_type='image/png',
                 size_bytes=100, checksum='a' * 64, bucket='test', object_key='old/file', width=10, height=10, **times))
         before, domestic_before = snapshot(url)[1], snapshot(domestic)
+        usage_index = list(tables['overseas_jobs'].columns.keys()).index('usage')
+        before['overseas_jobs'] = [tuple(value for i, value in enumerate(row) if i != usage_index)
+                                    for row in before['overseas_jobs']]
         result = migrate(env)
         assert result.returncode == 0, result.stderr
         with engine.begin() as conn:
+            assert 'usage' not in {c['name'] for c in inspect(conn).get_columns('overseas_jobs')}
             with Operations.context(MigrationContext.configure(conn)):
                 runpy.run_path(str(BACKEND / 'migrations/overseas/versions/0015_studio_transcript.py'))['upgrade']()
             md = MetaData()

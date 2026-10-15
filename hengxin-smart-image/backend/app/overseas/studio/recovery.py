@@ -100,10 +100,10 @@ def recover(factory, turn_id, actor_id, expected_sha256, *, apply=False):
         report = dict(status='eligible', jobId=str(job.id), eventSha256=expected_sha256,
                       messageCount=len(messages), executionCount=job.execution_count)
         if apply:
-            before = dict(status=job.status, error=job.error, version=job.version, usage=job.usage,
+            before = dict(status=job.status, error=job.error, version=job.version,
                           completedAt=job.completed_at.isoformat(), executionCount=job.execution_count)
             HANDLER.publish(session, job, result)
-            job.status, job.error, job.result, job.usage = 'succeeded', None, result, summary.usage
+            job.status, job.error, job.result = 'succeeded', None, result
             job.version += 1
             record(session, job)
             report['status'] = 'succeeded'

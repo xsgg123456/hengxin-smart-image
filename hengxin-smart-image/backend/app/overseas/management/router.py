@@ -23,6 +23,11 @@ def read_jobs(actor=Depends(stats), session: Session = Depends(get_session), cla
     return monitor.read(session, actor, clauses, page, pageSize)
 
 
+@router.get('/operators')
+def read_operators(actor=Depends(stats), session: Session = Depends(get_session)):
+    return facts.operators(session, actor)
+
+
 @router.get('/skills')
 def read_skills(actor=Depends(skill_admin), session: Session = Depends(get_session)):
     return skills.list_skills(session)

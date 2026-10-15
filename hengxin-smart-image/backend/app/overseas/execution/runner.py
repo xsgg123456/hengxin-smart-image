@@ -133,10 +133,6 @@ def run(factory, job_id):
             elif hasattr(handler, 'poll'):
                 handler.poll(factory, job, token, workspace)
             summary = parse_events(workspace.control / 'events.jsonl', getattr(workspace, 'previous_session', None))
-            with factory.begin() as session:
-                current = claims.locked_job(session, job_id)
-                if current and current.claim_token == token:
-                    current.usage = summary.usage
             if receipt.get('exit_code') != 0 or receipt.get('reason'):
                 raise ValueError('CLI did not complete')
             if summary.error or not summary.turn_completed or not summary.session_id:

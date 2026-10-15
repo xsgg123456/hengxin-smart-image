@@ -1,13 +1,13 @@
 from sqlalchemy import func, select
 from app.overseas.execution.models import Job
 from app.overseas.pictures.models import PictureVersion
-from .facts import scoped, token
+from .facts import scoped
 
 
 def read(session, actor, clauses):
     # Do not fetch frozen materials/prompts merely to aggregate management facts.
     jobs = session.execute(scoped(session, actor, clauses).with_only_columns(
-        Job.status, Job.execution_count, Job.usage)).all()
+        Job.status)).all()
     result = {key: 0 for key in ('jobs', 'queued', 'running', 'uncertain', 'succeeded', 'failed',
                                   'cancelled', 'generationImages', 'revisionImages')}
     result['jobs'] = len(jobs)
@@ -23,9 +23,4 @@ def read(session, actor, clauses):
     studio_images = session.scalar(select(func.count()).select_from(Picture).join(
         Turn, Turn.id == Picture.turn_id).where(Turn.job_id.in_(ids)))
     result['generationImages'] += studio_images
-    executed = [job for job in jobs if job.execution_count > 0]
-    for name, field in (('inputTokens', 'input_tokens'), ('outputTokens', 'output_tokens')):
-        counters = [token(job, field) for job in executed]
-        result[name] = sum(counters) if counters and all(v is not None for v in counters) else None
-    result['cost'] = None
     return result

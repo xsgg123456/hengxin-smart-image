@@ -11,8 +11,8 @@ const allCaps = ['stats.read','members.manage','skills.manage','settings.manage'
 let caps = [...allCaps]
 let settings = {version:1,paused:false,concurrency:5,timeoutSeconds:60,defaults:{analysis:null,generation:null,revision:null},autoCleanup:false}
 let skills = []
-const summary = {jobs:1,queued:0,running:0,uncertain:0,succeeded:1,failed:0,cancelled:0,generationImages:1,revisionImages:0,inputTokens:null,outputTokens:null,cost:null}
-const job = {id:'j1',taskId:'t1',taskName:'真实范围作业',kind:'analysis',status:'succeeded',executionCount:1,imageCount:1,inputTokens:null,outputTokens:null,createdAt:'2026-10-12',startedAt:null,completedAt:null,error:null}
+const summary = {jobs:1,queued:0,running:0,uncertain:0,succeeded:1,failed:0,cancelled:0,generationImages:1,revisionImages:0}
+const job = {id:'j1',taskId:'t1',taskName:'真实范围作业',kind:'analysis',status:'succeeded',executionCount:1,imageCount:1,operatorId:"actor",operatorName:"测试用户",createdAt:'2026-10-12',startedAt:null,completedAt:null,error:null}
 const go = async path => { await page.goto(base + '/#/overseas/admin/' + path) }
 async function unclipped(locator) {
   await locator.scrollIntoViewIfNeeded()
@@ -31,6 +31,7 @@ try {
     else if(p.endsWith('/tickets')) body={ticket:'test'}
     else if(p==='/api/v1/auth/identity/access') body={state:'unregistered'}
     else if(p.includes('/auth/')) { body={id:'actor',name:'测试用户',identitySessionId:'identity-test',status:'active',roles:[role],capabilities:caps}; if(p.endsWith('/access'))body={state:'allowed',member:body} }
+    else if(p.endsWith('/management/operators')) body={items:[{id:'actor',name:'测试用户'}]}
     else if(p.endsWith('/management/usage')) {
       if(mode==='error'){await route.abort();return} body=summary
     } else if(p.endsWith('/management/jobs')){
@@ -58,8 +59,8 @@ try {
     if(r!=='super_admin'){await go('settings');await page.getByText('暂无此管理页面权限',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'保存配置',exact:true}).count(),0)}
   }
   await go('monitor');await page.getByText('真实范围作业',{exact:true}).waitFor()
-  await page.getByPlaceholder('开始时间',{exact:true}).fill('2026-10-01 00:00:00');await page.getByPlaceholder('开始时间',{exact:true}).press('Enter')
-  await page.getByPlaceholder('结束时间',{exact:true}).fill('2026-10-31 23:59:59');await page.getByPlaceholder('结束时间',{exact:true}).press('Enter')
+  await page.getByPlaceholder('开始时间（北京时间）',{exact:true}).fill('2026-10-01 00:00:00');await page.getByPlaceholder('开始时间（北京时间）',{exact:true}).press('Enter')
+  await page.getByPlaceholder('结束时间（北京时间）',{exact:true}).fill('2026-10-31 23:59:59');await page.getByPlaceholder('结束时间（北京时间）',{exact:true}).press('Enter')
   await page.getByRole('button',{name:'应用筛选',exact:true}).click();await page.waitForResponse(r=>r.url().includes('/management/jobs?')&&r.url().includes('from='));assert.ok(queries.at(-1).from);assert.ok(queries.at(-1).to)
   await page.locator('.el-pager').getByText('2',{exact:true}).click();await page.waitForResponse(r=>r.url().includes('/management/jobs?')&&r.url().includes('page=2'))
   await page.getByRole('textbox',{name:'任务 ID',exact:true}).fill('empty');await page.getByRole('button',{name:'应用筛选',exact:true}).click()
