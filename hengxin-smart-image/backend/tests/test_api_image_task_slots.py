@@ -56,13 +56,13 @@ def test_finished_revision_and_manual_retry_queue_behind_five_tasks(files_env):
         assert all(session.get(ApiTask, UUID(key)).state == 'running' for key in ids)
 
 
-def test_success_releases_slot_and_queued_delete_skips_task(files_env):
+def test_success_releases_slot_and_queued_delete_cannot_skip_task(files_env):
     web, factory, store, _ = files_env
     ids = [create(web, 1)[0] for _ in range(7)]
     held = [claim(factory) for _ in range(4)]
     assert all(held)
-    assert web.delete(f'{ROOT}/tasks/{ids[5]}').status_code == 200
+    assert web.delete(f'{ROOT}/tasks/{ids[5]}').status_code == 409
     assert execute_next(factory, store, Client())  # Fifth task succeeds.
     last = claim(factory)
     with factory() as session:
-        assert session.get(ApiItem, last[0]).task_id == UUID(ids[6])
+        assert session.get(ApiItem, last[0]).task_id == UUID(ids[5])

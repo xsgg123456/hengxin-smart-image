@@ -7,9 +7,13 @@ from .files import picture
 from .models import ApiAttempt, ApiFile, ApiItem, ApiTask, ApiVersion
 from .state import aware
 from .summaries import summaries
+from .activity import activities
+from .deletion_state import describe
 
 
 def task_view(session, task):
+    task_activity, item_activity = activities(session, [task.id])
+    deletion = describe(session, [task.id])[task.id]
     items = session.scalars(select(ApiItem).where(ApiItem.task_id == task.id)
                             .order_by(ApiItem.position)).all()
     attempts = session.scalars(select(ApiAttempt).join(ApiItem, ApiAttempt.item_id == ApiItem.id)
@@ -44,6 +48,7 @@ def task_view(session, task):
     batch_current = ((unfinished[0].position - 1) // 10 + 1) if unfinished else batch_total
     elapsed = (aware(task.completed_at or utcnow()) - aware(task.created_at)).total_seconds()
     return {'id': str(task.id), 'name': task.name, 'prompt': task.prompt,
+            'cliActivity': task_activity.get(task.id, 'idle'), **deletion,
             'created': aware(task.created_at).isoformat(), 'status': task.state,
             'operator': operator(task.owner_id),
             'batch': {'current': batch_current, 'total': batch_total,
@@ -56,7 +61,8 @@ def task_view(session, task):
                         'firstPassSuccessCount': sum(i.state == 'succeeded' and i.retries == 0 for i in items),
                         'cost': None},
             'items': [{'id': str(i.id), 'position': i.position, 'source': pic(i.source_id),
-                       'state': i.state, 'retries': i.cycle_retries, 'error': i.error,
+                       'state': i.state, 'cliActivity': item_activity.get(i.id, 'idle'),
+                       'retries': i.cycle_retries, 'error': i.error,
                        'nextAttemptAt': aware(i.next_attempt_at).isoformat() if i.next_attempt_at else None,
                        'result': pic(i.result_id), 'currentVersion': i.current_version or (1 if i.result_id else None),
                        'versions': item_versions(i),

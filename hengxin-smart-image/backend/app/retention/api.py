@@ -20,9 +20,14 @@ def locked(session, identifier):
     if conversation is None:
         return None
     item = session.get(ApiItem, conversation.item_id)
+    if item is None:
+        return None
     task = session.scalar(select(ApiTask).where(ApiTask.id == item.task_id)
                           .with_for_update(skip_locked=True))
     if task is None:
+        return None
+    from app.modules.api_image_edits.deletion_state import fenced
+    if fenced(session, task.id):
         return None
     session.refresh(item, with_for_update=True)
     session.refresh(conversation, with_for_update=True)

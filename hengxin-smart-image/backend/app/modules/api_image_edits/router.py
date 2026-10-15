@@ -105,10 +105,15 @@ def retry(task_id: UUID, user: User, session: Database, key: Key):
     return {'taskId': str(service.retry(session, user, task_id, key))}
 
 
-@router.delete('/tasks/{task_id}')
+@router.delete('/tasks/{task_id}', status_code=202)
 def delete(task_id: UUID, user: User, session: Database):
-    service.delete_task(session, user, task_id)
-    return {'deleted': True}
+    return service.delete_task(session, user, task_id)
+
+
+@router.get('/tasks/{task_id}/deletion')
+def deletion_status(task_id: UUID, user: User, session: Database):
+    from .deletion import status
+    return status(session, task_id)
 
 
 @router.post('/tasks/{task_id}/resolve')

@@ -21,8 +21,15 @@ def locked(session, job_id):
     if not turn:
         return (None,) * 5
     conversation = session.get(Conversation, turn.conversation_id)
+    if conversation is None:
+        return (None,) * 5
     item = session.get(ApiItem, conversation.item_id)
+    if item is None:
+        return (None,) * 5
     task = session.scalar(select(ApiTask).where(ApiTask.id == item.task_id).with_for_update())
+    from .deletion_state import fenced
+    if task is None or fenced(session, task.id):
+        return (None,) * 5
     session.refresh(item, with_for_update=True)
     session.refresh(conversation, with_for_update=True)
     # A cleanup may have won the parent lock after the initial turn lookup.

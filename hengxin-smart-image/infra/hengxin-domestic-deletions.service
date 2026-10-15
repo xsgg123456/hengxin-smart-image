@@ -1,0 +1,22 @@
+[Unit]
+Description=Hengxin explicit domestic task deletion executor
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=codex
+Group=codex
+WorkingDirectory=@BACKEND@
+@ENVIRONMENT_FILES@
+Environment=CLI_RETENTION_ENABLED=false
+ExecStart=@BACKEND@/.venv/bin/python -m app.retention.worker --deletions-only --loop --interval 5
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+@LIMITS@
+
+[Install]
+WantedBy=multi-user.target

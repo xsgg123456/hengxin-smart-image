@@ -4,12 +4,13 @@
     <ElSkeleton v-else-if="loading && !task" :rows="8" animated />
     <div v-if="task" class="detail-content">
       <ElAlert v-if="actionError || downloadError" :title="actionError || downloadError" type="error" :closable="false" />
+      <ElAlert v-if="task.deletionState && task.deletionState !== 'idle'" :title="task.deletionState === 'deleting' ? '正在永久删除任务及关联资料' : '删除未完成，请返回列表重试删除'" type="warning" :closable="false" />
       <ElAlert v-if="task.error" :title="task.error" type="warning" :closable="false" />
       <ElAlert v-if="task.status === 'uncertain'" title="请求结果需核实，通道保持阻塞" description="旧请求可能仍在处理，不会自动重复生成。请联系超级管理员核实旧请求已停止后再恢复。" type="warning" show-icon :closable="false" />
       <div class="hx-detail-toolbar hx-gap"><div><ElTag :type="task.status === 'succeeded' ? 'success' : task.status === 'uncertain' || failed ? 'danger' : 'primary'">{{ taskLabels[task.status] }}</ElTag><span class="hx-muted">{{ task.id }}</span></div><div class="detail-actions">
         <ElButton type="primary" :loading="packing" :disabled="!canZip || packing" @click="downloadZip">{{ packing ? '打包中…' : '下载整套 ZIP' }}</ElButton>
         <ElButton :loading="loading" @click="$emit('refresh')">刷新详情</ElButton>
-        <ElButton v-if="retryPending || (failed && !isTaskActive(task))" type="primary" :loading="busy" :disabled="busy || packing || hasItemOperation || (!retryPending && channelBlocked)" @click="$emit('retry', task.id)">{{ retryPending ? '确认原重试请求' : `仅重试失败的 ${failed} 张` }}</ElButton>
+        <ElButton v-if="retryPending || (failed && !isTaskActive(task))" type="primary" :loading="busy" :disabled="deleting || busy || packing || hasItemOperation || (!retryPending && channelBlocked)" @click="$emit('retry', task.id)">{{ retryPending ? '确认原重试请求' : `仅重试失败的 ${failed} 张` }}</ElButton>
         <ElButton v-if="admin && task.status === 'uncertain'" type="warning" :loading="busy" @click="$emit('resolve', task.id)">核实已停止</ElButton>
       </div></div>
       <ElCard class="art-card" shadow="never">
@@ -22,7 +23,7 @@
       <SharedMaterial :picture="task.material" />
       <div class="result-grid hx-gap">
         <ElCard v-for="item in task.items" :key="item.id" class="art-card" shadow="never">
-          <div class="hx-row"><strong>原图 {{ item.position }}</strong><ElTag :type="item.state === 'succeeded' ? 'success' : ['failed', 'uncertain'].includes(item.state) ? 'danger' : item.state === 'retry_wait' ? 'warning' : 'info'" size="small">{{ itemLabels[item.state] }}</ElTag></div>
+          <div class="hx-row"><strong>原图 {{ item.position }}</strong><ElTag :type="item.state === 'succeeded' ? 'success' : ['failed', 'uncertain'].includes(item.state) ? 'danger' : item.state === 'retry_wait' ? 'warning' : 'info'" size="small">{{ itemLabels[item.state] }}</ElTag><CliActivityTag :state="item.cliActivity" /></div>
           <ElButton text type="primary" @click="comparisonId = item.id; comparisonOpen = true">查看原图 / 对照成品</ElButton>
           <div class="result-picture hx-gap"><ApiResultPicture :item="item" :results="results" /></div>
           <p v-if="item.nextAttemptAt" class="hx-footnote">下次尝试：{{ friendlyTime(item.nextAttemptAt) }}</p><p v-if="item.error" class="item-error">{{ item.error }}</p>
@@ -33,7 +34,7 @@
             <ElButton v-if="item.result" size="small" :disabled="!canRevise(item, false)" @click="revisionId = item.id; revisionOpen = true">{{ pendingRevision(item, false) ? '确认原修改请求' : '修改图片' }}</ElButton>
             <ElButton v-if="item.result" size="small" :loading="command(item).state.busy && pendingRevision(item, true)" :disabled="!canRevise(item, true)" @click="repairText(item)">{{ pendingRevision(item, true) ? '确认原修复请求' : '修复文案' }}</ElButton>
             <ElButton v-if="item.result" text type="primary" @click="versionId = item.id; versionOpen = true">历史版本 · {{ item.versions.length }}</ElButton>
-            <ElButton v-if="item.state === 'failed' || command(item).state.pending?.command.kind === 'retry'" size="small" type="primary" :loading="command(item).state.busy" :disabled="packing || busy || (!!command(item).state.pending && command(item).state.pending?.command.kind !== 'retry') || (!command(item).state.pending && channelBlocked)" @click="retryItem(item)">{{ command(item).state.pending ? '确认原重试请求' : '继续重试这张' }}</ElButton>
+            <ElButton v-if="item.state === 'failed' || command(item).state.pending?.command.kind === 'retry'" size="small" type="primary" :loading="command(item).state.busy" :disabled="deleting || packing || busy || (!!command(item).state.pending && command(item).state.pending?.command.kind !== 'retry') || (!command(item).state.pending && channelBlocked)" @click="retryItem(item)">{{ command(item).state.pending ? '确认原重试请求' : '继续重试这张' }}</ElButton>
           </div>
           <p v-if="command(item).state.error" class="item-error">{{ command(item).state.error }}</p>
         </ElCard>
@@ -41,8 +42,8 @@
       <ElCollapse v-model="expandedSections" class="hx-gap"><ElCollapseItem title="本次输入与提示词" name="input"><p class="prompt-text">{{ task.prompt }}</p><div v-if="expandedSections.includes('input')" class="input-grid"><div v-for="(picture, index) in inputs" :key="index"><PicturePreview v-if="picture?.url" :picture="picture" title="本次输入" /><p v-else>图片未记录</p><p>{{ index === inputs.length - 1 ? '共用素材' : `原图 ${index + 1}` }}</p></div></div></ElCollapseItem><ElCollapseItem title="处理记录" name="events"><ElEmpty v-if="!task.events.length" description="暂无处理记录" :image-size="60" /><div v-for="(event, index) in task.events" :key="index" class="hx-log">{{ event }}</div></ElCollapseItem></ElCollapse>
     </div>
     <SourceComparison v-if="comparison" v-model="comparisonOpen" :position="comparison.position" :source="comparison.source" :result="comparison.result" :version="comparison.currentVersion" />
-    <RealRevisionDialog v-if="task && revisionId" v-model="revisionOpen" :task="task" :item-id="revisionId" :blocked="packing || busy" @accepted="emit('refresh')" />
-    <RealVersionDialog v-if="task && versionId" v-model="versionOpen" :task="task" :item-id="versionId" :locked="packing || busy" @accepted="emit('refresh')" />
+    <RealRevisionDialog v-if="task && revisionId" v-model="revisionOpen" :task="task" :item-id="revisionId" :blocked="packing || busy || deleting" @accepted="emit('refresh')" />
+    <RealVersionDialog v-if="task && versionId" v-model="versionOpen" :task="task" :item-id="versionId" :locked="packing || busy || deleting" @accepted="emit('refresh')" />
     <template #footer><ElButton @click="open = false">返回换图记录</ElButton></template>
   </ElDrawer>
 </template>
@@ -50,6 +51,7 @@
 import { computed, ref, watch } from 'vue'
 import { apiImages, errorText } from '@/api/api-image-edits'
 import { taskLabels, itemLabels, operationLabel, isTaskActive, type ApiPicture, type ApiTask, type ApiItem } from '@/types/api-image-edits'
+import CliActivityTag from './CliActivityTag.vue'
 import PicturePreview from '../components/PicturePreview.vue'
 import SharedMaterial from './SharedMaterial.vue'
 import SourceComparison from './SourceComparison.vue'
@@ -75,7 +77,8 @@ const comparison = computed(() => props.task?.items.find(item => item.id === com
 const user = String(useUserStore().getUserInfo.userId)
 const command = (item: ApiItem) => itemCommand(user, props.task!.id, item.id)
 const hasItemOperation = computed(() => props.task?.items.some(i => command(i).state.busy || command(i).state.pending) || false)
-const canZip = computed(() => !!props.task && !props.busy && !hasItemOperation.value && props.task.items.every(i => i.state === 'succeeded' && i.result))
+const deleting = computed(() => !!props.task?.deletionState && props.task.deletionState !== 'idle')
+const canZip = computed(() => !deleting.value && !!props.task && !props.busy && !hasItemOperation.value && props.task.items.every(i => i.state === 'succeeded' && i.result))
 watch(() => props.task?.id, () => { expandedSections.value = []; comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false; revisionId.value = ''; versionId.value = '' })
 watch(open, value => { if (!value) { comparisonOpen.value = false; revisionOpen.value = false; versionOpen.value = false } })
 function pendingRevision(item: ApiItem, repair: boolean) {
@@ -84,7 +87,7 @@ function pendingRevision(item: ApiItem, repair: boolean) {
 }
 function canRevise(item: ApiItem, repair: boolean) {
   const state = command(item).state
-  return !packing.value && !props.busy && !state.busy && !!item.result && (state.pending ? pendingRevision(item, repair) : item.state === 'succeeded' && !props.channelBlocked)
+  return !deleting.value && !packing.value && !props.busy && !state.busy && !!item.result && (state.pending ? pendingRevision(item, repair) : item.state === 'succeeded' && !props.channelBlocked)
 }
 async function repairText(item: ApiItem) {
   if (!props.task || !canRevise(item, true) || !item.currentVersion) return
@@ -95,7 +98,7 @@ async function repairText(item: ApiItem) {
   })) emit('refresh')
 }
 async function retryItem(item: ApiItem) {
-  if (!props.task || packing.value || props.busy || (props.channelBlocked && !command(item).state.pending)) return
+  if (!props.task || deleting.value || packing.value || props.busy || (props.channelBlocked && !command(item).state.pending)) return
   const taskId = props.task.id
   if (await command(item).submit({ kind: 'retry' }, (action, key) => {
     if (action.kind !== 'retry') throw new Error('请先确认此图片尚未完成的操作')
@@ -129,6 +132,7 @@ async function download(picture: ApiPicture) {
 .detail-content { color:var(--art-gray-800); }
 .result-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .result-grid :deep(.el-card__body) { padding:14px; }
+.result-grid .hx-row { flex-wrap:wrap; gap:4px; }
 .result-picture { height:180px; }
 .result-placeholder { display:flex; flex-direction:column; gap:10px; height:100%; align-items:center; justify-content:center; background:var(--art-gray-100); color:var(--art-gray-600); border-radius:8px; }
 .result-placeholder .art-svg-icon { font-size:28px; }

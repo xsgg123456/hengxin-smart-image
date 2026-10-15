@@ -67,7 +67,10 @@ def test_ten_initial_plus_three_modifications_real_flows(files_env, monkeypatch,
     monkeypatch.setattr(api, 'same_process', lambda *args: False)
     assert api.process(factory, store, Path(cli_enabled.codex_execution_root), conversation_id, expiry) == 'expired'
     assert totals(client)['summary'] == summary
-    assert client.delete(f'{ROOT}/tasks/{task_id}').status_code == 200
+    from app.modules.api_image_edits import deletion
+    assert client.delete(f'{ROOT}/tasks/{task_id}').status_code == 202
+    assert deletion.process(factory, store, task_id, cli_enabled) == 'deleted'
+    assert store.objects == {}
     deleted = totals(client)
     assert deleted['summary'] == summary
     assert all(e['taskDeleted'] for e in deleted['events'])

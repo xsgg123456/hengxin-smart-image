@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models import Base, utcnow
 from app.resource_models import Timestamps
 from app.modules.management.api_stats.models import ApiUsageFact  # noqa: F401 - register durable facts
+from .deletion_models import ApiTaskDeletion  # noqa: F401 - register durable erasure receipts
 
 
 class ApiFile(Timestamps, Base):

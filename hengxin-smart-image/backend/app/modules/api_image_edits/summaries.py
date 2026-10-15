@@ -5,12 +5,16 @@ from app.resource_models import UserRecord
 from .models import ApiFile, ApiItem
 from .files import picture
 from .state import aware
+from .activity import activities
+from .deletion_state import describe
 
 
 def summaries(session, tasks):
     if not tasks:
         return []
     ids = [task.id for task in tasks]
+    task_activity, _ = activities(session, ids)
+    deletion = describe(session, ids)
     counts = {row.task_id: row for row in session.execute(select(
         ApiItem.task_id, func.count().label('total'),
         func.sum(case((ApiItem.state == 'succeeded', 1), else_=0)).label('success'),
@@ -32,6 +36,7 @@ def summaries(session, tasks):
         total = row.total if row else 0
         batches = (total + 9) // 10
         result.append(dict(id=str(task.id), name=task.name, status=task.state,
+            cliActivity=task_activity.get(task.id, 'idle'), **deletion[task.id],
             created=aware(task.created_at).isoformat(), operator=owners.get(task.owner_id, '未知用户'),
             cover=covers.get(task.id), counts=dict(total=total, success=row.success if row else 0,
                 failed=row.failed if row else 0, uncertain=row.uncertain if row else 0),

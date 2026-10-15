@@ -4,7 +4,7 @@ import { apiImages, errorText, uncertainResponse } from '@/api/api-image-edits'
 import { bootstrap, retryBootstrap } from '@/api/hengxin/bootstrap'
 import { identity } from '@/api/hengxin/identity'
 import { isTaskActive } from '@/types/api-image-edits'
-import type { ApiTask, ApiTaskSummary, ApiTaskState } from '@/types/api-image-edits'
+import type { ApiDeletion, ApiTask, ApiTaskSummary, ApiTaskState } from '@/types/api-image-edits'
 // 未确认的重试请求跨详情关闭和路由切换保留原键。
 const retryKeys = new Map<string, { key: string; uncertain: boolean }>()
 function savedRetry(id: string) {
@@ -22,6 +22,7 @@ export function useRecords() {
   const retryId = (id: string) => `${userId}:${id}`
   const tasks = ref<ApiTaskSummary[]>([]), total = ref(0), page = ref(1), pageSize = ref(20), search = ref(''), filter = ref<ApiTaskState | ''>('')
   const selectedId = ref(''), selected = ref<ApiTask>(), loading = ref(false), detailLoading = ref(false)
+  const deletedName = ref(''), deletedId = ref(''), pendingDeletions = new Map<string, string>()
   const error = ref(''), detailError = ref(''), actionError = ref(''), busy = ref(false)
   const retryPending = computed(() => { void actionError.value; void selected.value; return !!savedRetry(retryId(selectedId.value)) })
   let detailLoadedAt = 0
@@ -33,12 +34,18 @@ export function useRecords() {
       if (!alive || serial !== listSerial) return
       if (page.value > 1 && !result.items.length && result.total <= (page.value - 1) * pageSize.value) { page.value = Math.max(1, Math.ceil(result.total / pageSize.value)); return }
       tasks.value = result.items; total.value = result.total; error.value = ''
+      for (const task of result.items) if (task.deletionState === 'deleting') pendingDeletions.set(task.id, task.name)
+      for (const [id, name] of pendingDeletions) {
+        try { const result = await apiImages.deletion(id); if (alive && serial === listSerial) applyDeletion(id, name, result) }
+        catch (e) { if (alive && serial === listSerial) actionError.value = `删除状态尚未确认：${errorText(e)}。将继续核实。` }
+      }
     } catch (e) { if (alive && serial === listSerial) error.value = errorText(e) }
     finally { if (alive && serial === listSerial) loading.value = false }
   }
   async function loadDetail(silent = false) {
     const id = selectedId.value, serial = ++detailSerial
     if (!id) { selected.value = undefined; detailError.value = ''; detailLoading.value = false; return }
+    if (selected.value?.deletionState === 'deleting') return
     if (!silent) detailLoading.value = true
     try { const task = await apiImages.task(id); if (alive && serial === detailSerial) { selected.value = task; detailLoadedAt = Date.now(); detailError.value = '' } }
     catch (e) { if (alive && serial === detailSerial) { detailError.value = errorText(e) } }
@@ -74,6 +81,32 @@ export function useRecords() {
     try { await run(); await refresh() } catch (e) { actionError.value = errorText(e) }
     finally { busy.value = false }
   }
+  function applyDeletion(id: string, name: string, result: ApiDeletion) {
+    const row = tasks.value.find(task => task.id === id)
+    if (result.state !== 'failed' && actionError.value.startsWith('删除状态尚未确认：')) actionError.value = ''
+    if (result.state === 'deleted') {
+      pendingDeletions.delete(id)
+      tasks.value = tasks.value.filter(task => task.id !== id)
+      if (row) total.value = Math.max(0, total.value - 1)
+      deletedName.value = name; deletedId.value = id
+      if (selectedId.value === id) { selectedId.value = ''; selected.value = undefined }
+      return
+    }
+    const update = { deletionState: result.state, deletionError: result.state === 'failed' ? result.message || '删除未完成，请重试' : null,
+      canDelete: result.state === 'failed', deleteBlockedReason: result.state === 'deleting' ? '正在永久删除任务及关联资料' : null } as const
+    if (row) Object.assign(row, update)
+    if (selected.value?.id === id) Object.assign(selected.value, update)
+    if (result.state === 'failed') { pendingDeletions.delete(id); actionError.value = update.deletionError || '删除未完成，请重试' }
+    else pendingDeletions.set(id, name)
+  }
+  async function removeTask(task: ApiTaskSummary) {
+    await action(async () => {
+      // Track even a lost response: acceptance may already have reached the server.
+      pendingDeletions.set(task.id, task.name)
+      try { applyDeletion(task.id, task.name, await apiImages.remove(task.id)) }
+      catch (e) { if (!uncertainResponse(e)) pendingDeletions.delete(task.id); throw e }
+    })
+  }
   async function retry(id: string) {
     await action(async () => {
       const entry = savedRetry(retryId(id)) || { key: crypto.randomUUID(), uncertain: false }; saveRetry(retryId(id), entry)
@@ -83,5 +116,5 @@ export function useRecords() {
   }
   void refresh().then(schedule)
   onBeforeUnmount(() => { alive = false; document.removeEventListener('visibilitychange', visibility); clearTimeout(timer); clearTimeout(debounce) })
-  return { tasks, total, page, pageSize, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry }
+  return { tasks, total, page, pageSize, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry, removeTask, deletedId, deletedName }
 }

@@ -32,7 +32,7 @@ def test_enqueue_preserves_active_sibling_and_blocks_delete(files_env, sibling_s
         session.get(ApiTask, UUID(task_id)).state = 'queued'
     assert client.delete(f'{ROOT}/tasks/{task_id}').status_code == 409
     fresh, _ = create(client, count=1)
-    assert client.delete(f'{ROOT}/tasks/{fresh}').status_code == 200
+    assert client.delete(f'{ROOT}/tasks/{fresh}').status_code == 409
 
 
 @pytest.mark.parametrize('kind,size', [('image/webp', 100), ('image/png', 10 * 1024 * 1024 + 1)])

@@ -21,6 +21,9 @@ def find_task(session, task_id, lock=False):
     task = session.scalar(query.with_for_update() if lock else query)
     if task is None:
         raise HTTPException(404, '任务不存在')
+    if lock:
+        from .deletion_state import guard
+        guard(session, task.id)
     return task
 
 
@@ -88,15 +91,5 @@ def retry(session, user, task_id, key):
 
 
 def delete_task(session, user, task_id):
-    channel(session)
-    task = find_task(session, task_id, lock=True)
-    from .conversation import assert_idle
-    for item_id in session.scalars(select(ApiItem.id).where(ApiItem.task_id == task.id)):
-        assert_idle(session, item_id)
-    active_item = session.scalar(select(ApiItem.id).where(ApiItem.task_id == task.id,
-                              ApiItem.state.in_({'running', 'uncertain'})).limit(1))
-    if task.state in {'running', 'uncertain'} or active_item:
-        raise HTTPException(409, '正在运行或待核实的任务不能删除')
-    task.deleted_at, task.deleted_by = utcnow(), user.id
-    session.get(ApiDispatch, task.id).completed_at = utcnow()
-    session.commit()
+    from .deletion import request
+    return request(session, user, task_id)

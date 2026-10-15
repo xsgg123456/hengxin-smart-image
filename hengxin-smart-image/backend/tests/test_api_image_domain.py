@@ -61,7 +61,7 @@ def test_upload_scope_permissions_and_reference_protection(files_env):
     assert client.get(task['material']['url']).status_code == 403
 
 
-def test_idempotent_submit_payload_conflict_and_soft_delete(files_env):
+def test_idempotent_submit_payload_conflict_and_queued_delete_protection(files_env):
     client, factory, _, _ = files_env
     task_id, payload = create(client, key='one')
     duplicate = client.post(ROOT + '/tasks', json=payload, headers={'Idempotency-Key': 'one'})
@@ -72,12 +72,12 @@ def test_idempotent_submit_payload_conflict_and_soft_delete(files_env):
     assert client.get(ROOT + '/tasks?pageSize=1&search=接口').json()['total'] == 1
     assert client.get(ROOT + '/tasks', params={'search': task_id}).json()['total'] == 1
     assert client.get(ROOT + '/tasks', params={'search': task_id[:8]}).json()['total'] == 1
-    assert client.delete(ROOT + '/tasks/' + task_id).status_code == 200
-    assert client.get(ROOT + '/tasks/' + task_id).status_code == 404
-    assert client.get(ROOT + '/tasks').json()['total'] == 0
+    assert client.delete(ROOT + '/tasks/' + task_id).status_code == 409
+    assert client.get(ROOT + '/tasks/' + task_id).status_code == 200
+    assert client.get(ROOT + '/tasks').json()['total'] == 1
     with factory() as session:
-        assert session.get(ApiTask, UUID(task_id)).deleted_at
-        assert session.get(ApiDispatch, UUID(task_id)).completed_at
+        assert session.get(ApiTask, UUID(task_id)).deleted_at is None
+        assert session.get(ApiDispatch, UUID(task_id)).completed_at is None
 
 
 def test_unreferenced_file_delete_and_foreign_file_rejection(files_env):

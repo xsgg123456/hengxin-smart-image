@@ -1,4 +1,4 @@
-import type { ApiChannel, ApiItem, ApiPicture, ApiTask, ApiTaskPage, ApiTaskSummary, ApiVersion } from '../types/api-image-edits'
+import type { ApiChannel, ApiDeletion, ApiItem, ApiPicture, ApiTask, ApiTaskPage, ApiTaskSummary, ApiVersion } from '../types/api-image-edits'
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const text = (v: unknown): v is string => typeof v === 'string'
 const id = (v: unknown): v is string => text(v) && v.length > 0
@@ -19,13 +19,19 @@ const version = (v: unknown): v is ApiVersion => object(v) && operationKind(v.ki
   && text(v.created) && text(v.operator) && text(v.text) && (v.annotation === null || picture(v.annotation)) && (v.baseVersion === null || positive(v.baseVersion))
 const revision = (v: unknown) => v === null || (object(v) && operationKind(v.kind) && state(v.state) && text(v.text) && text(v.operator)
   && positive(v.baseVersion) && count(v.retries) && nullableText(v.error) && (v.annotation === null || picture(v.annotation)))
-const item = (v: unknown): v is ApiItem => object(v) && id(v.id) && count(v.position) && v.position > 0 && (v.source === null || picture(v.source))
+const cliActivity = (v: unknown) => v === undefined || (text(v) && ['idle', 'queued', 'running', 'uncertain'].includes(v))
+const activity = (v: Record<string, unknown>) => cliActivity(v.cliActivity)
+  && (v.canDelete === undefined || typeof v.canDelete === 'boolean')
+  && (v.deleteBlockedReason === undefined || nullableText(v.deleteBlockedReason))
+  && (v.deletionState === undefined || (text(v.deletionState) && ['idle', 'deleting', 'failed'].includes(v.deletionState)))
+  && (v.deletionError === undefined || nullableText(v.deletionError))
+const item = (v: unknown): v is ApiItem => object(v) && cliActivity(v.cliActivity) && id(v.id) && count(v.position) && v.position > 0 && (v.source === null || picture(v.source))
   && text(v.state) && ['queued', 'running', 'retry_wait', 'collecting', 'succeeded', 'failed', 'uncertain'].includes(v.state)
   && (v.currentVersion === null || positive(v.currentVersion)) && Array.isArray(v.versions) && v.versions.every(version)
   && new Set(v.versions.map(i => i.number)).size === v.versions.length && revision(v.revision)
   && (v.currentVersion === null ? v.result === null : v.versions.some(i => i.number === v.currentVersion && object(v.result) && i.picture.fileId === v.result.fileId))
   && count(v.retries) && nullableText(v.nextAttemptAt) && nullableText(v.error) && (v.result === null || picture(v.result))
-export const task = (v: unknown): v is ApiTask => object(v) && id(v.id) && text(v.name) && text(v.prompt) && text(v.created)
+export const task = (v: unknown): v is ApiTask => object(v) && activity(v) && id(v.id) && text(v.name) && text(v.prompt) && text(v.created)
   && text(v.operator) && object(v.batch) && count(v.batch.current) && count(v.batch.total) && count(v.batch.running)
   && text(v.status) && ['queued', 'running', 'succeeded', 'partial_failed', 'failed', 'uncertain'].includes(v.status)
   && (v.material === null || picture(v.material)) && Array.isArray(v.items) && v.items.length > 0 && v.items.every(item)
@@ -33,7 +39,7 @@ export const task = (v: unknown): v is ApiTask => object(v) && id(v.id) && text(
   && Array.isArray(v.events) && v.events.every(text) && nullableText(v.error)
   && object(v.metrics) && count(v.metrics.requestCount) && count(v.metrics.retryCount)
   && (v.metrics.elapsedSeconds === null || (typeof v.metrics.elapsedSeconds === 'number' && Number.isFinite(v.metrics.elapsedSeconds) && v.metrics.elapsedSeconds >= 0))
-export const summary = (v: unknown): v is ApiTaskSummary => object(v) && id(v.id) && text(v.name) && text(v.created)
+export const summary = (v: unknown): v is ApiTaskSummary => object(v) && activity(v) && id(v.id) && text(v.name) && text(v.created)
   && text(v.operator) && text(v.status) && ['queued', 'running', 'succeeded', 'partial_failed', 'failed', 'uncertain'].includes(v.status)
   && (v.cover === null || picture(v.cover)) && object(v.counts) && count(v.counts.total)
   && count(v.counts.success) && count(v.counts.failed) && count(v.counts.uncertain)
@@ -47,3 +53,5 @@ export const deleted = (v: unknown): v is { deleted: true } => object(v) && v.de
 export const empty = (v: unknown): v is void => v === undefined
 
 export const resumed = (v: unknown): v is { resumed: true } => object(v) && v.resumed === true
+
+export const deletion = (v: unknown): v is ApiDeletion => object(v) && text(v.state) && ['deleted', 'deleting', 'failed'].includes(v.state) && nullableText(v.message)

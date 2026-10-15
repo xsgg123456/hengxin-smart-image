@@ -84,7 +84,7 @@ def test_paid_collection_survives_full_disk_stale_sample_and_ambiguous_put(files
         assert pending_bytes(session) == 60 * MIB  # Publication is NOT reclamation.
 
 
-def test_failed_receipt_delete_and_expired_lease_never_release(files_env):
+def test_delete_request_retains_capacity_until_actual_cleanup_and_expired_lease_never_releases(files_env, tmp_path):
     web, factory, store, _ = files_env
     task, _ = create(web, 1)
     policy(factory)
@@ -94,17 +94,25 @@ def test_failed_receipt_delete_and_expired_lease_never_release(files_env):
     for _ in range(4):
         assert execute_next(factory, store, client, broken)
         due(factory)
-    assert web.delete(ROOT + '/tasks/' + task).status_code == 200
+    assert web.delete(ROOT + '/tasks/' + task).status_code == 202
     with factory() as session:
         assert pending_bytes(session) == 60 * MIB
         assert session.scalar(select(ApiItem)).result_url
+    from app.core.config import get_settings
+    from app.modules.api_image_edits import deletion
+    from types import SimpleNamespace
+    settings = SimpleNamespace(**{**get_settings().model_dump(), 'codex_execution_root': str(tmp_path)})
+    assert deletion.process(factory, store, task, settings) == 'deleted'
+    with factory() as session:
+        assert pending_bytes(session) == 0
+    assert store.objects == {}
     create(web, 1)
     first = api_claim(factory)
     with factory.begin() as session:
         session.get(ApiItem, first[0]).lease_until = utcnow() - timedelta(seconds=1)
     assert api_claim(factory) is None
     with factory() as session:
-        assert pending_bytes(session) == 120 * MIB
+        assert pending_bytes(session) == 60 * MIB
 
 
 def test_revision_has_new_cycle_and_preserves_previous_debt(files_env):

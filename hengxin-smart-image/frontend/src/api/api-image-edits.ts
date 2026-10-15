@@ -23,7 +23,8 @@ export function createApiImageClient(baseUrl: string, fetcher: typeof fetch = fe
       if (!blob.type.startsWith('application/zip')) throw new ApiError('INVALID_RESPONSE', '下载内容不是 ZIP 文件')
       return blob
     },
-    remove: (id: string) => request(path(id), valid.deleted, 'DELETE'),
+    remove: (id: string) => request(path(id), valid.deletion, 'DELETE'),
+    deletion: (id: string) => request(`${path(id)}/deletion`, valid.deletion),
     resume: () => request('/channel/resume', valid.resumed, 'POST'),
     resolve: (id: string) => request(`${path(id)}/resolve`, valid.accepted, 'POST', { confirmedStopped: true }),
     download: async (id: string) => {

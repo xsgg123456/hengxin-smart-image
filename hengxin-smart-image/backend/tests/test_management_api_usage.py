@@ -71,14 +71,24 @@ def test_range_and_paging_use_full_history_inventory_is_independent(files_env, m
     assert outside['total'] == 0 and outside['inventory'] == first['inventory']
 
 
-def test_real_api_projection_soft_delete_and_get_does_not_write(files_env):
-    client, factory, _, _ = files_env
+def test_real_api_projection_physical_delete_preserves_minimal_facts(files_env, tmp_path):
+    from app.core.config import get_settings
+    from app.modules.api_image_edits import deletion
+    from app.modules.api_image_edits.execution import execute_next
+    from test_api_image_execution import Client
+    from types import SimpleNamespace
+    client, factory, store, _ = files_env
     task, _ = create(client, count=1)
+    assert execute_next(factory, store, Client())
     before = client.get(URL)
     assert before.status_code == 200, before.text
     assert before.json()['summary']['tasksCreated'] == 1
     assert before.json()['inventory']['tasks'] == 1
-    assert client.delete('/api/v1/api-image-edits/tasks/' + task).status_code == 200
+    assert client.delete('/api/v1/api-image-edits/tasks/' + task).status_code == 202
+    assert client.get(URL).json()['inventory']['tasks'] == 1
+    settings = SimpleNamespace(**{**get_settings().model_dump(), 'codex_execution_root': str(tmp_path)})
+    assert deletion.process(factory, store, task, settings) == 'deleted'
+    assert store.objects == {}
     after = client.get(URL).json()
     assert after['summary']['tasksCreated'] == 1
     assert after['inventory']['tasks'] == 0

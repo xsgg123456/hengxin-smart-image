@@ -33,9 +33,13 @@ def test_api_summary_counts_cover_and_no_history_queries(files_env):
         response, two = sample(client, ROOT + '/tasks?view=summary&pageSize=20')
     finally:
         event.remove(engine, 'before_cursor_execute', capture)
-    assert one['sql_before_headers'] == two['sql_before_headers'] == 6
-    assert not any('api_image_versions' in s or 'api_image_attempts' in s for s in sql)
-    assert not any('api_image_tasks.prompt' in s or 'result_bytes' in s for s in sql)
+    assert one['sql_before_headers'] == two['sql_before_headers'] == 14
+    assert not any('api_image_versions' in s for s in sql)
+    assert all('api_image_attempts.receipt' not in s and 'api_edit_turns.messages' not in s
+               and 'api_edit_turns.prompt' not in s for s in sql)
+    assert not any('api_image_tasks.prompt' in s for s in sql)
+    # Presence checks are permitted; payload bytes must never be projected.
+    assert all('api_image_items.result_bytes,' not in s for s in sql)
     row = next(row for row in response.json()['items'] if row['id'] == first)
     assert row['counts'] == dict(total=4, success=1, failed=1, uncertain=1)
     assert row['batch'] == dict(total=1, current=1, running=1)

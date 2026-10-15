@@ -65,6 +65,9 @@ class MemoryStore:
             raise OSError('injected read failure')
         return len(self.objects[record.object_key])
 
+    def keys(self, bucket, prefix):
+        return [key for key in self.objects if key.startswith(prefix)]
+
 
 @pytest.fixture
 def files_env():

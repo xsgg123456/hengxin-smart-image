@@ -7,6 +7,7 @@ from app.models import utcnow
 from app.capacity.admission import reserve, covered, WAITING
 from .config import get_api_settings
 from .models import ApiAttempt, ApiItem, ApiTask
+from .deletion_models import ApiTaskDeletion
 from .scheduling import IMAGES_PER_TASK, TASK_CONCURRENCY, candidates
 from .state import ACTIVE, aware, channel, event, refresh_task, release, release_item
 
@@ -44,7 +45,8 @@ def claim(factory):
         now = utcnow()
         # Only admission holds the DB lock; each image owns its network-call lease.
         pending = session.scalars(select(ApiItem).join(ApiTask).where(
-            ApiTask.deleted_at.is_(None), ApiItem.state.in_(ACTIVE))
+            ApiTask.deleted_at.is_(None), ApiItem.state.in_(ACTIVE),
+            ~select(ApiTaskDeletion.task_id).where(ApiTaskDeletion.task_id == ApiTask.id).exists())
             .order_by(ApiTask.created_at, ApiTask.id, ApiItem.position)).all()
         if not pending:
             return None
@@ -85,6 +87,8 @@ def owned(session, item_id, token):
     gate = channel(session)
     item = session.get(ApiItem, item_id)
     if not item or item.lease_token != token or not item.lease_until:
+        return None, None
+    if session.get(ApiTaskDeletion, item.task_id):
         return None, None
     if aware(item.lease_until) <= utcnow():
         if item.state == 'running':

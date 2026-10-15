@@ -33,6 +33,8 @@ def register_existing(factory, limit, now):
                     if conversation is None:
                         continue
                     item = session.get(ApiItem, conversation.item_id)
+                    if item is None:
+                        continue
                     parent = session.scalar(select(ApiTask).where(ApiTask.id == item.task_id)
                                             .with_for_update(skip_locked=True))
                 else:
@@ -40,6 +42,10 @@ def register_existing(factory, limit, now):
                                             .with_for_update(skip_locked=True))
                 if parent is None:
                     continue
+                if domain == 'api_cli':
+                    from app.modules.api_image_edits.deletion_state import fenced
+                    if fenced(session, parent.id):
+                        continue
                 row = session.scalar(select(RetentionEntry).where(
                     RetentionEntry.domain == domain, RetentionEntry.resource_id == identifier))
                 if row is None or row.initialized_at is None:
@@ -84,12 +90,27 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--once', action='store_true')
     mode.add_argument('--loop', action='store_true')
+    parser.add_argument('--deletions-only', action='store_true',
+                        help='Run explicit API task deletions independently of automatic retention')
+    parser.add_argument('--interval', type=int, default=5)
     args = parser.parse_args()
+    if args.interval < 1:
+        parser.error('--interval must be positive')
     while True:
-        print(json.dumps(run_once(), ensure_ascii=False), flush=True)
+        try:
+            if args.deletions_only:
+                from app.modules.api_image_edits.deletion import run_pending
+                result = run_pending(session_factory(), get_store())
+            else:
+                result = run_once()
+            print(json.dumps(result, ensure_ascii=False), flush=True)
+        except Exception:
+            if args.once:
+                raise
+            print(json.dumps({'status': 'unavailable'}), flush=True)
         if args.once:
             return
-        time.sleep(3600)
+        time.sleep(args.interval if args.deletions_only else 3600)
 
 
 if __name__ == '__main__':
