@@ -1,6 +1,6 @@
 # 工作台多轮文件连续性：实施验收
 
-目标版本：0.2.36。当前状态：实现及已发现缺陷均已修复，最终快照独立两阶段审查通过；尚未生产切换或恢复业务文件。
+目标版本：0.2.36。当前状态：已通过独立两阶段审查、完成正式安装与生产发布，目标旧会话文件已恢复，三次真实沙箱读取和正式页面验收通过。
 
 ## 实施范围
 
@@ -43,3 +43,16 @@ Linux全量中的条件跳过主要是需要专用数据库/身份/执行环境�
 第五候选Stage 1/Stage 2均PASS，未发现HIGH/MEDIUM问题。独立验证相关109 passed、13平台条件跳过；发布99 passed、24 subtests；编译和diff检查通过。正式报告：docs/reviews/STUDIO-CONTEXT-CONTINUITY-SIGNOFF-20261015.md。批准只覆盖该源码快照，生产安装、切换及恢复验收需另记实际结果。
 
 字体、Logo和本品清晰图的素材充足性不属于此次文件连续性修复。页面旧消息保留，不删除模型之前要求重新上传的历史回复。
+
+## 正式发布与恢复结果
+
+- 源码提交：`726ede0`；发布：`overseas-20261015-726ede0`，版本0.2.36。审查凭据仍匹配`7b8d6f6ac459c8408f92e118e5f92cf0b2ae3083d625755c0c2ed7521a912df2`。
+- 发布包1,313文件、5,629,504字节，SHA-256 `672550aa60291d2323aea5f2b03e7c1945ea353fa17bad4ec1d1c33aeb663f2d`；隐私检查及归档逐文件校验PASS。证据：output/release/overseas-20261015-726ede0/package-audit.json。
+- 安装镜像`sha256:b0604c6e1f6dc0bde86a9706430adb91bf8e28c129f22f671b1bdb1ab226a276`中604个后端文件哈希全部匹配。实际安装全量2342 passed、188环境条件跳过、1仓库前端契约用例排除；六个本地开发专用模块未纳入安装环境执行。另容量集4 passed。安装测试耗时466.87秒，原始日志：服务器发布目录installation-tests.log；本地output/context-installed-tests.log和context-release-build.log保留结果证据。
+- 发布完成关闭接纳、两次稳定DB/队列检查、停止执行服务、完整备份，再实施恢复并切换。备份`/opt/hengxin-backups/overseas-20261015-726ede0`，发布目录`/opt/hengxin-releases/overseas-20261015-726ede0`；COMPLETE、CONTEXT_RECOVERY_VERIFIED、INSTALLED_VERIFIED和PHASE=complete均已验证。国内/身份服务保持，数据库版本仍为0028及overseas_0016，无数据库迁移。
+- 目标任务`ZZZ13-圆形杂志桌灯测试`恢复2份原件（133,193,702字节）与187普通研究文件（121,807,029字节），无冲突。来源摘要仍为`34012644826e0bc318a6bf29ade7e85002a1c55e209befdd576e5d8b925c9adf`；189个源文件及2个冻结原件均逐项校验；原CLI session保持`01a13d17-cb07-7db3-985e-8d196f45b6df`。
+- 恢复后连续3次新建真实Bubblewrap沙箱，每次191个可读路径（含兼容别名）全部哈希一致。独立安装测试还验证7类原件三轮7/7/8追加、派生笔记连续、原件只读、其他会话隔离，以及旧布局冲突版本恢复。证据：output/context-recovery-evidence.json；生产发布目录context-sandbox-tests.json与context-after-0b8feaa4-f302-4cc5-8cec-767004f0086d.json。
+- 发布前后会话/执行/消息/图片整行摘要相等：1 conversation、2 turns、2 jobs、39 transcript、0 pictures，未新增模型执行或删除业务记录。证据：output/context-business-before.json、context-business-predeploy.json、context-business-after.json。
+- 正式站点入口恢复后已在现有Chrome任务页刷新，DOM与实际截图确认登录态、任务详情、两份任务素材、原消息、输入区与样式正常。历史“请重新上传”回复仍保留。发布日志切换窗口出现一次503，正式公开入口重试通过且随后实际页面正常。
+
+验收边界：三轮证明来自实际执行挂载与逐字节读取，不是三次付费模型对话，也没有生成A+图片。接下来在原对话选择本轮所需A+ Skill即可继续，原PPT/Excel无需重新上传。其他旧会话在下次执行时按数据库所属历史自动迁移，未批量改动所有任务目录。
