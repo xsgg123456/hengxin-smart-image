@@ -21,7 +21,7 @@ def group_alive(job):
             continue
         try:
             fields = (entry / 'stat').read_text().rsplit(')', 1)[1].split()
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             continue
         if fields[0] != 'Z' and int(fields[2]) == job.process_id:
             return True

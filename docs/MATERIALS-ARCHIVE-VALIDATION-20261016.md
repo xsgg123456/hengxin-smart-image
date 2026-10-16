@@ -37,4 +37,6 @@
 
 此记录目前为发布前验收，生产部署结果在完成后补录。
 
+首次生产镜像安装测试：2457 passed、199 skipped、1 deselected、1 failed，失败为已有进程清理的/proc读取退出竞态（ProcessLookupError）。生产未进入prepare/deploy。新增确定性回归在修复前2 failed/3 passed，限定捕获已消失进程异常后，进程及任务清理专项19 passed；权限不足仍阻止清理，扫描不会漏掉后续存活同组进程。修复后重新审查、提交和发布包验证。
+
 独立code-reviewer两阶段PASS，最终快照`509b5598a547f5626bc9317d7a73cbf0b0c1ae3e71e3df263f1729848bfcb060`；报告在output/materials-archive-release/REVIEW.md。窄屏96px媒体规则做静态核查，本轮未做窄屏浏览器实测。
