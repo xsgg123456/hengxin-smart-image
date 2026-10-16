@@ -1,13 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { beijingFilterTime, formatBeijingTime } from '../src/utils/beijing-time'
-import { formatExecutionTime } from '../src/api/hengxin/execution-data'
 import { formatTaskTime } from '../src/views/overseas/requirements'
 
 test('用户原始微秒 UTC 样例、显式偏移和跨日均显示北京时间', () => {
   const sample = '2026-10-14T00:59:59.091561+00:00'
   assert.equal(formatBeijingTime(sample), '2026-10-14 08:59:59')
-  assert.equal(formatExecutionTime(sample), '2026-10-14 08:59:59')
   assert.equal(formatTaskTime(sample), '2026-10-14 08:59:59')
   assert.equal(formatBeijingTime('2026-10-14T08:59:59+08:00'), '2026-10-14 08:59:59')
   assert.equal(formatBeijingTime('2026-10-13T17:59:59-07:00'), '2026-10-14 08:59:59')
@@ -26,7 +24,6 @@ test('空时间和无效时间保留语义占位', () => {
     assert.equal(formatBeijingTime(value), '—')
   }
   assert.equal(formatBeijingTime(null, '尚未开始'), '尚未开始')
-  assert.equal(formatExecutionTime(null), '未提供')
 })
 
 test('海外管理筛选传递北京时间偏移，不依赖浏览器本地时区', () => {

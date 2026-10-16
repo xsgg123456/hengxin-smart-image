@@ -8,8 +8,7 @@ from celery.signals import worker_ready, worker_shutdown
 from app.core.config import get_settings
 from app.db.session import session_factory
 from app.models import utcnow
-from app.modules.tasks.attempts import WorkerHeartbeat
-from app.worker.reconcile import reconcile_once
+from app.worker.models import WorkerHeartbeat
 
 _stop = threading.Event()
 
@@ -54,7 +53,6 @@ def start_health(sender=None, **kwargs):
             try:
                 factory = session_factory()
                 pulse(factory, getattr(getattr(sender, 'pool', None), 'limit', None))
-                reconcile_once(factory)
             except Exception:
                 pass  # Stale checked_at exposes loss; never fabricate a fresh success.
             _stop.wait(5)

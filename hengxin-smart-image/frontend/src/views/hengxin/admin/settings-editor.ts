@@ -8,7 +8,6 @@ export function settingsInput(settings: ManagedSettings): SettingsInput {
     concurrency: settings.concurrency,
     timeoutSeconds: settings.timeoutSeconds,
     maxUploadBytes: settings.maxUploadBytes,
-    defaultSkillIds: { ...settings.defaultSkillIds },
     dingtalk: {
       corpId: settings.dingtalk.corpId,
       appId: settings.dingtalk.appId,
@@ -28,7 +27,6 @@ export function useSettingsEditor(
     concurrency: draft?.concurrency,
     timeoutSeconds: draft?.timeoutSeconds,
     maxUploadBytes: upload == null ? undefined : upload * 1024 ** 2,
-    defaultSkillIds: draft?.defaultSkillIds
   })
   watch(query.data, value => {
     form.value = value ? settingsInput(value) : undefined
@@ -61,7 +59,6 @@ export function useSettingsEditor(
       input.concurrency = draft.concurrency
       input.timeoutSeconds = draft.timeoutSeconds
       input.maxUploadBytes = maxUploadBytes
-      for (const key of ['wallpaper', 'product', 'text'] as const) input.defaultSkillIds[key] = draft.defaultSkillIds[key] || null
       query.data.value = await persist(input)
       return true
     } catch (reason) {

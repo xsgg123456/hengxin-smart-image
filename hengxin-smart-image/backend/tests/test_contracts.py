@@ -1,76 +1,56 @@
-"""Contract drift checks against the checked-in frontend declarations."""
+"""Shared API/identity contracts survive domestic legacy module retirement."""
 import re
 from pathlib import Path
 import pytest
-from pydantic import ValidationError
-
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from pydantic import TypeAdapter, ValidationError
 from app.contracts import business, management
-from app.contracts.router import router
 
 
-def contract_app():
-    app = FastAPI()
-    app.include_router(router, prefix='/api/v1')
-    return app
+def test_openapi_preserves_api_image_and_shared_management_routes():
+    from app.main import app
+    paths = app.openapi()['paths']
+    root = '/api/v1/api-image-edits'
+    required = {
+        root + '/files': {'post'}, root + '/tasks': {'get', 'post'},
+        root + '/tasks/{task_id}': {'get', 'delete'},
+        root + '/tasks/{task_id}/items/{item_id}/revise': {'post'},
+        root + '/tasks/{task_id}/items/{item_id}/restore': {'post'},
+        root + '/tasks/{task_id}/items/{item_id}/conversation': {'get'},
+        root + '/tasks/{task_id}/items/{item_id}/conversation/turns': {'post'},
+        '/api/v1/management/users': {'get'},
+        '/api/v1/management/settings': {'get', 'put'},
+        '/api/v1/auth/dingtalk/config': {'get'},
+    }
+    for path, methods in required.items():
+        assert methods <= paths[path].keys(), path
+    retired = ('/api/v1/tasks', '/api/v1/templates', '/api/v1/archives',
+               '/api/v1/files', '/api/v1/workspace', '/api/v1/management/skills',
+               '/api/v1/management/monitor', '/api/v1/management/usage')
+    assert not any(path == old or path.startswith(old + '/') for path in paths for old in retired)
+    assert not any('501' in operation.get('responses', {})
+                   for path in paths.values() for operation in path.values() if isinstance(operation, dict))
 
 
-def test_business_contracts_are_explicitly_unimplemented():
-    client = TestClient(contract_app())
-    for path in ['/workspace',
-                 '/management/users']:
-        response = client.get('/api/v1' + path)
-        assert response.status_code == 501
-        assert response.json()['code'] == 'NOT_IMPLEMENTED'
-
-
-def test_openapi_request_response_and_pagination():
-    app = contract_app()
-    from app.modules.tasks.router import router as tasks_router
-    from app.modules.revisions.router import router as revisions_router
-    from app.modules.archives.router import router as archives_router
-    app.include_router(tasks_router, prefix='/api/v1')
-    app.include_router(revisions_router, prefix='/api/v1')
-    app.include_router(archives_router, prefix='/api/v1')
-    schema = app.openapi()
-    paths = schema['paths']
-    assert len(paths) == 11
-    materials = paths['/api/v1/tasks/{id}/rounds/{round_id}/materials']['get']['responses']['200']
-    assert materials['content']['application/json']['schema']['$ref'].endswith('/RoundMaterials')
-    execution = paths['/api/v1/tasks/{id}/execution']['get']['responses']['200']
-    assert execution['content']['application/json']['schema']['$ref'].endswith('/ExecutionView')
-    accepted = paths['/api/v1/tasks']['post']['responses']['202']
-    assert accepted['content']['application/json']['schema']['$ref'].endswith('/Accepted')
-    assert schema['components']['schemas']['Accepted']['properties']['state']['const'] == '排队中'
-    assert schema['components']['schemas']['Task']['properties']['progress']['anyOf'][1]['type'] == 'null'
-    for query in [dict(page=0), dict(pageSize=0), dict(pageSize=101), dict(mode='invalid')]:
-        with pytest.raises(ValidationError):
-            business.PageQuery(**query)
-    assert '/api/v1/tasks/{id}/rounds' in paths
+@pytest.mark.parametrize('query', [dict(page=0), dict(pageSize=0), dict(pageSize=101)])
+def test_shared_pagination_rejects_out_of_bounds(query):
+    with pytest.raises(ValidationError):
+        business.PageQuery(**query)
 
 
 def test_optional_and_nullable_are_distinct_and_preserved_in_nested_results():
-    picture = business.Picture(name='x', url='/x')
-    assert picture.model_dump() == {'name': 'x', 'url': '/x'}
-    for field in ['fileId', 'version']:
-        with pytest.raises(ValidationError):
-            business.Picture(name='x', url='/x', **{field: None})
-    schema = business.Picture.model_json_schema(mode='serialization')
-    assert 'fileId' not in schema['required']
-    assert schema['properties']['fileId']['type'] == 'string'
-    assert 'default' not in schema['properties']['fileId']
-    slot = business.ResultSlot(slot=0, versions=[], currentVersionId=None, error=None)
-    assert slot.model_dump()['currentVersionId'] is None
-    assert slot.model_dump()['error'] is None
-    assert business.User(id='1', name='pending', role=None, status='pending').role is None
-    required = management.DefaultSkillIds.model_json_schema()['required']
-    assert set(required) == {'wallpaper', 'product', 'text'}
-    for value in [{}, {'wallpaper': None}, {'wallpaper': None, 'product': None}]:
-        with pytest.raises(ValidationError):
-            management.DefaultSkillIds.model_validate(value)
-    assert management.DefaultSkillIds(wallpaper=None, product=None, text=None).model_dump() == {
-        'wallpaper': None, 'product': None, 'text': None}
+    error = business.ApiErrorBody(code='FAILED', message='request failed')
+    assert error.model_dump() == {'code': 'FAILED', 'message': 'request failed'}
+    with pytest.raises(ValidationError):
+        business.ApiErrorBody(code='FAILED', message='request failed', requestId=None)
+    schema = business.ApiErrorBody.model_json_schema(mode='serialization')
+    assert 'requestId' not in schema['required']
+    assert schema['properties']['requestId']['type'] == 'string'
+    assert 'default' not in schema['properties']['requestId']
+    page = business.PageResult[business.ApiErrorBody](items=[error], page=1, pageSize=20, total=1)
+    assert page.model_dump()['items'] == [error.model_dump()]
+    user = business.User(id='1', name='pending', role=None, status='pending')
+    assert user.model_dump()['role'] is None
+    assert user.model_dump()['identitySessionId'] is None
 
 
 def test_all_omittable_nonnullable_model_fields_reject_explicit_null():
@@ -81,7 +61,6 @@ def test_all_omittable_nonnullable_model_fields_reject_explicit_null():
             for name, field in model.model_fields.items():
                 if field.exclude_if is None:
                     continue
-                from pydantic import TypeAdapter
                 with pytest.raises(ValidationError):
                     TypeAdapter(field.annotation).validate_python(None)
                 schema = model.model_json_schema()['properties'][field.alias or name]
@@ -89,27 +68,25 @@ def test_all_omittable_nonnullable_model_fields_reject_explicit_null():
 
 
 def test_top_level_fields_match_frontend_interfaces():
-    # Frontend sources are available locally; Docker copies this fixture directory
-    # via the integration runner for the cross-language check.
     types = Path(__file__).resolve().parents[2] / 'frontend/src/types'
     if not types.exists():
         types = Path('/contracts-types')
     assert types.exists(), 'Run with frontend type sources mounted at /contracts-types'
     for module, source, names in [
-        (business, 'hengxin.ts', ['User', 'Picture', 'Template', 'Task', 'Round', 'Archive',
-          'Accepted', 'TemplateInput', 'CreateTaskInput', 'RevisionInput', 'DeletionReceipt']),
-        (management, 'management.ts', ['UsageSummary', 'UsageAttempt', 'UsageReport',
-          'UsageRow', 'MonitorReport', 'SettingsAudit', 'UserInput']),
+        (business, 'hengxin.ts', ['User', 'PageQuery', 'PageResult', 'ApiErrorBody']),
+        (management, 'hengxin.ts', ['SystemConfig']),
+        (management, 'management.ts', ['SettingsAudit', 'UserInput']),
     ]:
         text = (types / source).read_text(encoding='utf-8')
         for name in names:
-            start = re.search(r'export interface ' + name + r'\s*\{', text).end()
-            depth, end = 1, start
+            match = re.search(r'export interface ' + name + r'(?:<[^>]+>)?\s*\{', text)
+            assert match, name
+            start, depth = match.end(), 1
+            end = start
             while depth:
                 depth += (text[end] == '{') - (text[end] == '}')
                 end += 1
             body = text[start:end - 1]
-            # Remove inline nested objects; only compare top-level field names.
             while re.search(r'\{[^{}]*\}', body):
                 body = re.sub(r'\{[^{}]*\}', '', body)
             fields = set(re.findall(r'(?:^|[;\n])\s*(\w+)\??\s*:', body))

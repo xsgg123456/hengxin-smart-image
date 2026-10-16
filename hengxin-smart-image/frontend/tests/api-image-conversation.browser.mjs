@@ -157,7 +157,9 @@ try {
   await dialog.getByRole('button', { name: '重新读取', exact: true }).waitFor()
   assert.equal(await dialog.getByRole('button', { name: '预览提交内容', exact: true }).isDisabled(), true)
   failRead = false
-  await dialog.getByRole('button', { name: '重新读取', exact: true }).click()
+  // The reconnect loop can recover and remove this button while Playwright waits
+  // for its layout to settle. Dispatch the user's retry immediately when present.
+  await dialog.locator('.conversation-status button').evaluateAll(buttons => buttons[0]?.click())
   await dialog.getByText(/历史已清理。请填写新的修改意见/).waitFor()
   assert.equal(await field().inputValue(), '')
   await dialog.locator('.conversation-history > summary').click()

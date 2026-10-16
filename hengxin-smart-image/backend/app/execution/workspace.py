@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 from urllib.parse import urlsplit
-from .prompts import prompt_for
 
 
 @dataclass

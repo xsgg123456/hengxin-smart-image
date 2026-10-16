@@ -1,12 +1,10 @@
-import { createMockSkillCatalog } from './mock-skill-catalog'
+import { validateSettings } from './settings-validation'
 import type { DemoState } from './demo-state'
-import type { ManagementScenario, ManagementService, ManagedSettings, ManagedSkill, ManagedUser, UsageAttempt } from '../../types/management'
-import type { SkillVersion, SystemConfig, Task, User, Workspace } from '../../types/hengxin'
+import type { ManagementScenario, ManagementService, ManagedSettings, ManagedUser } from '../../types/management'
+import type { SystemConfig, User } from '../../types/hengxin'
 import { ApiError } from './http'
-import { buildUsage, mockAttempts } from './mock-management-usage'
-import { createSkillManagement, validateSettings } from './mock-management-skills'
 
-export function createMockManagement(db: Workspace, skills: SkillVersion[], getUser: () => User | Promise<User>, options: { snapshot?: DemoState; capture?: (state: Partial<DemoState>) => void; scenario?: ManagementScenario; wait?: () => Promise<void>; installMs?: number; attempts?: UsageAttempt[]; getAttempts?: () => UsageAttempt[]; getHistoricalTasks?: () => Task[]; onSettingsChanged?: (config: SystemConfig) => void; onUserChanged?: (user: User) => void } = {}): ManagementService & { snapshot: () => Partial<DemoState> } {
+export function createMockManagement(getUser: () => User | Promise<User>, options: { snapshot?: DemoState; capture?: (state: Partial<DemoState>) => void; scenario?: ManagementScenario; wait?: () => Promise<void>; onSettingsChanged?: (config: SystemConfig) => void; onUserChanged?: (user: User) => void } = {}): ManagementService & { snapshot: () => Partial<DemoState> } {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
   const scenario = options.scenario ?? 'default'
   const failures = new Set<string>()
@@ -28,59 +26,14 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
     { id: 'mock-pending', name: '新成员', identitySessionId: null, role: null, status: 'pending', department: '运营部', lastLoginAt: null }
   ]
   let settings: ManagedSettings = options.snapshot?.settings ? copy(options.snapshot.settings) : { version: 1, capacity: 10, timeoutCapacity: 3600, concurrency: 1, timeoutSeconds: 600, maxUploadBytes: 10 * 1024 * 1024,
-    defaultSkillIds: { wallpaper: skills.find(s => s.mode === 'wallpaper' && s.isDefault)?.id ?? null, product: skills.find(s => s.mode === 'product' && s.isDefault)?.id ?? null, text: skills.find(s => s.mode === 'text' && s.isDefault)?.id ?? null },
     dingtalk: { corpId: '', appId: '', callbackDomain: '', state: 'unconfigured' }, audit: [] }
   options.snapshot?.users?.forEach(user => assignments.set(user.id, { role: user.role, status: user.status }))
   options.onSettingsChanged?.(copy(settings))
   const capture = () => options.capture?.({ users: copy(users), settings: copy(settings) })
   capture()
-  const skillService = createSkillManagement(db, skills, check, { ...options, capture: state => options.capture?.(state) })
   const service: ManagementService & { snapshot: () => Partial<DemoState> } = {
     async listApplications(query) { await check(true); return { items: [], total: 0, page: query.page, pageSize: query.pageSize } },
     async decideApplication() { await check(true, 'save'); throw new ApiError('NOT_FOUND', '预览中暂无主动加入申请', 404) },
-    ...skillService,
-    ...createMockSkillCatalog(db, skills, check, options),
-    getCatalogDefaults: () => service.getSkillDefaults(),
-    saveCatalogDefaults: input => service.saveSkillDefaults(input),
-    async getSkillDefaults() { await check(true); return copy(settings.defaultSkillIds) },
-    async saveSkillDefaults(input) {
-      const user = await check(true, 'save')
-      for (const mode of ['wallpaper', 'product', 'text'] as const) {
-        if (input[mode] !== null && !skills.some(s => s.id === input[mode] && s.mode === mode && s.status === 'available')) {
-          throw new ApiError('VALIDATION', '默认版本必须属于该模块且可用', 422)
-        }
-      }
-      settings.defaultSkillIds = copy(input)
-      settings.version++
-      settings.audit.unshift({ id: crypto.randomUUID(), operatorId: user.id, operatorName: user.name, changedAt: new Date().toISOString(), version: settings.version, fields: ['defaultSkillIds'] })
-      skills.forEach(s => { s.isDefault = input[s.mode] === s.id })
-      options.onSettingsChanged?.(copy(settings)); capture()
-      return copy(input)
-    },
-    async getUsage(query) {
-      const user = await check()
-      const names = [...users, ...(users.some(u => u.id === user.id) ? [] : [{ ...user, department: '', lastLoginAt: null }])]
-      return copy(buildUsage({ ...db, tasks: scenario === 'empty' ? [] : options.getHistoricalTasks?.() ?? db.tasks }, scenario === 'empty' ? [] : options.getAttempts?.() ?? options.attempts ?? mockAttempts(db, 'mock-operator'), user, query, names))
-    },
-    async getMonitor() {
-      const user = await check()
-      if (!['super_admin', 'design_manager'].includes(user.role!)) throw new ApiError('FORBIDDEN', '请在任务中心查看业务状态', 403)
-      const tasks = scenario === 'idle' || scenario === 'empty' ? [] : db.tasks.filter(t => t.state !== '待查看')
-      const incidents: Partial<Record<ManagementScenario, string>> = { 'worker-lost': 'Worker 心跳失联，请检查后台执行服务', 'auth-rejected': 'CLI 认证被拒绝，请由管理员检查服务端认证', 'rate-limited': '执行服务被限流，请稍后重试', timeout: '最近执行超时，已保留成功结果', unavailable: 'MinIO 当前不可达，请检查存储连接' }
-      const issue = incidents[scenario] ? { code: scenario, message: incidents[scenario]! } : undefined
-      const state = scenario === 'unknown' || scenario === 'worker-lost' || scenario === 'empty' ? 'unknown' : issue ? 'unavailable' : tasks.some(t => t.state === '执行中') ? 'running' : 'idle'
-      const checkedAt = scenario === 'worker-lost' ? new Date(Date.now() - 3600000).toISOString() : state === 'unknown' ? null : new Date().toISOString()
-      const queueSize = tasks.filter(t => t.state === '排队中').length
-      const runningCount = tasks.filter(t => t.state === '执行中').length
-      const latest = (taskId: string) => options.getAttempts?.().filter(attempt => attempt.taskId === taskId).sort((a,b) => b.startedAt.localeCompare(a.startedAt))[0]
-      const recent = (options.getAttempts?.() ?? options.attempts ?? []).filter(attempt => attempt.finishedAt).sort((a,b) => b.finishedAt!.localeCompare(a.finishedAt!))[0]
-      const resultNames = { running: '执行中', success: '成功', partial: '部分失败', failed: '失败', timeout: '超时' }
-      const active = tasks.filter(t => t.state === '执行中' || String(t.state) === '待核实')
-      const recentTasks = tasks.filter(t => !active.includes(t)).sort((a, b) => b.time.localeCompare(a.time)).slice(0, 100)
-      return { checkedAt, state, issue, queueSize: scenario === 'unknown' ? null : queueSize, runningCount: scenario === 'unknown' ? null : runningCount, taskCount: scenario === 'unknown' ? null : tasks.length, tasks: [...active, ...recentTasks].map(t => { const attempt = latest(t.id); return { taskId: t.id, name: t.name, operatorName: attempt?.operatorName ?? t.ownerId, state: t.state, sessionId: user.role === 'super_admin' ? t.sessionId : null, elapsedSeconds: t.state === '执行中' && attempt ? Math.max(0, Math.floor((Date.now() - Date.parse(attempt.startedAt)) / 1000)) : null, error: t.error ?? null } }),
-        detail: user.role !== 'super_admin' ? null : { workers: scenario === 'empty' || scenario === 'unknown' ? [] : [{ id: '模拟 Worker', checkedAt: checkedAt ?? new Date(Date.now() - 3600000).toISOString(), state, queueSize, runningCount, concurrency: settings.concurrency }], cliVersion: state === 'unknown' ? null : '模拟 CLI', configured: state === 'unknown' ? null : state !== 'unavailable', lastResult: recent && scenario !== 'empty' ? recent.taskName + ' · ' + resultNames[recent.state] + ' · ' + recent.finishedAt : null, freeDiskBytes: null,
-          dependencies: ['PostgreSQL', 'Redis', 'MinIO'].map(name => ({ name, state: state === 'unknown' ? 'unknown' : scenario === 'unavailable' && name === 'MinIO' ? 'unavailable' : 'available', message: scenario === 'unavailable' && name === 'MinIO' ? '模拟存储连接失败' : '模拟检查；未连接真实依赖' })) } }
-    },
     async listUsers(query) {
       await check(true)
       if (!Number.isInteger(query.page) || query.page < 1 || !Number.isInteger(query.pageSize) || query.pageSize < 1 || query.pageSize > 100) throw new ApiError('VALIDATION', '分页参数无效', 422)
@@ -96,14 +49,14 @@ export function createMockManagement(db: Workspace, skills: SkillVersion[], getU
       assignments.set(user.id, { role: input.role, status: input.status })
       Object.assign(user, { role: input.role, status: input.status }); options.onUserChanged?.(copy(user)); capture(); return copy(user)
     },
+    snapshot: () => ({ users: copy(users), settings: copy(settings) }),
     async getSettings() { await check(true); return copy(settings) },
     async saveSettings(input) {
       const user = await check(true, 'save')
       if (input.version !== settings.version) throw new ApiError('CONFLICT', '配置版本已变化，请刷新后重试', 409)
-      validateSettings(input, skills, settings)
-      const fields = (['concurrency', 'timeoutSeconds', 'maxUploadBytes', 'defaultSkillIds', 'dingtalk'] as const).filter(key => JSON.stringify(input[key]) !== JSON.stringify(key === 'dingtalk' ? { corpId: settings.dingtalk.corpId, appId: settings.dingtalk.appId, callbackDomain: settings.dingtalk.callbackDomain } : settings[key]))
+      validateSettings(input, settings)
+      const fields = (['concurrency', 'timeoutSeconds', 'maxUploadBytes', 'dingtalk'] as const).filter(key => JSON.stringify(input[key]) !== JSON.stringify(key === 'dingtalk' ? { corpId: settings.dingtalk.corpId, appId: settings.dingtalk.appId, callbackDomain: settings.dingtalk.callbackDomain } : settings[key]))
       settings = { ...copy(input), capacity: settings.capacity, timeoutCapacity: settings.timeoutCapacity, version: settings.version + 1, dingtalk: { ...settings.dingtalk }, audit: [{ id: crypto.randomUUID(), operatorId: user.id, operatorName: user.name, changedAt: new Date().toISOString(), version: settings.version + 1, fields }, ...settings.audit] }
-      skills.forEach(s => { s.isDefault = settings.defaultSkillIds[s.mode] === s.id })
       options.onSettingsChanged?.(copy(settings)); capture()
       return copy(settings)
     }

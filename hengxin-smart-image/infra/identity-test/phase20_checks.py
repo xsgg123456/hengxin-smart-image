@@ -38,7 +38,7 @@ def run(h):
         from PIL import Image
         image = BytesIO()
         Image.new('RGB', (4, 4), 'white').save(image, format='PNG')
-        domestic_file = h.expect(domestic_session.post(h.BUSINESS['domestic'][0] + '/api/v1/files',
+        domestic_file = h.expect(domestic_session.post(h.BUSINESS['domestic'][0] + '/api/v1/api-image-edits/files',
             files={'file': ('domestic.png', image.getvalue(), 'image/png')}), 200).json()['fileId']
         domestic_before = domestic_snapshot(h)
         before_objects = [(x.object_name, x.etag) for x in domestic.list_objects('domestic-test', recursive=True)]
@@ -131,7 +131,7 @@ def run(h):
         both = h.expect(operator.post(base + '/tasks', json={**body, 'materialIds': pair},
                                       headers={'Idempotency-Key': str(uuid4())}), 201).json()
         assert len(h.expect(old.get(base + '/tasks/' + both['id'] + '/materials'), 200).json()) == 2
-        h.expect(domestic_session.get(h.BUSINESS['domestic'][0] + '/api/v1/files/' + material['id'] + '/content'), 404)
+        h.expect(domestic_session.get(h.BUSINESS['domestic'][0] + '/api/v1/api-image-edits/files/' + material['id'] + '/content'), 404)
     assert domestic_snapshot(h) == domestic_before
     assert [(x.object_name, x.etag) for x in domestic.list_objects('domestic-test', recursive=True)] == before_objects
     own = storage('overseas')

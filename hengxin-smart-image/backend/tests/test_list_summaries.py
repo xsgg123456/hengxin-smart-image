@@ -2,14 +2,10 @@ from uuid import UUID
 
 from sqlalchemy import event, select
 
-from app.execution.fixture_runner import run_generation
 from app.modules.api_image_edits.models import ApiItem, ApiTask
-from app.modules.tasks.models import TaskRecord
-from app.modules.tasks.queries import serialize
 from files_helpers import files_env
 from performance_samples import sample
 from test_api_image_domain import ROOT, create, enabled_api
-from test_tasks import body, job_for, submit, task_env
 
 
 def test_api_summary_counts_cover_and_no_history_queries(files_env):
@@ -53,19 +49,3 @@ def test_api_summary_counts_cover_and_no_history_queries(files_env):
     assert next(row for row in legacy if row['id'] == first)['prompt'] == detail['prompt']
 
 
-def test_cli_batch_preserves_contract_and_constant_sql(task_env):
-    client, factory, _, _ = task_env
-    for index in range(4):
-        response = submit(task_env, {**body(task_env, 'wallpaper'), 'name': f'列表{index}'},
-                          f'batch-list-{index}')
-        assert response.status_code == 202
-        run_generation(job_for(factory, response.json()), factory, task_env[2])
-    one, small = sample(client, '/api/v1/tasks?pageSize=1')
-    many, large = sample(client, '/api/v1/tasks?pageSize=20')
-    assert small['sql_before_headers'] == large['sql_before_headers'] == 16
-    assert one.json()['total'] == many.json()['total'] == 4
-    assert one.json()['stats'] == many.json()['stats']
-    for item in many.json()['items']:
-        with factory() as session:
-            original = serialize(session, session.get(TaskRecord, UUID(item['id'])))
-            assert item == original.model_dump(mode='json')

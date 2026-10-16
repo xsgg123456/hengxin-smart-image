@@ -3,13 +3,8 @@ from datetime import timedelta
 from uuid import UUID
 from sqlalchemy import or_, select
 from app.models import utcnow
-from app.resource_models import FileRecord
 from app.modules.api_image_edits.models import ApiFile, ApiItem, ApiTask, ApiVersion
 from app.modules.api_image_edits.conversation_models import ConversationTurn
-from app.modules.tasks.models import TaskRecord, TaskSource, ImageVersion, RoundRecord
-from app.modules.templates.models import TemplateImageRecord
-from app.modules.archives.models import ArchiveImage
-from app.modules.skills.models import SkillVersionRecord
 from app.modules.files.variants import ImageVariants
 from .models import RetentionObject
 
@@ -23,20 +18,18 @@ def contains_id(value, file_id):
 
 
 def referenced(session, domain, file_id):
+    if domain != 'api-image-edits':
+        raise ValueError('Invalid file domain')
     refs = [(ApiTask, ('material_id',)), (ApiItem, ('source_id', 'result_id',
             'revision_source_id', 'revision_annotation_id', 'staging_file_id')),
             (ApiVersion, ('file_id', 'annotation_id')),
-            (ConversationTurn, ('base_file_id', 'annotation_id', 'candidate_id'))] if domain == 'api-image-edits' else [
-            (TaskSource, ('file_id',)), (ImageVersion, ('file_id',)),
-            (TemplateImageRecord, ('file_id',)), (ArchiveImage, ('file_id',)),
-            (RoundRecord, ('annotation_file_id',))]
+            (ConversationTurn, ('base_file_id', 'annotation_id', 'candidate_id'))]
     for model, columns in refs:
         if session.scalar(select(model.id).where(or_(
                 *(getattr(model, c) == file_id for c in columns))).limit(1)):
             return True
     # Frozen JSON references have no database FK. Keep them even on deleted tasks.
-    for model, columns in [(TaskRecord, ('template_snapshot', 'skill_snapshot')),
-                           (ConversationTurn, ('snapshot',)), (ApiItem, ('revision_snapshot',))]:
+    for model, columns in [(ConversationTurn, ('snapshot',)), (ApiItem, ('revision_snapshot',))]:
         for values in session.execute(select(*(getattr(model, c) for c in columns))):
             if contains_id(tuple(values), file_id):
                 return True
@@ -45,8 +38,8 @@ def referenced(session, domain, file_id):
 
 def queue_unused(session, domain, file_ids, now=None):
     now = now or utcnow()
-    model = FileRecord if domain == 'originals' else ApiFile
-    if domain not in ('originals', 'api-image-edits'):
+    model = ApiFile
+    if domain != 'api-image-edits':
         raise ValueError('Invalid file domain')
     session.flush()
     removed = 0
@@ -57,11 +50,8 @@ def queue_unused(session, domain, file_ids, now=None):
         record = session.scalar(select(model).where(model.id == file_id).with_for_update(nowait=True))
         if not record or referenced(session, domain, file_id):
             continue
-        other = ApiFile if model is FileRecord else FileRecord
-        if session.scalar(select(other.id).where(other.bucket == record.bucket,
-                other.object_key == record.object_key).limit(1)) or session.scalar(
-                select(SkillVersionRecord.id).where(SkillVersionRecord.bucket == record.bucket,
-                SkillVersionRecord.object_key == record.object_key).limit(1)):
+        if session.scalar(select(ApiFile.id).where(ApiFile.id != record.id,
+                ApiFile.bucket == record.bucket, ApiFile.object_key == record.object_key).limit(1)):
             continue
         variant = session.scalar(select(ImageVariants).where(ImageVariants.domain == domain,
             ImageVariants.file_id == file_id).with_for_update(nowait=True))
@@ -96,7 +86,7 @@ def retry_objects(factory, store, limit=25, now=None):
             # Last line of defence if a key has been reintroduced after the receipt.
             if any(session.scalar(select(model.id).where(model.bucket == row.bucket,
                     model.object_key == row.object_key).limit(1))
-                    for model in (FileRecord, ApiFile, SkillVersionRecord)):
+                    for model in (ApiFile,)):
                 row.next_attempt_at = now + timedelta(hours=1)
                 continue
             try:

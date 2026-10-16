@@ -69,23 +69,16 @@ def test_worker_guard(monkeypatch):
         run_job("not-reached")
 
 
-@pytest.mark.parametrize('environment', ['development', 'production'])
-def test_fixture_executor_is_test_only(environment):
-    with pytest.raises(ValidationError, match='only in test'):
-        Settings(app_env=environment, enable_fixture_executor=True)
 
 
-@pytest.mark.parametrize('values', [{'generation_concurrency': 0}, {'generation_concurrency': 11},
-    {'fixture_delay_seconds': -1}, {'fixture_delay_seconds': 61}])
+@pytest.mark.parametrize('values', [{'generation_concurrency': 0}, {'generation_concurrency': 11}])
 def test_generation_configuration_bounds(values):
     with pytest.raises(ValidationError):
         Settings(**values)
 
 
 def test_generation_configuration_defaults(monkeypatch):
-    for name in ['ENABLE_FIXTURE_EXECUTOR', 'GENERATION_CONCURRENCY', 'FIXTURE_DELAY_SECONDS']:
+    for name in ['GENERATION_CONCURRENCY']:
         monkeypatch.delenv(name, raising=False)
     settings = Settings(_env_file=None)
-    assert not settings.enable_fixture_executor
     assert settings.generation_concurrency == 1
-    assert settings.fixture_delay_seconds == 3

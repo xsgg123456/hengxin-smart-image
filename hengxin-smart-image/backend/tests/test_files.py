@@ -1,15 +1,17 @@
+from test_api_image_domain import enabled_api
 import hashlib
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
 
-from app.resource_models import FileRecord, UserRecord
+from app.resource_models import UserRecord
+from app.modules.api_image_edits.models import ApiFile as FileRecord
 from files_helpers import files_env, image_bytes
 
 
 def upload(client, data=None, name='素材.png', mime='image/png'):
-    return client.post('/api/v1/files', files={'file': (name, image_bytes() if data is None else data, mime)})
+    return client.post('/api/v1/api-image-edits/files', files={'file': (name, image_bytes() if data is None else data, mime)})
 
 
 @pytest.mark.parametrize('kind,mime', [('PNG', 'image/png'), ('JPEG', 'image/jpeg'), ('WEBP', 'image/webp')])
@@ -19,9 +21,9 @@ def test_original_bytes_metadata_and_private_download(files_env, kind, mime):
     response = upload(client, data, mime=mime)
     assert response.status_code == 200, response.text
     picture = response.json()
-    assert set(picture) == {'name', 'url', 'fileId'}
-    assert picture['url'] == f"/api/v1/files/{picture['fileId']}/content"
-    assert client.get('/api/v1/files/' + picture['fileId']).json() == picture
+    assert set(picture) == {'name', 'url', 'fileId', 'width', 'height'}
+    assert picture['url'] == f"/api/v1/api-image-edits/files/{picture['fileId']}/content"
+    assert client.get('/api/v1/api-image-edits/files/' + picture['fileId']).json() == picture
     for suffix in ['', '?download=true']:
         result = client.get(picture['url'] + suffix)
         assert result.status_code == 200 and result.content == data
@@ -49,7 +51,7 @@ def test_all_roles_cross_owner_and_recheck_disabled(files_env, role):
     with factory.begin() as session:
         session.get(UserRecord, identity[0]).status = 'disabled'
     assert client.get(picture['url']).status_code == 403
-    assert client.get('/api/v1/files/' + picture['fileId']).status_code == 403
+    assert client.get('/api/v1/api-image-edits/files/' + picture['fileId']).status_code == 403
     assert upload(client).status_code == 403
 
 
@@ -87,8 +89,8 @@ def test_store_failure_never_exposes_staged_file_and_retry_succeeds(files_env, f
         failed = session.scalar(select(FileRecord))
         assert failed.status == 'failed'
         file_id = str(failed.id)
-    assert client.get('/api/v1/files/' + file_id).status_code == 404
-    assert client.get('/api/v1/files/' + file_id + '/content').status_code == 404
+    assert client.get('/api/v1/api-image-edits/files/' + file_id).status_code == 404
+    assert client.get('/api/v1/api-image-edits/files/' + file_id + '/content').status_code == 404
     store.fail_put = False
     assert upload(client).status_code == 200
 
@@ -97,7 +99,7 @@ def test_filename_safety_missing_and_storage_unavailable(files_env):
     client, _, store, _ = files_env
     picture = upload(client, name='../../测试<script>.exe').json()
     assert picture['name'] == '测试_script_.png'
-    assert client.get('/api/v1/files/' + str(uuid4())).status_code == 404
+    assert client.get('/api/v1/api-image-edits/files/' + str(uuid4())).status_code == 404
     store.fail_open = True
     response = client.get(picture['url'])
     assert response.status_code == 503

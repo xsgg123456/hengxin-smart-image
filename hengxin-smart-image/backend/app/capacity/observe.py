@@ -9,8 +9,7 @@ from sqlalchemy import func, select
 from app.db.session import session_factory
 from app.core.config import get_settings
 from app.models import Job
-from app.modules.tasks.models import ExecutionGate, RoundRecord, TaskRecord, ResultSlotRecord
-from app.modules.tasks.attempts import ExecutionAttempt
+from app.execution.models import ExecutionGate
 from app.modules.api_image_edits.models import ApiItem
 from app.modules.api_image_edits.state import channel
 from .admission import gate, reserve, pending_bytes
@@ -20,18 +19,7 @@ MIB = 1024 * 1024
 
 
 def adopt_legacy(session):
-    # Failed does not prove no paid output. Keep every potential CLI delivery;
-    # do not inspect/delete arbitrary model workspace files during activation.
-    rounds = session.scalars(select(RoundRecord).join(TaskRecord).where(
-        TaskRecord.execution_source == 'cli', RoundRecord.status == 'failed',
-        select(ExecutionAttempt.id).where(ExecutionAttempt.round_id == RoundRecord.id).exists()))
     count = 0
-    for row in rounds:
-        slots = 1 if row.target is not None else session.scalar(select(func.count()).select_from(
-            ResultSlotRecord).where(ResultSlotRecord.task_id == row.task_id))
-        if not reserve(session, row.id, 'cli', row.id, max(1, slots) * 20 * MIB):
-            raise ValueError('Insufficient capacity for legacy CLI delivery debt; activation rolled back')
-        count += 1
     for item in session.scalars(select(ApiItem).where(
             ApiItem.result_url.is_not(None) | ApiItem.result_bytes.is_not(None))):
         identity = item.capacity_cycle_id or uuid4()
@@ -51,7 +39,7 @@ def enable(session, paths, floor_bytes, api_bytes, cli_bytes):
     if policy.enabled:
         raise ValueError('Already enabled; changing envelopes requires a separately reviewed drain procedure')
     cli_active = session.scalar(select(func.count()).select_from(Job).where(
-        Job.kind.in_(('generation', 'api_cli_edit')), Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
+        Job.kind == 'api_cli_edit', Job.status.in_(['running', 'collecting', 'cancelling', 'uncertain'])))
     api_active = session.scalar(select(func.count()).select_from(ApiItem).where(
         ApiItem.state.in_(['running', 'collecting', 'uncertain'])))
     if cli_active or api_active:

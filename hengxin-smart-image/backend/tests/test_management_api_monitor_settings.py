@@ -12,7 +12,7 @@ from app.modules.api_image_edits.models import ApiTask, ApiItem, ApiAttempt, Api
 from app.modules.api_image_edits.heartbeat_models import ApiWorkerHeartbeat
 from app.modules.api_image_edits.conversation_models import Conversation, ConversationTurn
 from app.modules.api_image_edits import worker_health
-from app.modules.tasks.attempts import WorkerHeartbeat
+from app.worker.models import WorkerHeartbeat
 from app.modules.management.models import SystemSettings
 from app.resource_models import UserRecord
 from files_helpers import files_env
@@ -83,10 +83,11 @@ def test_cli_latest_turn_and_shared_capacity(env):
             job = Job(idempotency_key=str(uuid4()), payload_hash='x', value='', kind='api_cli_edit', status='succeeded')
             session.add(job); session.flush()
             session.add(ConversationTurn(conversation_id=conversation.id, job_id=job.id, operator_id=original[3][0], status=status,text='',prompt='',snapshot={},base_file_id=item.source_id,created_at=utcnow()+timedelta(seconds=index)))
-        session.add(Job(idempotency_key=str(uuid4()),payload_hash='x',value='',kind='generation',status='running'))
+        session.add(Job(idempotency_key=str(uuid4()),payload_hash='x',value='',kind='api_cli_edit',status='running'))
     cli = report(env)['channels'][1]
     assert metric(cli, 'failed')['turns'] == 0
-    assert cli['otherActiveTurns'] == cli['sharedActiveTurns'] == 1
+    assert cli['sharedActiveTurns'] == 1
+    assert 'otherActiveTurns' not in cli
 
 def test_query_failure_reports_unknown_other_channel_survives(env):
     engine = env[1][1].kw['bind']

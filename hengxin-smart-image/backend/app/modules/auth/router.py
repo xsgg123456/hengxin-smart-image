@@ -40,7 +40,7 @@ def dingtalk_config():
 
 @router.get('/auth/dingtalk/authorize')
 def dingtalk_authorize(
-    redirect: str = Query('/image-processing/wallpaper'),
+    redirect: str = Query('/api-image-edits/create'),
     session: Session = Depends(get_session),
 ):
     settings = dingtalk.get_settings()
@@ -70,7 +70,7 @@ def dingtalk_callback(
     session: Session = Depends(get_session),
     previous: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
-    return_path = '/image-processing/wallpaper'
+    return_path = '/api-image-edits/create'
     if not isinstance(login_state, str) or not compare_digest(state.encode(), login_state.encode()):
         return _callback_response(return_path, 'denied')
     try:

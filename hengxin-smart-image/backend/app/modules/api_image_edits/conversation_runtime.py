@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select
 from app.capacity.admission import reserve, WAITING
 from app.core.config import get_settings
 from app.models import Job, Outbox, utcnow
-from app.modules.tasks.models import ExecutionGate
+from app.execution.models import ExecutionGate
 from app.worker.leases import lease_active
 from app.execution.public_messages import public_message
 from .conversation import emit
@@ -70,7 +70,7 @@ def claim(factory, job_id):
             finish(session, conversation, turn, job, 'cancelled')
             return None
         count = session.scalar(select(func.count()).select_from(Job).where(
-            Job.kind.in_(('generation', 'api_cli_edit')),
+            Job.kind == 'api_cli_edit',
             Job.status.in_(('running', 'collecting', 'cancelling', 'uncertain'))))
         if count >= min(turn.snapshot.get('concurrency', get_settings().generation_concurrency),
                         get_settings().generation_concurrency):

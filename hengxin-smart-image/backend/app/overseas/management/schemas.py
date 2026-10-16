@@ -2,8 +2,8 @@ import re
 from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from app.contracts.management import SkillRegisterInput
-from app.modules.skills.package_validator import MAX_FILES, MAX_TOTAL, MAX_ZIP
+from app.contracts.skill_package import SkillRegisterInput
+from app.core.skill_package import MAX_FILES, MAX_TOTAL, MAX_ZIP
 
 Stage = Literal['analysis', 'generation', 'revision']
 

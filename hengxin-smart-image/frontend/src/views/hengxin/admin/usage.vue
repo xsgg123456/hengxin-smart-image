@@ -1,6 +1,4 @@
-<template><component :is="page" /></template>
+<template><ApiUsage /></template>
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
-import { isMockMode } from '@/api/hengxin/client'
-const page = defineAsyncComponent(() => isMockMode ? import('./preview/UsagePreview.vue') : import('./ApiUsage.vue'))
+import ApiUsage from './ApiUsage.vue'
 </script>

@@ -46,28 +46,6 @@ def execute_job(job_id: str):
     elif kind == 'api_cli_edit':
         from app.modules.api_image_edits.conversation_runner import run_turn
         run_turn(job_id, factory)
-    elif kind == 'generation':
-        from app.modules.tasks.models import RoundRecord, TaskRecord
-        with factory() as session:
-            round = session.scalar(select(RoundRecord).where(RoundRecord.job_id == UUID(job_id)))
-            task = session.get(TaskRecord, round.task_id) if round else None
-            source = task.execution_source if task else None
-        if source == 'cli':
-            from app.execution.codex_runner import run_generation
-        elif source == 'fixture':
-            from app.execution.fixture_runner import run_generation
-        else:
-            return
-        run_generation(job_id, factory)
-    elif kind == 'skill_install':
-        from app.worker.skill_install import run_install
-        run_install(job_id, factory)
-    elif kind == 'skill_check':
-        from app.worker.skill_check import run_check
-        run_check(job_id, factory)
-    elif kind == 'skill_sync':
-        from app.worker.skill_sync import run_sync
-        run_sync(job_id, factory)
     elif kind is not None:
         from app.worker.leases import finish_job
         with factory.begin() as session:

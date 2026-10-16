@@ -10,8 +10,7 @@
         <ArtHeaderBar />
       </div>
       <div id="app-content">
-        <WorkspaceStatus />
-        <ArtPageContent v-if="!connection.error" />
+        <ArtPageContent />
       </div>
     </main>
 
@@ -22,8 +21,6 @@
 </template>
 
 <script setup lang="ts">
-  import WorkspaceStatus from '../hengxin/components/WorkspaceStatus.vue'
-  import { connection } from '../hengxin/model'
   defineOptions({ name: 'AppLayout' })
 </script>
 

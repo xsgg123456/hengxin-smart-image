@@ -1,6 +1,6 @@
 """Persist task sessions, CLI attempts, usage and worker observations."""
 from alembic import op
-from app.modules.tasks.attempts import (
+from migrations.legacy_schema import (
     ExecutionSession, ExecutionAttempt, ExecutionUsage, WorkerHeartbeat,
 )
 

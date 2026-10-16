@@ -15,12 +15,12 @@ from app.modules.api_image_edits.conversation import AdoptTurn, SubmitTurn, adop
 from app.modules.api_image_edits.conversation_models import Conversation, ConversationTurn
 from app.modules.api_image_edits.conversation_runtime import claim
 from app.modules.api_image_edits.models import ApiFile, ApiItem, ApiTask, ApiVersion
-from app.retention import api, legacy, paths
+from app.retention import api, paths
 from app.retention.models import RetentionEntry, RetentionObject
 from app.retention.state import entry, touch
 from app.retention.worker import register_existing, run_once
 from test_api_cli_concurrency import pg_edit  # noqa: F401
-from test_tasks_concurrency import compete, pg_tasks  # noqa: F401
+from concurrency_helpers import compete  # noqa: F401
 
 
 class Store:

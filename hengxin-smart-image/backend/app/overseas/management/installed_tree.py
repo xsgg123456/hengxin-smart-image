@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 import yaml
 
-from app.modules.skills.package_validator import validate_files as validate_package
+from app.core.skill_package import validate_files as validate_package
 from .schemas import validate_files
 
 MAX_FILE = 64 * 1024 * 1024

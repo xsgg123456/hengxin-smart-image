@@ -1,3 +1,4 @@
+from test_api_image_domain import enabled_api
 from io import BytesIO
 import asyncio
 from types import SimpleNamespace
@@ -7,10 +8,11 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from starlette.datastructures import Headers
 
-from app.modules.files.service import save_upload
+from app.modules.api_image_edits.files import save_upload
 from app.modules.files.validation import validate_image
 from app.modules.files.streaming import OwnedStreamResponse
-from app.resource_models import FileRecord, UserRecord
+from app.resource_models import UserRecord
+from app.modules.api_image_edits.models import ApiFile as FileRecord
 from app.storage.minio_store import MinioStore
 from files_helpers import ObjectStream, files_env, image_bytes
 
@@ -30,14 +32,13 @@ def test_database_finalize_failure_keeps_unpublished_staging(files_env, monkeypa
             real_commit()
 
         monkeypatch.setattr(session, 'commit', commit)
-        with pytest.raises(HTTPException) as error:
+        with pytest.raises(OSError, match='commit interrupted'):
             save_upload(session, store, user, image)
-        assert error.value.status_code == 503
     with factory() as session:
         record = session.scalar(select(FileRecord))
         assert record.status == 'staging'
         assert record.object_key in store.objects
-        assert client.get(f'/api/v1/files/{record.id}/content').status_code == 404
+        assert client.get(f'/api/v1/api-image-edits/files/{record.id}/content').status_code == 404
 
 
 def test_storage_public_policy_rejected():

@@ -1,3 +1,4 @@
+from test_api_cli_conversation import seed_gate
 from datetime import timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -14,12 +15,9 @@ from app.modules.api_image_edits.claims import claim as api_claim, start_attempt
 from app.modules.api_image_edits.execution import execute_next
 from app.modules.api_image_edits.models import ApiAttempt, ApiFile, ApiItem
 from app.modules.api_image_edits.relay import RelayResult
-from app.modules.tasks.claims import claim as cli_claim, sweep_expired
-from app.modules.tasks.models import RoundRecord
 from files_helpers import files_env, image_bytes
 from test_api_image_domain import ROOT, create, enabled_api
 from test_api_image_execution import Client, due
-from test_tasks import task_env, submit, job_for
 
 MIB = 1024 * 1024
 
@@ -134,20 +132,6 @@ def test_revision_has_new_cycle_and_preserves_previous_debt(files_env):
         assert pending_bytes(session) == 120 * MIB
 
 
-def test_cli_and_api_share_budget_and_cli_uncertain_retains(task_env):
-    web, factory, _, _ = task_env
-    receipt = submit(task_env).json()
-    create(web, 1)
-    policy(factory, free=500 * MIB)
-    job_id = job_for(factory, receipt)
-    assert cli_claim(factory, job_id)
-    assert api_claim(factory) is None
-    with factory.begin() as session:
-        session.get(Job, job_id).lease_until = utcnow() - timedelta(seconds=1)
-    sweep_expired(factory)
-    with factory() as session:
-        assert session.get(RoundRecord, UUID(receipt['roundId'])).status == 'uncertain'
-        assert pending_bytes(session) == 400 * MIB
 
 
 def test_rollback_and_identity_mismatch(files_env):
@@ -201,8 +185,8 @@ def test_sampling_accounts_only_published_and_keeps_physical_growth(files_env, t
         sample(session, wrong)
 
 
-def test_enable_requires_drain_and_explicit_actual_paths(task_env, tmp_path):
-    web, factory, _, _ = task_env
+def test_enable_requires_drain_and_explicit_actual_paths(files_env, tmp_path):
+    web, factory, _, _ = files_env
     create(web, 1)
     assert api_claim(factory)
     paths = {name: str(tmp_path) for name in ('execution', 'objects', 'database')}
@@ -232,8 +216,8 @@ def test_changed_retry_bytes_cannot_overwrite_staging(files_env):
         assert session.get(CapacityReservation, cycle).state == 'held'
 
 
-def test_drained_activation_and_sampling_never_enable_by_default(task_env, tmp_path, monkeypatch):
-    factory = task_env[1]
+def test_drained_activation_and_sampling_never_enable_by_default(files_env, tmp_path, monkeypatch):
+    factory = files_env[1]
     paths = {name: str(tmp_path) for name in ('execution', 'objects', 'database')}
     monkeypatch.setattr('app.capacity.observation.shutil.disk_usage', lambda _: SimpleNamespace(free=2000 * MIB))
     with factory.begin() as session:

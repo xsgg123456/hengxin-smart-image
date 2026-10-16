@@ -8,7 +8,7 @@ const channel = (v: unknown) => v === 'api' || v === 'cli'
 export function isApiMonitor(v: unknown): v is ApiMonitorReport {
   return record(v) && typeof v.checkedAt === 'string' && typeof v.incidentsTruncated === 'boolean' &&
     Array.isArray(v.channels) && v.channels.length === 2 && new Set(v.channels.map(c => record(c) ? c.channel : null)).size === 2 &&
-    v.channels.every(c => record(c) && channel(c.channel) && nullableNumber(c.concurrencyLimit) && nullableNumber(c.imagesPerBatch) && typeof c.enabled === 'boolean' && (c.paused === null || typeof c.paused === 'boolean') && (c.pauseReason === null || typeof c.pauseReason === 'string') && nullableNumber(c.sharedActiveTurns) && nullableNumber(c.otherActiveTurns) && state(c.state) && ['available', 'unknown'].includes(String(c.queueState)) &&
+    v.channels.every(c => record(c) && channel(c.channel) && nullableNumber(c.concurrencyLimit) && nullableNumber(c.imagesPerBatch) && typeof c.enabled === 'boolean' && (c.paused === null || typeof c.paused === 'boolean') && (c.pauseReason === null || typeof c.pauseReason === 'string') && nullableNumber(c.sharedActiveTurns) && state(c.state) && ['available', 'unknown'].includes(String(c.queueState)) &&
       Array.isArray(c.workers) && c.workers.every(w => record(w) && typeof w.id === 'string' && typeof w.checkedAt === 'string' && state(w.state) && nullableNumber(w.capacity)) &&
       Array.isArray(c.metrics) && c.metrics.every(m => record(m) && typeof m.phase === 'string' && nullableNumber(m.tasks) && nullableNumber(m.images) && nullableNumber(m.turns))) &&
     Array.isArray(v.incidents) && v.incidents.every(i => record(i) && typeof i.taskId === 'string' && typeof i.name === 'string' && channel(i.channel) && typeof i.phase === 'string' && number(i.images))

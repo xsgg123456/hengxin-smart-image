@@ -1,4 +1,3 @@
-import type { MockScenario } from './mock-catalog'
 import type { HengxinService } from '../../types/hengxin'
 import { createHttpService } from './http'
 import { createHttpManagement } from '../management'
@@ -11,13 +10,11 @@ if (import.meta.hot) import.meta.hot.dispose(() => { void service?.then(value =>
 export function getService(): Promise<HengxinService> {
   service ??= isMockMode
     ? import('./mock').then(({ createMockService }) => {
-      const value = new URLSearchParams(window.location.search).get('scenario') ?? 'default'
-      const scenario = ['default', 'empty', 'no-skills', 'upload-error', 'save-error', 'submit-error', 'list-error', 'execution-error', 'partial-result', 'revision-error', 'archive-error'].includes(value) ? value as MockScenario : 'default'
       const managementValue = new URLSearchParams(window.location.search).get('managementScenario') || 'default'
-      const managementScenario = ['default', 'empty', 'unknown', 'idle', 'unavailable', 'list-error', 'save-error', 'install-error', 'worker-lost', 'auth-rejected', 'rate-limited', 'timeout'].includes(managementValue) ? managementValue as import('../../types/management').ManagementScenario : 'default'
+      const managementScenario = ['default', 'empty', 'unknown', 'idle', 'unavailable', 'list-error', 'save-error', 'worker-lost', 'auth-rejected', 'rate-limited', 'timeout'].includes(managementValue) ? managementValue as import('../../types/management').ManagementScenario : 'default'
       return isDemoMode
-        ? import('./demo-service').then(({ createDemoService }) => createDemoService({ scenario, managementScenario }))
-        : createMockService({ scenario, managementScenario })
+        ? import('./demo-service').then(({ createDemoService }) => createDemoService({ managementScenario }))
+        : createMockService({ managementScenario })
     })
     : Promise.resolve({ ...createHttpService(import.meta.env.VITE_API_URL || '/api/v1'), ...createHttpManagement(import.meta.env.VITE_API_URL || '/api/v1') })
   return isDemoMode ? service.catch(reason => { service = undefined; throw reason }) : service

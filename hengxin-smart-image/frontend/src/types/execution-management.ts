@@ -2,7 +2,7 @@ export type ServiceState = 'available' | 'unavailable' | 'unknown'
 export interface QueueMetric { phase: string; tasks: number | null; images: number | null; turns: number | null }
 export interface ChannelMonitor {
   concurrencyLimit: number | null; imagesPerBatch: number | null
-  enabled: boolean; paused: boolean | null; pauseReason: string | null; sharedActiveTurns: number | null; otherActiveTurns: number | null
+  enabled: boolean; paused: boolean | null; pauseReason: string | null; sharedActiveTurns: number | null
   channel: 'api' | 'cli'; state: ServiceState; queueState: 'available' | 'unknown'
   workers: { id: string; checkedAt: string; state: ServiceState; capacity: number | null }[]
   metrics: QueueMetric[]

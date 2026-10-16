@@ -9,10 +9,15 @@ function paths(routes: AppRouteRecord[], parent = ''): string[] {
 }
 const businessPaths = new Set(paths(routeModules))
 
-/** 普通角色保留API工作区；兼容登录默认地址及历史书签。后端权限不变。 */
+/** 退役模块对所有角色回收；普通角色继续仅使用API工作区。 */
+export function isRetiredBusinessPath(path: string) {
+  return /^\/(?:image-processing|tasks|templates|archive|wallpaper|product|text)(?:\/|$)/.test(path) || /^\/management\/skills(?:\/|$)/.test(path)
+}
+
 export function apiWorkspaceRedirect(path: string, roles: string[] = []) {
+  if (isRetiredBusinessPath(path.split(/[?#]/)[0])) return '/api-image-edits/create'
   const limited = roles.length === 1 && ['designer', 'operator'].includes(roles[0])
-  const target = path.replace(/\/$/, '').replace(/^\/(wallpaper|product|text)\/index$/, '/image-processing/$1')
+  const target = path.replace(/\/$/, '')
   return limited && businessPaths.has(target) && !target.startsWith('/api-image-edits')
     ? '/api-image-edits/create' : undefined
 }

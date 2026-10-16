@@ -12,8 +12,8 @@ from app.modules.auth.dependencies import CurrentUser
 from app.modules.api_image_edits.models import ApiTask, ApiItem, ApiChannel
 from app.modules.api_image_edits.conversation_models import Conversation, ConversationTurn
 from app.modules.api_image_edits.heartbeat_models import ApiWorkerHeartbeat
-from app.modules.tasks.attempts import WorkerHeartbeat
-from .health import aware, fresh, configured, number
+from app.worker.models import WorkerHeartbeat
+from app.worker.health_state import aware, fresh, configured, number
 from .settings import values
 from app.modules.api_image_edits.scheduling import TASK_CONCURRENCY, IMAGES_PER_TASK
 
@@ -96,7 +96,7 @@ def build_api_monitor(session, user):
                  if states and all(value == 'available' for value in states) else 'unknown')
         if not enabled:
             state = 'unavailable'
-        extra = dict(paused=None, pauseReason=None, sharedActiveTurns=None, otherActiveTurns=None,
+        extra = dict(paused=None, pauseReason=None, sharedActiveTurns=None,
                      concurrencyLimit=TASK_CONCURRENCY if channel == 'api' else None,
                      imagesPerBatch=IMAGES_PER_TASK if channel == 'api' else None)
         try:
@@ -112,11 +112,10 @@ def build_api_monitor(session, user):
                 else:
                     extra['concurrencyLimit'] = values(session)['concurrency']
                     active = dict(session.execute(select(Job.kind, func.count()).where(
-                        Job.kind.in_(('generation', 'api_cli_edit')),
+                        Job.kind == 'api_cli_edit',
                         Job.status.in_(('running', 'collecting', 'cancelling', 'uncertain')))
                         .group_by(Job.kind)).all())
                     extra['sharedActiveTurns'] = sum(active.values())
-                    extra['otherActiveTurns'] = active.get('generation', 0)
             queue_state = 'available'
             incidents.extend(rows)
         except SQLAlchemyError:

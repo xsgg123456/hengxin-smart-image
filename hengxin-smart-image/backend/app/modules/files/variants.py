@@ -27,6 +27,8 @@ class ImageVariants(Timestamps, Base):
 
 def register(session, record, domain):
     """Register in the same transaction as publishing the ready original."""
+    if domain != 'api-image-edits':
+        raise ValueError('Invalid file domain')
     from sqlalchemy.dialects.postgresql import insert as pg_insert
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
     insert = sqlite_insert if session.bind.dialect.name == 'sqlite' else pg_insert
@@ -36,6 +38,8 @@ def register(session, record, domain):
 
 
 def representation(session, original, domain, size):
+    if domain != 'api-image-edits':
+        raise ValueError('Invalid file domain')
     row = session.get(ImageVariants, (domain, original.id))
     if row is None:
         register(session, original, domain)
@@ -52,10 +56,9 @@ def representation(session, original, domain, size):
 
 def backfill(factory, limit=100):
     """Bounded, restart-safe legacy discovery. No original is changed or deleted."""
-    from app.resource_models import FileRecord
     from app.modules.api_image_edits.models import ApiFile
     total = 0
-    for domain, model in [('originals', FileRecord), ('api-image-edits', ApiFile)]:
+    for domain, model in [('api-image-edits', ApiFile)]:
         with factory.begin() as session:
             registered = select(ImageVariants.file_id).where(
                 ImageVariants.domain == domain, ImageVariants.file_id == model.id).exists()

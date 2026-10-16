@@ -1,6 +1,6 @@
 """Durable generation snapshots, idempotency and result publication."""
 from alembic import op
-from app.modules.tasks.models import (TaskRecord, RoundRecord, TaskRequest, TaskSource,
+from migrations.legacy_schema import (TaskRecord, RoundRecord, TaskRequest, TaskSource,
     ResultSlotRecord, ImageVersion, ExecutionGate)
 from app.models import utcnow
 

@@ -12,24 +12,25 @@ from sqlalchemy import delete
 from app.models import utcnow
 from app.modules.files.variant_worker import process_one
 from app.modules.files.variants import ImageVariants, backfill
-from app.resource_models import FileRecord, UserRecord
+from app.resource_models import UserRecord
+from app.modules.api_image_edits.models import ApiFile as FileRecord
 from files_helpers import files_env
 from test_api_image_domain import enabled_api
 
 
-def upload(env, domain='originals'):
+def upload(env, domain='api-image-edits'):
     output = BytesIO()
     image = Image.frombytes('RGB', (1200, 900), random.Random(1).randbytes(1200 * 900 * 3))
     image.save(output, 'PNG')
     data = output.getvalue()
-    path = '/api/v1/files' if domain == 'originals' else '/api/v1/api-image-edits/files'
+    path = '/api/v1/api-image-edits/files' if domain == 'api-image-edits' else '/api/v1/api-image-edits/files'
     response = env[0].post(path, files={'file': ('sample.png', data, 'image/png')})
     assert response.status_code == 200, response.text
     picture = response.json()
     return picture, data
 
 
-@pytest.mark.parametrize('domain', ['originals', 'api-image-edits'])
+@pytest.mark.parametrize('domain', ['api-image-edits'])
 def test_private_display_smaller_original_intact_and_authorization_before_304(files_env, domain):
     client, factory, store, identity = files_env
     picture, original = upload(files_env, domain)
@@ -64,7 +65,7 @@ def test_private_display_smaller_original_intact_and_authorization_before_304(fi
 def test_retry_after_put_failure_and_expired_claim_is_idempotent(files_env):
     _, factory, store, _ = files_env
     picture, original = upload(files_env)
-    key = ('originals', UUID(picture['fileId']))
+    key = ('api-image-edits', UUID(picture['fileId']))
     store.fail_put = True
     assert process_one(factory, store)
     with factory.begin() as session:
@@ -77,7 +78,7 @@ def test_retry_after_put_failure_and_expired_claim_is_idempotent(files_env):
     with factory() as session:
         assert session.get(ImageVariants, key).completed
     assert not process_one(factory, store)
-    assert hashlib.sha256(store.objects[f'originals/{key[1]}']).digest() == hashlib.sha256(original).digest()
+    assert hashlib.sha256(store.objects[f'api-image-edits/{key[1]}']).digest() == hashlib.sha256(original).digest()
 
 
 def test_legacy_backfill_is_bounded_and_deleted_source_never_delivered(files_env):
@@ -105,3 +106,17 @@ def test_storage_failure_does_not_return_304(files_env):
     store.fail_open = True
     response = client.get(path, headers={'If-None-Match': tag})
     assert response.status_code == 503 and response.headers['cache-control'] == 'private, no-store'
+
+
+def test_unknown_domain_is_never_claimed_or_registered(files_env):
+    from app.modules.files.variants import register
+    _, factory, store, _ = files_env
+    identifier = uuid4()
+    with factory.begin() as session:
+        session.add(ImageVariants(domain='unknown', file_id=identifier, source_checksum='a' * 64))
+    assert process_one(factory, store) is False
+    with factory() as session:
+        row = session.get(ImageVariants, ('unknown', identifier))
+        assert row.token is None and row.attempts == 0 and not row.completed
+        with pytest.raises(ValueError, match='domain'):
+            register(session, None, 'unknown')

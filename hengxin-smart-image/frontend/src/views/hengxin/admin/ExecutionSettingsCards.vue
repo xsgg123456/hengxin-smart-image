@@ -5,9 +5,9 @@
     <p class="hx-footnote">退避与收图期间保留任务准入名额，终态后释放；修改和重试重新排队。同任务在途追加不额外占名额。</p>
   </ElCard>
   <ElCard class="art-card hx-section hx-admin-settings-card">
-    <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">CLI IMAGE EDIT</span><h2>CLI 图片修改 · 当前生效配置</h2><p>同图片会话串行；全局名额与旧 CLI 任务共享。</p></div><ElTag type="info">{{ data.cli.enabled ? '已启用' : '未启用' }}</ElTag></div>
+    <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">CLI IMAGE EDIT</span><h2>CLI 图片修改 · 当前生效配置</h2><p>同图片会话串行；全局执行并发统一控制。</p></div><ElTag type="info">{{ data.cli.enabled ? '已启用' : '未启用' }}</ElTag></div>
     <ElTable :data="cliRows"><ElTableColumn prop="name" label="配置" min-width="165" /><ElTableColumn prop="value" label="生效值 / 单位" min-width="180" /><ElTableColumn prop="scope" label="作用范围" min-width="240" /></ElTable>
-    <p class="hx-footnote">并发和整轮时限在提交时冻结，下方配置保存只影响后续轮次。默认 Skill 绑定保留用于原业务，API 图片修改不加载 Skill。</p>
+    <p class="hx-footnote">并发和整轮时限在提交时冻结，下方配置保存只影响后续轮次。API 图片修改不加载 Skill。</p>
   </ElCard>
   <ElCard class="art-card hx-section hx-admin-settings-card">
     <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">RETENTION POLICY</span><h2>会话清理与数据保留</h2><p>读取当前部署策略；配置开关不代表清理服务已在线。</p></div><ElTag type="info">{{ data.retention.enabled ? '配置已启用' : '配置未启用' }}</ElTag></div>

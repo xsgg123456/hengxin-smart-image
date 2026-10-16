@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from app.models import Job
 from app.modules.api_image_edits.config import get_api_settings
 from app.modules.api_image_edits.models import ApiDispatch, ApiFile, ApiItem, ApiTask
-from app.resource_models import FileRecord, UserRecord
+from app.resource_models import UserRecord
 from files_helpers import files_env, image_bytes
 
 ROOT = '/api/v1/api-image-edits'
@@ -51,7 +51,7 @@ def test_upload_scope_permissions_and_reference_protection(files_env):
     assert client.get('/api/v1/files/' + first).status_code == 404
     assert client.delete(ROOT + '/files/' + first).status_code == 409
     with factory() as session:
-        assert session.scalar(select(func.count()).select_from(FileRecord)) == 0
+        assert 'files' not in session.bind.dialect.get_table_names(session.connection())
         assert session.scalar(select(func.count()).select_from(Job)) == 0
         assert session.scalar(select(func.count()).select_from(ApiDispatch)) == 1
     assert all(key.startswith('api-image-edits/') for key in store.objects)
@@ -85,7 +85,7 @@ def test_unreferenced_file_delete_and_foreign_file_rejection(files_env):
     picture = upload(client)
     assert client.delete(ROOT + '/files/' + picture['fileId']).status_code == 200
     assert client.get(picture['url']).status_code == 404
-    cli = client.post('/api/v1/files', files={'file': ('x.png', image_bytes(), 'image/png')}).json()
+    cli = {'fileId': str(uuid4())}
     payload = {'name': 'x', 'prompt': 'p', 'originalFileIds': [cli['fileId']],
                'materialFileId': cli['fileId']}
     assert client.post(ROOT + '/tasks', json=payload,

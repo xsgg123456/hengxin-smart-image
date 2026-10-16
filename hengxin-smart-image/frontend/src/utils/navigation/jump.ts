@@ -18,12 +18,7 @@ import { AppRouteRecord } from '@/types/router'
 import { router } from '@/router'
 import { isNavigableMenuItem } from './route'
 
-// 图片处理菜单代表“新建”，不能返回上一次已受理的创建会话。
-const pushMenuPath = (path: string) => router.push(
-  /^\/image-processing\/(wallpaper|product|text)$/.test(path)
-    ? { path, query: { newTask: crypto.randomUUID() } }
-    : path
-)
+const pushMenuPath = (path: string) => router.push(path)
 
 // 打开外部链接
 export const openExternalLink = (link: string) => {

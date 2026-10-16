@@ -48,6 +48,8 @@ def environment(kind):
         env.update({prefix + k: v for k, v in dict(
             MINIO_ENDPOINT=kind + '-minio:9000', MINIO_ACCESS_KEY=kind + '-test',
             MINIO_SECRET_KEY=kind + '-phase20-test-only', MINIO_BUCKET=kind + '-test').items()})
+        if kind == 'domestic':
+            env['API_IMAGE_ENABLED'] = 'true'
     return env
 
 KEYS = {kind: secrets.token_urlsafe(36) for kind in BUSINESS}
@@ -226,7 +228,7 @@ def main():
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
                 from app.overseas.db import SCHEMA_REVISION
-                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0029'), version
+                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0030'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)

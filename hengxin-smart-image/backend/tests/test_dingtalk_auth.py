@@ -43,21 +43,21 @@ def test_browser_authorize_url_contains_callback_and_one_time_state():
 
 
 def test_return_path_rejects_external_redirects():
-    assert dingtalk.safe_return_path('https://attacker.example') == '/image-processing/wallpaper'
-    assert dingtalk.safe_return_path('//attacker.example') == '/image-processing/wallpaper'
-    assert dingtalk.safe_return_path('/tasks/index?task=abc') == '/tasks/index?task=abc'
+    assert dingtalk.safe_return_path('https://attacker.example') == '/api-image-edits/create'
+    assert dingtalk.safe_return_path('//attacker.example') == '/api-image-edits/create'
+    assert dingtalk.safe_return_path('/api-image-edits/records?task=abc') == '/api-image-edits/records?task=abc'
 
 
 def test_login_state_is_one_time_and_expires(files_env):
     _, factory, _, _ = files_env
     with factory.begin() as session:
-        state = dingtalk.create_login_state(session, '/tasks/index')
-        assert dingtalk.consume_login_state(session, state) == '/tasks/index'
+        state = dingtalk.create_login_state(session, '/api-image-edits/records')
+        assert dingtalk.consume_login_state(session, state) == '/api-image-edits/records'
         with pytest.raises(HTTPException, match='无效或已过期'):
             dingtalk.consume_login_state(session, state)
     with factory.begin() as session:
         expired = dingtalk.AuthLoginStateRecord(
-            state_hash=dingtalk._hash_state('expired-state'), return_path='/tasks/index',
+            state_hash=dingtalk._hash_state('expired-state'), return_path='/api-image-edits/records',
             expires_at=utcnow() - timedelta(minutes=1),
         )
         session.add(expired)

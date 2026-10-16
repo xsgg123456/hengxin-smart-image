@@ -5,7 +5,7 @@
       <ElButton :loading="loading" @click="reload">重新读取示例</ElButton>
     </div>
     <ElAlert class="hx-admin-banner" title="只读方案预览 · 执行参数为 2026-10-10 已核查配置快照，保留规则单独注明；不实时读取、不修改生产配置。" type="warning" :closable="false" show-icon />
-    <p class="hx-muted" role="status">{{ loading ? '正在重载本地配置示例…' : '用户角色与 Skill 管理沿用现状；此页不提供生产保存。' }}</p>
+    <p class="hx-muted" role="status">{{ loading ? '正在重载本地配置示例…' : '此页不提供生产保存。' }}</p>
     <div class="hx-stack">
       <ElCard class="art-card hx-section hx-admin-settings-card">
         <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">API GENERATION</span><h2>API 生图与文字修改</h2><p>控制 API 执行通道；不控制 CLI 图片修改的并发和整轮时限。</p></div><ElTag type="info">只读快照</ElTag></div>
@@ -50,11 +50,11 @@ const cliSettings = [
   { name: '执行并发', value: '全站最多 5 个执行轮次', scope: '2026-10-10 16:19 核查快照：生效并发与节点容量均为5；同一图片会话串行，不与 API 5 套任务混算' },
   { name: '整轮总时限', value: '7200 秒 / 轮次', scope: '限制 CLI 整轮执行，若有自动干预也共用该额度' },
   { name: '模型 / 推理强度', value: 'gpt-6-astra / high', scope: 'CLI 图片修改的核查快照，不表示 API 生图模型' },
-  { name: 'Skill', value: '不加载', scope: 'CLI 图片修改不加载 Skill；原 Skill 管理入口保留' }
+  { name: 'Skill', value: '不加载', scope: 'CLI 图片修改不加载 Skill' }
 ]
 const retention = [
   { kind: '私有缓存 / 插件', rule: '闲置 1 天后清理', detail: '仅任务私有缓存与插件；不清理共享凭据、CLI 安装或 Skill' },
-  { kind: '会话 / 执行过程', rule: '连续闲置 7 天后清理', detail: '旧 CLI 任务与 API 图片修改会话的对话、提示词、执行明细及无引用未采用候选' },
+  { kind: '会话 / 执行过程', rule: '连续闲置 7 天后清理', detail: 'API 图片修改会话的对话、提示词、执行明细及无引用未采用候选' },
   { kind: '正式图片 / 必要素材', rule: '保留', detail: '已采用、当前、已归档图片、原图、共用素材及仍有引用的文件不随会话过期删除' },
   { kind: '独立统计摘要', rule: '保留（拟议）', detail: '保留操作者、日期、渠道、请求 / 轮次 / 图片计数与清理回执；不保留大段过程内容' }
 ]

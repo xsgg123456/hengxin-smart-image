@@ -55,40 +55,5 @@ export function createRequest(baseUrl: string, fetcher: typeof fetch = fetch) {
 
 export function createHttpService(baseUrl: string, fetcher: typeof fetch = fetch): Omit<HengxinService, keyof ManagementService> {
   const request = createRequest(baseUrl, fetcher)
-  const queryString = (query: object) => {
-    const params = new URLSearchParams()
-    Object.entries(query).forEach(([key, value]) => { if (value !== undefined) params.set(key, String(value)) })
-    return params.toString()
-  }
-  return {
-    getUser: () => request('/auth/me', validate.user),
-    getWorkspace: () => request('/workspace', validate.workspace),
-    listTasks: query => request(`/tasks?${queryString(query)}`, validate.taskPage),
-    getTask: id => request(`/tasks/${encodeURIComponent(id)}`, validate.taskDetail),
-    deleteTask: id => request(`/tasks/${encodeURIComponent(id)}`, validate.deletion, 'DELETE'),
-    listArchives: query => request(`/archives?${queryString(query)}`, validate.archivePage),
-    getArchive: id => request(`/archives/${encodeURIComponent(id)}`, validate.archive),
-    listTemplates: query => {
-      const params = new URLSearchParams()
-      Object.entries(query).forEach(([key, value]) => { if (value !== undefined) params.set(key, String(value)) })
-      return request(`/templates?${params}`, validate.templatePage)
-    },
-    getTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.template),
-    getTemplateVersions: id => request(`/templates/${encodeURIComponent(id)}/versions`, validate.templateList),
-    listSkills: mode => request(`/skills${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, validate.skillList),
-    uploadFile: file => {
-      const data = new FormData()
-      data.append('file', file)
-      return request('/files', validate.uploadedPicture, 'POST', data, 60000)
-    },
-    saveTemplate: template => request(template.id ? `/templates/${encodeURIComponent(template.id)}` : '/templates', validate.template, template.id ? 'PUT' : 'POST', template),
-    deleteTemplate: id => request(`/templates/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),
-    createTask: (input, idempotencyKey = crypto.randomUUID()) => request('/tasks', validate.accepted, 'POST', input, 10000, { 'Idempotency-Key': idempotencyKey }),
-    revise: (input, idempotencyKey = crypto.randomUUID()) => request(`/tasks/${encodeURIComponent(input.taskId)}/rounds`, validate.accepted, 'POST', input, 10000, { 'Idempotency-Key': idempotencyKey }),
-    archive: (taskId, imageVersionIds, idempotencyKey) => request(`/tasks/${encodeURIComponent(taskId)}/archives`, validate.archive, 'POST',
-      imageVersionIds ? { imageVersionIds } : undefined, 10000,
-      idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
-    deleteArchive: id => request(`/archives/${encodeURIComponent(id)}`, validate.noContent, 'DELETE'),
-    dispose() {}
-  }
+  return { getUser: () => request('/auth/me', validate.user), dispose() {} }
 }

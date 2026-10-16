@@ -16,7 +16,7 @@ from app.modules.api_image_edits.deletion_models import ApiTaskDeletion
 from app.modules.api_image_edits.models import ApiFile, ApiTask
 from app.retention import api
 from test_api_cli_concurrency import pg_edit
-from test_tasks_concurrency import compete
+from concurrency_helpers import compete
 from files_helpers import MemoryStore
 
 

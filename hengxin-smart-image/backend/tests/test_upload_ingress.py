@@ -1,3 +1,4 @@
+from test_api_image_domain import enabled_api
 import asyncio
 
 import pytest
@@ -21,10 +22,10 @@ def test_anonymous_and_declared_oversize_never_spool(files_env, monkeypatch):
 
     monkeypatch.setattr(UploadFile, 'write', record)
     data = b'x' * (12 * 1024 * 1024)
-    assert client.post('/api/v1/files', files={'file': ('x.png', data)}).status_code == 413
+    assert client.post('/api/v1/api-image-edits/files', files={'file': ('x.png', data)}).status_code == 413
     assert not written
     app.dependency_overrides.pop(get_identity_id)
-    assert client.post('/api/v1/files', files={'file': ('x.png', data)}).status_code == 401
+    assert client.post('/api/v1/api-image-edits/files', files={'file': ('x.png', data)}).status_code == 401
     assert not written
 
 
@@ -65,10 +66,10 @@ def test_multipart_contract_single_file_only(files_env):
     client, _, _, _ = files_env
     for files in [[('wrong', ('x.png', image_bytes()))],
                   [('file', ('x.png', image_bytes())), ('file', ('y.png', image_bytes()))]]:
-        assert client.post('/api/v1/files', files=files).status_code == 422
-    assert client.post('/api/v1/files', files={'file': ('x.png', image_bytes())},
+        assert client.post('/api/v1/api-image-edits/files', files=files).status_code == 422
+    assert client.post('/api/v1/api-image-edits/files', files={'file': ('x.png', image_bytes())},
                        data={'ownerId': 'forged'}).status_code == 422
-    assert client.post('/api/v1/files', content=b'bad multipart', headers={
+    assert client.post('/api/v1/api-image-edits/files', content=b'bad multipart', headers={
         'Content-Type': 'multipart/form-data; boundary=boundary'}).status_code == 422
-    schema = app.openapi()['paths']['/api/v1/files']['post']['requestBody']
+    schema = app.openapi()['paths']['/api/v1/api-image-edits/files']['post']['requestBody']
     assert schema['content']['multipart/form-data']['schema']['required'] == ['file']

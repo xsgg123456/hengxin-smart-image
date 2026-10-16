@@ -449,7 +449,7 @@ export const useWorktabStore = defineStore(
                 path: tab.path,
                 query: (tab.query as LocationQueryRaw) || undefined
               })
-              return resolved.matched.length > 0
+              return resolved.matched.length > 0 && !resolved.matched.some(route => route.name === 'Exception404')
             }
             return false
           } catch {
@@ -464,6 +464,8 @@ export const useWorktabStore = defineStore(
           console.warn('发现无效的标签页路由，已自动清理')
           opened.value = validTabs
         }
+
+        keepAliveExclude.value = keepAliveExclude.value.filter(name => routerInstance.hasRoute(name))
 
         // 验证当前激活标签的有效性
         const isCurrentValid = current.value && isTabRouteValid(current.value)

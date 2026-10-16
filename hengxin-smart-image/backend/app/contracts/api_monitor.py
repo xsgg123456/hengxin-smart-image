@@ -28,7 +28,6 @@ class ChannelMonitor(BaseModel):
     paused: bool | None = None
     pauseReason: str | None = None
     sharedActiveTurns: int | None = None
-    otherActiveTurns: int | None = None
 
 
 class MonitorIncident(BaseModel):

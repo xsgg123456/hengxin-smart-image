@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from hashlib import sha256
 from types import SimpleNamespace
 from app.overseas.management.schemas import validate_files
-from app.modules.skills.package_validator import MAX_TOTAL, MAX_ZIP
+from app.core.skill_package import MAX_TOTAL, MAX_ZIP
 from app.storage.minio_store import get_store
 
 

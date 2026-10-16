@@ -14,7 +14,7 @@ from app.modules.api_image_edits.conversation_runtime import claim, sweep
 from app.modules.api_image_edits.conversation_router import read_events
 from app.modules.api_image_edits.models import ApiItem
 from app.resource_models import UserRecord
-from app.modules.tasks.models import ExecutionGate
+from app.execution.models import ExecutionGate
 from files_helpers import files_env, image_bytes
 from test_api_image_domain import ROOT, enabled_api, upload
 from test_api_image_versions import setup_result, post
@@ -237,12 +237,12 @@ def test_cli_and_api_modes_share_item_mutex_in_both_directions(files_env):
     assert result.status_code == 409
 
 
-def test_cli_capacity_counts_existing_batch_jobs(files_env):
+def test_cli_capacity_counts_existing_api_conversation_jobs(files_env):
     client, factory, _, _ = files_env
     _, _, path = setup_result(client, factory)
     turn = submit(client, path)
     with factory.begin() as session:
-        session.add(Job(id=uuid4(), kind='generation', value='batch', payload_hash='x' * 64,
+        session.add(Job(id=uuid4(), kind='api_cli_edit', value='other-conversation', payload_hash='x' * 64,
                         idempotency_key='batch', status='running'))
         job_id = session.get(ConversationTurn, UUID(turn['id'])).job_id
     assert claim(factory, job_id) is None

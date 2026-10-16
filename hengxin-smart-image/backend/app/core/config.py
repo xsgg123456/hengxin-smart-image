@@ -12,7 +12,6 @@ class Settings(BaseSettings):
 
     app_env: Literal["development", "test", "production"] = "development"
     enable_test_jobs: bool = False
-    enable_fixture_executor: bool = False
     enable_codex_executor: bool = False
     cli_retention_enabled: bool = False
     cli_retention_batch_size: int = Field(default=25, ge=1, le=100)
@@ -24,9 +23,6 @@ class Settings(BaseSettings):
     codex_timeout_seconds: int = Field(default=3600, ge=10, le=7200)
     queue_visibility_seconds: int = Field(default=4200, ge=60, le=86400)
     generation_concurrency: int = Field(default=1, ge=1, le=10)
-    fixture_delay_seconds: int = Field(default=3, ge=0, le=60)
-    skill_install_root: str = '/var/lib/hengxin/skills'
-    local_skill_root: str = '/opt/hengxin-skills'
     worker_node_name: str = 'worker-1'
     job_lease_seconds: int = Field(default=30, ge=10, le=300)
     job_heartbeat_seconds: int = Field(default=5, ge=1, le=60)
@@ -79,14 +75,10 @@ class Settings(BaseSettings):
             if self.app_env == 'production' and not self.identity_public_origin.startswith('https://'):
                 raise ValueError('Production identity public origin must use HTTPS')
         if self.enable_codex_executor:
-            if self.enable_fixture_executor:
-                raise ValueError('Choose only one generation executor')
             if not self.codex_binary or not self.codex_auth_file:
                 raise ValueError('Codex binary and auth file are required')
             if self.queue_visibility_seconds < self.codex_timeout_seconds + 600:
                 raise ValueError('Queue visibility must exceed execution timeout by 600 seconds')
-        if self.enable_fixture_executor and self.app_env != 'test':
-            raise ValueError('ENABLE_FIXTURE_EXECUTOR is allowed only in test')
         if self.job_heartbeat_seconds * 2 >= self.job_lease_seconds:
             raise ValueError('Job heartbeat must be less than half the lease')
         if not self.database_url.startswith("postgresql+psycopg://"):

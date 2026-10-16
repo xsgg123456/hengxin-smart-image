@@ -1,3 +1,4 @@
+from test_api_image_domain import enabled_api
 """Real auth + route dependencies, isolated SQL pool, and controlled object I/O."""
 import asyncio
 import hashlib
@@ -17,11 +18,11 @@ from app.db import session as db
 from app.errors import register_errors
 from app.models import Base
 from app.modules.auth.sessions import issue_session
-from app.modules.files import router, downloads
 from app.modules.files.delivery import FileDelivery
 from app.modules.api_image_edits import router as api_router
 from app.modules.api_image_edits.models import ApiFile, ApiTask, ApiItem, ApiChannel
-from app.resource_models import FileRecord, UserRecord
+from app.resource_models import UserRecord
+from app.modules.api_image_edits.models import ApiFile as FileRecord
 from app.storage.minio_store import get_store
 
 
@@ -90,7 +91,7 @@ def media_env(tmp_path, monkeypatch):
             env.streams.append(source)
             return source
     app = FastAPI()
-    for routes in (router.router, downloads.router, api_router.router):
+    for routes in (api_router.router,):
         app.include_router(routes, prefix='/api/v1')
     app.dependency_overrides[get_store] = Store
     env.app = app
@@ -129,7 +130,7 @@ def request(env, kind, *, disconnect=False, slow=False, cookie=True, method=None
         m.get('body', b'') for m in messages)
 
 
-@pytest.mark.parametrize('kind', ['cli', 'api'])
+@pytest.mark.parametrize('kind', ['api'])
 def test_head_checks_storage_after_releasing_database(media_env, kind):
     status, headers, body = request(media_env, kind, method='HEAD')
     assert status == 200 and not body
@@ -140,7 +141,7 @@ def test_head_checks_storage_after_releasing_database(media_env, kind):
     media_env.released()
 
 
-@pytest.mark.parametrize('kind', ['cli', 'api'])
+@pytest.mark.parametrize('kind', ['api'])
 @pytest.mark.parametrize('method', ['GET', 'HEAD'])
 @pytest.mark.parametrize('status', [401, 403, 404, 422, 503])
 def test_media_errors_never_cache(media_env, kind, method, status):
@@ -162,7 +163,7 @@ def test_media_errors_never_cache(media_env, kind, method, status):
     assert headers[b'cache-control'] == b'private, no-store'
 
 
-@pytest.mark.parametrize('kind', ['cli', 'api', 'cli_zip', 'api_zip'])
+@pytest.mark.parametrize('kind', ['api', 'api_zip'])
 def test_real_dependency_chain_releases_pool_before_io(media_env, kind):
     env = media_env
     status, headers, body = request(env, kind, slow=True)
@@ -180,7 +181,7 @@ def test_real_dependency_chain_releases_pool_before_io(media_env, kind):
             assert session.get(ApiChannel, 1) is not None  # Preserve original commit.
 
 
-@pytest.mark.parametrize('kind', ['cli', 'api', 'cli_zip', 'api_zip'])
+@pytest.mark.parametrize('kind', ['api', 'api_zip'])
 @pytest.mark.parametrize('failure', ['disconnect', 'open', 'read'])
 def test_failure_paths_release_pool_and_sources(media_env, kind, failure):
     env = media_env
@@ -194,7 +195,7 @@ def test_failure_paths_release_pool_and_sources(media_env, kind, failure):
     assert all(s.closed and s.released for s in env.streams)
 
 
-@pytest.mark.parametrize('kind', ['cli', 'api', 'cli_zip', 'api_zip'])
+@pytest.mark.parametrize('kind', ['api', 'api_zip'])
 def test_each_request_reauthorizes_and_checks_file_eligibility(media_env, kind):
     env = media_env
     assert request(env, kind, cookie=False)[0] == 401

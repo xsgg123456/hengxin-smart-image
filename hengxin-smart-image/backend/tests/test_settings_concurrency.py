@@ -4,11 +4,13 @@ from sqlalchemy import select
 from app.contracts.management import SettingsInput
 from app.modules.management.models import SettingsAuditRecord
 from app.modules.management.settings import read_settings, save_settings
-from test_tasks_concurrency import pg_tasks, compete
+from test_api_cli_concurrency import pg_edit
+from concurrency_helpers import compete
 
 
-def test_two_connections_cannot_overwrite_same_settings_version(pg_tasks):
-    factory, user, _, _ = pg_tasks
+def test_two_connections_cannot_overwrite_same_settings_version(pg_edit):
+    factory, users, _, _ = pg_edit
+    user = users[0]
     with factory() as session:
         original = read_settings(session)
     original.pop('audit')

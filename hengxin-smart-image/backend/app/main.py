@@ -7,7 +7,6 @@ from app.core.config import get_business_context, get_settings
 if get_business_context() != 'domestic':
     raise RuntimeError('Domestic entry requires HX_BUSINESS_CONTEXT=domestic')
 
-from app.contracts.router import router as contracts_router
 from app.contracts.business import ApiErrorBody
 from app.errors import register_errors
 from app.http_timing import HttpTimingMiddleware
@@ -18,20 +17,10 @@ from app.modules.auth.router import router as auth_router
 from app.modules.auth.identity_bridge import router as identity_bridge_router
 from app.modules.auth.application_router import router as application_router
 from app.modules.auth.management_router import router as member_management_router
-from app.modules.files.router import router as files_router
-from app.modules.files.downloads import router as downloads_router
-from app.modules.templates.router import router as templates_router
-from app.modules.tasks.router import router as tasks_router
-from app.modules.revisions.router import router as revisions_router
-from app.modules.archives.router import router as archives_router
-from app.modules.skills.router import router as skills_router
-from app.modules.skills.catalog_router import router as catalog_router
-from app.modules.management.router import router as management_router
 from app.modules.management.api_usage import router as api_usage_router
 from app.modules.management.api_monitor import router as api_monitor_router
 from app.modules.management.execution_settings import router as execution_settings_router
 from app.modules.management.settings_router import router as settings_router
-from app.modules.management.monitor_router import router as monitor_router
 from app.modules.api_image_edits.router import router as api_image_router
 from app.modules.api_image_edits.conversation_router import router as conversation_router
 
@@ -54,20 +43,9 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(application_router)
 app.include_router(member_management_router, prefix="/api/v1")
 app.include_router(identity_bridge_router)
-app.include_router(files_router, prefix="/api/v1")
-app.include_router(downloads_router, prefix="/api/v1")
-app.include_router(templates_router, prefix="/api/v1")
-app.include_router(skills_router, prefix="/api/v1")
-app.include_router(catalog_router, prefix="/api/v1")
-app.include_router(management_router, prefix="/api/v1")
 app.include_router(api_usage_router, prefix="/api/v1")
 app.include_router(api_monitor_router, prefix="/api/v1")
 app.include_router(execution_settings_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
-app.include_router(monitor_router, prefix="/api/v1")
-app.include_router(tasks_router, prefix="/api/v1")
-app.include_router(revisions_router, prefix="/api/v1")
-app.include_router(archives_router, prefix="/api/v1")
-app.include_router(contracts_router, prefix="/api/v1")
 app.include_router(api_image_router, prefix="/api/v1")
 app.include_router(conversation_router, prefix="/api/v1")

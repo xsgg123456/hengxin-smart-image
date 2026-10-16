@@ -16,10 +16,8 @@ logger = logging.getLogger(__name__)
 LOGIN_STATE_TTL = timedelta(minutes=10)
 CALLBACK_PATH = '/api/v1/auth/dingtalk/callback'
 ALLOWED_RETURN_PATHS = (
-    '/image-processing/wallpaper', '/image-processing/product', '/image-processing/text',
-    '/tasks/index', '/templates/index', '/archive/index',
-    '/management/usage', '/management/monitor', '/management/users',
-    '/management/skills', '/management/settings',
+    '/api-image-edits/create', '/api-image-edits/records',
+    '/management/usage', '/management/monitor', '/management/users', '/management/settings',
 )
 
 

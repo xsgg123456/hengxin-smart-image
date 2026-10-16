@@ -36,7 +36,7 @@ def internal_delivery(record, store, request, domain, download=False):
     headers = delivery_headers(record, download)
     if (request.headers.get('x-hengxin-media-gateway') != '1'
             or settings.minio_endpoint != 'minio:9000' or settings.minio_secure
-            or domain not in ('originals', 'api-image-edits')
+            or domain != 'api-image-edits'
             or record.bucket != settings.minio_bucket
             or not re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]', record.bucket)
             or record.object_key != expected or request.method not in ('GET', 'HEAD')):

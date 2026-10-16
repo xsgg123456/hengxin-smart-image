@@ -16,8 +16,8 @@ from app.modules.api_image_edits.conversation import SubmitTurn, AdoptTurn, subm
 from app.modules.api_image_edits.conversation_models import Conversation, ConversationTurn, ConversationEvent
 from app.modules.api_image_edits.models import ApiFile, ApiItem, ApiTask, ApiVersion, ApiChannel
 from app.modules.api_image_edits.conversation_runtime import claim
-from app.modules.tasks.models import ExecutionGate
-from test_tasks_concurrency import compete
+from app.execution.models import ExecutionGate
+from concurrency_helpers import compete
 
 
 @pytest.fixture

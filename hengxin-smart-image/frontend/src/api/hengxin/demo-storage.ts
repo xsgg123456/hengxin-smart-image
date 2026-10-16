@@ -1,4 +1,4 @@
-import type { DemoState } from './demo-state'
+import { migrateDemoState, type DemoState } from './demo-state'
 
 const database = 'hengxin-framework-demo-v1'
 export function demoKey(search = window.location.search) {
@@ -21,9 +21,7 @@ export async function readDemo(key: string): Promise<DemoState | undefined> {
       const tx = db.transaction('states', 'readonly')
       const request = tx.objectStore('states').get(key)
       tx.oncomplete = () => {
-        const value = request.result as DemoState | undefined
-        if (value && value.schema !== 1) reject(new Error('Demo 数据版本不兼容，请重置当前演示场景'))
-        else resolve(value)
+        try { resolve(migrateDemoState(request.result)) } catch (reason) { reject(reason) }
       }
       tx.onerror = () => reject(new Error('Demo 数据读取失败'))
     })

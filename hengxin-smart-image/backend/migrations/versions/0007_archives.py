@@ -1,7 +1,7 @@
 """Immutable archive snapshots and durable request receipts."""
 from alembic import op
-from app.modules.archives.models import ArchiveRecord, ArchiveImage, ArchiveRequest
-from app.worker.cleanup_models import CleanupObject
+from migrations.legacy_schema import ArchiveRecord, ArchiveImage, ArchiveRequest
+from migrations.legacy_schema import CleanupObject
 
 revision = '0007'
 down_revision = '0006'

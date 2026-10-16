@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createExecutionManagement, isApiMonitor, isExecutionSettings } from '../src/api/execution-management'
 const snapshot = () => ({checkedAt:'2026-10-10T08:00:00Z',incidents:[],incidentsTruncated:false,
-  channels:['api','cli'].map(channel=>({channel,concurrencyLimit:5,imagesPerBatch:channel==='api'?10:null,state:'unknown',queueState:'available',enabled:true,paused:null,pauseReason:null,sharedActiveTurns:null,otherActiveTurns:null,workers:[],metrics:[{phase:'queued',tasks:0,images:0,turns:null}]}))})
+  channels:['api','cli'].map(channel=>({channel,concurrencyLimit:5,imagesPerBatch:channel==='api'?10:null,state:'unknown',queueState:'available',enabled:true,paused:null,pauseReason:null,sharedActiveTurns:null,workers:[],metrics:[{phase:'queued',tasks:0,images:0,turns:null}]}))})
 test('heartbeat unknown remains distinct from available zero business queue',()=>{
   const value=snapshot();assert.ok(isApiMonitor(value))
   assert.equal(value.channels[0]?.state,'unknown');assert.equal(value.channels[0]?.metrics[0]?.images,0)

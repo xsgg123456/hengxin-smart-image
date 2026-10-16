@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
-const base = 'http://127.0.0.1:3024/'
+const base = process.env.API_UI_URL || 'http://127.0.0.1:3024/'
 const browser = await chromium.launch({ headless: true })
 await mkdir('../../output/playwright/api-only-menu', { recursive: true })
 try {
@@ -21,17 +21,19 @@ try {
   await page.getByRole('heading',{name:'换图记录',exact:true}).waitFor()
   const limited = ['designer','operator'].includes(role)
   const menu = page.locator('.el-menu').first()
-  for(const name of ['图片处理','任务中心','模板库','成品库','管理中心']) {
-   assert.equal(await menu.getByText(name,{exact:true}).count(),limited?0:1,`${role} ${name}`)
+  for(const name of ['图片处理','任务中心','模板库','成品库','Skill 管理']) {
+   assert.equal(await menu.getByText(name,{exact:true}).count(),0,`${role} ${name}`)
   }
   assert.equal(await menu.getByText('API 换套图',{exact:true}).count(),1)
-  if(limited) {
+  {
    await page.evaluate(() => {
     const key = Object.keys(localStorage).find(k=>k.includes('worktab'))
     if(!key) throw new Error('Missing persisted worktab')
     const data = JSON.parse(localStorage.getItem(key))
     data.opened.push({path:'/tasks/index',name:'HxtasksPage',title:'任务中心',fixedTab:true})
     data.opened.push({path:'/wallpaper/index',title:'旧替换壁纸',fixedTab:true})
+    data.current=data.opened.at(-1)
+    data.keepAliveExclude=['HxtasksPage','HxAdminskills']
     localStorage.setItem(key,JSON.stringify(data))
     const userKey = Object.keys(localStorage).find(k=>k.endsWith('-user'))
     if(!userKey) throw new Error('Missing persisted user')
@@ -47,7 +49,7 @@ try {
    await page.getByRole('dialog').waitFor()
    assert.equal(await page.getByText('旧模板入口',{exact:true}).count(),0,'旧搜索历史已清理')
    await page.keyboard.press('Escape')
-   for(const path of ['/image-processing/wallpaper','/tasks/index','/templates/index','/archive/index','/management/usage','/wallpaper/index','/']) {
+   for(const path of ['/image-processing/wallpaper','/tasks/index','/templates/index','/archive/index','/management/skills','/wallpaper/index','/product/index','/text/index','/image-processing','/image-processing/product','/image-processing/text']) {
     await page.goto(base+'#'+path)
     await page.waitForURL('**#/api-image-edits/create')
     await page.getByRole('heading',{name:'新建换图',exact:true}).waitFor()
@@ -57,5 +59,5 @@ try {
   await page.screenshot({path:`../../output/playwright/api-only-menu/${role}.png`})
   await context.close()
  }
- console.log('PASS: 四角色菜单、普通角色旧标签清理、隐藏地址/旧别名/首页落地')
+ console.log('PASS: 四角色菜单、全部角色旧固定/当前/缓存/搜索标签清理、旧地址及别名落地')
 } finally { await browser.close() }

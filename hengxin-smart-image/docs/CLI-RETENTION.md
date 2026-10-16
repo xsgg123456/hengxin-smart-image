@@ -1,6 +1,6 @@
 # CLI 会话保留与清理
 
-默认关闭。本次仅完成本地开发验证；生产迁移、部署和开启服务必须先经用户确认。
+代码默认关闭。2026-10-16用户已明确授权国内生产开启，13:43已启用独立清理服务并设置开机自启，国内API同步显示开启；20个会话首轮初始化成功，未立即删除历史。启用计划及实际验证见 [生产启用记录](../../docs/CLI-RETENTION-ENABLE-20261016.md)。以下规则保持；原“仅本地、生产需确认”限制已由本次国内授权解除，海外不在范围内。
 
 ## 保留规则
 
@@ -22,7 +22,7 @@ python -m app.retention.worker --once
 python -m app.retention.worker --loop
 ```
 
-开关为false时入口直接返回disabled，不访问数据库或对象存储。开启后，单次最多处理指定数量的到期资源及对象回执；循环每小时运行一次。原生systemd服务模板见 `infra/hengxin-retention.service.example`，本次不安装该服务。
+开关为false时入口直接返回disabled，不访问数据库或对象存储。开启后，单次最多处理指定数量的到期资源及对象回执；循环每小时运行一次。原生systemd服务模板见 `infra/hengxin-retention.service.example`；生产已按当前国内执行目录与环境适配安装，不能直接用示例里的历史路径覆盖生产服务。
 
 ## 故障与回退
 

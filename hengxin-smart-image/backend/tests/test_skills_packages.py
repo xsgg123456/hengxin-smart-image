@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from app.modules.skills.package_validator import validate_package
+from app.core.skill_package import validate_package
 
 
 def archive(entries=None, compression=zipfile.ZIP_STORED):

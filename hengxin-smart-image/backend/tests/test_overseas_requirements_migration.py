@@ -4,7 +4,7 @@ import sys
 from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
-from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
+from test_overseas_database import disposable_databases, migration_environment, snapshot, BACKEND
 
 
 def test_0009_upgrade_preserves_tasks_jobs_and_materials(disposable_databases):
@@ -41,7 +41,8 @@ def test_0009_upgrade_preserves_tasks_jobs_and_materials(disposable_databases):
                 kind='analysis', dedupe_key='legacy-inflight', payload={'materials': [{'id': str(material)}]}))
         before, domestic_before = snapshot(overseas)[1], snapshot(domestic)
         for _ in range(2):
-            result = migrate(env)
+            result = subprocess.run([sys.executable, '-m', 'alembic', '-c', 'alembic.overseas.ini',
+                'upgrade', 'overseas_0010'], cwd=BACKEND, env=env, capture_output=True, text=True)
             assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             tasks = Table('overseas_tasks', MetaData(), autoload_with=connection)
@@ -52,12 +53,14 @@ def test_0009_upgrade_preserves_tasks_jobs_and_materials(disposable_databases):
             constraints = inspect(connection).get_unique_constraints('overseas_materials')
             assert not any(c['column_names'] == ['task_id', 'kind'] for c in constraints)
             assert connection.execute(text('SELECT count(*) FROM overseas_jobs')).scalar_one() == 1
-        after = snapshot(overseas)[1]
-        for table in before:
-            if table == 'overseas_members':
-                assert after[table] == [(*row, 'enrolled') for row in before[table]]
-            elif table not in ('overseas_alembic_version', 'overseas_tasks'):
-                assert before[table] == after[table]
+        # Compare all original columns as well as the new review gate above.
+        # In-flight payload/state and every other historical row must remain exact.
+        with engine.connect() as connection:
+            for name, original in metadata.tables.items():
+                if name == 'overseas_alembic_version':
+                    continue
+                after = [tuple(row) for row in connection.execute(select(original))]
+                assert sorted(before[name], key=repr) == sorted(after, key=repr), name
         assert snapshot(domestic) == domestic_before
     finally:
         engine.dispose()

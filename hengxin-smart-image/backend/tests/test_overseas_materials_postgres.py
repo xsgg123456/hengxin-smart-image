@@ -1,4 +1,4 @@
-"""Actual PostgreSQL contention between document binding, delete and retry."""
+"""Actual PostgreSQL contention between document binding and deletion."""
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import UUID
@@ -29,7 +29,7 @@ def ready(factory, actor):
         return record.id, store
 
 
-@pytest.mark.parametrize('other', ['delete', 'retry', 'bind'])
+@pytest.mark.parametrize('other', ['delete', 'bind'])
 def test_binding_serializes_with_mutation(pg_factory, other):
     with pg_factory.begin() as session:
         session.add(ExecutionGate(id=1))
@@ -45,8 +45,6 @@ def test_binding_serializes_with_mutation(pg_factory, other):
             try:
                 if operation == 'delete':
                     files.delete(session, store, user, material_id)
-                elif operation == 'retry':
-                    files.retry(session, store, user, material_id)
                 else:
                     task = first if operation == 'first' else second
                     service.submit(session, user, UUID(task['id']),
@@ -64,5 +62,4 @@ def test_binding_serializes_with_mutation(pg_factory, other):
             assert record.deleted_at is None and record.object_key in store.data
         else:
             assert other == 'delete' and record.deleted_at is not None
-    if other != 'retry':
-        assert sorted(outcomes) in ([200, 404], [200, 409])
+    assert sorted(outcomes) in ([200, 404], [200, 409])

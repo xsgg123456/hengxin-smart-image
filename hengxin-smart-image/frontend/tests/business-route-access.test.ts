@@ -5,7 +5,7 @@ import { routeModules } from '../src/router/modules'
 
 test('普通用户直达管理子页不因父菜单存在而被视为有权访问', () => {
   const menus = routeModules.map(route => ({ ...route, children: route.children?.filter(child => !child.meta.roles) }))
-  assert.equal(isDeniedBusinessRoute('/management/skills', menus), true)
+  assert.equal(isDeniedBusinessRoute('/management/settings', menus), true)
   assert.equal(isDeniedBusinessRoute('/management/users/', menus), true)
   assert.equal(isDeniedBusinessRoute('/management/monitor', menus), true)
   assert.equal(isDeniedBusinessRoute('/management/usage', menus), false)

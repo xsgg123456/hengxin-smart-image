@@ -7,7 +7,6 @@ from sqlalchemy import exists, select
 from app.core.config import get_settings
 from app.db.session import session_factory
 from app.models import utcnow
-from app.modules.tasks.models import TaskRecord
 from app.modules.api_image_edits.conversation_models import Conversation
 from app.modules.api_image_edits.models import ApiItem, ApiTask
 from app.storage.minio_store import get_store
@@ -18,40 +17,30 @@ from .objects import retry_objects
 
 def register_existing(factory, limit, now):
     """First discovery starts the grace period; no historical timestamp backdating."""
-    for domain, model in [('legacy_cli', TaskRecord), ('api_cli', Conversation)]:
-        with factory() as session:
-            query = select(model.id).where(~exists().where(
-                RetentionEntry.domain == domain, RetentionEntry.resource_id == model.id,
-                RetentionEntry.initialized_at.is_not(None)))
-            if domain == 'legacy_cli':
-                query = query.where(TaskRecord.execution_source == 'cli')
-            ids = session.scalars(query.order_by(model.id).limit(limit)).all()
-        for identifier in ids:
-            with factory.begin() as session:
-                if domain == 'api_cli':
-                    conversation = session.get(Conversation, identifier)
-                    if conversation is None:
-                        continue
-                    item = session.get(ApiItem, conversation.item_id)
-                    if item is None:
-                        continue
-                    parent = session.scalar(select(ApiTask).where(ApiTask.id == item.task_id)
-                                            .with_for_update(skip_locked=True))
-                else:
-                    parent = session.scalar(select(TaskRecord).where(TaskRecord.id == identifier)
-                                            .with_for_update(skip_locked=True))
-                if parent is None:
-                    continue
-                if domain == 'api_cli':
-                    from app.modules.api_image_edits.deletion_state import fenced
-                    if fenced(session, parent.id):
-                        continue
-                row = session.scalar(select(RetentionEntry).where(
-                    RetentionEntry.domain == domain, RetentionEntry.resource_id == identifier))
-                if row is None or row.initialized_at is None:
-                    if row is None or row.status == 'active':
-                        row = touch(session, domain, identifier, now)
-                    row.initialized_at = now
+    domain = 'api_cli'
+    with factory() as session:
+        ids = session.scalars(select(Conversation.id).where(~exists().where(
+            RetentionEntry.domain == domain, RetentionEntry.resource_id == Conversation.id,
+            RetentionEntry.initialized_at.is_not(None))).order_by(Conversation.id).limit(limit)).all()
+    for identifier in ids:
+        with factory.begin() as session:
+            conversation = session.get(Conversation, identifier)
+            item = session.get(ApiItem, conversation.item_id) if conversation else None
+            if item is None:
+                continue
+            parent = session.scalar(select(ApiTask).where(ApiTask.id == item.task_id)
+                                    .with_for_update(skip_locked=True))
+            if parent is None:
+                continue
+            from app.modules.api_image_edits.deletion_state import fenced
+            if fenced(session, parent.id):
+                continue
+            row = session.scalar(select(RetentionEntry).where(
+                RetentionEntry.domain == domain, RetentionEntry.resource_id == identifier))
+            if row is None or row.initialized_at is None:
+                if row is None or row.status == 'active':
+                    row = touch(session, domain, identifier, now)
+                row.initialized_at = now
 
 
 def run_once(factory=None, store=None, settings=None, now=None):
@@ -63,7 +52,7 @@ def run_once(factory=None, store=None, settings=None, now=None):
     with factory() as session:
         if session.get_bind().dialect.name != 'postgresql':
             return {'status': 'unsupported_database'}
-    from . import api, legacy
+    from . import api
     store = store or get_store()
     limit = settings.cli_retention_batch_size
     register_existing(factory, limit, now)
@@ -74,7 +63,7 @@ def run_once(factory=None, store=None, settings=None, now=None):
             .order_by(RetentionEntry.next_cleanup_at, RetentionEntry.id).limit(limit)).all()
     results = []
     for domain, identifier in entries:
-        adapter = {'api_cli': api, 'legacy_cli': legacy}.get(domain)
+        adapter = {'api_cli': api}.get(domain)
         if adapter is None:
             continue
         try:

@@ -11,10 +11,8 @@ import { AppRouteRecordRaw } from '@/utils/router'
  * 2、静态路由不管是否登录都可以访问
  */
 export const staticRoutes: AppRouteRecordRaw[] = [
-  ...['wallpaper', 'product', 'text'].map(mode => ({
-    path: `/${mode}/index`,
-    redirect: (to: { query: Record<string, string | null | (string | null)[]> }) => ({ path: `/image-processing/${mode}`, query: to.query }),
-    meta: { title: '图片处理', isHideTab: true }
+  ...['/wallpaper/index', '/product/index', '/text/index', '/image-processing/:pathMatch(.*)*', '/tasks/:pathMatch(.*)*', '/templates/:pathMatch(.*)*', '/archive/:pathMatch(.*)*', '/management/skills/:pathMatch(.*)*'].map(path => ({
+    path, redirect: '/api-image-edits/create', meta: { title: '新建换图', isHideTab: true }
   })),
   // 不需要登录就能访问的路由示例
   // {

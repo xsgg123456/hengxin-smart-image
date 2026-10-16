@@ -2,10 +2,7 @@
 from uuid import UUID
 from sqlalchemy import or_, select
 from app.models import utcnow
-from app.resource_models import FileRecord
 from app.modules.files.variants import ImageVariants
-from app.modules.skills.models import SkillVersionRecord
-from app.modules.tasks.models import TaskRecord
 from app.retention.objects import contains_id
 from .conversation_models import Conversation, ConversationTurn
 from .models import ApiFile, ApiItem, ApiTask, ApiVersion
@@ -53,12 +50,11 @@ def shared(session, task_id, record):
     if any(session.scalar(query.limit(1)) for query in refs):
         return True
     snapshots = [select(ApiItem.revision_snapshot).where(ApiItem.task_id != task_id),
-        select(ConversationTurn.snapshot).join(Conversation).join(ApiItem).where(ApiItem.task_id != task_id),
-        select(TaskRecord.template_snapshot, TaskRecord.skill_snapshot)]
+        select(ConversationTurn.snapshot).join(Conversation).join(ApiItem).where(ApiItem.task_id != task_id)]
     if any(contains_id(tuple(row), file_id) for query in snapshots for row in session.execute(query)):
         return True
-    return any(session.scalar(select(model.id).where(model.bucket == record.bucket,
-        model.object_key == record.object_key).limit(1)) for model in (FileRecord, SkillVersionRecord))
+    return bool(session.scalar(select(ApiFile.id).where(ApiFile.id != record.id,
+        ApiFile.bucket == record.bucket, ApiFile.object_key == record.object_key).limit(1)))
 
 
 def freeze(session, task):
@@ -98,7 +94,7 @@ def objects(session, manifest, store):
             keys.add(key)
         for key in keys:
             # Also protect unusual historical aliases of a derivative key.
-            for model in (ApiFile, FileRecord, SkillVersionRecord):
+            for model in (ApiFile,):
                 query = select(model.id).where(model.bucket == record.bucket, model.object_key == key)
                 if model is ApiFile:
                     query = query.where(ApiFile.id != record.id)

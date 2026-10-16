@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import PurePosixPath
 from stat import S_IFMT, S_IFREG, S_IFDIR
 from zipfile import ZipFile
-from app.modules.skills.package_validator import MAX_FILES, MAX_TOTAL, MAX_ZIP
+from app.core.skill_package import MAX_FILES, MAX_TOTAL, MAX_ZIP
 from .schemas import validate_files
 
 TEXT = {'.md', '.txt', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.toml', '.html', '.css', '.sh', '.ps1', '.csv'}

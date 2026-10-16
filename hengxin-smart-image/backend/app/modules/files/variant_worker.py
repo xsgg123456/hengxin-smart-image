@@ -45,18 +45,17 @@ def encode(data):
 
 
 def process_one(factory, store):
-    from app.resource_models import FileRecord
     from app.modules.api_image_edits.models import ApiFile
     now, token = utcnow(), uuid4()
     with factory.begin() as session:
         row = session.scalar(select(ImageVariants).where(
-            ImageVariants.completed.is_(False), ImageVariants.next_attempt <= now,
+            ImageVariants.domain == 'api-image-edits', ImageVariants.completed.is_(False), ImageVariants.next_attempt <= now,
             or_(ImageVariants.lease_until.is_(None), ImageVariants.lease_until <= now)
         ).order_by(ImageVariants.next_attempt).limit(1).with_for_update(skip_locked=True))
         if row is None:
             return False
         key, source_hash = (row.domain, row.file_id), row.source_checksum
-        model = FileRecord if row.domain == 'originals' else ApiFile
+        model = ApiFile
         source = session.get(model, row.file_id)
         if source is None or source.deleted_at or source.status != 'ready':
             row.completed = True

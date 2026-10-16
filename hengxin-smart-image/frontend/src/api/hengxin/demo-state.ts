@@ -1,29 +1,15 @@
-import type { Accepted, Picture, ResultSlot, Round, SkillVersion, Task, Template, Workspace } from '../../types/hengxin'
-import type { CatalogSkill, ManagedSettings, ManagedSkill, ManagedUser, SkillSync } from '../../types/management'
+import type { ManagedSettings, ManagedUser } from '../../types/management'
 export interface DemoState {
-  schema: 1
-  workspace: Workspace
-  files?: [string, Picture][]
-  templateHistory?: [string, Template[]][]
-  skills?: SkillVersion[]
-  slots?: [string, ResultSlot[]][]
-  rounds?: [string, Round[]][]
-  taskHistory?: [string, Task][]
-  submissions?: [string, { fingerprint: string; accepted: Accepted }][]
-  revisions?: [string, { fingerprint: string; receipt: Accepted }][]
-  failures?: [string, boolean][]
-  scenarioUsed?: boolean
-  catalogConsumed?: string[]
-  archiveFailureUsed?: boolean
+  schema: 2
   users?: ManagedUser[]
   settings?: ManagedSettings
-  skillMetadata?: [string, Omit<ManagedSkill, keyof SkillVersion>][]
-  skillJobs?: [string, number][]
-  skillFailedOnce?: string[]
-  skillCatalogMetadata?: [string, CatalogSkill][]
-  skillCatalogSource?: SkillVersion[]
-  skillCatalogSync?: SkillSync
-  skillCatalogDeadlineAt?: number
-  skillCatalogDisabled?: string[]
-  skillCatalogFailedOnce?: boolean
+}
+/** 丢弃退役业务快照，只保留仍在使用的身份与系统设置。 */
+export function migrateDemoState(value: unknown): DemoState | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const old = value as Omit<DemoState, 'schema'> & { schema: number }
+  if (old.schema !== 1 && old.schema !== 2) throw new Error('Demo 数据版本不兼容')
+  const settings = old.settings && { ...old.settings }
+  if (settings) Reflect.deleteProperty(settings, 'defaultSkillIds')
+  return { schema: 2, users: old.users, settings }
 }

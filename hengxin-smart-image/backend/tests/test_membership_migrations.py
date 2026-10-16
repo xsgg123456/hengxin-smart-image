@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import create_engine, inspect, text
 
-from test_overseas_database import BACKEND, disposable_databases, migration_environment, migrate
+from test_overseas_database import BACKEND, disposable_databases, migration_environment
 
 
 @pytest.mark.integration
@@ -36,7 +36,8 @@ def test_pending_classification_and_additive_schema_rollback(disposable_database
                     f'VALUES (:id, :name, :status, now(), now(), {values})'),
                     {'id': member_id, 'name': '历史成员', 'identity': str(member_id), 'status': status})
             before = [tuple(row) for row in connection.execute(text(f'SELECT * FROM {table} ORDER BY id'))]
-        result = migrate(env, config)
+        result = subprocess.run([sys.executable, '-m', 'alembic', '-c', config, 'upgrade', current],
+            cwd=BACKEND, env=env, text=True, capture_output=True, timeout=90)
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             rows = dict(connection.execute(text(f'SELECT id, directory_state FROM {table}')).all())
@@ -51,6 +52,8 @@ def test_pending_classification_and_additive_schema_rollback(disposable_database
         with engine.connect() as connection:
             assert 'directory_state' not in {col['name'] for col in inspect(connection).get_columns(table)}
             assert [tuple(row) for row in connection.execute(text(f'SELECT * FROM {table} ORDER BY id'))] == before
-        assert migrate(env, config).returncode == 0
+        result = subprocess.run([sys.executable, '-m', 'alembic', '-c', config, 'upgrade', current],
+            cwd=BACKEND, env=env, text=True, capture_output=True, timeout=90)
+        assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()

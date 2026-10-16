@@ -23,8 +23,8 @@ export function getPreviewUser(search = globalThis.location?.search ?? ''): User
     status: scenario === 'pending' ? 'pending' : scenario === 'disabled' ? 'disabled' : 'active' }
 }
 export function safeReturnPath(value: unknown): string {
-  if (typeof value !== 'string' || !value.startsWith('/') || /[\\\r\n]/.test(value) || value.startsWith('//')) return '/image-processing/wallpaper'
+  if (typeof value !== 'string' || !value.startsWith('/') || /[\\\r\n]/.test(value) || value.startsWith('//')) return '/api-image-edits/create'
   const path = value.split(/[?#]/)[0]
-  return /^\/(image-processing\/(wallpaper|product|text)|(?:tasks|templates|archive)\/index|api-image-edits\/(create|records)|management\/(usage|monitor|users|skills|settings))$/.test(path)
-    ? value : '/image-processing/wallpaper'
+  return /^\/(api-image-edits\/(create|records)|management\/(usage|monitor|users|settings))$/.test(path)
+    ? value : '/api-image-edits/create'
 }

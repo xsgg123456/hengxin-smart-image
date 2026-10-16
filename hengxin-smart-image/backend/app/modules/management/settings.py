@@ -1,5 +1,4 @@
 """Versioned configuration shared by UI, admission and upload validation."""
-import json
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -8,11 +7,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.core.config import get_settings
 from app.modules.auth.dingtalk import is_configured
-from app.modules.skills.models import ModuleSkillBinding, SkillAuditRecord
-from app.modules.skills.service import get_version, resolve_binding
 from .models import SettingsAuditRecord, SystemSettings
 
-MODES = ('wallpaper', 'product', 'text')
 
 
 def values(session):
@@ -27,9 +23,6 @@ def values(session):
     }
 
 
-def defaults(session):
-    from app.modules.skills.catalog_service import defaults as catalog_defaults
-    return catalog_defaults(session)
 
 
 def dingtalk_config():
@@ -44,7 +37,7 @@ def read_settings(session):
         SettingsAuditRecord.version.desc()).limit(100)).all()
     return {**values(session), 'capacity': get_settings().generation_concurrency,
             'timeoutCapacity': get_settings().codex_timeout_seconds,
-            'defaultSkillIds': defaults(session), 'dingtalk': dingtalk_config(),
+            'dingtalk': dingtalk_config(),
             'audit': [dict(id=str(a.id), operatorId=str(a.operator_id), operatorName=a.operator_name,
                            changedAt=a.created_at.isoformat(), version=a.version, fields=a.fields)
                       for a in audits]}
@@ -61,26 +54,6 @@ def lock_settings(session):
                           .with_for_update().execution_options(populate_existing=True))
 
 
-def bind_defaults(session, payload, user):
-    for mode in MODES:
-        session.execute(_insert(session, ModuleSkillBinding).values(mode=mode)
-                        .on_conflict_do_nothing(index_elements=['mode']))
-    bindings = {r.mode: r for r in session.scalars(select(ModuleSkillBinding)
-                .order_by(ModuleSkillBinding.mode).with_for_update()).all()}
-    # Validate every version before changing any binding.
-    selected = {}
-    for mode in MODES:
-        record = resolve_binding(session, mode, payload[mode]) if payload[mode] else None
-        if record:
-            record = get_version(session, record.id, lock=True)
-            if record.status != 'available':
-                raise HTTPException(422, '默认 Skill 必须为对应类型的可用版本')
-        selected[mode] = record.id if record else None
-    for mode in MODES:
-        bindings[mode].skill_version_id = selected[mode]
-        bindings[mode].operator_id = user.id
-    session.add(SkillAuditRecord(operator_id=user.id, action='defaults', detail=json.dumps(payload)))
-    session.flush()
 
 
 def audit(session, row, user, before, after):
@@ -106,23 +79,10 @@ def save_settings(session, user, body):
     if body.dingtalk.model_dump() != {k: current_ding[k] for k in ('corpId', 'appId', 'callbackDomain')}:
         raise HTTPException(422, '钉钉标识由部署环境管理，网页仅供查看')
     before = {k: v for k, v in values(session).items() if k != 'version'}
-    before['defaultSkillIds'] = defaults(session)
     after = {k: getattr(body, k) for k in ('concurrency', 'timeoutSeconds', 'maxUploadBytes')}
-    after['defaultSkillIds'] = body.defaultSkillIds.model_dump()
-    if before['defaultSkillIds'] != after['defaultSkillIds']:
-        bind_defaults(session, after['defaultSkillIds'], user)
     row.values = {k: after[k] for k in ('concurrency', 'timeoutSeconds', 'maxUploadBytes')}
     audit(session, row, user, before, after)
     session.commit()
     return read_settings(session)
 
 
-def save_defaults(session, user, payload):
-    row = lock_settings(session)
-    before = {'defaultSkillIds': defaults(session)}
-    after = {'defaultSkillIds': payload.model_dump()}
-    if before != after:
-        bind_defaults(session, after['defaultSkillIds'], user)
-        audit(session, row, user, before, after)
-    session.commit()
-    return defaults(session)

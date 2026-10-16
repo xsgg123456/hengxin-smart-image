@@ -2,7 +2,6 @@ import App from './App.vue'
 import { useUserStore } from './store/modules/user'
 import { bootstrapUser } from './api/hengxin/bootstrap-user'
 import { bootstrap, retryBootstrap } from './api/hengxin/bootstrap'
-import { refreshWorkspace } from './views/hengxin/model'
 import { fetchGetUserInfo } from './api/auth'
 import { createApp } from 'vue'
 import { initStore } from './store'                 // Store
@@ -35,6 +34,7 @@ const app = createApp(App)
 initStore(app)
 useUserStore().setLoginStatus(false)
 useUserStore().info = {}
+useWorktabStore().current = {}
 useWorktabStore().opened = []
 useWorktabStore().keepAliveExclude = []
 useUserStore().setSearchHistory([])
@@ -90,7 +90,6 @@ retryBootstrap.run = createBootstrapRunner({
   start() { lockContent(); bootstrap.loading = true; bootstrap.error = '' },
   async load() {
     const user = await fetchGetUserInfo()
-    if (isMockMode) await refreshWorkspace()
     return user
   },
   async accept(user) {

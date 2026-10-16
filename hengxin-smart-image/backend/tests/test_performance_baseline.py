@@ -11,12 +11,10 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 
-from app.execution.fixture_runner import run_generation
 from app.modules.api_image_edits.models import ApiItem, ApiTask, ApiVersion
 from files_helpers import files_env
 from performance_samples import image_budget, sample
 from test_api_image_domain import ROOT, create, enabled_api
-from test_tasks import body, job_for, submit, task_env
 
 
 def emit(name, rows, **dimensions):
@@ -29,28 +27,6 @@ def emit(name, rows, **dimensions):
     print('PERFORMANCE_BASELINE ' + json.dumps(result, ensure_ascii=False, sort_keys=True))
 
 
-def test_cli_list_and_template_baseline(task_env):
-    client, factory, _, _ = task_env
-    for index in range(12):
-        data = body(task_env, 'wallpaper')
-        response = submit(task_env, {**data, 'name': f'基线任务{index:02}'}, f'baseline-{index}')
-        assert response.status_code == 202, response.text
-        run_generation(job_for(factory, response.json()), factory, task_env[2])
-    measurements = []
-    for path in ['/api/v1/tasks?pageSize=12', '/api/v1/templates?pageSize=12']:
-        for _ in range(3):
-            response, row = sample(client, path)
-            page = response.json()
-            assert page['total'] == 12 and len(page['items']) == 12
-            row['row_count'] = len(page['items'])
-            measurements.append(row)
-        # Match current component rendering, not every image buried in the JSON.
-        pictures = [picture for item in page['items'] for picture in
-                    (item['images'][:1] if '/tasks?' in path else item['images'][:4])]
-        budget = image_budget(client, pictures)
-        assert budget['original_bytes'] > 0 and budget['unique_images'] == 12
-        measurements.append({'path': path, 'visible_component_images': budget})
-    emit('cli-and-templates-v1', measurements, tasks=12, templates=12, result_slots=2)
 
 
 @pytest.mark.parametrize('history', [1, 8])

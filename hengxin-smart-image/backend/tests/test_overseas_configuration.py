@@ -99,7 +99,7 @@ def test_explicit_overseas_settings_and_safe_defaults(monkeypatch):
         assert getattr(settings, name.lower()) == value
     assert settings.generation_concurrency == 5
     assert not settings.enable_codex_executor
-    assert not settings.enable_fixture_executor
+    assert not hasattr(settings, 'enable_fixture_executor')
     assert not settings.enable_test_jobs
     assert not settings.enable_dev_identity
     assert not settings.cli_retention_enabled
@@ -145,7 +145,7 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     original_import = builtins.__import__
 
     def forbid_domestic_imports(name, *args, **kwargs):
-        shared_files = {'app.modules.skills.package_validator', 'app.modules.files.delivery', 'app.modules.files.streaming',
+        shared_files = {'app.core.skill_package', 'app.modules.files.delivery', 'app.modules.files.streaming',
                         'app.modules.files.multipart', 'app.modules.files.validation'}
         assert name in shared_files or not name.startswith(('app.main', 'app.health', 'app.jobs', 'app.modules'))
         return original_import(name, *args, **kwargs)

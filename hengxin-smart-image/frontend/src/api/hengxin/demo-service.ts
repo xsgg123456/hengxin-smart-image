@@ -12,9 +12,7 @@ export async function createDemoService(options: Parameters<typeof createMockSer
   let queue = Promise.resolve(), stopped = false, failure: Error | undefined
   let engine: ReturnType<typeof createMockService>
   try {
-    engine = createMockService({ ...options, demo: true, snapshot, changed: () => {
-      queue = queue.then(save).catch(fail)
-    } })
+    engine = createMockService({ ...options, snapshot })
   } catch (reason) { await release(); throw reason }
   function fail(reason: unknown) {
     failure = new Error(`Demo 数据未保存，演示已暂停，请刷新后重试。${reason instanceof Error ? reason.message : ''}`)
