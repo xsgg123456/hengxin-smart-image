@@ -130,6 +130,16 @@ def test_package_dirty_source_refused_before_review(monkeypatch, tmp_path):
         p.build(tmp_path)
 
 
+def test_required_package_sources_exist_after_retirement():
+    root = Path(__file__).resolve().parents[2]
+    for name in p.REQUIRED:
+        if name.startswith('frontend/dist/'):
+            continue  # Generated assets are validated by the actual package build.
+        source = root / name if name.startswith('scripts/') else root / 'hengxin-smart-image' / name
+        assert source.is_file(), name
+    assert not p.RETIRED_REQUIRED & p.REQUIRED
+
+
 def test_release_name_accepted_by_shared_ledger():
     ledger = load('release-retention-state')
     assert ledger.RELEASE.fullmatch('domestic-retire-20261016-abcdef0')

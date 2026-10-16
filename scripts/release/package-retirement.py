@@ -10,7 +10,8 @@ APP = p.APP
 SCRIPTS = {'retirement-' + name + '.py' for name in ('deploy', 'runtime', 'native', 'drain', 'backup', 'verify')}
 SCRIPTS |= {'domestic-gate.py', 'domestic-drain.py', 'domestic-backup.py'}
 EXACT = {'infra/hengxin-domestic-deletions.service'}
-REQUIRED = p.REQUIRED | EXACT | {'scripts/release/' + name for name in SCRIPTS} | {
+RETIRED_REQUIRED = {'backend/tests/fixtures/cli_revision_briefs.json'}
+REQUIRED = (p.REQUIRED - RETIRED_REQUIRED) | EXACT | {'scripts/release/' + name for name in SCRIPTS} | {
     'backend/migrations/versions/0030_retire_legacy.py',
     'backend/migrations/versions/0029_api_task_deletions.py',
     'backend/app/retention/worker.py'}
