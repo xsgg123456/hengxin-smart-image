@@ -2,6 +2,7 @@ import { MAX_UPLOAD_BYTES } from './upload-limits'
 import { isSkill, type Skill } from './management'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export interface Asset { id: string; name: string; contentType: string; sizeBytes: number; url: string; source: 'task' | 'upload' }
+export interface UploadedAsset extends Asset { materialState?: 'added' | 'existing' | 'restored' }
 export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean; sourcePath?: string | null }
 export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; createdAt: string; conversationId?: string; deliveryError?: string | null }
 export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null; conversationId?: string | null }
@@ -54,6 +55,7 @@ export function createStudioApi(fetcher: typeof fetch = fetch) {
   const guard = (id: string) => (v: unknown): v is Studio => isStudio(v, id)
   return {
     get: (id: string, signal?: AbortSignal) => read(signal)(base(id), guard(id)),
+    removeMaterial: (id: string, assetId: string) => request(`${base(id)}/materials/${encodeURIComponent(assetId)}`, guard(id), {}, { method: 'DELETE' }),
     transcript: (id: string, after: number, signal?: AbortSignal) => read(signal)(`${base(id)}/transcript`, isTranscriptPage, undefined, { params: { after } }),
     newConversation: (id: string, key: string) => request(`${base(id)}/conversations`, guard(id), {}, { idempotencyKey: key }),
     send: (id: string, body: TurnInput, key: string) => request(`${base(id)}/turns`, guard(id), body, { idempotencyKey: key }),
@@ -65,7 +67,9 @@ export function createStudioApi(fetcher: typeof fetch = fetch) {
       validateStudioFile(file); const body = new FormData(); body.append('file', file)
       const response = await fetcher(`${base(id)}/files`, { method: 'POST', body, credentials: 'include', headers: { 'X-HX-Request': '1' }, signal })
       if (!response.ok) throw new IdentityError(response.status, response.status === 413 ? '单个附件不能超过 500 MB' : '文件上传失败，请重试')
-      const value: unknown = await response.json(); if (!isAsset(value, id)) throw Error('文件响应格式错误'); return value
+      const value: unknown = await response.json()
+      if (!isAsset(value, id) || (record(value) && value.materialState !== undefined && !['added', 'existing', 'restored'].includes(String(value.materialState)))) throw Error('文件响应格式错误')
+      return value as UploadedAsset
     },
 
   }

@@ -1,6 +1,6 @@
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 import type { Page } from './tasks'
-export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string }
+export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null }
 export interface ArchivePicture { id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
 export interface ArchiveDetail extends Archive { pictures: ArchivePicture[] }
 export interface ArchiveQuery { search: string; page: number; pageSize: number }
@@ -9,18 +9,23 @@ const positive = (value: unknown) => Number.isInteger(value) && Number(value) > 
 const text = (value: unknown): value is string => typeof value === 'string'
 export const archivePictureUrl = (id: string, pictureId: string) => `${root}/${encodeURIComponent(id)}/pictures/${encodeURIComponent(pictureId)}/content`
 export const archiveError = (reason: unknown) => reason instanceof IdentityError && reason.status === 404 ? '成品不存在或已不可访问。' : reason instanceof Error ? reason.message : '成品读取失败，请重试'
+function isPicture(picture: unknown, id: string): picture is ArchivePicture {
+  return record(picture) && ['id', 'name', 'sku'].every(key => text(picture[key]))
+    && ['image/png', 'image/jpeg', 'image/webp'].includes(String(picture.contentType)) && positive(picture.width) && positive(picture.height) && positive(picture.sizeBytes)
+    && picture.url === archivePictureUrl(id, String(picture.id))
+}
 export function isArchive(value: unknown): value is Archive {
   return record(value) && ['id', 'productName', 'brand', 'platform', 'createdAt'].every(key => text(value[key]))
     && (value.taskId === null || text(value.taskId)) && typeof value.sourceDeleted === 'boolean'
     && (value.taskId !== null || value.sourceDeleted) && positive(value.pictureCount)
     && Array.isArray(value.skus) && value.skus.every(sku => record(sku) && text(sku.code))
+    && (value.cover == null || isPicture(value.cover, String(value.id)))
 }
 export function isArchiveDetail(value: unknown, id: string): value is ArchiveDetail {
   return isArchive(value) && value.id === id && record(value) && Array.isArray(value.pictures)
     && value.pictures.length === value.pictureCount && new Set(value.pictures.map(p => record(p) ? p.id : null)).size === value.pictureCount
-    && value.pictures.every(picture => record(picture) && ['id', 'name', 'sku'].every(key => text(picture[key]))
-      && ['image/png', 'image/jpeg', 'image/webp'].includes(String(picture.contentType)) && positive(picture.width) && positive(picture.height) && positive(picture.sizeBytes)
-      && picture.url === archivePictureUrl(id, String(picture.id)))
+    && value.pictures.every(picture => isPicture(picture, id))
+    && (!value.cover || value.cover.id === value.pictures[0].id)
 }
 export function createArchivesApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store' }))

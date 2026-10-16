@@ -21,7 +21,7 @@ function mount(api: StudioApi, current = () => task) {
   return {state,failures,close:()=>app.unmount()}
 }
 function fake(overrides:Partial<StudioApi>={}):StudioApi {
-  return {get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
+  return {removeMaterial:async()=>snapshot(),get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
 }
 
 const resultPicture = (id = 'picture') => ({id,name:'生成图.png',url:`/api/overseas/v1/tasks/t/studio/pictures/${id}/content`,width:800,height:800,turnId:'previous',sku:null,archived:false})

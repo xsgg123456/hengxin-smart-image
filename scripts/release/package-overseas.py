@@ -175,6 +175,8 @@ def verify_archive(raw, files):
                 raise ValueError('Archive hash mismatch: ' + member.name)
 
 
+OVERSEAS_MIGRATION = 'overseas_0016'
+
 def build(repo):
     git = lambda *args: m.common.git(repo, *args)
     require_clean_tracked(git)
@@ -202,7 +204,7 @@ def build(repo):
     validate(files)
     release = RELEASE_PREFIX + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration=DOMESTIC_MIGRATION, overseasMigration='overseas_0016', frontendVersion=VERSION,
+                    migration=DOMESTIC_MIGRATION, overseasMigration=OVERSEAS_MIGRATION, frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

@@ -8,10 +8,11 @@
       <p class="hx-footnote">{{ detail.pictureCount }} 张图片 · 归档于 {{ formatBeijingTime(detail.createdAt) }}</p>
       <p v-if="detail.sourceDeleted || !detail.taskId" class="hx-gap">原任务已删除</p>
       <ElButton v-else text type="primary" @click="$emit('source', detail.taskId)">查看原任务</ElButton>
-      <div class="archive-pictures hx-gap"><OverseasArchivePicture v-for="picture in detail.pictures" :key="detail.id + picture.id + revision" :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" /></div>
+      <div class="archive-pictures hx-gap"><OverseasArchivePicture v-for="(picture, index) in detail.pictures" :key="detail.id + picture.id + revision" :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = index" /></div>
     </template>
     <template #footer><ElButton @click="$emit('close')">关闭</ElButton></template>
   </ElDialog>
+  <OverseasArchiveViewer v-if="detail && previewIndex !== null" :key="detail.id" :archive-id="detail.id" :api="api" :group="detail.pictures" :initial-index="previewIndex" @close="previewIndex = null" @failure="failure" />
 </template>
 <script setup lang="ts">
 import { formatBeijingTime } from '@/utils/beijing-time'
@@ -21,9 +22,11 @@ import { IdentityError } from '@/api/identity/request'
 import type { ArchiveDetail, ArchivesApi } from '@/api/overseas/archives'
 import { archiveError } from '@/api/overseas/archives'
 import OverseasArchivePicture from './OverseasArchivePicture.vue'
+import OverseasArchiveViewer from './OverseasArchiveViewer.vue'
 const props = defineProps<{ id: string; api: ArchivesApi }>()
 const emit = defineEmits<{ close: []; source: [taskId: string]; failure: [reason: unknown] }>()
 const detail = ref<ArchiveDetail>(), error = ref(''), loading = ref(false), revision = ref(0)
+const previewIndex = ref<number | null>(null)
 let epoch = 0, alive = true
 function failure(reason: unknown) {
   error.value = archiveError(reason)
@@ -31,7 +34,7 @@ function failure(reason: unknown) {
 }
 async function load() {
   const id = props.id, current = ++epoch
-  detail.value = undefined; error.value = ''; loading.value = false
+  detail.value = undefined; previewIndex.value = null; error.value = ''; loading.value = false
   if (!id) return
   loading.value = true
   try { const value = await props.api.get(id); if (alive && current === epoch) { detail.value = value; revision.value++ } }

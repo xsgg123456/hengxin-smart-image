@@ -1450,3 +1450,10 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 3. 独立审查同快照后提交恢复代码，生产执行并核对公共页面和完整成功凭据。
 
 本阶段已完成并上线0.2.38：业务提交106d07d、发布恢复33fbc4f；前端378/后端2551通过，生产安装2443通过及容量4通过；两轮独立审查PASS。ExecStart显示元数据误报已修复并完成受控恢复，公共入口、四区尺寸、分组原图、画布、国内与身份服务不变均验证。详细证据及未调用付费模型的边界见docs/STUDIO-IMAGES-VALIDATION-20261016.md。
+
+## 2026-10-16 · 任务素材整理与成品浏览正式开发
+1. 素材后端：studio材料可见状态模型/增量迁移、按任务SHA256分组投影、移除与上传恢复接口，保持attachment解析和CLI冻结输入链路。文件：backend/app/overseas/studio/{models,queries,files,router}.py、新material列表服务、海外迁移与专项测试。验收：历史消息/下载/CLI原件、去重/权限/幂等/并发/持久化均通过。
+2. 素材前端：api/overseas/studio.ts、studio/StudioMaterials.vue、use-studio.ts、OverseasStudio.vue，预览对齐图标确认/反馈/选中清理/刷新去重数，保留输入草稿及上传标注流程；隔离HTTP和浏览器验证。
+3. 成品库：backend海外归档查询返回第一图封面元数据；frontend api/overseas/archives.ts、OverseasArchivePage/Detail/Picture及共享查看器，复用已确认120px封面与整套切换；测试权限、错误重试、索引、旧归档/原任务已删除、布局。
+4. 集成发布：前后端全套回归、类型/生产构建/实际安装测试、四项浏览器交互、独立审查固定快照；版本0.2.39中文提交。复用既有生产拓扑和发布流程，备份验证/关闭接纳排空/迁移/切换/健康/视觉验收；保持国内、身份与原有会话数据，失败按阶段回退。
+分工：素材后端worker仅相关backend及专项测试；成品worker负责归档前后端及其测试；主Agent负责素材前端、文档、整合/浏览器/发布工具、审查提交部署。worker不提交，不再派发子Agent；共享文件变更先协调。

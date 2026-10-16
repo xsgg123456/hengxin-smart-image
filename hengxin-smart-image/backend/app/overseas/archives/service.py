@@ -37,11 +37,17 @@ def archive(session, actor, task_id, body, key, store):
     return complete(session, actor, task, 'archived', target, key, digest)
 
 
-def dto(record):
+def picture_dto(row):
+    return dict(id=str(row.id), name=row.name, sku=row.sku, width=row.width, height=row.height,
+        contentType=row.content_type, sizeBytes=row.size_bytes,
+        url=f'/api/overseas/v1/archives/{row.archive_id}/pictures/{row.id}/content')
+
+
+def dto(record, cover=None):
     return dict(id=str(record.id), taskId=str(record.task_id) if record.task_id else None,
         sourceDeleted=record.task_id is None, productName=record.product_name, brand=record.brand,
         platform=record.platform, skus=record.skus or [], pictureCount=len(record.versions),
-        createdAt=record.created_at)
+        createdAt=record.created_at, cover=picture_dto(cover) if cover else None)
 
 
 def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20):
@@ -57,9 +63,12 @@ def listing(session, actor, product='', brand='', sku='', search='', page=1, pag
         filters.append(or_(Archive.product_name.icontains(search, autoescape=True),
                            Archive.brand.icontains(search, autoescape=True), sku_match(search)))
     total = session.scalar(select(func.count()).select_from(Archive).where(*filters))
-    rows = session.scalars(select(Archive).where(*filters).order_by(Archive.created_at.desc(), Archive.id)
-                           .offset((page - 1) * page_size).limit(page_size))
-    return {'items': [dto(row) for row in rows], 'total': total, 'page': page, 'pageSize': page_size}
+    first_asset = (select(ArchiveAsset.id).where(ArchiveAsset.archive_id == Archive.id)
+        .order_by(ArchiveAsset.position, ArchiveAsset.id).limit(1).correlate(Archive).scalar_subquery())
+    rows = session.execute(select(Archive, ArchiveAsset).outerjoin(ArchiveAsset, ArchiveAsset.id == first_asset)
+        .where(*filters).order_by(Archive.created_at.desc(), Archive.id)
+        .offset((page - 1) * page_size).limit(page_size))
+    return {'items': [dto(row, cover) for row, cover in rows], 'total': total, 'page': page, 'pageSize': page_size}
 
 
 def access(session, actor, archive_id, store):
@@ -79,9 +88,8 @@ def access(session, actor, archive_id, store):
 
 def view(session, store, actor, archive_id):
     record = access(session, actor, archive_id, store)
-    result = {**dto(record), 'pictures': [dict(id=str(row.id), name=row.name, sku=row.sku,
-        width=row.width, height=row.height, contentType=row.content_type, sizeBytes=row.size_bytes,
-        url=f'/api/overseas/v1/archives/{record.id}/pictures/{row.id}/content') for row in assets(session, record)]}
+    pictures = assets(session, record)
+    result = {**dto(record, pictures[0] if pictures else None), 'pictures': [picture_dto(row) for row in pictures]}
     session.commit()
     return result
 

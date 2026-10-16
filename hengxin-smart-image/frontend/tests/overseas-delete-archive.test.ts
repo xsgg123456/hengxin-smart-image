@@ -34,3 +34,11 @@ test('任务不存在时归档仍独立读取与下载；拒绝外部/跨成品�
   for(const call of calls){assert.equal(call.options?.credentials,'include');assert.equal(call.options?.cache,'no-store')}
   for(const status of [401,403,404,500]) await assert.rejects(createArchivesApi(async()=>json({},status)).content(archive.id,'p1'),(error:unknown)=>error instanceof IdentityError&&error.status===status)
 })
+
+test('封面元数据只允许本套鉴权地址，详情封面必须对应归档首图', () => {
+  const cover = archive.pictures[0]
+  assert.ok(isArchiveDetail({ ...archive, cover }, archive.id))
+  for (const value of [{ ...cover, url: 'https://external/image.png' }, { ...cover, url: archivePictureUrl('other', cover.id) }, { ...cover, sizeBytes: 0 }, { ...cover, id: 'other', url: archivePictureUrl(archive.id, 'other') }]) {
+    assert.equal(isArchiveDetail({ ...archive, cover: value }, archive.id), false)
+  }
+})

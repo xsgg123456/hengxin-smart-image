@@ -12,6 +12,7 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   const revisions = ref<StudioRevision[]>([])
   const selected = ref<string[]>([]), transcript = ref<StudioTranscript[]>([]), error = ref(''), busy = ref(false), uploading = ref(false), loading = ref(false)
   const pending = ref<Pending>(), storageKey = `hx-studio-pending:${actorId}:${task().id}`
+  const materialNotice = ref('')
   try { const saved = sessionStorage.getItem(storageKey); if (saved) pending.value = JSON.parse(saved) as Pending } catch { /* Storage may be disabled. */ }
   const editable = computed(() => !!data.value && !data.value.completed && task().capabilities.includes('task.design'))
   const activeTurn = computed(() => data.value?.turns.find(t => t.id === data.value?.activeTurnId))
@@ -130,13 +131,31 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     if (reason) { error.value = reason; return }
     attachments.value.push(...additions); error.value = ''
   }
+  async function removeMaterial(assetId: string) {
+    if (locked.value) return false
+    ++operation; readController?.abort(); clearTimeout(timer); busy.value = true; error.value = ''
+    try {
+      const value = await api.removeMaterial(task().id, assetId)
+      if (!alive) return false
+      data.value = value
+      return true
+    } catch (reason) { fail(reason); return false }
+    finally { busy.value = false; schedule(0) }
+  }
   async function receive(files: File[]) {
     if (locked.value) return
     const reason = turnLimitError(attachments.value.length + files.length, references.value.length)
     if (reason) { error.value = reason; return }
-    uploading.value = true; error.value = ''
-    try { for (const file of files) { const asset = await api.upload(task().id, file, controller.signal); if (alive) attachments.value.push(asset) } }
-    catch (reason) { fail(reason) } finally { uploading.value = false }
+    uploading.value = true; error.value = ''; materialNotice.value = ''
+    try { for (const file of files) {
+      const asset = await api.upload(task().id, file, controller.signal)
+      if (alive) {
+        attachments.value.push(asset)
+        if (asset.materialState === 'existing') materialNotice.value = '该文件已在任务素材中'
+        else if (asset.materialState === 'restored') materialNotice.value = '已恢复到任务素材列表'
+      }
+    } }
+    catch (reason) { fail(reason) } finally { uploading.value = false; if (alive) void sync() }
   }
   function modify(picture: StudioPicture) {
     if (locked.value || references.value.some(p => p.id === picture.id)) return
@@ -172,10 +191,10 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
       const revision: StudioRevision = { base: picture, annotation, text: prepared.text, draftKey: draftKey(picture) }
       revisions.value = [...revisions.value.filter(r => r.base.id !== picture.id), revision]
       return true
-    } catch (reason) { fail(reason); return false } finally { uploading.value = false }
+    } catch (reason) { fail(reason); return false } finally { uploading.value = false; if (alive) void sync() }
   }
   function toggle(id: string) { selected.value = selected.value.includes(id) ? selected.value.filter(p => p !== id) : [...selected.value, id] }
   function toggleGroup(pictures: StudioPicture[]) { const ids = pictures.map(p => p.id), all = ids.every(id => selected.value.includes(id)); selected.value = all ? selected.value.filter(id => !ids.includes(id)) : [...new Set([...selected.value, ...ids])] }
   onUnmounted(() => { alive = false; clearRevisions(); clearTimeout(timer); page?.removeEventListener('visibilitychange', visibilityChanged); controller.abort(); readController?.abort() })
-  return { api, data, text, skill, attachments, references, revisions, revisionError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, refresh, send, newConversation, retry, archive, complete, stop, add, receive, modify, toggle, toggleGroup, fail }
+  return { api, data, text, skill, attachments, references, revisions, revisionError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, refresh, send, newConversation, retry, archive, complete, stop, add, receive, modify, toggle, toggleGroup, fail, removeMaterial, materialNotice }
 }

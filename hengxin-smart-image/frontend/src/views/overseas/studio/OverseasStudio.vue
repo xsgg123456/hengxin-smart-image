@@ -19,7 +19,7 @@
           <p class="studio-compose-note">支持 JPG/PNG/WebP、PDF/DOCX/PPTX/XLS/XLSX/CSV/TXT · Ctrl + Enter 发送。执行期间可离开，回来后继续。</p>
           <input ref="input" hidden type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.pptx,.xls,.xlsx,.csv,.txt" @change="upload">
         </div>
-      </section><StudioMaterials v-if="materialsOpen" :assets="data?.materials || []" :disabled="locked" @close="materialsOpen = false" @add="add" @failure="fail" /></div>
+      </section><StudioMaterials v-if="materialsOpen" :assets="data?.materials || []" :disabled="locked" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @failure="fail" /></div>
     </ElCard>
     <StudioAnnotationDialog v-if="editing && data" :key="editingKey" ref="annotationDialog" :picture="editing" :draft-key="editingKey" :submitting="uploading" :error="annotationError" @close="closeAnnotation" @confirm="applyAnnotation" @failure="fail" />
     <ElDialog v-model="conversationOpen" title="开始新对话" width="min(480px,94vw)" append-to-body><p>开始后将使用新的对话上下文。旧对话、任务材料和已生成或归档的成品都会保留。</p><p>草稿和当前引用将清空；需要使用旧材料时，请重新选择引用。</p><template #footer><ElButton @click="conversationOpen = false">取消</ElButton><ElButton type="primary" :loading="busy" :disabled="!canNewConversation" @click="doNewConversation">确认开始新对话</ElButton></template></ElDialog>
@@ -31,7 +31,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { TaskDetail } from '@/api/overseas/tasks'
 import StudioTurns from './StudioTurns.vue'
-import type { StudioPicture } from '@/api/overseas/studio'
+import type { Asset, StudioPicture } from '@/api/overseas/studio'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { PreparedAnnotation } from '@/views/hengxin/components/annotation/AnnotationEditor.vue'
 import { forgetAnnotationDraft } from '@/views/hengxin/components/annotation/annotation-drafts'
 import StudioAttachments from './StudioAttachments.vue'
@@ -43,7 +44,13 @@ import { useStudio } from './use-studio'
 import './studio.css'
 const props = defineProps<{ actorId: string; task: TaskDetail }>()
 const emit = defineEmits<{ failure: [reason: unknown]; changed: [] }>()
-const { data, text, skill, attachments, references, revisions, revisionError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, refresh, send, newConversation, retry, archive, complete, stop, add, receive, toggle, toggleGroup, fail } = useStudio(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
+const { data, text, skill, attachments, references, revisions, revisionError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, refresh, send, newConversation, retry, archive, complete, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, materialNotice } = useStudio(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
+watch(materialNotice, value => { if (value) ElMessage.info(value) })
+async function confirmRemoveMaterial(asset: Asset) {
+  if (locked.value) return
+  try { await ElMessageBox.confirm('仅从任务素材列表移除，不影响历史消息和已发送文件。', `移除 ${asset.name}`, { confirmButtonText: '移除', cancelButtonText: '取消', type: 'warning' }) } catch { return }
+  if (await removeMaterial(asset.id)) ElMessage.success('已从列表移除，历史消息和待发送附件保留')
+}
 const editing = ref<StudioPicture>(), editingKey = ref(''), annotationDialog = ref<InstanceType<typeof StudioAnnotationDialog>>(), annotationError = ref('')
 const ordinaryAttachments = computed(() => attachments.value.filter(a => !revisions.value.some(r => r.annotation?.id === a.id)))
 const plainReferences = computed(() => references.value.filter(p => !revisions.value.some(r => r.base.id === p.id)))

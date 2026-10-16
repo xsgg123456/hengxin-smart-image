@@ -7,6 +7,7 @@ from app.overseas.materials.models import Material
 from app.overseas.management.installed_catalog import listing
 from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
 from .models import Turn, Upload, Picture, Conversation, Transcript
+from .material_list import visible
 
 ROOT = '/api/overseas/v1'
 
@@ -78,13 +79,10 @@ def view(session, actor, task_id):
             pictures=[picture_dto(p) for p in session.scalars(select(Picture).where(
                 Picture.turn_id == turn.id).order_by(Picture.created_at, Picture.id))],
             createdAt=turn.created_at))
-    materials = session.scalars(select(Material).where(Material.task_id == task.id,
-        Material.deleted_at.is_(None), Material.status == 'ready').order_by(Material.created_at))
-    uploads = session.scalars(select(Upload).where(Upload.task_id == task.id).order_by(Upload.created_at))
     channel = current_conversation(session, task.id)
     return dict(taskId=str(task.id), conversationId=str(channel.id) if channel else None,
         completed=task.status == 'completed', turns=turns,
-        materials=[asset(row, 'task') for row in materials] + [asset(row, 'upload') for row in uploads],
+        materials=[asset(row, source) for row, source in visible(session, task.id)],
         skills=listing(),
         activeTurnId=active)
 

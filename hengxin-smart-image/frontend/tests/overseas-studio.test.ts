@@ -18,7 +18,7 @@ function mount(api: StudioApi, current = () => task) {
   return {state,failures,close:()=>app.unmount()}
 }
 function fake(overrides:Partial<StudioApi>={}):StudioApi {
-  return {get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
+  return {removeMaterial:async()=>snapshot(),get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
 }
 test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   assert.equal(isStudio(snapshot(),'t'),true)
@@ -225,4 +225,39 @@ test('sessionStorage中的101项超限消息恢复为可移除草稿，不困在
   assert.equal(s.pending.value,undefined);assert.equal(storage.size,0);assert.equal(s.locked.value,false);assert.equal(s.text.value,'原始草稿');assert.equal(s.skill.value,'skill');assert.equal(s.attachments.value.length,101)
   await s.send();assert.equal(calls,0);assert.match(s.limitError.value,/100 个附件/)
   s.attachments.value.pop();await s.send();assert.equal(calls,1);view.close()
+})
+
+
+test('素材移除只更新右侧列表，保留历史、待发送附件与输入，随后可正常发送',async()=>{
+  storage.clear();let current=snapshot();let sent:unknown
+  const view=mount(fake({get:async()=>current,removeMaterial:async()=>{current={...current,materials:[]};return current},send:async(_id,body)=>{sent=body;return current}}));await flush()
+  view.state.add(['task:m']);view.state.text.value='继续使用该附件';view.state.skill.value='skill'
+  const original=view.state.attachments.value[0]
+  assert.equal(await view.state.removeMaterial('task:m'),true)
+  assert.equal(view.state.data.value?.materials.length,0);assert.deepEqual(view.state.attachments.value,[original]);assert.equal(view.state.text.value,'继续使用该附件')
+  await view.state.send();assert.deepEqual(sent,{text:'继续使用该附件',skillId:'skill',attachmentIds:['task:m'],referencePictureIds:[]});view.close()
+})
+
+test('移除失败不删列表；只读和已完成任务不调用移除接口',async()=>{
+  storage.clear();let calls=0
+  const api=fake({removeMaterial:async()=>{calls++;throw new IdentityError(500,'移除失败')}})
+  const view=mount(api);await flush();assert.equal(await view.state.removeMaterial('task:m'),false);assert.equal(view.state.data.value?.materials.length,1);assert.equal(view.state.error.value,'移除失败');view.close()
+  for(const current of [()=>({...task,capabilities:[]}),()=>task]){
+    const readonly=mount(fake({...api,get:async()=>({...snapshot(),completed:current().capabilities.length>0})}),current);await flush();await readonly.state.removeMaterial('task:m');readonly.close()
+  }
+  assert.equal(calls,1)
+})
+
+test('素材移除接口编码身份并携带浏览器写保护和身份 cookie',async()=>{
+  let url='',options:RequestInit|undefined
+  const api=createStudioApi(async(u,o)=>{url=String(u);options=o;return new Response(JSON.stringify(snapshot()))})
+  await api.removeMaterial('t','upload:file-id')
+  assert.match(url,/materials\/upload%3Afile-id$/);assert.equal(options?.method,'DELETE');assert.equal(options?.credentials,'include');assert.ok((options?.headers as Record<string,string>)['X-HX-Request'])
+})
+
+test('重复上传保留新的发送附件身份并刷新去重列表，恢复提示可见',async()=>{
+  storage.clear();let reads=0
+  const view=mount(fake({get:async()=>{reads++;return snapshot()},upload:async()=>({...snapshot().materials[0],id:'upload:new',materialState:'restored'})}));await flush()
+  await view.state.receive([new File(['same'],'重命名.pdf')]);await flush()
+  assert.equal(view.state.attachments.value[0].id,'upload:new');assert.equal(view.state.data.value?.materials.length,1);assert.ok(reads>=2);assert.match(view.state.materialNotice.value,/已恢复/);view.close()
 })

@@ -13,7 +13,7 @@ from app.overseas.attachment_delivery import deliver
 from app.overseas.tasks.service import lock_actor
 from app.overseas.materials.parsers import CONTENT_TYPES
 from .models import Upload
-from . import queries
+from . import queries, material_list
 
 from app.overseas.upload_limits import MAX_UPLOAD_BYTES
 
@@ -106,9 +106,11 @@ def upload(session, store, actor, task_id, data, filename):
         store.put(row, data)
     except Exception:
         raise HTTPException(503, '附件存储失败，请重试') from None
+    material_state = material_list.uploaded(session, task.id, row.checksum)
     session.add(row)
     session.flush()
     result = queries.asset(row, 'upload')
+    result['materialState'] = material_state
     session.commit()
     return result
 

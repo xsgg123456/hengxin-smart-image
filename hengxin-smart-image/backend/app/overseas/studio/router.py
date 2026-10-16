@@ -7,7 +7,7 @@ from app.core.browser_auth import browser_request
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.tasks.router import Database, Key
 from app.storage.minio_store import get_store
-from . import service, queries, files
+from . import service, queries, files, material_list
 from .schemas import Send, Cancel, ArchiveRequest, Complete
 
 router = APIRouter(prefix='/api/overseas/v1/tasks/{task_id}/studio', tags=['overseas-studio'])
@@ -22,6 +22,11 @@ def view(task_id: UUID, actor: CurrentMember, session: Database):
 @router.get('/events')
 def events(task_id: UUID, actor: CurrentMember, session: Database, after: int = Query(0, ge=0)):
     return queries.events(session, actor, task_id, after)
+
+
+@router.delete('/materials/{identity}', dependencies=WRITE)
+def remove_material(task_id: UUID, identity: str, actor: CurrentMember, session: Database):
+    return material_list.remove(session, actor, task_id, identity)
 
 
 @router.post('/turns', dependencies=WRITE)

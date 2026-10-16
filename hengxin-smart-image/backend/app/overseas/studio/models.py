@@ -1,6 +1,6 @@
 """Task-owned conversations; generated pictures are immutable storage versions."""
 from uuid import UUID, uuid4
-from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, Uuid
+from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.timestamps import Timestamps
 from app.overseas.db import Base
@@ -42,6 +42,15 @@ class Upload(Timestamps, Base):
     checksum: Mapped[str] = mapped_column(String(64))
     bucket: Mapped[str] = mapped_column(String(200))
     object_key: Mapped[str] = mapped_column(String(500), unique=True)
+
+
+class MaterialVisibility(Timestamps, Base):
+    __tablename__ = 'overseas_studio_material_visibility'
+    __table_args__ = (UniqueConstraint('task_id', 'checksum'),)
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    checksum: Mapped[str] = mapped_column(String(64))
+    hidden: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class Picture(Timestamps, Base):
