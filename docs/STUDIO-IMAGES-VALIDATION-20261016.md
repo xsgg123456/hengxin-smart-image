@@ -42,3 +42,12 @@
 - 实查国内删除服务PID3925617、实际cwd、文件hash均未变化，NRestarts=0；仅ExecStart展示由start_time真实值/pid3925617变n/a/pid0，发生于daemon-reload。国内业务未被停止。海外jobs/deleting/queue/unacked均0，备份COMPLETE存在。
 
 - 恢复增量测试：新发布/恢复专项83 passed +24 subtests；相关旧upload/attachments/recovery/retention回归83 passed +48 subtests；Python编译通过。主代理另用项目venv重跑专项83+24通过。
+
+## 生产发布完成
+
+- 2026-10-16 10:09（Asia/Shanghai）恢复成功，recovery.exit=0、RECOVERY_PHASE=complete、PHASE=complete。原业务包仍为overseas-20261016-106d07d / 前端0.2.38；恢复代码提交33fbc4f，独立审查候选0f5a24f086d4694deffdb4aea0648258101579448786e3bfcd4fdce6605f3db2两阶段PASS。
+- 候选镜像sha256:558a97ff881ac1e3f175fa63278606415e3d3e897dd2467a5bec8ecd444186e7；服务器verification.json确认sourceHashes、domesticIdentityUnchanged、skillsVerified均true，businessDeletion=false。数据库仍0029/overseas_0016；备份/opt/hengxin-backups/overseas-20261016-106d07d。
+- 公共生产地址https://zhitu.qhhengxin.top/已恢复。真实历史任务中实测消息图片72px、结果110px、素材48px、待发56px；引用10素材只显示3项、全部弹窗10项可移除，清除验收引用后发送按钮禁用。
+- 生成图预览1/2→2/2，素材组1/5→2/5，消息组1/4→2/4，文档不计图片。原图下载实际保存IMG_0154.jpg；画布正确读取1600×1600原图并显示框选/画笔/缩放工具，未出现额外整体要求或上传入口。画布取消正常，浏览器error日志为空。
+- 生产截图：output/studio-images-20261016/production-final.png、production-workspace.png、production-viewer.png、production-canvas.png；部署/安装/恢复日志和verification.json亦保存该目录。验收只操作预览及临时引用，未发送生产收费生成、未上传验收标注、未修改任务业务内容。
+- 本地验收服务已停止并清理本轮隔离容器。真实发送已在隔离环境验证到HTTP、持久记录、附件文件及沙箱prompt，modelCalls=0；本报告不声称已验证模型最终出图质量。
