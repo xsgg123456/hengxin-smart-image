@@ -33,3 +33,12 @@
 - 发布工具完整回归549 passed / 1 skipped / 213 subtests passed，`output/studio-images-release-tests.xml`。
 - 首轮Linux全量使用了缺少--init的测试容器，pytest作为PID1触发既有进程监督保护，8项失败；修正为docker-init作为PID1后相关文件26 passed / 1 skipped，未修改业务监督代码。最终全量重跑结果另补。
 - 最终Linux全量：**2551 passed / 195 skipped / 0 failed**，325.27秒；`backend-final.log` / `backend-final.xml`。跳过项依赖独立外部服务等环境条件，真实PG/MinIO集成结果单独记录。
+
+## 生产首轮切换及恢复依据
+
+- 业务实现提交106d07d；发布包overseas-20261016-106d07d，SHA256 3d1cac2b4ac099b1630856b46748aeae0a231cfd494920963739e58563c32c76。
+- 服务器镜像安装2443 passed / 194 skipped / 1 deselected，容量4 passed。首次SSH断开未切换服务，重连确认无残留构建后以systemd后台任务成功完成。
+- 排空两次检查及完整备份成功，新API/native启动，verify-installed误报Domestic native process changed，按失败保护关闭海外入口及API；前端尚未发布。
+- 实查国内删除服务PID3925617、实际cwd、文件hash均未变化，NRestarts=0；仅ExecStart展示由start_time真实值/pid3925617变n/a/pid0，发生于daemon-reload。国内业务未被停止。海外jobs/deleting/queue/unacked均0，备份COMPLETE存在。
+
+- 恢复增量测试：新发布/恢复专项83 passed +24 subtests；相关旧upload/attachments/recovery/retention回归83 passed +48 subtests；Python编译通过。主代理另用项目venv重跑专项83+24通过。

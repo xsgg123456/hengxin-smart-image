@@ -231,3 +231,24 @@ def test_legacy_defaults_unchanged():
     old = load('overseas-upload-deploy')
     assert (old.TARGET_VERSION, old.DOMESTIC_MIGRATION) == ('0.2.33', '0028')
     assert d.before_switch == c.before_switch and d.u.DROP == '99-overseas-upload.conf'
+
+
+def test_domestic_exec_statistics_reset_preserves_identity(baseline, monkeypatch):
+    original = d.m.run
+    state = {'stats': 'start_time=[Fri 2026-10-16 08:00:00 UTC] ; stop_time=[n/a] ; pid=3925617 ; code=(null) ; status=0/0'}
+    def run(*args, **kwargs):
+        if args[1] == 'show' and args[4] == 'ExecStart':
+            return '{ path=/bin/python ; argv[]=/bin/python -m app.deletions ; ignore_errors=no ; ' + state['stats'] + ' }'
+        return original(*args, **kwargs)
+    monkeypatch.setattr(d.m, 'run', run)
+    before = c.domestic_native()
+    state['stats'] = 'start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0'
+    assert c.domestic_native() == before
+    assert before[c.DELETION_UNIT]['pid'] > 0
+
+
+@pytest.mark.parametrize('change', [('path=/bin/python', 'path=/bin/other'),
+    ('-m app.deletions', '-m app.unexpected'), ('ignore_errors=no', 'ignore_errors=yes')])
+def test_exec_start_identity_changes_are_not_normalized(change):
+    raw = '{ path=/bin/python ; argv[]=/bin/python -m app.deletions ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    assert c.normalize_exec_start(raw) != c.normalize_exec_start(raw.replace(*change))

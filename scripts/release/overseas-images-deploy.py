@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -47,6 +48,18 @@ def schemas():
     assert d.u.sql(a.USAGE_COLUMN) == '0', 'Overseas usage column still exists'
 
 
+def normalize_exec_start(value):
+    """Discard only systemd execution statistics, never executable/argv/settings.
+
+    daemon-reload may reset these statistics while MainPID and /proc remain
+    unchanged. Unknown formats remain unchanged and therefore fail closed.
+    """
+    return re.sub(
+        r'(\{ path=.*? ; argv\[\]=.*? ; ignore_errors=(?:yes|no))'
+        r' ; start_time=[^;{}]* ; stop_time=[^;{}]* ; pid=\d+'
+        r' ; code=[^;{}]* ; status=[^;{}]* \}', r'\1 }', value)
+
+
 def native_state(unit, expected):
     d.m.run('systemctl', 'is-active', unit)
     show = lambda key: d.m.run('systemctl', 'show', unit, '-p', key, '--value', capture=True)
@@ -54,6 +67,7 @@ def native_state(unit, expected):
     assert Path(cwd) == expected, 'Native release baseline drift: ' + unit
     assert pid > 0 and Path(os.readlink(f'/proc/{pid}/cwd')) == expected, 'Native running process drift: ' + unit
     fields = {key: show(key) for key in ('FragmentPath', 'DropInPaths', 'EnvironmentFiles', 'ExecStart', 'User')}
+    fields['ExecStart'] = normalize_exec_start(fields['ExecStart'])
     files = {part for key in ('FragmentPath', 'DropInPaths', 'EnvironmentFiles')
              for part in fields[key].split() if Path(part).is_absolute()}
     expected_user = 'hengxin-overseas' if unit in d.u.UNITS else 'codex'
