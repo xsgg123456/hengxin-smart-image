@@ -39,13 +39,14 @@ def delete(material_id: UUID, actor: CurrentMember, session: Database, store=Dep
 
 @router.get('/materials/{material_id}/content')
 def content(material_id: UUID, actor: CurrentMember, session: Database,
-            store=Depends(get_store)):
-    return files.content(session, store, actor, material_id)
+            store=Depends(get_store), preview: bool = False):
+    return files.content(session, store, actor, material_id, preview=preview)
 
 
 @router.head('/materials/{material_id}/content')
-def preflight(material_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
-    return files.content(session, store, actor, material_id, head=True)
+def preflight(material_id: UUID, actor: CurrentMember, session: Database,
+              store=Depends(get_store), preview: bool = False):
+    return files.content(session, store, actor, material_id, head=True, preview=preview)
 
 
 @router.get('/tasks/{task_id}/materials')

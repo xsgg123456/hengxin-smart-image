@@ -57,7 +57,7 @@ def delete(session, store, actor, material_id):
         raise HTTPException(503, '资料已隐藏，原件清理失败，请再次删除重试') from None
 
 
-def content(session, store, actor, material_id, *, head=False):
+def content(session, store, actor, material_id, *, head=False, preview=False):
     record = FileDelivery.capture(service.readable(session, material_id, actor))
     session.close()
-    return deliver(store, record, head=head)
+    return deliver(store, record, head=head, preview=preview)

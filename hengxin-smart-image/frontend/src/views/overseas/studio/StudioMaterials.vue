@@ -5,15 +5,18 @@
     <ElCheckbox :model-value="all" :indeterminate="chosen.length > 0 && !all" :disabled="disabled" @change="chosen = all ? [] : assets.map(a => a.id)">全选素材</ElCheckbox>
     <ElEmpty v-if="!assets.length" description="暂无任务素材" :image-size="60" />
     <div class="studio-materials-list"><div v-for="asset in assets" :key="asset.id" class="studio-source-file" :data-material-id="asset.id" :draggable="!disabled" @dragstart="drag($event, asset.id)">
-      <ElCheckbox :model-value="chosen.includes(asset.id)" :disabled="disabled" :title="asset.name" @change="toggle(asset.id)">{{ asset.name }}</ElCheckbox>
-      <small>{{ asset.source === 'task' ? '图需资料' : '上传附件' }} · {{ formatAttachmentSize(asset.sizeBytes) }}</small>
-      <AttachmentDownload :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" />
+      <ElCheckbox :model-value="chosen.includes(asset.id)" :disabled="disabled" :aria-label="`选择 ${asset.name}`" @change="toggle(asset.id)" />
+      <StudioAssetImage v-if="isImage(asset)" :asset="asset" :group="assets" title="任务素材" @failure="$emit('failure', $event)" />
+      <span v-else class="studio-doc-icon">文档</span>
+      <div class="material-info"><span :title="asset.name">{{ asset.name }}</span><small>{{ asset.source === 'task' ? '图需资料' : '上传附件' }} · {{ formatAttachmentSize(asset.sizeBytes) }}</small><AttachmentDownload :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" /></div>
     </div></div>
     <div class="studio-materials-bottom"><ElButton type="primary" :disabled="disabled || !chosen.length" @click="$emit('add', chosen)">引用所选素材（{{ chosen.length }}）</ElButton></div>
   </aside>
 </template>
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { isImage } from './studio-images'
+import StudioAssetImage from './StudioAssetImage.vue'
 import AttachmentDownload from '../AttachmentDownload.vue'
 import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import type { Asset } from '@/api/overseas/studio'

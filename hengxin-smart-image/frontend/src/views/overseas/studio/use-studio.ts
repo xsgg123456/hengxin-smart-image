@@ -4,9 +4,12 @@ import { createStudioApi, type Asset, type Studio, type StudioTranscript, type S
 import type { TaskDetail } from '@/api/overseas/tasks'
 import { mergeTranscript } from './studio-transcript'
 import { turnLimitError } from '@/api/overseas/upload-limits'
-type Pending = { key: string; kind: 'send'; body: TurnInput } | { key: string; kind: 'archive'; body: { pictureIds: string[]; sku: string } } | { key: string; kind: 'complete' | 'conversation' }
+import { forgetAnnotationDraft } from '@/views/hengxin/components/annotation/annotation-drafts'
+import { studioDraftKey, type StudioRevision } from './studio-revisions'
+type Pending = { key: string; kind: 'send'; body: TurnInput; draftKeys?: string[] } | { key: string; kind: 'archive'; body: { pictureIds: string[]; sku: string } } | { key: string; kind: 'complete' | 'conversation' }
 export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => void, changed: () => void, api = createStudioApi(), actorId = '') {
   const data = ref<Studio>(), text = ref(''), skill = ref(''), attachments = ref<Asset[]>([]), references = ref<StudioPicture[]>([])
+  const revisions = ref<StudioRevision[]>([])
   const selected = ref<string[]>([]), transcript = ref<StudioTranscript[]>([]), error = ref(''), busy = ref(false), uploading = ref(false), loading = ref(false)
   const pending = ref<Pending>(), storageKey = `hx-studio-pending:${actorId}:${task().id}`
   try { const saved = sessionStorage.getItem(storageKey); if (saved) pending.value = JSON.parse(saved) as Pending } catch { /* Storage may be disabled. */ }
@@ -14,7 +17,8 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   const activeTurn = computed(() => data.value?.turns.find(t => t.id === data.value?.activeTurnId))
   const locked = computed(() => !editable.value || busy.value || uploading.value || !!pending.value)
   const limitError = computed(() => turnLimitError(attachments.value.length, references.value.length))
-  const canSend = computed(() => !locked.value && !limitError.value && !data.value?.activeTurnId && !!(text.value.trim() || attachments.value.length || references.value.length))
+  const revisionError = computed(() => revisions.value.some(r => (!r.text.trim() && (!text.value.trim() || !!r.annotation))) ? '请在工作台输入区补充修改要求' : '')
+  const canSend = computed(() => !locked.value && !limitError.value && !revisionError.value && !data.value?.activeTurnId && !!(text.value.trim() || attachments.value.length || references.value.length))
   const canNewConversation = computed(() => !locked.value && !data.value?.activeTurnId)
   let alive = true, cursor = 0, operation = 0, refreshError = false, denied = false, timer: ReturnType<typeof setTimeout> | undefined
   let reading: Promise<void> | undefined
@@ -92,8 +96,8 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
           : value.kind === 'conversation' ? await api.newConversation(task().id, value.key) : await api.complete(task().id, value.key)
       if (!alive) return false
       data.value = result; savePending()
-      if (value.kind === 'send') { text.value = ''; attachments.value = []; references.value = [] }
-      if (value.kind === 'conversation') { text.value = ''; skill.value = ''; attachments.value = []; references.value = []; selected.value = [] }
+      if (value.kind === 'send') { (value.draftKeys || []).forEach(forgetAnnotationDraft); clearRevisions(); text.value = ''; attachments.value = []; references.value = [] }
+      if (value.kind === 'conversation') { clearRevisions(); text.value = ''; skill.value = ''; attachments.value = []; references.value = []; selected.value = [] }
       if (value.kind === 'archive') selected.value = []
       changed(); return true
     } catch (reason) {
@@ -102,7 +106,12 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
       fail(reason); return false
     } finally { busy.value = false; schedule(0) }
   }
-  function send() { if (canSend.value) return run({ key: crypto.randomUUID(), kind: 'send', body: { text: text.value, skillId: skill.value || null, attachmentIds: attachments.value.map(a => a.id), referencePictureIds: references.value.map(p => p.id) } }) }
+  function send() {
+    if (!canSend.value) return
+    const body: TurnInput = { text: text.value, skillId: skill.value || null, attachmentIds: attachments.value.map(a => a.id), referencePictureIds: references.value.map(p => p.id) }
+    if (revisions.value.length) body.imageEdits = revisions.value.map(r => ({ pictureId: r.base.id, annotationId: r.annotation?.id || null, text: r.text }))
+    return run({ key: crypto.randomUUID(), kind: 'send', body, draftKeys: revisions.value.map(r => r.draftKey) })
+  }
   function newConversation() { if (canNewConversation.value) return run({ key: crypto.randomUUID(), kind: 'conversation' }) }
   function retry() { if (pending.value) return run(pending.value) }
   function archive(sku: string) { if (!locked.value && selected.value.length) return run({ key: crypto.randomUUID(), kind: 'archive', body: { pictureIds: [...selected.value], sku } }) }
@@ -135,8 +144,38 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     if (reason) { error.value = reason; return }
     references.value.push(picture); error.value = ''
   }
+  const draftKey = (picture: StudioPicture) => studioDraftKey(actorId, task().id, data.value?.conversationId, picture.id)
+  function clearRevisions() { revisions.value.forEach(r => forgetAnnotationDraft(r.draftKey)); revisions.value = [] }
+  function removeRevision(id: string) {
+    if (locked.value) return
+    const old = revisions.value.find(r => r.base.id === id)
+    if (old?.annotation) attachments.value = attachments.value.filter(a => a.id !== old.annotation!.id)
+    if (old) forgetAnnotationDraft(old.draftKey)
+    revisions.value = revisions.value.filter(r => r.base.id !== id); references.value = references.value.filter(p => p.id !== id)
+  }
+  async function confirmRevision(picture: StudioPicture, prepared: { text: string; file?: File }) {
+    if (locked.value) return false
+    const conversation = data.value?.conversationId, taskId = task().id
+    const old = revisions.value.find(r => r.base.id === picture.id)
+    const count = attachments.value.length - (old?.annotation && attachments.value.some(a => a.id === old.annotation!.id) ? 1 : 0) + (prepared.file ? 1 : 0)
+    const reason = turnLimitError(count, references.value.length + (references.value.some(p => p.id === picture.id) ? 0 : 1))
+    if (reason) { error.value = reason; return false }
+    if (prepared.file && !prepared.text.trim()) { error.value = '请填写每一处标注的修改意见'; return false }
+    uploading.value = true; error.value = ''
+    try {
+      const annotation = prepared.file ? await api.upload(taskId, prepared.file, controller.signal) : undefined
+      if (!alive || !editable.value) return false
+      if (task().id !== taskId || data.value?.conversationId !== conversation) throw Error('当前对话已变化，请重新选择图片进行修改')
+      if (old?.annotation) attachments.value = attachments.value.filter(a => a.id !== old.annotation!.id)
+      if (annotation) attachments.value.push(annotation)
+      if (!references.value.some(p => p.id === picture.id)) references.value.push(picture)
+      const revision: StudioRevision = { base: picture, annotation, text: prepared.text, draftKey: draftKey(picture) }
+      revisions.value = [...revisions.value.filter(r => r.base.id !== picture.id), revision]
+      return true
+    } catch (reason) { fail(reason); return false } finally { uploading.value = false }
+  }
   function toggle(id: string) { selected.value = selected.value.includes(id) ? selected.value.filter(p => p !== id) : [...selected.value, id] }
   function toggleGroup(pictures: StudioPicture[]) { const ids = pictures.map(p => p.id), all = ids.every(id => selected.value.includes(id)); selected.value = all ? selected.value.filter(id => !ids.includes(id)) : [...new Set([...selected.value, ...ids])] }
-  onUnmounted(() => { alive = false; clearTimeout(timer); page?.removeEventListener('visibilitychange', visibilityChanged); controller.abort(); readController?.abort() })
-  return { api, data, text, skill, attachments, references, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, refresh, send, newConversation, retry, archive, complete, stop, add, receive, modify, toggle, toggleGroup, fail }
+  onUnmounted(() => { alive = false; clearRevisions(); clearTimeout(timer); page?.removeEventListener('visibilitychange', visibilityChanged); controller.abort(); readController?.abort() })
+  return { api, data, text, skill, attachments, references, revisions, revisionError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, refresh, send, newConversation, retry, archive, complete, stop, add, receive, modify, toggle, toggleGroup, fail }
 }

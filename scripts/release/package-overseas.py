@@ -19,6 +19,9 @@ spec.loader.exec_module(m)
 
 APP = 'hengxin-smart-image/'
 VERSION = '0.2.36'
+RELEASE_PREFIX = 'overseas-20261015-'
+DOMESTIC_MIGRATION = '0028'
+PACKAGING_HELPERS = ('package-overseas.py', 'package-management.py', 'package-delivery.py')
 EXACT = m.EXACT | {
     'backend/app/overseas/management/skill_inventory_20261013.json',
     'backend/alembic.overseas.ini',
@@ -178,7 +181,7 @@ def build(repo):
     status = m.common.reviewed_status(repo)
     commit = git('rev-parse', 'HEAD').decode().strip()
     tracked = git('ls-files', '-z').decode().split('\0')
-    for helper in ('package-overseas.py', 'package-management.py', 'package-delivery.py'):
+    for helper in PACKAGING_HELPERS:
         if 'scripts/release/' + helper not in tracked:
             raise ValueError('Packaging helpers must be committed before use')
     files, exceptions = {}, {}
@@ -197,9 +200,9 @@ def build(repo):
         files[name] = raw
     files.update(collect_assets(repo / APP / 'frontend/dist'))
     validate(files)
-    release = 'overseas-20261015-' + commit[:7]
+    release = RELEASE_PREFIX + commit[:7]
     manifest = dict(release=release, commit=commit, candidateId=status['currentId'],
-                    migration='0028', overseasMigration='overseas_0016', frontendVersion=VERSION,
+                    migration=DOMESTIC_MIGRATION, overseasMigration='overseas_0016', frontendVersion=VERSION,
                     files={n: hashlib.sha256(v).hexdigest() for n, v in sorted(files.items())})
     files['release.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     require_clean_tracked(git)

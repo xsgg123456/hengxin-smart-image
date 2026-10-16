@@ -97,7 +97,10 @@ class NativeReleaseTests(unittest.TestCase):
                         str(self.source), str(app), 'test-override.yaml'], check=True)
         manifest = json.loads((app / 'NATIVE_IMAGE_INPUTS_RELEASE.json').read_text())
         self.assertEqual(manifest['files'], expected)
-        self.assertTrue(manifest['composeBaseOverlays'][-1].endswith('annotation-20260924-6b43b3c/api-override.yaml'))
+        self.assertEqual(manifest['composeOverride'], 'test-override.yaml')
+        self.assertEqual(manifest['composeBaseOverlays'][-2:], [
+            '/opt/hengxin-releases/annotation-20260924-6b43b3c/api-override.yaml',
+            '/opt/hengxin-releases/materials-20260924-e3c60c9/api-override.yaml'])
 
 
 if __name__ == '__main__':

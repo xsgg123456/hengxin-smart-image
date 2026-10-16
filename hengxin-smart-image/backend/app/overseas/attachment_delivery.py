@@ -4,10 +4,13 @@ from fastapi import HTTPException, Response
 from app.modules.files.streaming import OwnedStreamResponse
 
 
-def deliver(store, record, *, head=False):
+def deliver(store, record, *, head=False, preview=False):
+    if preview and record.content_type not in ('image/jpeg', 'image/png', 'image/webp'):
+        raise HTTPException(422, '仅支持图片预览')
+    disposition = 'inline' if preview else 'attachment'
     headers = {
         'Content-Length': str(record.size_bytes),
-        'Content-Disposition': "attachment; filename*=UTF-8''" + quote(record.name, safe=''),
+        'Content-Disposition': disposition + "; filename*=UTF-8''" + quote(record.name, safe=''),
         'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
     }
     try:

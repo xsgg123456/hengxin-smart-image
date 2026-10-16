@@ -226,7 +226,7 @@ def main():
                 table = 'overseas_alembic_version' if kind == 'overseas' else 'alembic_version'
                 version = connection.execute(text('SELECT version_num FROM ' + table)).scalar_one()
                 from app.overseas.db import SCHEMA_REVISION
-                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0028'), version
+                assert version == (SCHEMA_REVISION if kind == 'overseas' else '0029'), version
                 other_table = 'users' if kind == 'overseas' else 'overseas_members'
                 assert connection.execute(text('SELECT to_regclass(:name)'), {'name': other_table}).scalar() is None
                 print('PASS migration ' + kind + ' ' + version, flush=True)

@@ -14,6 +14,7 @@ from .models import Conversation, Turn, Picture
 from .files import read
 from . import transcript
 from .delivery import collect_delivery
+from .image_edits import prompt_edits
 
 
 class StudioProtocol:
@@ -82,6 +83,9 @@ class StudioProtocol:
         if skill:
             parts.append('$' + workspace.skill_name)
         parts.append(job.payload['text'])
+        edits = prompt_edits(job.payload, paths)
+        if edits:
+            parts.append(edits)
         if paths:
             parts.append('附件文件：' + json.dumps(paths, ensure_ascii=False))
         if getattr(workspace, 'recovery_notice', False):

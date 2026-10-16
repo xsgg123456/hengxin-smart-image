@@ -8,7 +8,8 @@ export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[
 export interface StudioEvent { id: number; turnId: string; kind: string; text: string; createdAt: string }
 export interface StudioTranscript { id: number; turnId: string; itemId: string; kind: 'message' | 'reasoning' | 'tool' | 'notice'; text: string; state: 'running' | 'completed' | 'failed'; createdAt: string }
 export interface TranscriptPage { items: StudioTranscript[]; cursor: number; hasMore: boolean }
-export interface TurnInput { text: string; skillId: string | null; attachmentIds: string[]; referencePictureIds: string[] }
+export interface ImageEdit { pictureId: string; annotationId: string | null; text: string }
+export interface TurnInput { text: string; skillId: string | null; attachmentIds: string[]; referencePictureIds: string[]; imageEdits?: ImageEdit[] }
 const root = '/api/overseas/v1', base = (id: string) => `${root}/tasks/${encodeURIComponent(id)}/studio`
 const string = (v: unknown): v is string => typeof v === 'string'
 const integer = (v: unknown) => Number.isInteger(v) && Number(v) >= 0

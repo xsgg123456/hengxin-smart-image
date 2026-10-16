@@ -113,14 +113,16 @@ def upload(session, store, actor, task_id, data, filename):
     return result
 
 
-def content(session, store, actor, task_id, identity, is_picture=False, *, head=False):
+def content(session, store, actor, task_id, identity, is_picture=False, *, head=False, preview=False):
     task = queries.access(session, actor, task_id)
     row = (queries.picture(session, task, identity) if is_picture else
            queries.attachment(session, task, 'upload:' + str(identity))[0])
     row = FileDelivery.capture(row)
     session.close()
     if not is_picture:
-        return deliver(store, row, head=head)
+        return deliver(store, row, head=head, preview=preview)
+    if head:
+        return deliver(store, row, head=True, preview=True)
     data = read(store, row)
     disposition = 'inline' if row.content_type.startswith('image/') or row.content_type == 'application/pdf' else 'attachment'
     return Response(data, media_type=row.content_type, headers={

@@ -11,12 +11,16 @@ from app.overseas.management.settings import freeze_selected
 from app.overseas.archives.models import Archive
 from .models import Conversation, Turn
 from . import queries
+from .image_edits import freeze_edits, message_text
 
 
 def mutate(session, actor, task_id, body, key, operation):
     actor = lock_actor(session, actor, 'task.design')
     task = queries.access(session, actor, task_id, write=True)
-    digest = fingerprint_payload(body.model_dump(mode='json'))
+    payload = body.model_dump(mode='json')
+    if payload.get('imageEdits') == []:
+        payload.pop('imageEdits')  # Preserve fingerprints recorded before image edits existed.
+    digest = fingerprint_payload(payload)
     previous = lookup_request(session, TaskRequest, actor.id, operation, str(task_id), key, digest)
     if not previous and (task.status != 'studio' or not task.requirements_approved):
         raise HTTPException(409, '任务尚未进入工作台或已经完成')
@@ -50,6 +54,7 @@ def send(session, actor, task_id, body, key):
         raise HTTPException(409, '当前轮次尚未结束，请等待或停止执行')
     attachments = [queries.attachment(session, task, value)[0] for value in body.attachmentIds]
     references = [queries.picture(session, task, value) for value in body.referencePictureIds]
+    edits = freeze_edits(body, attachments, references)
     channel = queries.current_conversation(session, task.id)
     if channel is None:
         channel = Conversation(task_id=task.id)
@@ -62,10 +67,10 @@ def send(session, actor, task_id, body, key):
               for row in attachments + references]
     job = enqueue(session, task.id, 'studio', f'studio:{turn_id}', {
         **frozen, 'turnId': str(turn_id), 'conversationId': str(channel.id),
-        'text': body.text, 'inputs': inputs})
+        'text': body.text, 'inputs': inputs, 'imageEdits': edits})
     skill = frozen.get('skill')
     session.add(Turn(id=turn_id, task_id=task.id, conversation_id=channel.id, job_id=job.id,
-        actor_id=actor.id, text=body.text, skill_name=skill.get('displayName', skill['name']) if skill else None,
+        actor_id=actor.id, text=message_text(body, references), skill_name=skill.get('displayName', skill['name']) if skill else None,
         attachment_ids=body.attachmentIds, reference_ids=[str(v) for v in body.referencePictureIds]))
     return finish(session, actor, task, key, digest, 'studio_send')
 

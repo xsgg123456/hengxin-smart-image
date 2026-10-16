@@ -3,15 +3,15 @@
     <div v-if="!turns.length" class="studio-empty"><h2>从你的设计需求开始</h2><p>按需选择 Skill，引用任务素材，直接告诉 Codex 你想怎么做。</p></div>
     <template v-for="(turn, index) in turns" :key="turn.id">
       <div v-if="index === 0 || turn.conversationId !== turns[index - 1].conversationId" class="studio-conversation-divider">{{ turn.conversationId && turn.conversationId === conversationId ? '当前对话' : '历史对话' }}</div>
-      <article class="studio-message user"><div class="studio-message-name">设计师</div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><div class="studio-attachments"><div v-for="asset in turn.attachments" :key="asset.id" class="studio-attachment"><span>{{ asset.name }} · {{ formatAttachmentSize(asset.sizeBytes) }}</span><AttachmentDownload :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" /></div></div><div v-if="turn.referencePictures.length" class="studio-attachments"><div v-for="(picture, index) in turn.referencePictures" :key="picture.id" class="studio-attachment"><ElImage :src="picture.url" :preview-src-list="turn.referencePictures.map(p => p.url)" :initial-index="index" preview-teleported fit="contain" /><span :title="picture.name">引用图片：{{ picture.name }}</span></div></div></div></article>
+      <article class="studio-message user"><div class="studio-message-name">设计师</div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><StudioAttachments :assets="[...turn.attachments, ...turn.referencePictures]" title="本条消息" @failure="$emit('failure', $event)" /></div></article>
       <article class="studio-message assistant"><div class="studio-message-name">Codex <small>{{ labels[turn.status] || turn.status }}</small></div><div class="studio-bubble">
         <StudioTranscript :entries="byTurn.get(turn.id) || []" :running="isRunning(turn)" />
         <StudioMarkdown v-if="turn.reply && !byTurn.get(turn.id)?.some(e => e.kind === 'message')" :text="turn.reply" />
         <ElAlert v-if="turn.error" :title="turn.error" type="error" :closable="false" />
         <ElAlert v-if="turn.deliveryError" :title="turn.deliveryError" type="warning" :closable="false" />
         <div v-if="turn.pictures.length" class="studio-selection-bar"><ElCheckbox :model-value="turn.pictures.every(p => selected.includes(p.id))" :indeterminate="turn.pictures.some(p => selected.includes(p.id)) && !turn.pictures.every(p => selected.includes(p.id))" :disabled="disabled" @change="$emit('group', turn.pictures)">全选本组</ElCheckbox><span>已选 {{ turn.pictures.filter(p => selected.includes(p.id)).length }} / {{ turn.pictures.length }} 张</span></div>
-        <div class="studio-pictures"><div v-for="(picture, index) in turn.pictures" :key="picture.id" class="studio-picture" :class="{ selected: selected.includes(picture.id) }">
-          <ElImage :src="picture.url" :preview-src-list="turn.pictures.map(p => p.url)" :initial-index="index" preview-teleported fit="contain" />
+        <div class="studio-pictures"><div v-for="picture in turn.pictures" :key="picture.id" class="studio-picture" :class="{ selected: selected.includes(picture.id) }">
+          <StudioAssetImage :asset="picture" :group="turn.pictures" title="本组生成图片" @failure="$emit('failure', $event)" />
           <div class="studio-picture-footer"><ElCheckbox :model-value="selected.includes(picture.id)" :disabled="disabled" @change="$emit('toggle', picture.id)">{{ picture.name }}</ElCheckbox><ElButton text size="small" type="primary" :disabled="disabled" @click="$emit('modify', picture)">修改这张</ElButton><span v-if="picture.archived">已归档 · {{ picture.sku }}</span></div>
         </div></div>
       </div></article>
@@ -23,8 +23,8 @@
 import { computed, onBeforeUpdate, onUpdated, ref } from 'vue'
 import type { StudioTranscript as Transcript, StudioPicture, StudioTurn } from '@/api/overseas/studio'
 import StudioMarkdown from './StudioMarkdown.vue'
-import AttachmentDownload from '../AttachmentDownload.vue'
-import { formatAttachmentSize } from '@/api/overseas/attachment-download'
+import StudioAttachments from './StudioAttachments.vue'
+import StudioAssetImage from './StudioAssetImage.vue'
 import StudioTranscript from './StudioTranscript.vue'
 const props = defineProps<{ turns: StudioTurn[]; transcript: Transcript[]; conversationId?: string | null; selected: string[]; disabled: boolean }>()
 defineEmits<{ failure: [reason: unknown]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()

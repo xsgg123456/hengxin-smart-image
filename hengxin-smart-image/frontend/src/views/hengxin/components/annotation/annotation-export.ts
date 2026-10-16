@@ -1,12 +1,12 @@
 import { badgePoint, markStyle, type AnnotationMark } from './annotation-model'
 
 export const MAX_ANNOTATION_BYTES = 10 * 1024 * 1024
-export function validateAnnotationBlob(blob: Blob | null): asserts blob is Blob {
+export function validateAnnotationBlob(blob: Blob | null, maxBytes = MAX_ANNOTATION_BYTES): asserts blob is Blob {
   if (!blob || !blob.size) throw new Error('合成标注图失败，请重试。')
-  if (blob.size > MAX_ANNOTATION_BYTES)
-    throw new Error('原尺寸标注 PNG 超过 10 MiB，无法提交；图片未压缩或降采样。请使用符合限制的已有标注图。')
+  if (blob.size > maxBytes)
+    throw new Error(maxBytes === MAX_ANNOTATION_BYTES ? '原尺寸标注 PNG 超过 10 MiB，无法提交；图片未压缩或降采样。请使用符合限制的已有标注图。' : `原尺寸标注 PNG 超过 ${maxBytes / 1_000_000} MB，无法提交；图片未压缩或降采样。`)
 }
-export async function exportAnnotation(image: HTMLImageElement, marks: AnnotationMark[]): Promise<File> {
+export async function exportAnnotation(image: HTMLImageElement, marks: AnnotationMark[], maxBytes = MAX_ANNOTATION_BYTES): Promise<File> {
   const width = image.naturalWidth,
     height = image.naturalHeight
   if (!width || !height) throw new Error('原始图片尚未加载，无法合成标注。')
@@ -39,6 +39,6 @@ export async function exportAnnotation(image: HTMLImageElement, marks: Annotatio
     ctx.fillText(String(index + 1), badge.x, badge.y)
   }
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  validateAnnotationBlob(blob)
+  validateAnnotationBlob(blob, maxBytes)
   return new File([blob], '问题标注.png', { type: 'image/png' })
 }

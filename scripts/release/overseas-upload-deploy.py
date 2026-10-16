@@ -24,6 +24,7 @@ DELETING = "SELECT count(*) FROM overseas_task_deletions WHERE status='deleting'
 TARGET_VERSION = '0.2.33'
 BASE_VERSION = '0.2.32'
 TARGET_MIGRATION = 'overseas_0015'
+DOMESTIC_MIGRATION = '0028'
 MIGRATION_RECOVERY = ''
 RELEASE_PATTERN = r'overseas-20261014-[0-9a-f]{7}'
 
@@ -35,7 +36,7 @@ def validate(work, release):
     source = work / 'src'
     manifest = json.loads((source / 'release.json').read_text())
     assert manifest['release'] == release and manifest['frontendVersion'] == TARGET_VERSION
-    assert manifest['migration'] == '0028' and manifest['overseasMigration'] == TARGET_MIGRATION
+    assert manifest['migration'] == DOMESTIC_MIGRATION and manifest['overseasMigration'] == TARGET_MIGRATION
     assert json.loads((source / 'frontend/package.json').read_text())['version'] == TARGET_VERSION
     r.hashes(source, manifest)
     return source, manifest, 'hengxin-smart-image-backend:' + release
@@ -255,7 +256,7 @@ def deploy(work, source, manifest, image):
         for name in ('OVERSEAS_RELEASE.json', 'FRONTEND_RELEASE.json'):
             m.private(m.APP / name, manifest)
         m.private(work / 'verification.json', dict(release=manifest['release'], image=identity,
-            migration='0028', overseasMigration=TARGET_MIGRATION, backup=str(destination),
+            migration=DOMESTIC_MIGRATION, overseasMigration=TARGET_MIGRATION, backup=str(destination),
             sourceHashes=True, domesticIdentityUnchanged=True, skillsVerified=True, businessDeletion=False))
         m.private(work / 'PHASE', 'complete')
         print('OVERSEAS_HOTFIX_COMPLETE ' + manifest['release'], flush=True)

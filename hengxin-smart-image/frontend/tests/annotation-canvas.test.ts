@@ -159,6 +159,8 @@ test('导出按 naturalWidth/Height 完整绘图，矩形和画笔共用数组�
     assert.deepEqual(calls[0], [image, 0, 0])
     assert.deepEqual(labels, ['1', '2'])
     assert.equal(file.type, 'image/png')
+    await assert.rejects(() => exportAnnotation(image, [], 2), /超过/)
+    assert.equal((await exportAnnotation(image, [], 3)).size, 3)
   } finally {
     if (prior) Object.defineProperty(globalThis, 'document', prior)
     else Reflect.deleteProperty(globalThis, 'document')
@@ -196,4 +198,14 @@ test('画笔收笔保留不足一个原像素的最终位置且不重复加点',
     appendPoint(final, { x: 20.4, y: 30.4 }, 790, 1500, true).points.length,
     2,
   )
+})
+
+
+test('海外标注导出使用500MB独立上限，国内默认10MiB不变', () => {
+  const blob = new Blob(['png'], {type:'image/png'})
+  Object.defineProperty(blob, 'size', {value:500_000_000, configurable:true})
+  assert.doesNotThrow(() => validateAnnotationBlob(blob, 500_000_000))
+  assert.throws(() => validateAnnotationBlob(blob), /10 MiB/)
+  Object.defineProperty(blob, 'size', {value:500_000_001})
+  assert.throws(() => validateAnnotationBlob(blob, 500_000_000), error => error instanceof Error && error.message.includes('500 MB') && !error.message.includes('已有标注图'))
 })
