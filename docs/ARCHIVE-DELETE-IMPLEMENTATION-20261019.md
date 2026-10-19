@@ -22,7 +22,7 @@
 
 ## 验证记录
 
-本地实现完成，生产尚未部署，现有生产归档未修改。验证使用独立 PostgreSQL、Redis、MinIO 和测试身份服务，没有模型调用。
+本地实现及生产部署完成（0.2.42，发布提交daf9d5e），现有生产归档未修改。下列开发验证使用独立 PostgreSQL、Redis、MinIO 和测试身份服务，没有模型调用；生产验收见 `ARCHIVE-DELETE-PRODUCTION-20261019.md`。
 
 - `pnpm test`：301 项通过，0 失败，见 `output/archive-delete-frontend-tests.log`。
 - `pnpm build`：类型检查及生产构建通过，见 `output/archive-delete-frontend-build.log`。
