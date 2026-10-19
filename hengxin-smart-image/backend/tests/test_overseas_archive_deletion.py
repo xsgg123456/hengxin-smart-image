@@ -178,16 +178,19 @@ def test_unsafe_and_shared_objects_fail_without_deleting(deletion, unsafe):
     assert store.data == before
 
 
-def test_completed_studio_reopens_after_erasure(deletion):
+def test_completed_studio_requires_explicit_reopen_after_erasure(deletion):
     client, factory, _, task, _, store = deletion
     rows = generated(deletion)
     archive = archived(deletion, rows)
-    assert post(client, task, '/studio/complete', {}, 'complete').status_code == 200
+    assert post(client, task, '/studio/complete', {'version': 2}, 'complete').status_code == 200
     assert client.get(ROOT + '/tasks/' + task['id']).json()['status'] == 'completed'
     assert remove(client, archive).status_code == 200
     assert cleanup_once(factory, store) == 1
-    assert client.get(ROOT + '/tasks/' + task['id']).json()['status'] == 'studio'
-    assert post(client, task, '/studio/complete', {}, 'complete').status_code == 409
+    assert client.get(ROOT + '/tasks/' + task['id']).json()['status'] == 'completed'
+    replay = post(client, task, '/studio/complete', {'version': 2}, 'complete')
+    assert replay.status_code == 200 and replay.json()['archiveId'] is None
+    assert post(client, task, '/studio/reopen', {'version': 4}, 'reopen').status_code == 200
+    assert post(client, task, '/studio/complete', {'version': 5}, 'complete-again').status_code == 409
     assert post(client, task, '/studio/archive', dict(pictureIds=[rows[0]['id']], sku='A'), 'new').status_code == 200
 
 

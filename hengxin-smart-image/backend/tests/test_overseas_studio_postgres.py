@@ -6,7 +6,7 @@ from sqlalchemy import select, func
 from app.overseas.auth.models import Member
 from app.overseas.studio import service
 from app.overseas.studio.models import Conversation, Turn
-from app.overseas.studio.schemas import Complete, Send
+from app.overseas.studio.schemas import NewConversation, Send
 from test_overseas_deletion_postgres import ready
 from test_overseas_members_postgres import pg_factory
 from test_overseas_tasks import overseas
@@ -19,7 +19,7 @@ def test_simultaneous_new_conversation_with_same_key_creates_one(ready):
         with factory() as session:
             person = session.get(Member, actor)
             barrier.wait(timeout=5)
-            return service.new_conversation(session, person, task, Complete(), 'same')['conversationId']
+            return service.new_conversation(session, person, task, NewConversation(), 'same')['conversationId']
     with ThreadPoolExecutor(2) as pool:
         jobs = [pool.submit(reset) for _ in range(2)]
         results = [j.result(timeout=15) for j in jobs]
@@ -37,7 +37,7 @@ def test_send_and_reset_serialize_without_active_context_replacement(ready):
             barrier.wait(timeout=5)
             try:
                 method = service.new_conversation if reset else service.send
-                return method(session, person, task, Complete() if reset else Send(text='hello'), 'key')
+                return method(session, person, task, NewConversation() if reset else Send(text='hello'), 'key')
             except HTTPException as exc:
                 assert exc.status_code == 409
                 return None

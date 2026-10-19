@@ -27,6 +27,7 @@ def record_change(session, task, actor, kind, before=None):
                              'task.plan_confirmed': '确认方案', 'task.generation_retry': '重试SKU生图',
                              'task.picture_approved': '审核图片通过', 'task.picture_revision': '发起单图返工',
                              'task.archived': '整套归档', 'task.requirements_approved': '图需审核通过',
+                             'task.studio_completed': '完成工作台任务', 'task.studio_reopened': '解冻工作台',
                              'task.requirements_rejected': '图需退回运营', 'task.resubmitted': '修改图需并重新提交'}[kind],
                       before_designer_id=before, after_designer_id=task.designer_id, version=task.version)
     session.add(event)

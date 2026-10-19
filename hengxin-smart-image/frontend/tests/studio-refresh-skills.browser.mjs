@@ -14,7 +14,7 @@ const material = { id: 'task:m', name: '需求.pdf', contentType: 'application/p
 const task = { id: 't', name: '工作台刷新验收', productName: '手机', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'A' }], workflow: 'studio', status: 'studio', version: 1, createdAt: '2026-10-14', updatedAt: '2026-10-14', createdBy: { id: 'u', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: caps, events: [] }
 let reads = 0, active = false, completed = false, fail = false, delay = 0
 const turns = Array.from({ length: 12 }, (_, i) => ({ id: `r${i}`, text: `历史需求 ${i}`, skillName: null, status: 'succeeded', reply: `历史回复 ${i}`, error: null, jobId: `j${i}`, jobVersion: 1, attachments: [], pictures: [], referencePictures: [], createdAt: '2026-10-14' }))
-const state = () => ({ taskId: 't', completed, turns, materials: [material], skills: [{ id: 'skill', name: 'example', displayName: '完整中文 Skill 标题', description }], activeTurnId: active ? 'r11' : null })
+const state = () => ({ taskId: 't', taskVersion: 1, archiveId: null, reopened: false, completed, turns, materials: [material], skills: [{ id: 'skill', name: 'example', displayName: '完整中文 Skill 标题', description }], activeTurnId: active ? 'r11' : null })
 const button = name => page.getByRole('button', { name, exact: true })
 try {
   await context.route(`${base}/api/**`, async route => {

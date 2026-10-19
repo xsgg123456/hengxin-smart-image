@@ -8,7 +8,7 @@ from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.tasks.router import Database, Key
 from app.storage.minio_store import get_store
 from . import service, queries, files, material_list
-from .schemas import Send, Cancel, ArchiveRequest, Complete
+from .schemas import Send, Cancel, ArchiveRequest, Complete, NewConversation
 
 router = APIRouter(prefix='/api/overseas/v1/tasks/{task_id}/studio', tags=['overseas-studio'])
 WRITE = [Depends(browser_request)]
@@ -35,7 +35,7 @@ def send(task_id: UUID, body: Send, actor: CurrentMember, session: Database, ide
 
 
 @router.post('/conversations', dependencies=WRITE)
-def new_conversation(task_id: UUID, body: Complete, actor: CurrentMember, session: Database, idempotency_key: Key):
+def new_conversation(task_id: UUID, body: NewConversation, actor: CurrentMember, session: Database, idempotency_key: Key):
     return service.new_conversation(session, actor, task_id, body, idempotency_key)
 
 
@@ -58,6 +58,11 @@ def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: 
 @router.post('/complete', dependencies=WRITE)
 def complete(task_id: UUID, body: Complete, actor: CurrentMember, session: Database, idempotency_key: Key):
     return service.complete(session, actor, task_id, body, idempotency_key)
+
+
+@router.post('/reopen', dependencies=WRITE)
+def reopen(task_id: UUID, body: Complete, actor: CurrentMember, session: Database, idempotency_key: Key):
+    return service.reopen(session, actor, task_id, body, idempotency_key)
 
 
 @router.post('/files', dependencies=WRITE, openapi_extra=UPLOAD_BODY)

@@ -21,7 +21,7 @@ function append(itemId, text, kind = 'message', state = 'completed', turnId = 'r
 append('first', '第一条公开消息：**完整正文**\n\n```js\nconst answer = 42\n```\n[官网](https://example.com)\n![临时图](/workspace/tmp.png)\n![外网图](https://evil.invalid/tmp.png)\n<img src="https://evil.invalid/raw.png" onerror="alert(1)">')
 append('work', '正在处理公开工具状态。![临时图](/workspace/draft.png)', 'tool', 'running')
 append('second', '第二条公开消息开头', 'message', 'running')
-const state = () => ({ taskId: 't', completed: false, conversationId, turns, materials: [material], skills: [{ id: 'skill', name: 'example', displayName: '完整中文 Skill 标题', description: '保留选择测试' }], activeTurnId: active ? current().id : null })
+const state = () => ({ taskId: 't', taskVersion: 1, archiveId: null, reopened: false, completed: false, conversationId, turns, materials: [material], skills: [{ id: 'skill', name: 'example', displayName: '完整中文 Skill 标题', description: '保留选择测试' }], activeTurnId: active ? current().id : null })
 const button = name => page.getByRole('button', { name, exact: true })
 const messages = page.locator('.studio-messages'), markdown = page.locator('.studio-markdown')
 try {

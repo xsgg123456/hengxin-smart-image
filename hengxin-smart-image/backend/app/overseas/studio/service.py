@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.core.idempotency import fingerprint_payload, lookup_request
 from app.db.timestamps import utcnow
 from app.overseas.tasks.models import TaskRequest, TaskSku
-from app.overseas.tasks.service import lock_actor, request_record
+from app.overseas.tasks.service import lock_actor, request_record, record_change
 from app.overseas.execution.models import Job, TERMINAL
 from app.overseas.execution.queue import enqueue, lock_gate
 from app.overseas.management.settings import freeze_selected
@@ -14,7 +14,7 @@ from . import queries
 from .image_edits import freeze_edits, message_text
 
 
-def mutate(session, actor, task_id, body, key, operation):
+def mutate(session, actor, task_id, body, key, operation, expected_status='studio'):
     actor = lock_actor(session, actor, 'task.design')
     task = queries.access(session, actor, task_id, write=True)
     payload = body.model_dump(mode='json')
@@ -22,8 +22,11 @@ def mutate(session, actor, task_id, body, key, operation):
         payload.pop('imageEdits')  # Preserve fingerprints recorded before image edits existed.
     digest = fingerprint_payload(payload)
     previous = lookup_request(session, TaskRequest, actor.id, operation, str(task_id), key, digest)
-    if not previous and (task.status != 'studio' or not task.requirements_approved):
-        raise HTTPException(409, '任务尚未进入工作台或已经完成')
+    if not previous:
+        if task.status != expected_status or not task.requirements_approved:
+            raise HTTPException(409, '任务状态已变化或尚未审核通过，请刷新后重试')
+        if 'version' in payload and task.version != body.version:
+            raise HTTPException(409, '任务已更新，请刷新后重试')
     return actor, task, digest, previous
 
 
@@ -133,11 +136,22 @@ def complete(session, actor, task_id, body, key):
         return replay(session, actor, task)
     if active(session, task):
         raise HTTPException(409, '请等待所有执行结束后再完成任务')
-    record = session.scalar(select(Archive).where(Archive.task_id == task.id).with_for_update())
-    if record is None or not record.versions:
-        raise HTTPException(409, '请先归档至少一张图片')
-    from app.overseas.archives.deletion import available
-    available(session, record.id)
+    if queries.available_archive(session, task.id, lock=True) is None:
+        raise HTTPException(409, '请先归档至少一张有效图片；归档不存在或正在删除时不能完成任务')
     task.status = 'completed'
     task.version += 1
+    record_change(session, task, actor, 'task.studio_completed')
     return finish(session, actor, task, key, digest, 'studio_complete')
+
+
+def reopen(session, actor, task_id, body, key):
+    actor, task, digest, previous = mutate(session, actor, task_id, body, key,
+        'studio_reopen', expected_status='completed')
+    if previous:
+        return replay(session, actor, task)
+    if active(session, task):
+        raise HTTPException(409, '请等待所有执行结束后再解冻工作台')
+    task.status = 'studio'
+    task.version += 1
+    record_change(session, task, actor, 'task.studio_reopened')
+    return finish(session, actor, task, key, digest, 'studio_reopen')

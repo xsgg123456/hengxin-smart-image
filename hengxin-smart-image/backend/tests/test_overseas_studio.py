@@ -128,7 +128,7 @@ def output(store):
 
 def test_multi_picture_partial_archive_zip_and_explicit_complete(studio):
     client, factory, _, task, _, store = studio
-    assert post(client, task, '/studio/complete', {}, 'premature').status_code == 409
+    assert post(client, task, '/studio/complete', {'version': 2}, 'premature').status_code == 409
     turn = send(client, task).json()['turns'][0]
     pictures = [output(store), output(store)]
     finish(factory, turn, pictures)
@@ -154,11 +154,11 @@ def test_multi_picture_partial_archive_zip_and_explicit_complete(studio):
     assert refreshed['turns'][-1]['referencePictures'] == second['referencePictures']
     for referenced in refreshed['turns'][-1]['referencePictures']:
         assert client.get(referenced['url']).status_code == 200
-    assert post(client, task, '/studio/complete', {}, 'busy').status_code == 409
+    assert post(client, task, '/studio/complete', {'version': 2}, 'busy').status_code == 409
     finish(factory, second)
-    completed = post(client, task, '/studio/complete', {}, 'complete')
+    completed = post(client, task, '/studio/complete', {'version': 2}, 'complete')
     assert completed.status_code == 200 and completed.json()['completed']
-    assert post(client, task, '/studio/complete', {}, 'complete').json() == completed.json()
+    assert post(client, task, '/studio/complete', {'version': 2}, 'complete').json() == completed.json()
     assert send(client, task, key='after').status_code == 409
 
 

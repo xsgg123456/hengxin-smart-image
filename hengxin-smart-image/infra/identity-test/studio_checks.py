@@ -27,7 +27,7 @@ def check_queued_studio(h, designer, stranger, base, task, material):
     assert turn['status'] == 'queued'
     h.expect(designer.post(path + '/turns', json=body,
         headers={'Idempotency-Key': str(uuid4())}), 409)
-    h.expect(designer.post(path + '/complete', json={},
+    h.expect(designer.post(path + '/complete', json={'version': results[0]['taskVersion']},
         headers={'Idempotency-Key': str(uuid4())}), 409)
     cancelled = h.expect(designer.post(path + '/turns/' + turn['id'] + '/cancel',
         json={'version': turn['jobVersion']}), 200).json()

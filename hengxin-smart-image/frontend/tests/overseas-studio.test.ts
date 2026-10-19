@@ -5,7 +5,7 @@ import { createStudioApi, isStudio, validateStudioFile, type Studio, type Studio
 import { emptyTaskDraft, type TaskDetail } from '../src/api/overseas/tasks'
 import { IdentityError } from '../src/api/identity/request'
 import { useStudio } from '../src/views/overseas/studio/use-studio'
-const snapshot = (): Studio => ({ taskId:'t',completed:false,turns:[],materials:[{id:'task:m',name:'需求.pdf',contentType:'application/pdf',sizeBytes:10,url:'/api/overseas/v1/materials/m/content',source:'task'}],skills:[],activeTurnId:null })
+const snapshot = (): Studio => ({ taskId:'t',taskVersion:1,archiveId:null,reopened:false,completed:false,turns:[],materials:[{id:'task:m',name:'需求.pdf',contentType:'application/pdf',sizeBytes:10,url:'/api/overseas/v1/materials/m/content',source:'task'}],skills:[],activeTurnId:null })
 const task: TaskDetail = {...emptyTaskDraft(),id:'t',workflow:'studio',status:'studio',version:1,createdAt:'',updatedAt:'',createdBy:{id:'u',name:'用户'},designer:{id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.design'],events:[]}
 const flush = async () => { for(let i=0;i<10;i++) await Promise.resolve() }
 const renderer=createRenderer<object,object>({createElement:()=>({}),createText:()=>({}),createComment:()=>({}),insert(){},remove(){},parentNode:()=>null,nextSibling:()=>null,patchProp(){},setText(){},setElementText(){}})
@@ -18,7 +18,7 @@ function mount(api: StudioApi, current = () => task) {
   return {state,failures,close:()=>app.unmount()}
 }
 function fake(overrides:Partial<StudioApi>={}):StudioApi {
-  return {removeMaterial:async()=>snapshot(),get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
+  return {removeMaterial:async()=>snapshot(),get:async()=>snapshot(),transcript:async()=>({items:[],cursor:0,hasMore:false}),newConversation:async()=>({...snapshot(),conversationId:"new"}),events:async()=>({items:[],cursor:0}),send:async()=>snapshot(),cancel:async()=>snapshot(),archive:async()=>snapshot(),reopen:async()=>({...snapshot(),reopened:true}),complete:async()=>({...snapshot(),completed:true}),upload:async()=>snapshot().materials[0],...overrides}
 }
 test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   assert.equal(isStudio(snapshot(),'t'),true)
@@ -89,7 +89,7 @@ test('轮询响应晚于发送响应时不能回退历史；刷新保留草稿',
   await view.state.send();late?.(snapshot());await reading;assert.equal(view.state.data.value?.activeTurnId,'new-turn');view.close()
 })
 
-test('自动读取静默，空闲30秒，执行1秒，完成与卸载停止',async t=>{
+test('自动读取静默，空闲30秒，执行1秒，完成30秒，卸载停止',async t=>{
   t.mock.timers.enable({apis:['setTimeout']});storage.clear()
   let calls=0,current=snapshot()
   const view=mount(fake({get:async()=>{calls++;return structuredClone(current)}}));await flush()
@@ -101,9 +101,9 @@ test('自动读取静默，空闲30秒，执行1秒，完成与卸载停止',asy
   t.mock.timers.tick(999);await flush();assert.equal(calls,2)
   t.mock.timers.tick(1);await flush();assert.equal(calls,3)
   current={...snapshot(),completed:true};t.mock.timers.tick(1000);await flush();assert.equal(calls,4)
-  t.mock.timers.tick(60000);await flush();assert.equal(calls,4)
-  await view.state.refresh();assert.equal(calls,5);view.close()
-  t.mock.timers.tick(60000);await flush();assert.equal(calls,5)
+  t.mock.timers.tick(30000);await flush();assert.equal(calls,5)
+  await view.state.refresh();assert.equal(calls,6);view.close()
+  t.mock.timers.tick(60000);await flush();assert.equal(calls,6)
 })
 
 test('隐藏页暂停自动请求，恢复可见立即同步并移除卸载监听',async t=>{

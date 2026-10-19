@@ -45,7 +45,7 @@ const detail = ref<ArchiveDetail>(), error = ref(''), loading = ref(false), revi
 const previewIndex = ref<number | null>(null)
 let epoch = 0, alive = true
 function failure(reason: unknown) {
-  error.value = archiveError(reason)
+  error.value = reason instanceof IdentityError && reason.status === 409 ? '成品正在删除或暂不可用，请刷新成品详情。' : archiveError(reason)
   if (reason instanceof IdentityError && [401, 403].includes(reason.status)) { ++epoch; detail.value = undefined; emit('failure', reason) }
 }
 async function load() {

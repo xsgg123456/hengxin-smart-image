@@ -60,13 +60,13 @@ def erase_records(session, record, task):
         identities = [UUID(value.split(':', 1)[1]) for value in record.versions if value.startswith('studio:')]
         for picture in session.scalars(select(Picture).where(Picture.task_id == task.id, Picture.id.in_(identities))):
             picture.sku = None
-        if task.status in ('archived', 'completed'):
-            task.status = 'studio' if task.workflow == 'studio' else 'generating'
+        if task.workflow != 'studio' and task.status in ('archived', 'completed'):
+            task.status = 'generating'
         task.version += 1
         # Preserve old keys as conflicts, so they cannot replay a vanished archive
         # or silently create a new archive after later re-archiving.
         for request in session.scalars(select(TaskRequest).where(TaskRequest.task_id == task.id,
-                TaskRequest.operation.in_(('archived', 'studio_archive', 'studio_complete')))):
+                TaskRequest.operation.in_(('archived', 'studio_archive')))):
             request.body_hash = sha256(('deleted:' + request.body_hash).encode()).hexdigest()
     for model in (ArchiveEvent, ArchiveAsset):
         session.execute(delete(model).where(model.archive_id == record.id))

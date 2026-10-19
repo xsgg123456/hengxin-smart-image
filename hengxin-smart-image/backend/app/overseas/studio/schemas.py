@@ -59,4 +59,8 @@ class ArchiveRequest(Strict):
 
 
 class Complete(Strict):
+    version: int = Field(ge=1, strict=True)
+
+
+class NewConversation(Strict):
     pass

@@ -5,7 +5,7 @@ export interface Asset { id: string; name: string; contentType: string; sizeByte
 export interface UploadedAsset extends Asset { materialState?: 'added' | 'existing' | 'restored' }
 export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean; sourcePath?: string | null }
 export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; createdAt: string; conversationId?: string; deliveryError?: string | null }
-export interface Studio { taskId: string; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null; conversationId?: string | null }
+export interface Studio { taskId: string; taskVersion: number; archiveId: string | null; reopened: boolean; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null; conversationId?: string | null }
 export interface StudioEvent { id: number; turnId: string; kind: string; text: string; createdAt: string }
 export interface StudioTranscript { id: number; turnId: string; itemId: string; kind: 'message' | 'reasoning' | 'tool' | 'notice'; text: string; state: 'running' | 'completed' | 'failed'; createdAt: string }
 export interface TranscriptPage { items: StudioTranscript[]; cursor: number; hasMore: boolean }
@@ -22,6 +22,8 @@ export function isAsset(v: unknown, taskId: string): v is Asset {
 }
 export function isStudio(v: unknown, taskId: string): v is Studio {
   return record(v) && v.taskId === taskId && typeof v.completed === 'boolean' && (v.activeTurnId === null || string(v.activeTurnId))
+    && Number.isInteger(v.taskVersion) && Number(v.taskVersion) > 0 && typeof v.reopened === 'boolean'
+    && (v.archiveId === null || (string(v.archiveId) && !!v.archiveId.trim()))
     && (v.conversationId === undefined || v.conversationId === null || string(v.conversationId))
     && Array.isArray(v.materials) && v.materials.every(a => isAsset(a, taskId))
     && Array.isArray(v.skills) && v.skills.every(isSkill)
@@ -61,7 +63,8 @@ export function createStudioApi(fetcher: typeof fetch = fetch) {
     send: (id: string, body: TurnInput, key: string) => request(`${base(id)}/turns`, guard(id), body, { idempotencyKey: key }),
     cancel: (id: string, turn: StudioTurn) => request(`${base(id)}/turns/${encodeURIComponent(turn.id)}/cancel`, guard(id), { version: turn.jobVersion }),
     archive: (id: string, pictureIds: string[], sku: string, key: string) => request(`${base(id)}/archive`, guard(id), { pictureIds, sku }, { idempotencyKey: key }),
-    complete: (id: string, key: string) => request(`${base(id)}/complete`, guard(id), {}, { idempotencyKey: key }),
+    complete: (id: string, version: number, key: string) => request(`${base(id)}/complete`, guard(id), { version }, { idempotencyKey: key }),
+    reopen: (id: string, version: number, key: string) => request(`${base(id)}/reopen`, guard(id), { version }, { idempotencyKey: key }),
     events: (id: string, after: number) => request(`${base(id)}/events`, (v): v is { items: StudioEvent[]; cursor: number } => record(v) && integer(v.cursor) && Array.isArray(v.items) && v.items.every(e => record(e) && integer(e.id) && ['turnId','kind','text','createdAt'].every(k => string(e[k]))), undefined, { params: { after } }),
     async upload(id: string, file: File, signal: AbortSignal) {
       validateStudioFile(file); const body = new FormData(); body.append('file', file)
