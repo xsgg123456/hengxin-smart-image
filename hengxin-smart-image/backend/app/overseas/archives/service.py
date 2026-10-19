@@ -12,7 +12,8 @@ from app.overseas.execution.queue import lock_gate
 from app.overseas.plans.service import mutation, complete
 from app.overseas.pictures.queries import slots, version
 from app.overseas.studio.files import read
-from .models import Archive, ArchiveAsset
+from .models import Archive, ArchiveAsset, ArchiveEvent
+from .audit import record_confirmation, event_dto, history
 from .snapshot import protect, metadata, assets
 
 
@@ -33,6 +34,7 @@ def archive(session, actor, task_id, body, key, store):
     session.add(record)
     session.flush()
     protect(session, store, record, task)
+    record_confirmation(session, record, actor, record.versions)
     task.status = 'archived'
     return complete(session, actor, task, 'archived', target, key, digest)
 
@@ -43,11 +45,11 @@ def picture_dto(row):
         url=f'/api/overseas/v1/archives/{row.archive_id}/pictures/{row.id}/content')
 
 
-def dto(record, cover=None):
+def dto(record, cover=None, latest=None):
     return dict(id=str(record.id), taskId=str(record.task_id) if record.task_id else None,
         sourceDeleted=record.task_id is None, productName=record.product_name, brand=record.brand,
         platform=record.platform, skus=record.skus or [], pictureCount=len(record.versions),
-        createdAt=record.created_at, cover=picture_dto(cover) if cover else None)
+        createdAt=record.created_at, latestArchive=event_dto(latest) if latest else None, cover=picture_dto(cover) if cover else None)
 
 
 def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20):
@@ -65,10 +67,13 @@ def listing(session, actor, product='', brand='', sku='', search='', page=1, pag
     total = session.scalar(select(func.count()).select_from(Archive).where(*filters))
     first_asset = (select(ArchiveAsset.id).where(ArchiveAsset.archive_id == Archive.id)
         .order_by(ArchiveAsset.position, ArchiveAsset.id).limit(1).correlate(Archive).scalar_subquery())
-    rows = session.execute(select(Archive, ArchiveAsset).outerjoin(ArchiveAsset, ArchiveAsset.id == first_asset)
+    last_event = (select(ArchiveEvent.id).where(ArchiveEvent.archive_id == Archive.id)
+        .order_by(ArchiveEvent.created_at.desc(), ArchiveEvent.id.desc()).limit(1).correlate(Archive).scalar_subquery())
+    rows = session.execute(select(Archive, ArchiveAsset, ArchiveEvent).outerjoin(ArchiveAsset, ArchiveAsset.id == first_asset)
+        .outerjoin(ArchiveEvent, ArchiveEvent.id == last_event)
         .where(*filters).order_by(Archive.created_at.desc(), Archive.id)
         .offset((page - 1) * page_size).limit(page_size))
-    return {'items': [dto(row, cover) for row, cover in rows], 'total': total, 'page': page, 'pageSize': page_size}
+    return {'items': [dto(row, cover, latest) for row, cover, latest in rows], 'total': total, 'page': page, 'pageSize': page_size}
 
 
 def access(session, actor, archive_id, store):
@@ -89,7 +94,10 @@ def access(session, actor, archive_id, store):
 def view(session, store, actor, archive_id):
     record = access(session, actor, archive_id, store)
     pictures = assets(session, record)
-    result = {**dto(record, pictures[0] if pictures else None), 'pictures': [picture_dto(row) for row in pictures]}
+    audit = history(session, record.id)
+    result = {**dto(record, pictures[0] if pictures else None), **audit,
+        'latestArchive': audit['archiveHistory'][0] if audit['archiveHistory'] else None,
+        'pictures': [picture_dto(row) for row in pictures]}
     session.commit()
     return result
 

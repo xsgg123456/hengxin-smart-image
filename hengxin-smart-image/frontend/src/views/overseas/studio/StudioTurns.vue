@@ -5,8 +5,7 @@
       <div v-if="index === 0 || turn.conversationId !== turns[index - 1].conversationId" class="studio-conversation-divider">{{ turn.conversationId && turn.conversationId === conversationId ? '当前对话' : '历史对话' }}</div>
       <article class="studio-message user"><div class="studio-message-name">设计师</div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><StudioAttachments :assets="[...turn.attachments, ...turn.referencePictures]" title="本条消息" @failure="$emit('failure', $event)" /></div></article>
       <article class="studio-message assistant"><div class="studio-message-name">Codex <small>{{ labels[turn.status] || turn.status }}</small></div><div class="studio-bubble">
-        <StudioTranscript :entries="byTurn.get(turn.id) || []" :running="isRunning(turn)" />
-        <StudioMarkdown v-if="turn.reply && !byTurn.get(turn.id)?.some(e => e.kind === 'message')" :text="turn.reply" />
+        <StudioProcess :turn="turn" :entries="byTurn.get(turn.id) || []" />
         <ElAlert v-if="turn.error" :title="turn.error" type="error" :closable="false" />
         <ElAlert v-if="turn.deliveryError" :title="turn.deliveryError" type="warning" :closable="false" />
         <div v-if="turn.pictures.length" class="studio-selection-bar"><ElCheckbox :model-value="turn.pictures.every(p => selected.includes(p.id))" :indeterminate="turn.pictures.some(p => selected.includes(p.id)) && !turn.pictures.every(p => selected.includes(p.id))" :disabled="disabled" @change="$emit('group', turn.pictures)">全选本组</ElCheckbox><span>已选 {{ turn.pictures.filter(p => selected.includes(p.id)).length }} / {{ turn.pictures.length }} 张</span></div>
@@ -22,14 +21,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUpdate, onUpdated, ref } from 'vue'
 import type { StudioTranscript as Transcript, StudioPicture, StudioTurn } from '@/api/overseas/studio'
-import StudioMarkdown from './StudioMarkdown.vue'
 import StudioAttachments from './StudioAttachments.vue'
 import StudioAssetImage from './StudioAssetImage.vue'
-import StudioTranscript from './StudioTranscript.vue'
+import StudioProcess from './StudioProcess.vue'
 const props = defineProps<{ turns: StudioTurn[]; transcript: Transcript[]; conversationId?: string | null; selected: string[]; disabled: boolean }>()
 defineEmits<{ failure: [reason: unknown]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()
 const labels: Record<string, string> = { queued: '排队中', running: '执行中', collecting: '收取结果中', cancelling: '正在停止', uncertain: '执行状态待核实', succeeded: '已回复', failed: '执行失败', cancelled: '已停止' }
-const isRunning = (turn: StudioTurn) => ['queued', 'running', 'collecting', 'cancelling', 'uncertain'].includes(turn.status)
 const byTurn = computed(() => {
   const result = new Map<string, Transcript[]>()
   for (const entry of props.transcript) { const items = result.get(entry.turnId) || []; items.push(entry); result.set(entry.turnId, items) }

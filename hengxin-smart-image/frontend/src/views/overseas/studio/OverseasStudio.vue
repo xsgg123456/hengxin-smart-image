@@ -14,16 +14,16 @@
             <StudioRevisionDraft v-for="revision in revisions" :key="revision.base.id" :revision="revision" :disabled="locked" @edit="openAnnotation(revision.base)" @remove="removeRevision(revision.base.id)" @failure="fail" />
           </div>
           <small v-if="revisionError" class="studio-revision-hint">{{ revisionError }}</small>
-          <ElInput v-model="text" type="textarea" :rows="2" resize="none" :disabled="locked" aria-label="设计要求" placeholder="描述设计要求，或继续提出修改意见…" @keydown.ctrl.enter.prevent="send" />
+          <ElInput v-model="text" type="textarea" :rows="2" resize="none" :disabled="locked" aria-label="设计要求" placeholder="描述设计要求，或继续提出修改意见…" @keydown="handleStudioSendKey($event, send)" />
           <div class="studio-compose-tools"><div class="studio-input-tools"><StudioSkillSelect v-model="skill" :skills="data?.skills || []" :disabled="locked" /></div><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || activeTurn?.status === 'cancelling'" @click="stop">停止</ElButton><ElButton v-else type="primary" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div>
-          <p class="studio-compose-note">支持 JPG/PNG/WebP、PDF/DOCX/PPTX/XLS/XLSX/CSV/TXT · Ctrl + Enter 发送。执行期间可离开，回来后继续。</p>
+          <p class="studio-compose-note">支持 JPG/PNG/WebP、PDF/DOCX/PPTX/XLS/XLSX/CSV/TXT · Enter 发送，Shift + Enter 换行（兼容 Ctrl + Enter）。执行期间可离开，回来后继续。</p>
           <input ref="input" hidden type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.pptx,.xls,.xlsx,.csv,.txt" @change="upload">
         </div>
       </section><StudioMaterials v-if="materialsOpen" :assets="data?.materials || []" :disabled="locked" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @failure="fail" /></div>
     </ElCard>
     <StudioAnnotationDialog v-if="editing && data" :key="editingKey" ref="annotationDialog" :picture="editing" :draft-key="editingKey" :submitting="uploading" :error="annotationError" @close="closeAnnotation" @confirm="applyAnnotation" @failure="fail" />
     <ElDialog v-model="conversationOpen" title="开始新对话" width="min(480px,94vw)" append-to-body><p>开始后将使用新的对话上下文。旧对话、任务材料和已生成或归档的成品都会保留。</p><p>草稿和当前引用将清空；需要使用旧材料时，请重新选择引用。</p><template #footer><ElButton @click="conversationOpen = false">取消</ElButton><ElButton type="primary" :loading="busy" :disabled="!canNewConversation" @click="doNewConversation">确认开始新对话</ElButton></template></ElDialog>
-    <ElDialog v-model="archiveOpen" title="归档所选图片" width="min(600px,94vw)" append-to-body><p>将所选 {{ selected.length }} 张图片归入指定 SKU；归档后仍可继续对话。</p><ElSelect v-model="sku" aria-label="归档所属 SKU" placeholder="选择所属 SKU"><ElOption v-for="item in task.skus" :key="item.code" :value="item.code" :label="item.code" /></ElSelect><template #footer><ElButton @click="archiveOpen = false">取消</ElButton><ElButton type="primary" :disabled="locked || !sku || !selected.length" :loading="busy" @click="doArchive">确认归档</ElButton></template></ElDialog>
+    <ElDialog v-model="archiveOpen" title="归档所选图片" width="min(600px,94vw)" append-to-body><p>将所选 {{ selected.length }} 张图片归入指定 SKU；归档后仍可继续对话。</p><StudioArchiveFields :task="task" /><label for="studio-archive-sku">SKU</label><ElSelect id="studio-archive-sku" v-model="sku" style="width:100%;margin-top:8px" aria-label="归档所属 SKU" placeholder="选择所属 SKU"><ElOption v-for="item in task.skus" :key="item.code" :value="item.code" :label="item.code" /></ElSelect><template #footer><ElButton @click="archiveOpen = false">取消</ElButton><ElButton type="primary" :disabled="locked || !sku || !selected.length" :loading="busy" @click="doArchive">确认归档</ElButton></template></ElDialog>
     <ElDialog v-model="completeOpen" title="确认完成任务" width="min(480px,94vw)" append-to-body><p>完成后不再接收新的设计意见。已归档成品将保留。</p><template #footer><ElButton @click="completeOpen = false">继续设计</ElButton><ElButton type="primary" :loading="busy" :disabled="locked || !!data?.activeTurnId" @click="doComplete">确认完成</ElButton></template></ElDialog>
   </section>
 </template>
@@ -31,6 +31,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { TaskDetail } from '@/api/overseas/tasks'
 import StudioTurns from './StudioTurns.vue'
+import StudioArchiveFields from './StudioArchiveFields.vue'
+import { handleStudioSendKey } from './studio-send-key'
 import type { Asset, StudioPicture } from '@/api/overseas/studio'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { PreparedAnnotation } from '@/views/hengxin/components/annotation/AnnotationEditor.vue'

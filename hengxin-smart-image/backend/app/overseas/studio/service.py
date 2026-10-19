@@ -109,6 +109,7 @@ def archive(session, actor, task_id, body, key, store):
     if record is None:
         record = Archive(task_id=task.id, versions=[])
         session.add(record)
+    had_versions = bool(record.versions)
     versions = list(record.versions)
     for picture in pictures:
         picture.sku = sku.code
@@ -119,6 +120,8 @@ def archive(session, actor, task_id, body, key, store):
     from app.overseas.archives.snapshot import protect
     session.flush()
     protect(session, store, record, task)
+    from app.overseas.archives.audit import record_confirmation
+    record_confirmation(session, record, actor, ['studio:' + str(p.id) for p in pictures], had_versions)
     return finish(session, actor, task, key, digest, 'studio_archive')
 
 

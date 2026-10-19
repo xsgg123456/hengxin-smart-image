@@ -1,5 +1,5 @@
 from uuid import UUID, uuid4
-from sqlalchemy import ForeignKey, JSON, Uuid, String, Integer, UniqueConstraint, Text
+from sqlalchemy import Boolean, ForeignKey, JSON, Uuid, String, Integer, UniqueConstraint, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.timestamps import Timestamps
 from app.overseas.db import Base
@@ -35,3 +35,14 @@ class ArchiveAsset(Timestamps, Base):
     height: Mapped[int] = mapped_column(Integer)
     bucket: Mapped[str] = mapped_column(String(200))
     object_key: Mapped[str] = mapped_column(String(500), unique=True)
+
+
+class ArchiveEvent(Timestamps, Base):
+    """Confirmation snapshots survive task cleanup and member changes."""
+    __tablename__ = 'overseas_archive_events'
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    archive_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_archives.id'), index=True)
+    actor_id: Mapped[UUID] = mapped_column(Uuid)
+    actor_name: Mapped[str] = mapped_column(String(200))
+    pictures: Mapped[list] = mapped_column(JSON)
+    prior_history_unknown: Mapped[bool] = mapped_column(Boolean, default=False)

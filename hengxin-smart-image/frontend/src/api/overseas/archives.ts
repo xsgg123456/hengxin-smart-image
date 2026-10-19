@@ -1,8 +1,9 @@
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 import type { Page } from './tasks'
-export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null }
+export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null }
 export interface ArchivePicture { id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
-export interface ArchiveDetail extends Archive { pictures: ArchivePicture[] }
+export interface ArchiveEvent { id: string; actorId: string; actorName: string; at: string; pictures: { id: string; name: string; sku: string }[] }
+export interface ArchiveDetail extends Archive { pictures: ArchivePicture[]; archiveHistory?: ArchiveEvent[]; historyIncomplete?: boolean }
 export interface ArchiveQuery { search: string; page: number; pageSize: number }
 const root = '/api/overseas/v1/archives'
 const positive = (value: unknown) => Number.isInteger(value) && Number(value) > 0
@@ -14,18 +15,34 @@ function isPicture(picture: unknown, id: string): picture is ArchivePicture {
     && ['image/png', 'image/jpeg', 'image/webp'].includes(String(picture.contentType)) && positive(picture.width) && positive(picture.height) && positive(picture.sizeBytes)
     && picture.url === archivePictureUrl(id, String(picture.id))
 }
+function isArchiveEvent(value: unknown): value is ArchiveEvent {
+  return record(value) && ['id', 'actorId', 'actorName'].every(key => text(value[key]) && !!value[key])
+    && text(value.at) && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value.at) && Number.isFinite(Date.parse(value.at))
+    && Array.isArray(value.pictures) && value.pictures.length > 0
+    && value.pictures.every(p => record(p) && ['id', 'name', 'sku'].every(key => text(p[key]) && !!p[key]))
+    && new Set(value.pictures.map(p => p.id)).size === value.pictures.length
+}
 export function isArchive(value: unknown): value is Archive {
   return record(value) && ['id', 'productName', 'brand', 'platform', 'createdAt'].every(key => text(value[key]))
     && (value.taskId === null || text(value.taskId)) && typeof value.sourceDeleted === 'boolean'
     && (value.taskId !== null || value.sourceDeleted) && positive(value.pictureCount)
     && Array.isArray(value.skus) && value.skus.every(sku => record(sku) && text(sku.code))
+    && (value.latestArchive === undefined || value.latestArchive === null || isArchiveEvent(value.latestArchive))
     && (value.cover == null || isPicture(value.cover, String(value.id)))
+}
+function matchesAssets(event: ArchiveEvent, pictures: unknown): boolean {
+  return Array.isArray(pictures) && event.pictures.every(p => pictures.some(asset => record(asset) && asset.id === p.id && asset.name === p.name && asset.sku === p.sku))
 }
 export function isArchiveDetail(value: unknown, id: string): value is ArchiveDetail {
   return isArchive(value) && value.id === id && record(value) && Array.isArray(value.pictures)
     && value.pictures.length === value.pictureCount && new Set(value.pictures.map(p => record(p) ? p.id : null)).size === value.pictureCount
     && value.pictures.every(picture => isPicture(picture, id))
     && (!value.cover || value.cover.id === value.pictures[0].id)
+    && (value.historyIncomplete === undefined || typeof value.historyIncomplete === 'boolean')
+    && (value.archiveHistory === undefined || (Array.isArray(value.archiveHistory)
+      && value.archiveHistory.every(event => isArchiveEvent(event) && matchesAssets(event, value.pictures))
+      && new Set(value.archiveHistory.map(event => event.id)).size === value.archiveHistory.length
+      && (value.latestArchive == null ? value.archiveHistory.length === 0 : value.archiveHistory[0]?.id === value.latestArchive.id)))
 }
 export function createArchivesApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store' }))

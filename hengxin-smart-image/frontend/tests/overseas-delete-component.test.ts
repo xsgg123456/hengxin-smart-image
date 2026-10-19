@@ -41,6 +41,7 @@ function component(name: string): Vue.Component {
     if (path.endsWith('/pictures')) return { saveBlob: (blob: Blob, name: string) => downloads.push({blob,name}) }
     if (path.includes('art-table')) return { default: stub('ArtTable'), __esModule: true }
     if (path.endsWith('OverseasSkillCatalog.vue')) return { default: component('admin/OverseasSkillCatalog'), __esModule: true }
+    if (path.endsWith('OverseasArchiveFields.vue')) return { default: component('OverseasArchiveFields'), __esModule: true }
     if (path.endsWith('OverseasArchivePicture.vue')) return { default: stub('OverseasArchivePicture'), __esModule: true }
     if (path.endsWith('OverseasArchiveViewer.vue')) return { default: stub('OverseasArchiveViewer'), __esModule: true }
     throw Error(path)
