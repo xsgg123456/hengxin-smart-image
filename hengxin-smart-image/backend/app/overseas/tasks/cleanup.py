@@ -1,7 +1,7 @@
 """Resumable erasure runs on the native overseas maintenance worker, never in HTTP."""
 from sqlalchemy import select
 from app.overseas.db import require_overseas_context
-from app.overseas.archives.models import Archive
+from app.overseas.archives.models import Archive, ArchiveDeletion
 from app.overseas.archives.snapshot import protect
 from app.storage.minio_store import get_store
 from .models import Task, TaskDeletion
@@ -35,6 +35,11 @@ def process(factory, store, task_id):
             if not cleanup_process.confirmed(session, task_id):
                 row.error = ERRORS['stopping']
                 return False
+            # Archive deletion owns its copies; never reconstruct or detach them midway.
+            if session.scalar(select(ArchiveDeletion.archive_id).join(Archive,
+                    Archive.id == ArchiveDeletion.archive_id).where(Archive.task_id == task_id)):
+                row.error = '正在等待成品库删除完成，请先完成或重试成品删除'
+                return False
             phase = 'protecting'
             for record in session.scalars(select(Archive).where(Archive.task_id == task_id)):
                 protect(session, store, record, task)
@@ -50,6 +55,10 @@ def process(factory, store, task_id):
                 return False
             if not cleanup_process.confirmed(session, task_id):
                 raise ValueError('Process state changed')
+            if session.scalar(select(ArchiveDeletion.archive_id).join(Archive,
+                    Archive.id == ArchiveDeletion.archive_id).where(Archive.task_id == task_id)):
+                row.error = '正在等待成品库删除完成，请先完成或重试成品删除'
+                return False
             cleanup_files.erase(store, row.manifest)
             cleanup_records.erase(session, task_id)
             row.status, row.phase, row.error, row.manifest = 'deleted', 'done', None, {}

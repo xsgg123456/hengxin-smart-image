@@ -1,6 +1,10 @@
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 import type { Page } from './tasks'
-export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null }
+export interface Archive { id: string; taskId: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null; deleteToken?: string; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
+export interface ArchiveDeletion { archiveId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
+export function isArchiveDeletion(value: unknown): value is ArchiveDeletion {
+  return record(value) && typeof value.archiveId === 'string' && ['deleting', 'delete_failed', 'deleted'].includes(String(value.status)) && (value.error === null || typeof value.error === 'string')
+}
 export interface ArchivePicture { id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
 export interface ArchiveEvent { id: string; actorId: string; actorName: string; at: string; pictures: { id: string; name: string; sku: string }[] }
 export interface ArchiveDetail extends Archive { pictures: ArchivePicture[]; archiveHistory?: ArchiveEvent[]; historyIncomplete?: boolean }
@@ -26,6 +30,9 @@ export function isArchive(value: unknown): value is Archive {
   return record(value) && ['id', 'productName', 'brand', 'platform', 'createdAt'].every(key => text(value[key]))
     && (value.taskId === null || text(value.taskId)) && typeof value.sourceDeleted === 'boolean'
     && (value.taskId !== null || value.sourceDeleted) && positive(value.pictureCount)
+    && (value.deleteToken === undefined || (text(value.deleteToken) && !!value.deleteToken.trim()))
+    && (value.deletionStatus == null || ['deleting', 'delete_failed'].includes(String(value.deletionStatus)))
+    && (value.deletionError == null || text(value.deletionError))
     && Array.isArray(value.skus) && value.skus.every(sku => record(sku) && text(sku.code))
     && (value.latestArchive === undefined || value.latestArchive === null || isArchiveEvent(value.latestArchive))
     && (value.cover == null || isPicture(value.cover, String(value.id)))
@@ -54,8 +61,11 @@ export function createArchivesApi(fetcher: typeof fetch = fetch) {
     return response.blob()
   }
   return {
+    deletionPreview: (id: string) => request(`${root}/${encodeURIComponent(id)}/deletion-preview`, (value): value is Archive => isArchive(value) && value.id === id && !!value.deleteToken),
     list: (query: ArchiveQuery) => request(root, (value): value is Page<Archive> => record(value) && Array.isArray(value.items) && value.items.every(isArchive) && Number.isInteger(value.total) && Number(value.total) >= 0 && positive(value.page) && positive(value.pageSize), undefined, { params: { ...query } }),
     get: (id: string) => request(`${root}/${encodeURIComponent(id)}`, (value): value is ArchiveDetail => isArchiveDetail(value, id)),
+    remove: (id: string, deleteToken: string) => request(`${root}/${encodeURIComponent(id)}`, (value): value is ArchiveDeletion => isArchiveDeletion(value) && value.archiveId === id, { deleteToken }, { method: 'DELETE' }),
+    deletion: (id: string) => request(`${root}/${encodeURIComponent(id)}/deletion`, (value): value is ArchiveDeletion => isArchiveDeletion(value) && value.archiveId === id),
     content: (id: string, pictureId: string, signal?: AbortSignal) => binary(archivePictureUrl(id, pictureId), signal),
     download: (id: string) => binary(`${root}/${encodeURIComponent(id)}/download`)
   }

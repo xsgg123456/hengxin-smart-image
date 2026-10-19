@@ -105,10 +105,12 @@ def archive(session, actor, task_id, body, key, store):
     pictures = [queries.picture(session, task, value) for value in set(body.pictureIds)]
     if any(p.sku is not None and p.sku != sku.code for p in pictures):
         raise HTTPException(409, '图片已经归档到其他SKU')
-    record = session.scalar(select(Archive).where(Archive.task_id == task.id))
+    record = session.scalar(select(Archive).where(Archive.task_id == task.id).with_for_update())
     if record is None:
         record = Archive(task_id=task.id, versions=[])
         session.add(record)
+    from app.overseas.archives.deletion import available
+    available(session, record.id)
     had_versions = bool(record.versions)
     versions = list(record.versions)
     for picture in pictures:
@@ -131,9 +133,11 @@ def complete(session, actor, task_id, body, key):
         return replay(session, actor, task)
     if active(session, task):
         raise HTTPException(409, '请等待所有执行结束后再完成任务')
-    record = session.scalar(select(Archive).where(Archive.task_id == task.id))
+    record = session.scalar(select(Archive).where(Archive.task_id == task.id).with_for_update())
     if record is None or not record.versions:
         raise HTTPException(409, '请先归档至少一张图片')
+    from app.overseas.archives.deletion import available
+    available(session, record.id)
     task.status = 'completed'
     task.version += 1
     return finish(session, actor, task, key, digest, 'studio_complete')

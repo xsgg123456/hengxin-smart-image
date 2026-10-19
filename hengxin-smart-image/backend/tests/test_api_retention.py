@@ -31,6 +31,9 @@ def sample(files_env, monkeypatch, cli_enabled, adopted=False):
     identifier = UUID(result['id'])
     root = Path(cli_enabled.codex_execution_root)
     home = root / 'api-edits' / str(identifier) / 'home' / '.codex'
+    # cli_enabled stubs credential synchronization. Seed a harmless file so this
+    # retention test actually verifies preservation, without invoking authentication.
+    (home / 'auth.json').write_text('{"retention-test":true}')
     for part in ('cache', 'plugins'):
         (home / part).mkdir(exist_ok=True)
         (home / part / 'data').write_text(part)

@@ -5,7 +5,8 @@ from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.tasks.router import Database, Key
 from app.overseas.pictures.schemas import ArchiveRequest
 from app.storage.minio_store import get_store
-from . import service
+from . import service, deletion
+from .deletion import DeleteArchive
 
 router = APIRouter(prefix='/api/overseas/v1', tags=['overseas-archives'])
 
@@ -37,3 +38,18 @@ def detail(archive_id: UUID, actor: CurrentMember, session: Database, store=Depe
 @router.get('/archives/{archive_id}/pictures/{picture_id}/content')
 def content(archive_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
     return service.content(session, store, actor, archive_id, picture_id)
+
+
+@router.delete('/archives/{archive_id}', dependencies=[Depends(browser_request)])
+def remove(archive_id: UUID, body: DeleteArchive, actor: CurrentMember, session: Database):
+    return deletion.request(session, actor, archive_id, body)
+
+
+@router.get('/archives/{archive_id}/deletion')
+def deletion_status(archive_id: UUID, actor: CurrentMember, session: Database):
+    return deletion.status(session, actor, archive_id)
+
+
+@router.get('/archives/{archive_id}/deletion-preview')
+def deletion_preview(archive_id: UUID, actor: CurrentMember, session: Database):
+    return deletion.preview(session, actor, archive_id)

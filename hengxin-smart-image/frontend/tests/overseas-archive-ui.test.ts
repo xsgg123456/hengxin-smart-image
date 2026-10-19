@@ -20,14 +20,15 @@ const renderer = Vue.createRenderer<Node, Node>({
 const picture = { id: 'p', name: '真实图片.png', sku: 'SKU-A', width: 10, height: 10, contentType: 'image/png', sizeBytes: 12, url: Archives.archivePictureUrl('a', 'p') }
 const event = { id: 'e', actorId: 'actual', actorName: '实际确认者', at: '2026-10-19T01:02:03Z', pictures: [{ id: 'p', name: picture.name, sku: picture.sku }] }
 const fixture: Archives.ArchiveDetail = { id: 'a', taskId: 'task', sourceDeleted: false, productName: '真实品名', brand: '真实品牌', platform: 'Amazon', skus: [{ code: 'SKU-A' }], pictureCount: 1, createdAt: '2026-01-01T00:00:00Z', pictures: [picture], cover: picture, latestArchive: event, archiveHistory: [event], historyIncomplete: false }
-let result = structuredClone(fixture), rejected = false
-const api = { get: async () => { if (rejected) throw new IdentityError(403, '暂无权限'); return structuredClone(result) }, list: async () => ({ items: [structuredClone(result)], total: 1, page: 1, pageSize: 20 }) }
+let result = structuredClone(fixture), rejected = false, listEmpty = false
+const requestedPages: number[] = []
+const api = { get: async () => { if (rejected) throw new IdentityError(403, '暂无权限'); return structuredClone(result) }, list: async (query: { page: number }) => { requestedPages.push(query.page); return { items: listEmpty ? [] : [structuredClone(result)], total: listEmpty ? 0 : 21, page: query.page, pageSize: 20 } } }
 const simple = (name: string) => Vue.defineComponent({ name, setup(_p, { attrs, slots }) { return () => Vue.h(name, attrs, slots.default?.()) } })
 const deps: Record<string, unknown> = {
   vue: Vue, 'vue-router': { useRouter: () => ({ push: () => undefined }) },
   '@/utils/beijing-time': BeijingTime, '@/api/identity/request': { IdentityError },
   '@/api/overseas/archives': { ...Archives, createArchivesApi: () => api }, '@/api/overseas/pictures': { saveBlob: () => undefined },
-  './OverseasArchivePicture.vue': { default: simple('Picture') }, './OverseasArchiveViewer.vue': { default: simple('Viewer') }, './OverseasArchiveCover.vue': { default: simple('Cover') }
+  './OverseasArchiveDelete.vue': { default: simple('Delete') }, './OverseasArchivePicture.vue': { default: simple('Picture') }, './OverseasArchiveViewer.vue': { default: simple('Viewer') }, './OverseasArchiveCover.vue': { default: simple('Cover') }
 }
 function compile(name: string) {
   const source = readFileSync(new URL(`../src/views/overseas/${name}.vue`, import.meta.url), 'utf8')
@@ -57,7 +58,7 @@ test('正式成品卡片明确四字段，只有已归档状态，没有重复�
   try {
     await flush()
     assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '平台', 'SKU', '归档人', '归档时间'])
-    assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTag').map(text), ['1 套归档', '已归档'])
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTag').map(text), ['21 套归档', '已归档'])
     assert.match(text(view.root), /归档人实际确认者/)
     assert.match(text(view.root), /2026-10-19 09:02:03/)
     assert.doesNotMatch(text(view.root), /2026-01-01/)
@@ -88,4 +89,22 @@ test('详情权限失效不残留归档人与图片历史', async () => {
     await (refresh.props.onClick as () => Promise<void>)(); await flush()
     assert.doesNotMatch(text(view.root), /实际确认者|真实图片.png/)
   } finally { view.close(); rejected = false }
+})
+
+
+test('删除最后一页最后一套后刷新总数并退回第一页；删除中不请求封面', async () => {
+ result = structuredClone(fixture); rejected = false; listEmpty = false; requestedPages.length = 0
+ const view = mount(page, {refresh: 0, capabilities: ['task.delete']})
+ try {
+  await flush()
+  const pager = all(view.root).find(n => n.tag === 'ElPagination')!
+  ;(pager.props.onCurrentChange as (page: number) => void)(2); await flush()
+  const deletion = all(view.root).find(n => n.tag === 'Delete')!
+  ;(deletion.props.onChanged as (value: unknown) => void)({archiveId: 'a', status: 'deleting', error: null}); await flush()
+  assert.equal(all(view.root).some(n => n.tag === 'Cover'), false)
+  assert.equal(all(view.root).find(n => n.tag === 'ElButton' && text(n) === '下载整套成品')?.props.disabled, true)
+  listEmpty = true
+  ;(deletion.props.onChanged as (value: unknown) => void)({archiveId: 'a', status: 'deleted', error: null}); await flush(); await flush()
+  assert.deepEqual(requestedPages, [1,2,2,1]); assert.match(text(view.root), /0 套归档/)
+ } finally {view.close(); listEmpty = false}
 })

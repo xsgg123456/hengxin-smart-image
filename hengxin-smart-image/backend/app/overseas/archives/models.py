@@ -46,3 +46,11 @@ class ArchiveEvent(Timestamps, Base):
     actor_name: Mapped[str] = mapped_column(String(200))
     pictures: Mapped[list] = mapped_column(JSON)
     prior_history_unknown: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class ArchiveDeletion(Timestamps, Base):
+    """Minimal durable receipt; no FK, product details or retained image manifest."""
+    __tablename__ = 'overseas_archive_deletions'
+    archive_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default='deleting', index=True)
+    error: Mapped[str | None] = mapped_column(String(200))

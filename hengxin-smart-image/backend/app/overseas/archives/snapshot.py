@@ -26,6 +26,8 @@ def assets(session, record):
 
 def protect(session, store, record, task=None):
     """Called under the parent task lock, before any destructive side effect."""
+    from .deletion import available
+    available(session, record.id)
     task = task or (session.get(Task, record.task_id) if record.task_id else None)
     if task:
         metadata(session, record, task)

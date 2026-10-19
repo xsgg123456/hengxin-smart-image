@@ -18,6 +18,8 @@ def main():
             factory = session_factory()
             reconcile_once(factory)
             from app.overseas.tasks.cleanup import cleanup_once
+            from app.overseas.archives.cleanup import cleanup_once as cleanup_archives
+            cleanup_archives(factory)
             cleanup_once(factory)
             dispatch_once(factory)
         except Exception:

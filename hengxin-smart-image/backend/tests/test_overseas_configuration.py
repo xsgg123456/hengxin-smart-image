@@ -199,6 +199,8 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/archives/{archive_id}',
         '/api/overseas/v1/archives/{archive_id}/pictures/{picture_id}/content',
         '/api/overseas/v1/archives/{archive_id}/download',
+        '/api/overseas/v1/archives/{archive_id}/deletion',
+        '/api/overseas/v1/archives/{archive_id}/deletion-preview',
         '/api/overseas/v1/tasks/{task_id}/plans',
         '/api/overseas/v1/tasks/{task_id}/analysis',
         '/api/overseas/v1/tasks/{task_id}/plans/{plan_id}/confirm',

@@ -15,12 +15,16 @@ from app.overseas.studio.files import read
 from .models import Archive, ArchiveAsset, ArchiveEvent
 from .audit import record_confirmation, event_dto, history
 from .snapshot import protect, metadata, assets
+from . import deletion
 
 
 def archive(session, actor, task_id, body, key, store):
     target = str(task_id)
     actor, task, digest, previous = mutation(session, actor, task_id, body, key, 'archived', target)
     if previous:
+        session.refresh(previous)
+        if previous.body_hash != digest:
+            raise HTTPException(409, '该归档已删除，请使用新的请求重新归档')
         result = detail(session, task.id, actor)
         session.commit()
         return result
@@ -73,31 +77,31 @@ def listing(session, actor, product='', brand='', sku='', search='', page=1, pag
         .outerjoin(ArchiveEvent, ArchiveEvent.id == last_event)
         .where(*filters).order_by(Archive.created_at.desc(), Archive.id)
         .offset((page - 1) * page_size).limit(page_size))
-    return {'items': [dto(row, cover, latest) for row, cover, latest in rows], 'total': total, 'page': page, 'pageSize': page_size}
+    return {'items': [{**dto(row, cover, latest), **deletion.fields(session, row)} for row, cover, latest in rows], 'total': total, 'page': page, 'pageSize': page_size}
 
 
-def access(session, actor, archive_id, store):
-    record = session.get(Archive, archive_id)
-    if not record:
+def access(session, actor, archive_id, store, metadata_only=False):
+    task, record, receipt = deletion.locked(session, archive_id)
+    if record is None:
         raise HTTPException(404, '归档不存在')
-    # Parent first: serializes legacy upgrade, deletion and studio append.
-    task = session.scalar(select(Task).where(Task.id == record.task_id).with_for_update()) if record.task_id else None
-    record = session.scalar(select(Archive).where(Archive.id == archive_id)
-        .with_for_update().execution_options(populate_existing=True))
     if record.created_by is None and task:
         metadata(session, record, task)
     require_task_access(principal_for(session, actor), record.created_by, record.designer_id)
-    protect(session, store, record, task)
+    if receipt:
+        if not metadata_only:
+            deletion.available(session, record.id)
+    else:
+        protect(session, store, record, task)
     return record
 
 
 def view(session, store, actor, archive_id):
-    record = access(session, actor, archive_id, store)
+    record = access(session, actor, archive_id, store, metadata_only=True)
     pictures = assets(session, record)
     audit = history(session, record.id)
     result = {**dto(record, pictures[0] if pictures else None), **audit,
         'latestArchive': audit['archiveHistory'][0] if audit['archiveHistory'] else None,
-        'pictures': [picture_dto(row) for row in pictures]}
+        'pictures': [picture_dto(row) for row in pictures], **deletion.fields(session, record)}
     session.commit()
     return result
 
