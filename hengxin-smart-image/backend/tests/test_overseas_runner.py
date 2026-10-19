@@ -31,7 +31,8 @@ def execution(overseas, tmp_path, monkeypatch):
     settings.enable_codex_executor = True
     settings.codex_execution_root = str(tmp_path / 'execution')
     auth = tmp_path / 'auth.json'
-    auth.write_text('{"fake":"test-only"}')
+    from test_managed_credentials import auth as credentials
+    auth.write_text(json.dumps(credentials(ttl=86400)))
     settings.codex_auth_file = str(auth)
     settings.codex_binary = 'local-test-cli'
     monkeypatch.setattr(runner.subprocess, 'run', lambda *a, **k:

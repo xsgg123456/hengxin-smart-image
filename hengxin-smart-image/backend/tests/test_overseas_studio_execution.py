@@ -23,6 +23,7 @@ def fake_runtime(studio, monkeypatch, tmp_path, image_count=0, crash=False):
     auth = tmp_path / 'auth.json'
     auth.write_text('{}')
     settings.codex_auth_file = str(auth)
+    monkeypatch.setattr(runner, 'sync_credentials', lambda *args, **kwargs: None)
     monkeypatch.setitem(protocols._handlers, 'studio', execution.HANDLER)
     monkeypatch.setattr(execution, 'get_store', lambda: store)
     monkeypatch.setattr(runner, 'resources_available', lambda _: True)

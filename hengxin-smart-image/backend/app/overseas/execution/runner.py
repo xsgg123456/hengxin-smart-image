@@ -10,6 +10,8 @@ from uuid import UUID
 from app.core.config import get_settings
 from app.overseas.db import require_overseas_context
 from app.execution.events import parse_events
+from app.execution.credential_errors import execution_error_code
+from app.execution.managed_credentials import sync_credentials, CredentialsError
 from app.execution.process import execute
 from app.execution.workspace import prepare_workspace, sandbox_command
 from . import claims, materials, protocols
@@ -92,7 +94,7 @@ def run(factory, job_id):
             # Separate job homes avoid parallel SKU jobs sharing writable sessions.
             workspace = (handler.workspace(factory, job, token, settings) if hasattr(handler, 'workspace')
                          else prepare_workspace(settings.codex_execution_root, job.id, token,
-                                                settings.codex_auth_file))
+                                                settings.codex_auth_file, copy_auth=False))
             materials.prepare(job, workspace)
             prompt = handler.prepare(job, workspace)
             if not isinstance(prompt, str) or not prompt.strip():
@@ -116,6 +118,10 @@ def run(factory, job_id):
             timeout = job.payload.get('runtime', {}).get('timeoutSeconds', settings.codex_timeout_seconds)
             if type(timeout) is not int or not 10 <= timeout <= 7200:
                 raise ValueError('Invalid frozen timeout')
+            sync_credentials(Path(settings.codex_auth_file), workspace.home, timeout,
+                             broker_socket=settings.codex_auth_broker_socket or None,
+                             control=workspace.control.parent,
+                             require_existing=bool(getattr(workspace, 'previous_session', None)))
             def monitor():
                 if hasattr(handler, 'poll'):
                     handler.poll(factory, job, token, workspace)
@@ -134,9 +140,12 @@ def run(factory, job_id):
                 handler.poll(factory, job, token, workspace)
             summary = parse_events(workspace.control / 'events.jsonl', getattr(workspace, 'previous_session', None))
             if receipt.get('exit_code') != 0 or receipt.get('reason'):
+                failure = execution_error_code(workspace.control, receipt)
                 raise ValueError('CLI did not complete')
             if summary.error or not summary.turn_completed or not summary.session_id:
-                failure = summary.error or True
+                failure = execution_error_code(workspace.control, receipt)
+                if failure == 'execution_failed':
+                    failure = summary.error or failure
                 logging.getLogger(__name__).warning('CLI event validation failed job=%s code=%s',
                                                    job_id, summary.error or 'incomplete_stream')
                 raise ValueError('Protocol stream incomplete')
@@ -155,7 +164,9 @@ def run(factory, job_id):
             if not claims.finish(factory, job_id, token, 'succeeded', result=result,
                                  publish=getattr(handler, 'publish', None)):
                 raise ValueError('Late result rejected')
-    except Exception:
+    except Exception as exc:
+        if isinstance(exc, CredentialsError):
+            failure = exc.code
         if workspace is not None and hasattr(handler, 'final_poll'):
             try:
                 handler.final_poll(factory, job, token, workspace)

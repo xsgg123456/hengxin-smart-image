@@ -27,6 +27,14 @@ def test_invalid_task_identifier_cannot_escape_root(tmp_path):
         prepare_workspace(tmp_path, '../outside', uuid4(), tmp_path / 'auth')
 
 
+def test_managed_workspace_never_copies_master_refresh_credentials(tmp_path):
+    auth = tmp_path / 'auth.json'
+    auth.write_text('{"tokens":{"refresh_token":"server-only"}}')
+    ws = prepare_workspace(tmp_path / 'root', uuid4(), uuid4(), auth, copy_auth=False)
+    assert not (ws.home / '.codex/auth.json').exists()
+    assert 'server-only' not in (ws.home / '.codex/config.toml').read_text()
+
+
 
 
 def test_windows_refuses_to_claim_linux_isolation(tmp_path, monkeypatch):

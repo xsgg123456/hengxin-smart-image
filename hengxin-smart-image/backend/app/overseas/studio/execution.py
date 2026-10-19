@@ -38,7 +38,7 @@ class StudioProtocol:
                            Turn.task_id == job.task_id, Job.task_id == job.task_id,
                            Turn.dispatched.is_(True)).order_by(Turn.created_at, Turn.id))]
         workspace = prepare_workspace(Path(settings.codex_execution_root) / 'studio',
-            conversation.id, turn.id, settings.codex_auth_file)
+            conversation.id, turn.id, settings.codex_auth_file, copy_auth=False)
         home = workspace.home / '.codex'
         if (home / 'sessions').is_symlink():
             raise ValueError('Invalid sessions directory')

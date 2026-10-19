@@ -24,7 +24,7 @@ class Workspace:
         return '/work/skills/' + self.skill_name
 
 
-def prepare_workspace(root, task_id, round_id, auth_file):
+def prepare_workspace(root, task_id, round_id, auth_file, *, copy_auth=True):
     root = Path(root).resolve()
     task = root / str(UUID(str(task_id)))
     home, work = task / 'home', task / 'rounds' / str(UUID(str(round_id)))
@@ -43,7 +43,7 @@ def prepare_workspace(root, task_id, round_id, auth_file):
     auth = codex_home / 'auth.json'
     if auth.is_symlink():
         raise ValueError('Auth file cannot be a symlink')
-    if not auth.exists():
+    if copy_auth and not auth.exists():
         # No shared writable auth/session home between tasks.
         with auth.open('xb') as output:
             output.write(Path(auth_file).read_bytes())

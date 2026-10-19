@@ -98,3 +98,29 @@ def test_scoped_stats_filters_pagination_without_usage(overseas):
     change_roles(factory, actor, ('design_manager',))
     assert client.get(MANAGE + '/jobs').json()['total'] == 4
     assert client.get(MANAGE + '/settings').status_code == 403
+
+
+@pytest.mark.parametrize('status,code', [
+    ('failed', 'authentication_failed'), ('failed', 'credentials_invalid'),
+    ('failed', 'credentials_account_changed'), ('failed', 'credentials_busy'),
+    ('failed', 'credentials_refresh_failed'), ('failed', 'timeout'),
+    ('failed', 'output_limit'), ('failed', 'execution_failed'),
+    ('failed', 'private-secret /private/auth.json'),
+    ('cancelled', 'private-secret /private/auth.json'),
+    ('uncertain', 'private-secret /private/auth.json'), ('failed', None),
+])
+def test_monitor_preserves_safe_specific_failures_and_redacts_unknown(overseas, status, code):
+    from app.overseas.execution.events import FAILURES, MESSAGES
+    client, factory, _, designer = setup(overseas, ('super_admin',))
+    task = create(client, payload(designer)).json()
+    with factory.begin() as session:
+        job = enqueue(session, task['id'], 'analysis', 'error-message', {})
+        # The worker persists allowlisted Chinese messages, not diagnostic text.
+        job.status, job.error = status, FAILURES.get(code, code)
+    response = client.get(MANAGE + '/jobs')
+    assert response.status_code == 200
+    items = response.json()['items']
+    expected = (FAILURES.get(code, MESSAGES['failed']) if status == 'failed'
+                else MESSAGES[status]) if code else None
+    assert len(items) == 1 and items[0]['error'] == expected
+    assert 'private-secret' not in response.text and '/private/auth.json' not in response.text

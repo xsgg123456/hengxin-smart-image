@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     codex_binary: str = ''
     codex_bwrap_binary: str = '/opt/hengxin-runtime/bwrap'
     codex_auth_file: str = Field(default='', repr=False)
+    codex_auth_broker_socket: str = ''
     codex_execution_root: str = '/var/lib/hengxin/execution'
     codex_version: str = '0.153.4'
     codex_timeout_seconds: int = Field(default=3600, ge=10, le=7200)

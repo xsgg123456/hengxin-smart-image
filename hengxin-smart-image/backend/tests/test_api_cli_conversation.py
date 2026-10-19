@@ -41,6 +41,8 @@ def cli_enabled(monkeypatch, tmp_path):
     monkeypatch.setattr(runner.subprocess, 'run', lambda *args, **kwargs:
                         SimpleNamespace(returncode=0, stdout=f'codex-cli {settings.codex_version}'))
     monkeypatch.setattr(runner, 'sandbox_command', lambda workspace, binary, args, bwrap: args)
+    # Credential lifecycle has dedicated network-free tests with realistic token fixtures.
+    monkeypatch.setattr(runner, 'sync_credentials', lambda *args, **kwargs: None)
     return settings
 
 

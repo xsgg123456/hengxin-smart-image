@@ -11,6 +11,7 @@ from app.execution.delivery_markdown import delivery_links
 from app.execution.output_collector import snapshot_outputs
 from app.execution.process import execute
 from app.execution.workspace import prepare_workspace, sandbox_command
+from app.execution.managed_credentials import CredentialsError, sync_credentials
 from app.modules.files.validation import DECODE_SLOTS, MAX_UPLOAD_BYTES
 from app.modules.files.variants import register
 from app.capacity.admission import covered, published
@@ -21,6 +22,8 @@ from .conversation_runtime import Monitor, claim, finish, locked, valid
 from .dimensions import normalize_result
 from .files import find_file, new_record, read_bytes
 from .execution_policy import CLI_MODEL, CLI_REASONING_EFFORT, CLI_USES_SKILLS
+from .conversation_errors import execution_error
+from app.execution.credential_errors import authentication_failed
 
 
 class ConversationFailure(Exception):
@@ -127,7 +130,10 @@ def run_turn(job_id, factory=None, store=None):
                 conversation_id, turn_id = conversation.id, turn.id
                 session.expunge(turn)
             workspace = prepare_workspace(Path(settings.codex_execution_root) / 'api-edits',
-                conversation_id, turn_id, settings.codex_auth_file)
+                conversation_id, turn_id, settings.codex_auth_file, copy_auth=False)
+            sync_credentials(Path(settings.codex_auth_file), workspace.home, turn.snapshot['timeoutSeconds'],
+                             broker_socket=settings.codex_auth_broker_socket or None,
+                             control=workspace.control.parent, require_existing=bool(previous))
             workspace.use_skill = CLI_USES_SKILLS
             home = workspace.home / '.codex'
             if (home / 'sessions').is_symlink():
@@ -179,10 +185,13 @@ def run_turn(job_id, factory=None, store=None):
                 return
             summary = parse_events(workspace.control / 'events.jsonl', previous)
             if receipt.get('reason') or receipt.get('exit_code') != 0:
-                complete(factory, store, job_id, token, status='failed', error='执行停止或超时，请检查本轮结果')
+                complete(factory, store, job_id, token, status='failed',
+                         error=execution_error(workspace.control, receipt))
                 return
             if summary.error or not summary.session_id or not summary.turn_completed or not summary.final_text:
-                complete(factory, store, job_id, token, status='failed', error='本轮执行或最终回复不完整')
+                complete(factory, store, job_id, token, status='failed',
+                         error=execution_error(workspace.control, receipt)
+                         if authentication_failed(workspace.control) else '本轮执行或最终回复不完整')
                 return
             links = delivery_links(summary.final_text)
             if not links:
@@ -200,7 +209,7 @@ def run_turn(job_id, factory=None, store=None):
                         'cancelled' if turn.cancel_requested or task.deleted_at else 'failed')
                     finish(session, conversation, turn, job, status,
                            '执行状态待核实，禁止自动重试' if status == 'uncertain' else (
-                               str(error) if isinstance(error, ConversationFailure)
+                               str(error) if isinstance(error, (ConversationFailure, CredentialsError))
                                else '会话或图片校验失败，请检查执行环境'))
                 if not spawned or completed:
                     published(session, turn.id)

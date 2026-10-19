@@ -1,6 +1,6 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import load_only
-from app.overseas.execution.events import MESSAGES
+from app.overseas.execution.events import MESSAGES, failure_message
 from app.overseas.execution.models import Job
 from app.overseas.tasks.models import Task
 from .facts import image_counts, scoped
@@ -22,4 +22,5 @@ def read(session, actor, clauses, page, page_size):
          'executionCount': j.execution_count, 'imageCount': counts.get(j.id, 0),
          'operatorId': str(operator_id) if operator_id else None, 'operatorName': operator_name,
          'createdAt': j.created_at, 'startedAt': j.started_at, 'completedAt': j.completed_at,
-         'error': MESSAGES[j.status] if j.error else None} for j, name, operator_id, operator_name in rows]}
+         'error': (failure_message(j.error) if j.status == 'failed' else MESSAGES[j.status])
+                  if j.error else None} for j, name, operator_id, operator_name in rows]}
