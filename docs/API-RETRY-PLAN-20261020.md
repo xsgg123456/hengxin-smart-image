@@ -35,4 +35,4 @@
 
 ## 当前进度
 
-实现、隔离回归、生产前端构建、真实HTTP联调及独立两阶段审查已完成。最终候选`1ee4be48411bf1a532d0f4f649cbe7fc238d697745af58eb2fc96ae78bd6e04f`，两阶段PASS，无开放HIGH/MEDIUM；证据见`API-RETRY-VALIDATION-20261020.md`及`reviews/API-RETRY-PRODUCTION-20261020.md`。正在中文提交、实际发布包审计和生产发布，未把尚未执行的上线验收记为完成。
+五步均已完成。最终候选`1ee4be48411bf1a532d0f4f649cbe7fc238d697745af58eb2fc96ae78bd6e04f`，两阶段PASS，无开放HIGH/MEDIUM；源码提交`4f252cf`。前端0.2.44、国内0031已生产部署，备份隔离恢复、实际镜像安装测试和正式页面/历史原图下载验收通过；海外及其他服务保持。证据与测试边界见`API-RETRY-VALIDATION-20261020.md`及`reviews/API-RETRY-PRODUCTION-20261020.md`。未向真实上游发收费测试。

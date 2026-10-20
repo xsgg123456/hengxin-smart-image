@@ -1,6 +1,6 @@
 # 当前开发：国内 API 重试与上游保护（2026-10-20）
 
-用户已授权开发、Git提交与生产部署。按 [实施合同及验收](docs/API-RETRY-PLAN-20261020.md) 顺序执行：持久轮次/全局发送门禁/冷却与错误分类/停止及公平调度 → 前端状态和操作 → 迁移及版本化发布准备 → 隔离测试/全回归/构建/浏览器/独立两阶段审查 → 中文提交 → 国内排空备份迁移发布及生产验收。关键文件为 backend/app/modules/api_image_edits/、backend/migrations/、相关 tests，frontend/src/{types,api,views/hengxin}/api-image-edits*、相关 tests，infra/compose.api-image.yaml、scripts/release/ 和发布文档。现有技术栈复用，不新增服务。当前已完成可行性评估，正式实现开始；不重复执行下方已完成发布。
+用户已授权开发、Git提交与生产部署。按 [实施合同及验收](docs/API-RETRY-PLAN-20261020.md) 顺序执行：持久轮次/全局发送门禁/冷却与错误分类/停止及公平调度 → 前端状态和操作 → 迁移及版本化发布准备 → 隔离测试/全回归/构建/浏览器/独立两阶段审查 → 中文提交 → 国内排空备份迁移发布及生产验收。关键文件为 backend/app/modules/api_image_edits/、backend/migrations/、相关 tests，frontend/src/{types,api,views/hengxin}/api-image-edits*、相关 tests，infra/compose.api-image.yaml、scripts/release/ 和发布文档。现有技术栈复用，不新增服务。状态：2026-10-20已完成开发、独立审查、中文源码提交4f252cf和生产部署；前端0.2.44、国内0031。实际镜像2038项通过，正式页面与历史原图下载验收通过，海外/身份/原生服务保持。证据见docs/API-RETRY-VALIDATION-20261020.md；不重复执行下方已完成发布。
 
 # 当前开发：国内五个旧模块彻底移除（2026-10-16）
 

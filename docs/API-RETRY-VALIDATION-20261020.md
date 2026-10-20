@@ -35,3 +35,15 @@
 - 另外8项为Windows缺少POSIX安全文件打开能力，在Linux容器只读挂载当前app/tests、禁网复验涉及的三个完整文件，21 passed；生产安全读取代码未放宽。
 - 完整Linux回归启用4种独立PostgreSQL测试URL：2179 passed、25 skipped、1 deselected；唯一失败为0030迁移测试依赖完整仓库目录，而首次挂载仅有`/app`。用`/repo/hengxin-smart-image/backend`、infra与scripts真实目录结构补跑整个文件，9 passed（28.95秒），无代码修改。日志分别为`output/api-retry-20261020/backend-linux-full.log`和`backend-linux-retirement.log`。与已有安装测试入口一致，六个依赖本机Codex环境的文件不在容器运行、前端源代码字段对照项在该容器取消选择；未把跳过项计为通过。
 - 最终独立审查Stage 1/2 PASS，候选`1ee4be48411bf1a532d0f4f649cbe7fc238d697745af58eb2fc96ae78bd6e04f`；报告`reviews/API-RETRY-PRODUCTION-20261020.md`。原失败和修复过程另有INITIAL报告，未隐去失败。Git提交、包审计及生产部署继续执行，不将未执行项计为通过。
+
+## 最终生产交付（2026-10-20）
+
+- 源码提交：`4f252cf6d090e6ff20a52dc946fa4eed4fc5aee2`；发布名`domestic-api-retry-20261020-4f252cf`；前端`0.2.44`、国内schema `0031`，海外仍`overseas_0019`。
+- 发布包1238文件、5,478,050字节；SHA256 `fe15eacccedbf29f1ae6babb53353f6b8933c1ae2eef4c8123ad1f8aefb37cd9`。包隐私及归档成员审计PASS；服务器重验SHA256及1237个清单文件哈希通过。
+- 新镜像ID `sha256:0664d38aae3cdb75babcd14df45210141253ecbd1c3e6b8481211fcd734edab5`，543个后端源码文件哈希全部一致。实际镜像安装测试：2038 passed、167 skipped、1 deselected、6 warnings（429.58秒）。跳过包括隔离DB/本机环境条件，不计为通过；真实PG边界已在本地补验。
+- 生产依次完成双层入口关闭、旧任务/队列/未确认消息排空、三个API服务温和停止、完整数据库dump并隔离恢复、旧字段行指纹比对、0031迁移、三个新服务启动及健康检查、前端原子发布、入口恢复。入口维护窗口约03:49:34–03:52:05 UTC（北京时间11:49:34–11:52:05）。
+- 备份：`/opt/hengxin-backups/domestic-api-retry-20261020-4f252cf/`，COMPLETE标记存在；发布目录VERIFIED存在，无RECOVERY_REQUIRED。备份留在服务器，不下载业务库到本地。
+- 最终再次核对实际配置：请求300秒、下载60秒、租约600秒、全局发送间隔5秒、在途10、失败阈值5、冷却60秒；三个API服务同一新镜像且健康。六个原生进程PID/目录/参数/环境与配置摘要、海外及身份服务镜像/容器、其余国内容器均保持，通道paused=false。
+- 正式网址浏览器只读验收：记录页、旧终态详情、新建页20次/45分钟提示、390px页面；原图与成品实际渲染，已有原文件真实下载200且image类型。页面错误0，收费生成调用0。截图已实际目视查看；临时验收会话已撤销，并验证401，凭据临时文件已删除。
+- 最终核查时当前pending=0、新策略轮次=0；没有人为启动模型任务，不能据此次发布宣称已实测生产上游成功率或延迟改善。错峰/熔断/停止等故障行为由隔离假上游、真实PG竞争和真实HTTP联调证明，实际生产效果由后续自然业务观察。
+- 生产记录、包审计、构建/安装/部署日志、浏览器结果与截图：`output/release/domestic-api-retry-20261020-4f252cf/`（本地忽略目录）。本轮本地临时PostgreSQL容器、临时schema及Vite/QA服务已收尾。源码Git提交已完成，未推送远端。
