@@ -14,7 +14,9 @@ from . import limiter
 def finish_attempt(session, item, state, error=None):
     attempt = session.scalar(select(ApiAttempt).where(ApiAttempt.item_id == item.id,
                          ApiAttempt.retry_cycle_id == item.retry_cycle_id,
-                         ApiAttempt.state.in_(('running', 'uncertain'))).order_by(ApiAttempt.created_at.desc()).limit(1))
+                         ApiAttempt.state.in_(('running', 'uncertain') if item.state == 'uncertain'
+                                              else ('running',)))
+                         .order_by(ApiAttempt.created_at.desc()).limit(1))
     if attempt:
         attempt.state, attempt.error, attempt.completed_at = state, error, utcnow()
         from app.modules.management.api_stats.facts import record_attempt
@@ -36,14 +38,12 @@ def failure(factory, item_id, token, kind, code, retry_after=None, request_id=No
         attempt = finish_attempt(session, item, kind, code)
         if attempt:
             attempt.request_id = request_id
-        limiter.outcome(gate, attempt, kind, now, retry_after)
+        # The local call has ended; retain uncertain audit, use the normal retry gate.
+        limiter.outcome(gate, attempt, 'retryable' if kind == 'uncertain' else kind, now, retry_after)
         reason = exhausted(item, now)
-        if kind == 'uncertain':
-            item.state, item.retry_reason = 'uncertain', 'uncertain'
-            item.next_attempt_at = None
-        elif reason:
+        if reason:
             end_wait(item, reason)
-        elif kind == 'retryable':
+        elif kind in {'retryable', 'uncertain'}:
             delay = retry_delay(item, retry_after)
             item.cycle_retries += 1
             item.state, item.retry_reason = 'retry_wait', 'retry_wait'
@@ -66,6 +66,7 @@ def save_response(factory, item_id, token, result):
         gate, item = owned(session, item_id, token)
         if not item:
             return False
+        attempt = finish_attempt(session, item, 'succeeded')
         item.result_url, item.result_bytes = result.result_url, result.image_bytes
         item.state, item.error = 'collecting', None
         item.retry_reason, item.next_attempt_at = None, None
@@ -73,7 +74,6 @@ def save_response(factory, item_id, token, result):
         # An expired/unknown request may return while still owning the token.
         from .config import get_api_settings
         item.lease_until = now + timedelta(seconds=get_api_settings().lease_seconds)
-        attempt = finish_attempt(session, item, 'succeeded')
         if attempt:
             attempt.request_id = result.request_id
         limiter.outcome(gate, attempt, 'succeeded', now)

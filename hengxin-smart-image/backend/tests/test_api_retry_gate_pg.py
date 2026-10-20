@@ -80,7 +80,7 @@ def test_global_five_second_permission_across_processes(pg_api, monkeypatch):
     assert not start_attempt(factory, *second[:2])  # Duplicate worker does not send twice.
 
 
-def test_global_ten_inflight_includes_unknown_but_not_old_audit(pg_api):
+def test_global_ten_inflight_releases_ended_unknown_and_ignores_old_audit(pg_api):
     factory, user, data, store = pg_api
     task11(factory, user, store)
     with factory() as session:
@@ -90,20 +90,20 @@ def test_global_ten_inflight_includes_unknown_but_not_old_audit(pg_api):
     assert sum(start_attempt(factory, *value[:2]) for value in holds) == 10
     failure(factory, *holds[0][:2], 'uncertain', 'REQUEST_UNCERTAIN')
     with factory() as session:
-        assert occupancy(session) == 10
+        assert occupancy(session) == 9
     failure(factory, *holds[1][:2], 'permanent', 'INVALID_INPUT')
     reset_wait(factory)
     candidate = claim(factory)
     assert candidate and start_attempt(factory, *candidate[:2])
     with factory() as session:
-        assert occupancy(session) == 10
+        assert occupancy(session) == 9
     # Historical v1 uncertain entries attached to a terminal image remain audit only.
     failure(factory, *holds[2][:2], 'permanent', 'INVALID_INPUT')
     with factory.begin() as session:
         item = session.get(ApiItem, holds[2][0])
         session.add(ApiAttempt(item_id=item.id, operator_id=user.id, state='uncertain', completed_at=utcnow()))
     with factory() as session:
-        assert occupancy(session) == 9
+        assert occupancy(session) == 8
 
 
 def test_single_probe_across_processes_old_unknown_and_late_success(pg_api):
@@ -111,7 +111,7 @@ def test_single_probe_across_processes_old_unknown_and_late_success(pg_api):
     task11(factory, user, store)
     holds = [claim(factory) for _ in range(7)]
     assert all(start_attempt(factory, *value[:2]) for value in holds)
-    # One old unknown owns one global slot. Five definite failures open cooling.
+    # Ended unknowns use the same failure threshold as retryable outcomes.
     failure(factory, *holds[0][:2], 'uncertain', 'REQUEST_UNCERTAIN')
     for value in holds[1:6]:
         failure(factory, *value[:2], 'retryable', 'HTTP_503')
@@ -135,12 +135,12 @@ def test_single_probe_across_processes_old_unknown_and_late_success(pg_api):
     probe = candidates[results.index(True)]
     with factory() as session:
         gate = session.get(ApiChannel, 1)
-        assert gate.probe_attempt_id and occupancy(session) == 2
+        assert gate.probe_attempt_id and occupancy(session) == 1
     failure(factory, *probe[:2], 'uncertain', 'REQUEST_UNCERTAIN')
     with factory() as session:
         gate = session.get(ApiChannel, 1)
         assert gate.generation == 2 and gate.probe_attempt_id is None
-        assert occupancy(session) == 2  # Original unknowns are never cleared.
+        assert occupancy(session) == 0  # Ended calls release their slots; cooldown stays.
     reset_wait(factory, cooldown=True)
     next_probe = claim(factory)
     assert next_probe and start_attempt(factory, *next_probe[:2])
@@ -185,7 +185,7 @@ def test_stop_races_final_permission_without_clearing_inflight(pg_api):
         assert save_response(factory, item, token, RelayResult(image_bytes=image_bytes()))
 
 
-def test_legacy_cycle_keeps_four_budget_and_expired_sent_claim_keeps_token(pg_api):
+def test_legacy_cycle_keeps_four_budget_and_expired_sent_claim_revokes_token(pg_api):
     factory, user, data, _ = pg_api
     with factory() as session:
         task = submit(session, user, data, 'legacy')
@@ -210,8 +210,8 @@ def test_legacy_cycle_keeps_four_budget_and_expired_sent_claim_keeps_token(pg_ap
     with factory() as session:
         row = session.get(ApiItem, value[0])
         assert row.max_attempts == 20 and row.attempts == 1
-        assert row.state == 'uncertain' and row.lease_token == value[1]
-    assert save_response(factory, *value[:2], RelayResult(image_bytes=image_bytes()))
+        assert row.state == 'retry_wait' and row.lease_token is None
+    assert not save_response(factory, *value[:2], RelayResult(image_bytes=image_bytes()))
 
 
 def test_oversized_retry_after_survives_postgres_json_and_admin_resume(pg_api):

@@ -3,10 +3,26 @@ import assert from 'node:assert/strict'
 import { createApiImageClient } from '../src/api/api-image-edits'
 import { ApiError } from '../src/api/hengxin/http'
 import { summary, deletion } from '../src/api/api-image-edits-validate'
-import { canDeleteTask, cliActivityLabel, deleteBlockedReason, isTaskActive, type CliActivity } from '../src/types/api-image-edits'
+import { taskLabels, isApiTaskPending, canDeleteTask, cliActivityLabel, deleteBlockedReason, isTaskActive, type ApiTaskState, type CliActivity } from '../src/types/api-image-edits'
 
 const task = { id: 't', name: '任务', status: 'succeeded' as const, created: '2026-10-15', operator: '操作人',
   cover: null, counts: { total: 1, success: 1, failed: 0, uncertain: 0 }, batch: { total: 1, current: 1, running: 0 } }
+test('状态筛选名称唯一，处理中统计包含等待结果且不混入终态或独立CLI', () => {
+  const statuses = Object.keys(taskLabels) as ApiTaskState[]
+  assert.equal(new Set(Object.values(taskLabels)).size, statuses.length)
+  assert.equal(taskLabels.running, '处理中')
+  assert.equal(taskLabels.uncertain, '等待结果')
+  for (const label of Object.values(taskLabels)) assert.doesNotMatch(label, /核实|管理员|租约|探测/)
+  const records = statuses.map(status => ({ ...task, status }))
+  const processing = records.filter(isApiTaskPending)
+  assert.equal(processing.length, 3)
+  assert.deepEqual(processing.map(record => record.status), ['queued', 'running', 'uncertain'])
+  const cliOnly = { ...task, cliActivity: 'running' as const }
+  assert.equal(isTaskActive(cliOnly), true)
+  assert.equal(isApiTaskPending(cliOnly), false)
+  const waiting = records.find(record => record.status === 'uncertain')!
+  assert.equal(canDeleteTask({ ...waiting, canDelete: true }), false)
+})
 test('CLI摘要独立于已成功API状态，未知不能视为结束；结束标签消失', () => {
   for (const cliActivity of ['queued', 'running', 'uncertain'] as CliActivity[]) {
     const active = { ...task, cliActivity, canDelete: true }

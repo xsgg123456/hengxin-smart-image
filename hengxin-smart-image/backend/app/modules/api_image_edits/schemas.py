@@ -19,11 +19,6 @@ class CreateTask(BaseModel):
         return values
 
 
-class ResolveTask(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    confirmedStopped: bool
-
-
 class ReviseItem(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     baseVersion: int = Field(ge=1)

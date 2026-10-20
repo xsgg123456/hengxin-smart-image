@@ -80,7 +80,8 @@ def test_postgres_concurrent_submit_and_single_global_claim(pg_api):
     assert sum(value is not None for value in claims) == 1
 
 
-def test_postgres_expired_claim_keeps_unknown_and_accepts_owned_late_result(pg_api):
+@pytest.mark.parametrize('receipt_first', [False, True])
+def test_postgres_expired_claim_and_receipt_respect_channel_lock_order(pg_api, receipt_first):
     factory, user, data, _ = pg_api
     with factory() as session:
         submit(session, user, data, 'one')
@@ -89,10 +90,42 @@ def test_postgres_expired_claim_keeps_unknown_and_accepts_owned_late_result(pg_a
     assert start_attempt(factory, item_id, token)
     with factory.begin() as session:
         session.get(ApiItem, item_id).lease_until = utcnow() - timedelta(seconds=1)
-    assert claim(factory) is not None  # Another task is not globally blocked.
-    assert save_response(factory, item_id, token, RelayResult(image_bytes=image_bytes()))
-    assert claim(factory) is None
+    result = RelayResult(image_bytes=image_bytes())
+    if receipt_first:
+        assert save_response(factory, item_id, token, result)
+    assert claim(factory) is not None
+    if not receipt_first:
+        assert not save_response(factory, item_id, token, result)
     with factory() as session:
         item = session.get(ApiItem, item_id)
-        assert item.state == 'collecting' and item.result_bytes is not None
-        assert item.lease_token == token
+        if receipt_first:
+            assert item.state == 'collecting' and item.result_bytes is not None
+            assert item.lease_token == token
+        else:
+            assert item.state == 'retry_wait' and item.result_bytes is None
+            assert item.lease_token is None
+
+
+def test_postgres_concurrent_recovery_schedules_only_one_backoff(pg_api, monkeypatch):
+    factory, user, data, _ = pg_api
+    with factory() as session:
+        submit(session, user, data, 'recover')
+    item_id, token, _ = claim(factory)
+    assert start_attempt(factory, item_id, token)
+    with factory.begin() as session:
+        session.get(ApiItem, item_id).lease_until = utcnow() - timedelta(seconds=1)
+    delays = []
+    def delay(item):
+        delays.append(item.id)
+        return 60
+    monkeypatch.setattr('app.modules.api_image_edits.claims.retry_delay', delay)
+    barrier = Barrier(4)
+    def compete(_):
+        barrier.wait()
+        return claim(factory)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        assert list(pool.map(compete, range(4))) == [None] * 4
+    with factory() as session:
+        item = session.get(ApiItem, item_id)
+        assert item.state == 'retry_wait' and item.attempts == 1 and item.cycle_retries == 1
+    assert delays == [item_id]

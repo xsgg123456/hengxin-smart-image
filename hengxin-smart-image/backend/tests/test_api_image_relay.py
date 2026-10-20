@@ -102,12 +102,12 @@ def test_tls_error_reading_success_response_is_uncertain_not_replayable():
     assert 'private' not in str(error.value)
 
 
-def test_inline_result_and_invalid_result_dont_silently_regenerate():
+def test_inline_result_and_invalid_result_return_uncertain_for_scheduler():
     pool = Mock(); pool.request.return_value = response(payload={'data': [{'b64_json': base64.b64encode(b'png').decode()}]})
     assert generate(RelayClient(config(), pool)).image_bytes == b'png'
     for payload in ({'data': []}, {'data': [1]}, {'data': [{'b64_json': '!invalid!'}]}, {'task_id': 'async'}):
         pool.request.return_value = response(payload=payload)
-        with pytest.raises(RelayError, match='核实') as exc: generate(RelayClient(config(), pool))
+        with pytest.raises(RelayError, match='自动重试') as exc: generate(RelayClient(config(), pool))
         assert exc.value.kind == 'uncertain'
 
 

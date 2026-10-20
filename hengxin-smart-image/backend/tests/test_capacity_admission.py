@@ -104,17 +104,27 @@ def test_delete_request_retains_capacity_until_actual_cleanup_and_expired_lease_
     with factory() as session:
         assert pending_bytes(session) == 0
     assert store.objects == {}
-    create(web, 1)
+    next_task, _ = create(web, 1)
     first = api_claim(factory)
-    # Only a final send permit can leave an unknown upstream call on expiry.
+    # A sent call recovers into backoff without releasing its capacity reservation.
     assert start_attempt(factory, *first[:2])
     with factory.begin() as session:
-        session.get(ApiItem, first[0]).lease_until = utcnow() - timedelta(seconds=1)
+        item = session.get(ApiItem, first[0])
+        cycle = item.capacity_cycle_id
+        item.lease_until = utcnow() - timedelta(seconds=1)
     assert api_claim(factory) is None
     with factory() as session:
         assert pending_bytes(session) == 60 * MIB
         item = session.get(ApiItem, first[0])
-        assert item.state == 'uncertain' and item.lease_token == first[1]
+        assert item.state == 'retry_wait' and item.lease_token is None
+        assert item.capacity_cycle_id == cycle and item.attempts == 1
+        assert session.get(CapacityReservation, cycle).state == 'held'
+        attempt = session.scalar(select(ApiAttempt).where(ApiAttempt.item_id == item.id))
+        assert attempt.state == 'uncertain' and attempt.completed_at
+    assert web.delete(ROOT + '/tasks/' + next_task).status_code == 409
+    with factory() as session:
+        assert pending_bytes(session) == 60 * MIB
+        assert session.get(CapacityReservation, cycle).state == 'held'
 
 
 def test_revision_has_new_cycle_and_preserves_previous_debt(files_env):

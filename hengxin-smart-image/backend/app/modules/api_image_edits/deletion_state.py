@@ -32,7 +32,7 @@ def reasons(session, task_ids):
         result.setdefault(identifier, message)
     for identifier, state in session.execute(select(ApiTask.id, ApiTask.state).where(ApiTask.id.in_(task_ids))):
         if state not in TASK_TERMINAL:
-            block(identifier, 'API 任务仍在排队、执行或待核实，暂不能删除')
+            block(identifier, 'API 任务仍在处理中，暂不能删除')
     query = select(ApiItem.task_id, ApiItem.state, ApiItem.lease_token, ApiItem.lease_until)
     for identifier, state, token, lease in session.execute(query.where(ApiItem.task_id.in_(task_ids))):
         # Terminal failures retain URL/bytes/backoff solely for a later manual retry.

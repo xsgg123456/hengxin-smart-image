@@ -52,7 +52,8 @@ test('记录分页真实传参、切换回首页保留筛选、删除纠页、�
     old.resolve({ items: [{ id: 'stale' }], total: 200 }); await slow; await flush()
     assert.equal(records.tasks.value[0]!.id, 'new'); assert.equal(records.total.value, 99)
     const failed = records.load(); pending.shift()!.reject(new Error('offline')); await failed
-    assert.match(records.error.value, /offline/)
+    assert.equal(records.error.value, '刷新失败，已保留上次记录，请重试。')
+    assert.equal(records.tasks.value[0]!.id, 'new')
     const retry = records.load(); await answer(99, 'recovered'); await retry; assert.equal(records.error.value, '')
     const staleSearch = records.load(); const prior = pending.shift()!
     records.search.value = '新的搜索'; await flush(); prior.resolve({ items: [{ id: 'stale-search' }], total: 1 }); await staleSearch

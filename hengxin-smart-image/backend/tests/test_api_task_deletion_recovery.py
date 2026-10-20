@@ -29,24 +29,21 @@ def test_known_completed_attempts_allow_idle_deletion(files_env, cli_enabled, ki
     assert deletion.process(factory, store, task_id, cli_enabled) == 'deleted'
 
 
-def test_unknown_attempt_protects_deletion_until_admin_confirms_stopped(files_env, cli_enabled):
-    from app.resource_models import UserRecord
-    client, factory, store, identity = files_env
+def test_unknown_attempt_protects_deletion_until_automatic_retry_finishes(files_env, cli_enabled):
+    client, factory, store, _ = files_env
     task_id, _ = create(client, count=1)
     claimed = claim(factory)
     assert start_attempt(factory, *claimed[:2])
     failure(factory, *claimed[:2], 'uncertain', 'isolated_failure')
+    assert client.delete(f'{ROOT}/tasks/{task_id}').status_code == 409
+    with factory() as session:
+        item = session.get(ApiItem, claimed[0])
+        assert item.state == 'retry_wait' and item.lease_token is None
+    assert not save_response(factory, *claimed[:2], RelayResult(image_bytes=image_bytes()))
     due(factory)
     relay = Client()
-    assert not execute_next(factory, store, relay)
-    assert not relay.calls
-    assert client.delete(f'{ROOT}/tasks/{task_id}').status_code == 409
-    with factory.begin() as session:
-        item = session.get(ApiItem, claimed[0])
-        assert item.state == 'uncertain' and item.lease_token == claimed[1]
-        session.get(UserRecord, identity[0]).role = 'super_admin'
-    assert client.post(f'{ROOT}/tasks/{task_id}/resolve', json={'confirmedStopped': True}).status_code == 200
-    assert not save_response(factory, *claimed[:2], RelayResult(image_bytes=image_bytes()))
+    assert execute_next(factory, store, relay)
+    assert len(relay.calls) == 1
     assert client.delete(f'{ROOT}/tasks/{task_id}').status_code == 202
     assert deletion.process(factory, store, task_id, cli_enabled) == 'deleted'
 

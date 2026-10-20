@@ -44,7 +44,7 @@ def refresh_task(session, task):
         dispatch = session.get(ApiDispatch, task.id)
         if dispatch:
             dispatch.completed_at = utcnow()
-    task.error = ('有请求状态不确定，请联系超级管理员核实' if task.state == 'uncertain'
+    task.error = ('部分图片正在恢复处理' if task.state == 'uncertain'
                   else '部分图片处理失败' if 'failed' in states else None)
 
 

@@ -12,7 +12,7 @@ REASONS = {
     'user_stopped': '已停止后续重试',
     'attempts_exhausted': '本轮尝试次数已用完',
     'deadline_exceeded': '本轮已超过45分钟发送期限',
-    'uncertain': '调用结果待核实，需管理员确认旧调用停止',
+    'uncertain': '正在恢复处理',
     'retry_wait': '上游暂时不可用，等待自动重试',
     'rate_wait': '等待通道发送名额',
     'capacity_wait': '等待通道在途名额',

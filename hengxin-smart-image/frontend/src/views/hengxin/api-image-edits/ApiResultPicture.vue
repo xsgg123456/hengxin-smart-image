@@ -3,23 +3,23 @@
     <PicturePreview v-if="item.result" :picture="item.result" :pictures="results" :index="results.findIndex(p => p.fileId === item.result?.fileId)" title="换图结果" />
     <GenerationPlaceholder v-if="pending" :class="{ 'revision-progress': !!item.result }"
       :running="moving" :motion="moving" :compact="!!item.result" :index="item.position - 1"
-      :label="label" :status-text="label" :description="description" />
+      :label="label" :status-text="label" :description="description" simple />
     <div v-else-if="!item.result" class="result-placeholder" role="status">
-      <ArtSvgIcon icon="ri:error-warning-line" /><strong>{{ itemLabels[item.state] }}</strong><span>请查看下方处理提示</span>
+      <ArtSvgIcon icon="ri:refresh-line" /><span v-if="item.state === 'failed'">可点击下方重试</span>
     </div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
-import { itemLabels, type ApiItem, type ApiPicture } from '@/types/api-image-edits'
+import { type ApiItem, type ApiPicture } from '@/types/api-image-edits'
+import { itemStatusText } from './retry-status'
 import GenerationPlaceholder from '../components/GenerationPlaceholder.vue'
 import PicturePreview from '../components/PicturePreview.vue'
 const props = defineProps<{ item: ApiItem; results: ApiPicture[] }>()
-const pending = computed(() => ['queued', 'running', 'retry_wait', 'collecting'].includes(props.item.state))
+const pending = computed(() => ['queued', 'running', 'retry_wait', 'collecting', 'uncertain'].includes(props.item.state))
 const waiting = computed(() => props.item.state === 'retry_wait' || (props.item.state === 'collecting' && !!props.item.nextAttemptAt))
 const moving = computed(() => ['running', 'collecting'].includes(props.item.state) && !waiting.value)
-const label = computed(() => waiting.value ? (props.item.state === 'collecting' ? '等待重新收图' : '等待自动重试')
-  : props.item.state === 'running' ? '正在生成画面' : props.item.state === 'collecting' ? '正在收取结果' : '等待开始处理')
+const label = computed(() => itemStatusText(props.item))
 const description = computed(() => props.item.result ? '当前结果保留 · 新版本就绪后显示'
   : waiting.value ? '稍后自动继续，无需重复提交' : props.item.state === 'collecting' ? '下载并保存已生成的图片'
     : props.item.state === 'queued' ? '轮到这张后自动开始' : '结果就绪后将在这里呈现')

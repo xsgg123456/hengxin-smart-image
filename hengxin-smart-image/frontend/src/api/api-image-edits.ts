@@ -27,7 +27,6 @@ export function createApiImageClient(baseUrl: string, fetcher: typeof fetch = fe
     remove: (id: string) => request(path(id), valid.deletion, 'DELETE'),
     deletion: (id: string) => request(`${path(id)}/deletion`, valid.deletion),
     resume: () => request('/channel/resume', valid.resumed, 'POST'),
-    resolve: (id: string) => request(`${path(id)}/resolve`, valid.accepted, 'POST', { confirmedStopped: true }),
     download: async (id: string) => {
       const blob = await readIdentityBlob(root + '/files/' + encodeURIComponent(id) + '/content?download=true', { signal: AbortSignal.timeout(60000) }, fetcher)
       if (!blob.type.startsWith('image/')) throw new ApiError('INVALID_RESPONSE', '下载内容不是图片')

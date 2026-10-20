@@ -10,23 +10,37 @@ from .models import ApiAttempt, ApiItem, ApiTask
 from .deletion_models import ApiTaskDeletion
 from .scheduling import IMAGES_PER_TASK, TASK_CONCURRENCY, candidates
 from .state import ACTIVE, aware, channel, event, refresh_task, release, release_item
-from .retry_policy import database_now, inherit_legacy, exhausted, end_wait, consume
+from .retry_policy import database_now, inherit_legacy, exhausted, end_wait, consume, retry_delay
 from . import limiter
 
 
-def mark_uncertain(session, item):
-    item.state, item.error = 'uncertain', '请求状态不确定，需管理员确认旧调用停止'
-    item.retry_reason = 'uncertain'
-    # Unknown requests keep their ownership token, capacity and late-result path.
+def recover_expired(session, gate, item, now):
+    """Fence an expired owner under the channel lock without resetting its budget."""
     task = session.get(ApiTask, item.task_id)
-    for attempt in session.scalars(select(ApiAttempt).where(ApiAttempt.item_id == item.id,
-                                                          ApiAttempt.state == 'running')):
-        limiter.outcome(channel(session), attempt, 'uncertain', database_now(session))
-        attempt.state, attempt.error = 'uncertain', item.error
-        attempt.completed_at = utcnow()
+    attempts = session.scalars(select(ApiAttempt).where(ApiAttempt.item_id == item.id,
+        ApiAttempt.retry_cycle_id == item.retry_cycle_id,
+        ApiAttempt.state.in_(('running', 'uncertain') if item.state == 'uncertain' else ('running',)))
+        .order_by(ApiAttempt.created_at.desc()).limit(1)).all()
+    has_result = bool(item.result_url or item.result_bytes)
+    for attempt in attempts:
+        limiter.outcome(gate, attempt, 'succeeded' if has_result else 'retryable', now)
+        attempt.state, attempt.error = ('succeeded', None) if has_result else ('uncertain', 'request_outcome_unknown')
+        attempt.completed_at = attempt.completed_at or utcnow()
         from app.modules.management.api_stats.facts import record_attempt
         record_attempt(session, item, task, attempt)
-    event(task, item.error)
+    release_item(item)
+    if has_result:
+        item.state, item.error = 'collecting', None
+        item.retry_reason, item.next_attempt_at = None, None
+    elif reason := exhausted(item, now):
+        end_wait(item, reason)
+    elif attempts or item.state == 'uncertain' or item.retry_policy_version == 'legacy-v1':
+        item.state, item.error, item.retry_reason = 'retry_wait', 'request_outcome_unknown', 'retry_wait'
+        item.next_attempt_at = now + timedelta(seconds=retry_delay(item))
+        item.cycle_retries += 1
+    else:
+        item.state, item.next_attempt_at = 'queued', None
+    event(task, f'第 {item.position} 张执行已恢复')
     refresh_task(session, task)
 
 
@@ -56,14 +70,9 @@ def claim(factory):
             return None
         for item in pending:
             inherit_legacy(session, item)
-            if item.state == 'running' and (not item.lease_until or aware(item.lease_until) <= now):
-                sent = session.scalar(select(ApiAttempt.id).where(ApiAttempt.item_id == item.id,
-                    ApiAttempt.state == 'running').limit(1))
-                if sent or item.retry_policy_version == 'legacy-v1':
-                    mark_uncertain(session, item)
-                else:
-                    item.state = 'queued'
-                    release_item(item)
+            if item.state in {'running', 'uncertain'} and not (
+                    item.lease_token and item.lease_until and aware(item.lease_until) > now):
+                recover_expired(session, gate, item, now)
             if item.state in {'queued', 'retry_wait'} and not (item.result_url or item.result_bytes):
                 reason = exhausted(item, now)
                 if reason:
@@ -108,18 +117,16 @@ def owned(session, item_id, token):
         return None, None
     if session.get(ApiTaskDeletion, item.task_id):
         return None, None
-    if aware(item.lease_until) <= database_now(session):
-        if item.state == 'running':
-            mark_uncertain(session, item)
-        if item.state != 'uncertain':
-            return None, None
+    # A receipt may win the lock before recovery revokes this token.
+    if aware(item.lease_until) <= database_now(session) and item.state not in {'running', 'uncertain'}:
+        return None, None
     return gate, item
 
 
 def start_attempt(factory, item_id, token, requested_size=None):
     with factory.begin() as session:
         gate, item = owned(session, item_id, token)
-        if not item or item.state != 'running':
+        if not item or item.state != 'running' or aware(item.lease_until) <= database_now(session):
             return False
         inherit_legacy(session, item)
         now = database_now(session)

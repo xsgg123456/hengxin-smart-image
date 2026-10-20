@@ -99,22 +99,30 @@ def test_stop_before_send_or_after_send_retains_late_success(files_env, sent):
         assert item['retry']['attempts'] == 0
 
 
-def test_unknown_not_retried_and_does_not_block_unrelated_send(files_env):
+def test_ended_unknown_retries_in_same_cycle_and_keeps_audit(files_env):
     web, factory, store, _ = files_env
     task_id, _ = create(web, 2)
+    original = current(web, task_id)['retry']['cycleId']
     client = Client([RelayError('uncertain', 'REQUEST_UNCERTAIN', 'safe')])
     assert execute_next(factory, store, client)
     item = current(web, task_id)
-    assert item['state'] == 'uncertain'
-    assert execute_next(factory, store, client)
-    due(factory)
+    assert item['state'] == 'retry_wait'
+    due_at = item['nextAttemptAt']
+    assert execute_next(factory, store, client)  # An unrelated sibling can proceed.
     assert not execute_next(factory, store, client)
-    assert len(client.calls) == 2
+    assert current(web, task_id)['nextAttemptAt'] == due_at
     assert web.post(f"{ROOT}/tasks/{task_id}/items/{item['id']}/retry",
                     headers={'Idempotency-Key': 'unknown'}).status_code == 409
     with factory() as session:
         row = session.get(ApiItem, UUID(item['id']))
-        assert row.lease_token and row.attempts == 1
+        assert row.lease_token is None and row.attempts == 1
+        attempt = session.scalar(select(ApiAttempt).where(ApiAttempt.item_id == row.id))
+        assert attempt.state == 'uncertain' and attempt.completed_at
+    due(factory)
+    assert execute_next(factory, store, client)
+    item = current(web, task_id)
+    assert item['state'] == 'succeeded' and item['retry']['attempts'] == 2
+    assert item['retry']['cycleId'] == original and len(client.calls) == 3
 
 
 def test_retry_after_long_value_and_durable_jitter(files_env):

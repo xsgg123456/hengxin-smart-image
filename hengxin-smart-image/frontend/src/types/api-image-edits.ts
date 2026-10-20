@@ -29,9 +29,10 @@ export interface ApiTaskSummary extends ApiTaskActivity {
   batch: { current: number; total: number; running: number }
 }
 export interface ApiTaskPage { items: ApiTaskSummary[]; total: number; page: number; pageSize: number }
-export const taskLabels: Record<ApiTaskState, string> = { queued: '排队中', running: '处理中', succeeded: '全部成功', partial_failed: '部分失败', failed: '全部失败', uncertain: '需核实' }
-export const itemLabels: Record<ApiItemState, string> = { queued: '等待处理', running: '处理中', retry_wait: '等待重试', collecting: '保存结果中', succeeded: '成功', failed: '失败', uncertain: '需核实' }
-export const isTaskActive = (task: Pick<ApiTask, 'status'> & ApiTaskActivity) => ['queued', 'running', 'uncertain'].includes(task.status) || (!!task.cliActivity && task.cliActivity !== 'idle') || task.deletionState === 'deleting'
+export const taskLabels: Record<ApiTaskState, string> = { queued: '等待中', running: '处理中', succeeded: '已完成', partial_failed: '部分未完成', failed: '未完成', uncertain: '等待结果' }
+export const itemLabels: Record<ApiItemState, string> = { queued: '等待中', running: '生成中', retry_wait: '重试中', collecting: '保存中', succeeded: '已完成', failed: '未完成', uncertain: '生成中' }
+export const isApiTaskPending = (task: Pick<ApiTask, 'status'>) => ['queued', 'running', 'uncertain'].includes(task.status)
+export const isTaskActive = (task: Pick<ApiTask, 'status'> & ApiTaskActivity) => isApiTaskPending(task) || (!!task.cliActivity && task.cliActivity !== 'idle') || task.deletionState === 'deleting'
 export const cliActivityLabel = (state?: CliActivity) => state === 'queued' ? '等待修改' : state === 'running' || state === 'uncertain' ? '图片修改中' : ''
 export const deleteBlockedReason = (task: Pick<ApiTask, 'status'> & ApiTaskActivity) => task.deletionState === 'deleting' ? '正在永久删除任务及关联资料' : task.deleteBlockedReason || (isTaskActive(task) ? '任务仍在执行或结果待核实，暂不可删除' : task.canDelete !== true ? '尚未确认任务可删除，请刷新或更新服务后重试' : '')
 export const canDeleteTask = (task: Pick<ApiTask, 'status'> & ApiTaskActivity) => !deleteBlockedReason(task)

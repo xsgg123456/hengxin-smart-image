@@ -3,6 +3,8 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import * as Vue from 'vue'
+import { uncertainResponse } from '../src/api/api-image-edits'
+import { ApiError } from '../src/api/hengxin/http'
 import { isTaskActive } from '../src/types/api-image-edits'
 type Records = ReturnType<typeof import('../src/views/hengxin/api-image-edits/use-records').useRecords>
 
@@ -11,13 +13,15 @@ test('真实记录逻辑隐藏停轮询，恢复等授权，终态详情低频�
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   let now = 1000
   let lists = 0, details = 0, verify!: () => void, nextId = 0
-  let failDetail = false
+  let failDetail = false, failRetry = true
+  const retryCalls: string[] = []
   let cliActivity = 'idle', deletionState = 'idle', deleteCalls = 0, failDeletionRead = false
   let listBarrier: Promise<void> | undefined
   const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' })
   const timers = new Map<number, () => Promise<void>>()
   const bootstrap = { ready: true, locked: false }
   const apiImages = {
+    retry: async (_id: string, key: string) => { retryCalls.push(key); if (failRetry) throw new ApiError('UNAVAILABLE', 'secret upstream', 503) },
     list: async () => { lists++; await listBarrier; return { items: deletionState === 'deleted' ? [] : [{ id: 'task', name: '待删除任务', status: 'succeeded', cliActivity, deletionState, canDelete: deletionState !== 'deleting' }], total: deletionState === 'deleted' ? 0 : 1 } },
     task: async () => { details++; if (failDetail) throw new Error('temporary 503'); return { id: 'task', status: 'succeeded', cliActivity, deletionState } },
     remove: async () => { deleteCalls++; deletionState = 'deleting'; return { state: deletionState, message: null } },
@@ -28,7 +32,7 @@ test('真实记录逻辑隐藏停轮询，恢复等授权，终态详情低频�
     (name: string) => {
       if (name === 'vue') return Vue
       if (name === '@/store/modules/user') return { useUserStore: () => ({ getUserInfo: { userId: 'u' } }) }
-      if (name === '@/api/api-image-edits') return { apiImages, errorText: String }
+      if (name === '@/api/api-image-edits') return { apiImages, errorText: String, uncertainResponse }
       if (name === '@/types/api-image-edits') return { isTaskActive }
       if (name === '@/api/hengxin/identity') return { identity: { epoch: 1, current: () => true } }
       if (name === '@/api/hengxin/bootstrap') return { bootstrap, retryBootstrap: { run: () => new Promise<void>(resolve => { verify = resolve }) } }
@@ -58,10 +62,15 @@ test('真实记录逻辑隐藏停轮询，恢复等授权，终态详情低频�
     now += 30000; await poll(); assert.equal(lists, 4); assert.equal(details, 3)
     await records.action(async () => {}); assert.equal(lists, 5); assert.equal(details, 4)
     failDetail = true; records.selectedId.value = 'another'; await settle()
-    assert.equal(records.selected.value, undefined); assert.match(records.detailError.value, /503/)
+    assert.equal(records.selected.value, undefined); assert.match(records.detailError.value, /详情加载失败/)
     failDetail = false; await poll(); await settle()
     assert(records.selected.value); assert.equal(records.detailError.value, '')
     records.selectedId.value = 'task'; await settle()
+    const lastDetail = records.selected.value
+    failDetail = true; await records.loadDetail(); await settle()
+    assert.equal(records.selected.value, lastDetail)
+    assert.equal(records.detailError.value, '刷新失败，已保留上次进度，请重试。')
+    failDetail = false; await records.loadDetail()
     cliActivity = 'queued'; await poll(); await settle()
     assert.equal(records.selected.value?.cliActivity, 'queued', '已成功API任务的CLI排队推动详情同步')
     records.selectedId.value = ''; await settle()
@@ -84,6 +93,11 @@ test('真实记录逻辑隐藏停轮询，恢复等授权，终态详情低频�
     deletionState = 'deleted'; await poll(); await settle()
     assert.equal(records.tasks.value.length, 0); assert.equal(records.deletedId.value, 'task')
     assert.equal(records.selectedId.value, '')
+    await records.retry('task'); await settle()
+    assert.equal(records.actionError.value, '操作未完成，请再试一次。')
+    failRetry = false; await records.retry('task'); await settle()
+    assert.equal(retryCalls.length, 2); assert.equal(retryCalls[0], retryCalls[1])
+    assert.equal(records.actionError.value, '')
     let release!: () => void
     listBarrier = new Promise<void>(resolve => { release = resolve })
     now += 30000

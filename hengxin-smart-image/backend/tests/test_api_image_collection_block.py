@@ -34,11 +34,11 @@ def test_manual_collection_retry_bypasses_uncertain_without_regeneration(files_e
         return image_bytes()
     assert execute_next(factory, store, client, download)
     task = web.get(ROOT + '/tasks/' + task_id).json()
-    assert [i['state'] for i in task['items']] == ['succeeded', 'uncertain', 'queued']
+    assert [i['state'] for i in task['items']] == ['succeeded', 'retry_wait', 'queued']
     assert len(task['items'][0]['versions']) == 1
-    assert task['status'] == 'uncertain'
+    assert task['status'] == 'running'
     assert downloads == ['https://example.test/result.png'] and not client.calls
-    assert claim(factory)[2] == 'running'  # The unknown sibling owns only its slot.
+    assert claim(factory)[2] == 'running'  # Recovery backoff does not block the queued sibling.
 
 
 def test_collection_backoff_runs_and_exhausts_while_generation_blocked(files_env):
@@ -96,5 +96,5 @@ def test_safe_collection_still_obeys_global_ten_lease_limit(files_env):
             item.state, item.result_bytes = 'collecting', image_bytes()
         items[-1].state = 'uncertain'
     reservations = [claim(factory) for _ in range(12)]
-    assert len([value for value in reservations if value]) == 9
-    assert len({value[0] for value in reservations if value}) == 9
+    assert len([value for value in reservations if value]) == 10
+    assert len({value[0] for value in reservations if value}) == 10

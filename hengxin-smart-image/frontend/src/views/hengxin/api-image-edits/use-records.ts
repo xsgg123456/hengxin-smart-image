@@ -39,7 +39,7 @@ export function useRecords() {
         try { const result = await apiImages.deletion(id); if (alive && serial === listSerial) applyDeletion(id, name, result) }
         catch (e) { if (alive && serial === listSerial) actionError.value = `删除状态尚未确认：${errorText(e)}。将继续核实。` }
       }
-    } catch (e) { if (alive && serial === listSerial) error.value = errorText(e) }
+    } catch (e) { if (alive && serial === listSerial) error.value = tasks.value.length ? '刷新失败，已保留上次记录，请重试。' : '记录加载失败，请重试。' }
     finally { if (alive && serial === listSerial) loading.value = false }
   }
   async function loadDetail(silent = false) {
@@ -48,7 +48,7 @@ export function useRecords() {
     if (selected.value?.deletionState === 'deleting') return
     if (!silent) detailLoading.value = true
     try { const task = await apiImages.task(id); if (alive && serial === detailSerial) { selected.value = task; detailLoadedAt = Date.now(); detailError.value = '' } }
-    catch (e) { if (alive && serial === detailSerial) { detailError.value = errorText(e) } }
+    catch (e) { if (alive && serial === detailSerial) { detailError.value = selected.value ? '刷新失败，已保留上次进度，请重试。' : '详情加载失败，请重试。' } }
     finally { if (alive && serial === detailSerial) detailLoading.value = false }
   }
   async function refresh(silent = false) { await Promise.all([load(silent), loadDetail(silent)]) }
@@ -75,10 +75,10 @@ export function useRecords() {
   watch([page, filter, pageSize], () => { clearTimeout(debounce); void load() })
   watch(search, () => { ++listSerial; clearTimeout(debounce); debounce = setTimeout(() => { if (page.value !== 1) page.value = 1; else void load() }, 300) })
   watch(selectedId, () => { selected.value = undefined; actionError.value = ''; void loadDetail() })
-  async function action(run: () => Promise<unknown>) {
+  async function action(run: () => Promise<unknown>, failureMessage?: () => string) {
     if (busy.value) return
     busy.value = true; actionError.value = ''
-    try { await run(); await refresh() } catch (e) { actionError.value = errorText(e) }
+    try { await run(); await refresh() } catch (e) { actionError.value = failureMessage?.() || errorText(e) }
     finally { busy.value = false }
   }
   function applyDeletion(id: string, name: string, result: ApiDeletion) {
@@ -111,8 +111,8 @@ export function useRecords() {
     await action(async () => {
       const entry = savedRetry(retryId(id)) || { key: crypto.randomUUID(), uncertain: false }; saveRetry(retryId(id), entry)
       try { await apiImages.retry(id, entry.key); saveRetry(retryId(id)) }
-      catch (e) { if (uncertainResponse(e)) entry.uncertain = true; else if (!entry.uncertain) saveRetry(retryId(id)); throw new Error(`${errorText(e)}${retryKeys.has(retryId(id)) ? '。结果尚未确认，请再次确认原重试请求。' : ''}`) }
-    })
+      catch (e) { if (uncertainResponse(e)) entry.uncertain = true; else if (!entry.uncertain) saveRetry(retryId(id)); throw e }
+    }, () => '操作未完成，请再试一次。')
   }
   void refresh().then(schedule)
   onBeforeUnmount(() => { alive = false; document.removeEventListener('visibilitychange', visibility); clearTimeout(timer); clearTimeout(debounce) })

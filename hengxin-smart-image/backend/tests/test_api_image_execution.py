@@ -42,12 +42,12 @@ def test_order_single_claim_success_and_message_replay(files_env):
     assert first and claim(factory) is None
     from app.modules.api_image_edits.claims import start_attempt
     assert start_attempt(factory, *first[:2])
-    # Expiry after the final permit models a genuinely unknown upstream call.
+    # Expiry fences the old execution and schedules the original retry cycle.
     with factory.begin() as session:
         session.get(ApiItem, first[0]).lease_until = utcnow() - timedelta(seconds=1)
     assert claim(factory) is None
     assert claim(factory) is None
-    assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'uncertain'
+    assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'running'
     assert execute_next(factory, store, client) is False
     assert not client.calls
 
@@ -125,32 +125,33 @@ def test_download_and_storage_retries_never_regenerate(files_env):
     assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'succeeded'
 
 
-def test_uncertain_admin_resolution_fences_late_worker(files_env):
+def test_expired_execution_recovers_without_admin_and_fences_late_worker(files_env):
     web, factory, store, identity = files_env
     task_id, _ = create(web, 1)
     claimed = claim(factory)
     from app.modules.api_image_edits.claims import start_attempt
-    assert start_attempt(factory, claimed[0], claimed[1])
+    from app.modules.api_image_edits.outcomes import save_response
+    assert start_attempt(factory, *claimed[:2])
     with factory.begin() as session:
-        session.get(ApiItem, claimed[0]).lease_until = utcnow() - timedelta(seconds=1)
+        item = session.get(ApiItem, claimed[0])
+        item.lease_until = utcnow() - timedelta(seconds=1)
+        item.attempts = item.max_attempts
     assert claim(factory) is None
-    client = Client()
-    assert execute_next(factory, store, client) is False
     url = ROOT + '/tasks/' + task_id
-    assert web.delete(url).status_code == 409
-    assert web.post(url + '/resolve', json={'confirmedStopped': True}).status_code == 403
-    with factory.begin() as session:
-        session.get(UserRecord, identity[0]).role = 'super_admin'
-    assert web.post(url + '/resolve', json={'confirmedStopped': False}).status_code == 422
-    assert web.post(url + '/resolve', json={'confirmedStopped': True}).status_code == 200
     assert web.get(url).json()['status'] == 'failed'
+    assert web.post(url + '/resolve', json={'confirmedStopped': True}).status_code == 404
+    assert not save_response(factory, *claimed[:2], RelayResult(image_bytes=image_bytes()))
     with factory() as session:
         attempt = session.scalar(select(ApiAttempt))
-        assert attempt.resolved_by == identity[0]
-        assert session.get(ApiChannel, 1).item_id is None
+        assert attempt.state == 'uncertain' and attempt.resolved_by is None
+        assert session.get(ApiItem, claimed[0]).lease_token is None
+        assert session.get(UserRecord, identity[0]).role != 'super_admin'
+    assert web.post(url + '/retry', headers={'Idempotency-Key': 'direct-retry'}).status_code == 202
+    assert execute_next(factory, store, Client())
+    assert web.get(url).json()['status'] == 'succeeded'
 
 
-def test_channel_error_pause_and_live_resolve_denied(files_env):
+def test_channel_error_pause_and_removed_resolve_route(files_env):
     web, factory, store, identity = files_env
     task_id, _ = create(web, 1)
     first = claim(factory)
@@ -159,7 +160,7 @@ def test_channel_error_pause_and_live_resolve_denied(files_env):
     assert renew(factory, first[0], first[1])
     assert not renew(factory, first[0], uuid4())
     assert web.post(ROOT + '/tasks/' + task_id + '/resolve',
-                    json={'confirmedStopped': True}).status_code == 409
+                    json={'confirmedStopped': True}).status_code == 404
     from app.modules.api_image_edits.outcomes import failure
     failure(factory, first[0], first[1], 'channel', 'HTTP_401')
     assert web.get(ROOT + '/status').json()['paused'] is True

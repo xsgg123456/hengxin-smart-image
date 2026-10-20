@@ -103,7 +103,7 @@ def collect(factory, store, item_id, token, downloader):
               or record.size_bytes != len(image.data) or record.content_type != image.content_type
               or record.width != image.width or record.height != image.height):
             # An upstream URL changing bytes must never mutate a frozen object.
-            item.error, item.state = '结果内容变化，保留原收图记录待核实', 'failed'
+            item.error, item.state = '结果内容变化，已保留原收图记录', 'failed'
             release_item(item)
             refresh_task(session, session.get(ApiTask, item.task_id))
             return

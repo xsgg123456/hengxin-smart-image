@@ -8,13 +8,13 @@
         <svg viewBox="0 0 48 48" fill="none"><path d="M16 9H11a2 2 0 0 0-2 2v5M32 9h5a2 2 0 0 1 2 2v5M9 32v5a2 2 0 0 0 2 2h5M39 32v5a2 2 0 0 1-2 2h-5" stroke="currentColor" stroke-width="1.5"/><path d="m24 15 2.4 6.6L33 24l-6.6 2.4L24 33l-2.4-6.6L15 24l6.6-2.4Z" fill="currentColor"/></svg>
       </div>
     </div>
-    <div class="generation-copy"><strong>{{ label || (running ? '正在生成画面' : '等待开始生成') }}</strong><span>{{ description || (running ? '结果就绪后将在这里呈现' : '任务已受理，请稍候') }}</span></div>
-    <div class="generation-footer" aria-hidden="true"><span>第 {{ index + 1 }} 张</span><span class="generation-state"><i></i>{{ statusText || (running ? '生成中' : '排队中') }}</span></div>
+    <div v-if="!simple" class="generation-copy"><strong>{{ label || (running ? '正在生成画面' : '等待开始生成') }}</strong><span>{{ description || (running ? '结果就绪后将在这里呈现' : '任务已受理，请稍候') }}</span></div>
+    <div v-if="!simple" class="generation-footer" aria-hidden="true"><span>第 {{ index + 1 }} 张</span><span class="generation-state"><i></i>{{ statusText || (running ? '生成中' : '排队中') }}</span></div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-withDefaults(defineProps<{ running: boolean; index: number; label?: string; description?: string; statusText?: string; motion?: boolean; compact?: boolean }>(), { motion: true })
+withDefaults(defineProps<{ running: boolean; index: number; label?: string; description?: string; statusText?: string; motion?: boolean; compact?: boolean; simple?: boolean }>(), { motion: true })
 const surface = ref<HTMLElement>()
 const inView = ref(false), pageVisible = ref(true)
 const paused = computed(() => !inView.value || !pageVisible.value)

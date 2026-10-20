@@ -20,7 +20,10 @@ export function createItemCommand(storage?: CommandStorage, key = () => crypto.r
       if (uncertainResponse(error)) state.pending!.uncertain = true
       else if (!state.pending?.uncertain) state.pending = null
       storage?.save(state.pending)
-      state.error = errorText(error) + (state.pending ? '。受理结果尚未确认，请确认原请求；输入已锁定。' : '')
+      const action = state.pending?.command.kind || command.kind
+      state.error = action === 'retry' || action === 'stop'
+        ? action === 'stop' ? '停止操作未完成，请再试一次。' : '操作未完成，请再试一次。'
+        : errorText(error) + (state.pending ? '。受理结果尚未确认，请确认原请求；输入已锁定。' : '')
       return false
     } finally { state.busy = false }
   }

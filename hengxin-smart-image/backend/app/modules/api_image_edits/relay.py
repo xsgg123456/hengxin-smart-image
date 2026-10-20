@@ -37,7 +37,7 @@ def retry_after_seconds(value):
         seconds = int(value) if str(value).isdigit() else math.ceil(
             (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds())
         if seconds > 365 * 86400:
-            raise RelayError('channel', 'RETRY_AFTER_TOO_LONG', '上游要求长时间暂停，请管理员核实')
+            raise RelayError('channel', 'RETRY_AFTER_TOO_LONG', '上游要求长时间暂停，请管理员检查配置')
         return max(0, seconds)
     except (TypeError, ValueError, OverflowError):
         return None
@@ -148,10 +148,10 @@ class RelayClient:
             raise RelayError('retryable', 'CONNECT_FAILED', '连接中转站失败，可稍后重试') from None
         except SSLError:
             # TLS failures can also occur while reading a response, after send.
-            raise RelayError('uncertain', 'TLS_UNCERTAIN', '安全连接中断，需先核实上游执行状态',
+            raise RelayError('uncertain', 'TLS_UNCERTAIN', '安全连接中断，稍后自动重试',
                 request_id=safe_request_id(response.headers.get('x-request-id')) if response is not None else None) from None
         except (HTTPError, OSError, TimeoutError):
-            raise RelayError('uncertain', 'REQUEST_UNCERTAIN', '请求结果尚未确认，请先核实上游执行状态',
+            raise RelayError('uncertain', 'REQUEST_UNCERTAIN', '请求未完成，稍后自动重试',
                 request_id=safe_request_id(response.headers.get('x-request-id')) if response is not None else None) from None
         finally:
             if response is not None:
@@ -169,7 +169,7 @@ class RelayClient:
             raise RelayError('retryable', f'HTTP_{status}', '中转站繁忙或暂时不可用',
                              retry_after_seconds(retry_after), retry_after_at=retry_after_date(retry_after))
         if status == 408:
-            raise RelayError('uncertain', 'UPSTREAM_TIMEOUT', '中转站请求超时，需核实是否已生成')
+            raise RelayError('uncertain', 'UPSTREAM_TIMEOUT', '中转站请求超时，稍后自动重试')
         if status != 200:
             raise RelayError('permanent', f'HTTP_{status}', '中转站未接受本次图片请求')
         limit = self.settings.max_download_bytes * 4 // 3 + 65536
@@ -178,7 +178,7 @@ class RelayClient:
         while True:
             remaining = self.settings.request_timeout_seconds - (time.monotonic() - started)
             if remaining <= 0:
-                raise RelayError('uncertain', 'RESPONSE_LIMIT', '结果响应超时，需核实上游结果')
+                raise RelayError('uncertain', 'RESPONSE_LIMIT', '结果响应超时，稍后自动重试')
             connection = getattr(response, 'connection', None)
             if connection is not None and connection.sock is not None:
                 connection.sock.settimeout(remaining)
@@ -187,7 +187,7 @@ class RelayClient:
                 break
             count += len(chunk)
             if count > limit or time.monotonic() - started > self.settings.request_timeout_seconds:
-                raise RelayError('uncertain', 'RESPONSE_LIMIT', '结果响应超出限制，需核实上游结果')
+                raise RelayError('uncertain', 'RESPONSE_LIMIT', '结果响应超出限制，稍后自动重试')
             chunks.append(chunk)
         try:
             payload = json.loads(b''.join(chunks))
@@ -205,4 +205,4 @@ class RelayClient:
                 return RelayResult(image_bytes=image, request_id=request_id)
             raise ValueError()
         except (ValueError, KeyError, TypeError, binascii.Error):
-            raise RelayError('uncertain', 'INVALID_RESULT', '中转站未返回可识别图片，需核实生成结果') from None
+            raise RelayError('uncertain', 'INVALID_RESULT', '中转站未返回可识别图片，稍后自动重试') from None

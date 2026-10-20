@@ -19,7 +19,7 @@ from . import control, files, service, versions, zip_download
 from .config import get_api_settings
 from .models import ApiChannel
 from .presentation import list_tasks, task_view
-from .schemas import CreateTask, ResolveTask, ReviseItem, RestoreVersion
+from .schemas import CreateTask, ReviseItem, RestoreVersion
 
 router = APIRouter(prefix='/api-image-edits', tags=['api-image-edits'])
 User = Annotated[object, Depends(require_permission('shared_resources'))]
@@ -116,12 +116,6 @@ def delete(task_id: UUID, user: User, session: Database):
 def deletion_status(task_id: UUID, user: User, session: Database):
     from .deletion import status
     return status(session, task_id)
-
-
-@router.post('/tasks/{task_id}/resolve')
-def resolve(task_id: UUID, data: ResolveTask, user: Admin, session: Database):
-    control.resolve(session, user, task_id, data.confirmedStopped)
-    return {'taskId': str(task_id)}
 
 
 @router.post('/channel/resume')

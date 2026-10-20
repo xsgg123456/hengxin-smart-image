@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { apiImages, errorText } from '@/api/api-image-edits'
+import { apiImages } from '@/api/api-image-edits'
 import { useUserStore } from '@/store/modules/user'
 import type { ApiChannel } from '@/types/api-image-edits'
 import { identity } from '@/api/hengxin/identity'
@@ -12,13 +12,13 @@ export function useChannel() {
     if (!alive || document.hidden) return
     const version = ++serial
     try { const value = await apiImages.status(); if (alive && version === serial) { status.value = value; error.value = '' } }
-    catch (e) { if (alive && version === serial) error.value = errorText(e) }
+    catch (e) { if (alive && version === serial) error.value = '服务状态暂时无法获取，请重试。' }
     finally { if (alive && version === serial) { loading.value = false; clearTimeout(timer); if (!document.hidden) timer = setTimeout(load, 10000) } }
   }
   async function resume() {
     if (busy.value) return
     busy.value = true; error.value = ''
-    try { await apiImages.resume(); await load() } catch (e) { error.value = errorText(e) }
+    try { await apiImages.resume(); await load() } catch (e) { error.value = '服务尚未恢复，请稍后再试。' }
     finally { busy.value = false }
   }
   void load()

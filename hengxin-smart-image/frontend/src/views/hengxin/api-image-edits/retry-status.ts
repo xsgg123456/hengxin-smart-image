@@ -1,24 +1,30 @@
-import type { ApiChannel, ApiItem } from '@/types/api-image-edits'
+import { itemLabels, type ApiChannel, type ApiItem, type ApiTask } from '@/types/api-image-edits'
 
-export function remainingSeconds(value: string | null | undefined, now: number) {
-  const time = value ? Date.parse(value) : NaN
-  return Number.isFinite(time) ? Math.max(0, Math.ceil((time - now) / 1000)) : null
-}
-
-export function channelRetryText(channel: ApiChannel | undefined, now: number) {
+export function channelRetryText(channel?: ApiChannel) {
   if (!channel?.enabled || channel.paused) return ''
-  const remaining = remainingSeconds(channel.cooldownUntil, now)
-  if (remaining !== null && remaining > 0) return `上游冷却中，至少 ${remaining} 秒后探测恢复；新请求继续排队，已有结果正常保存。`
-  if (channel.recovering || channel.cooldownUntil) return '上游恢复探测中，等待发送名额；新请求继续排队，发送速度逐步恢复。'
-  return ''
+  return channel.recovering || channel.cooldownUntil ? '服务繁忙，正在等待处理，请稍候。' : ''
 }
 
-export function itemRetryText(item: ApiItem, now: number) {
-  if (item.state === 'succeeded') return ''
-  if (item.state === 'uncertain') return `${item.retry?.stopRequested ? '已请求停止后续重试；' : ''}请求结果需核实，不会自动重复生成；请联系管理员核实原请求。`
-  if (item.retry?.stopRequested) return item.state === 'failed' ? '本轮已停止重试，可手动开启新一轮。' : '已请求停止后续重试；已发出的请求继续收取结果，成功图片仍会保存。'
-  if (item.state === 'failed') return ''
-  const remaining = remainingSeconds(item.retry?.nextAttemptAt ?? item.nextAttemptAt, now)
-  if (remaining !== null) return remaining > 0 ? `距离下次尝试至少 ${remaining} 秒；实际发送由后台安排。` : '等待后台分配发送名额，页面倒计时不会发起请求。'
-  return item.state === 'queued' || item.state === 'retry_wait' ? '等待后台分配发送名额。' : ''
+export function itemStatusText(item: ApiItem) {
+  return item.state === 'failed' && item.retry?.stopRequested ? '已停止' : itemLabels[item.state]
+}
+
+export function taskProgressText(task: ApiTask, channel?: ApiChannel) {
+  const success = task.items.filter(item => item.state === 'succeeded').length
+  const failed = task.items.filter(item => item.state === 'failed').length
+  const active = task.items.filter(item => !['succeeded', 'failed'].includes(item.state))
+  const progress = `已完成 ${success}/${task.items.length} 张`
+  if (task.status === 'succeeded') return `${progress}，可以下载图片。`
+  if (channel && (!channel.enabled || channel.paused)) return `${progress}，服务暂不可用，请稍后再试。`
+  if (active.length) {
+    if (failed) return `${progress}，${failed} 张未完成可逐张重试，其余正在处理。`
+    if (active.every(item => item.state === 'collecting')) return `${progress}，其余正在保存。`
+    if (channelRetryText(channel)) return `${progress}，服务繁忙，请稍候。`
+    if (active.every(item => item.state === 'queued')) return `${progress}，正在等待处理。`
+    if (active.some(item => ['running', 'uncertain'].includes(item.state))) return `${progress}，其余正在生成。`
+    if (active.some(item => item.state === 'retry_wait')) return `${progress}，其余正在自动重试。`
+    return `${progress}，其余正在处理。`
+  }
+  if (failed && task.items.filter(item => item.state === 'failed').every(item => item.retry?.stopRequested)) return `${progress}，已停止自动重试，可点击重试继续。`
+  return `${progress}，${failed} 张未完成，可点击重试。`
 }
