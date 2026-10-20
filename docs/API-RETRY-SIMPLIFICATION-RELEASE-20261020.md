@@ -19,7 +19,7 @@
 
 停执行器后完整备份、隔离恢复并核对全部API行指纹；启动新API/worker时outbox保持停止且broker为空，再验证schema/字段/行/轮次保持。之后才启动新outbox，由已验收的新代码恢复持久任务；此后正常恢复引起的状态变化不误判为迁移改写。成功图片和历史完成审计继续受保护。遇到不能证明安全续接的工作仍失败关闭，保持现场。
 
-当前状态：发布准备中。后续只按真实执行结果更新本页。
+当前状态：2026-10-20 18:16（北京时间）生产切换完成，正式入口验收通过。
 
 ## 发布前实查与本地证据
 
@@ -27,3 +27,16 @@
 - 0.2.45正式前端类型检查及构建通过，Vite 33.70秒，日志 `frontend-build.log`。
 - 依赖审计为critical 0、high 70、moderate 48、low 5。按既有锁文件构建，本次未升级依赖；不得把该结果描述成“没有漏洞”。原始结果 `dependency-audit.json` 保留在上述输出目录。
 - 发布全套测试1107 passed、309 subtests passed、1 skipped（Windows既有symlink权限限制）；冻结后补测227 passed，其中43项为真实隔离PostgreSQL交接与指纹保护测试。日志 `release-tests.log`、`adapter-tests.log`。
+
+## 生产发布与验收结果
+
+- 源码提交：`34fea3bca5d8bdef26a753c83710eb7dc6e9a064`。独立两阶段PASS，最终批准快照 `7454079f6ad2229cb2bc2a98ee0e00c88e0e3eff066dd719384c66ecc19e17cd`，报告见 `reviews/API-RETRY-SIMPLIFICATION-RELEASE-20261020.md`。
+- 发布标识：`domestic-api-simple-20261020-34fea3b`；前端0.2.45、国内0031、海外overseas_0019。实际镜像 `sha256:89d54bb54a57a3c22ecf5488552f94695bf6b07abcbcd5780a602f449545b553`。
+- 归档1241个文件、5,480,202字节，隐私审计PASS、归档验证PASS；SHA256 `f60fa43e916a48195b0c84cfa3a226712e94dc2fee0280d0553ce711afe74907`。服务器再次校验归档及1240个清单文件；镜像内544个后端源码哈希一致。
+- 实际镜像安装测试：2057 passed、169 skipped、1 deselected、6 warnings，461.04秒。跳过需要额外环境的测试，排除依赖本地工具/前端源码的既有安装测试；本地数据库与前端合同另有开发验收，不把跳过计为通过。
+- 生产在途工作完成后，保留494张成功、1张失败、1张排队、4张旧uncertain记录完成交接，原97个 bounded-v2 轮次保持；没有手动清状态、清租约或清任务。新outbox启动前全部API行、表列、轮次指纹一致；启动后原终态、版本及成品文件保护核验通过。
+- 完整备份位置：`/opt/hengxin-backups/domestic-api-simple-20261020-34fea3b/`；`domestic.dump`为1,047,396字节，隔离恢复及指纹验证通过，COMPLETE存在。发布目录VERIFIED存在、无RECOVERY_REQUIRED。版本台账已completed、无pending，成功回执存在。
+- 仅国内api/api-image-worker/api-image-outbox镜像及前端更新；配置、其它国内容器、海外、身份、原生服务核验保持。请求300秒、租约600秒、发送间隔5秒、在途10、失败阈值5、冷却60秒均未修改；未执行数据库迁移。
+- 从正式域名 `https://zhitu.qhhengxin.top` 检查记录页、历史成功详情、真实失败详情、新建入口及390px窄屏，已目视截图。新建提示为“未完成的图片会自动重试”；真实旧失败图片显示“重试这张”，无管理员核实按钮。既有原图/成品实际加载，图片下载200。新建页补等通道检查和资源加载结束后重新截图确认。
+- 直接读取线上应用路由确认国内管理员resolve接口不存在，单张和批量retry接口存在。浏览器无pageerror、未提交生成/重试请求；临时验收会话已撤销并验证401，临时凭据文件已删除。
+- 本地原始发布证据：`output/release/domestic-api-simple-20261020-34fea3b/` 下的package-audit、upload-verification、installation-tests、final-verification、installed-routes、browser-verification及production截图。服务器build/prepare/deploy日志保留于同名发布目录。现场真实重试执行未触发收费调用；执行行为由此前隔离数据库与真实HTTP回归证明。
