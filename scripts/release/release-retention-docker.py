@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 
 REPO = 'hengxin-smart-image-backend:'
+PROJECT_LABEL = 'io.hengxin.project'
+PROJECT = 'smart-image'
 TOPOLOGY = {
     'domestic': ('hengxin-vps-staging', ('api', 'outbox', 'api-image-worker',
                                       'api-image-outbox', 'image-variants')),
@@ -53,6 +55,9 @@ class Docker:
     def images(self):
         ids = self.run('docker', 'image', 'ls', '--filter', 'reference=' + REPO + '*',
                        '--no-trunc', '--quiet', capture=True).split()
+        ids += self.run('docker', 'image', 'ls', '--all', '--filter',
+                        'label=' + PROJECT_LABEL + '=' + PROJECT, '--filter', 'dangling=true',
+                        '--no-trunc', '--quiet', capture=True).split()
         return self.inspect('image', sorted(set(ids)))
 
     def candidate(self, release):
@@ -89,9 +94,11 @@ class Docker:
         for item in self.images():
             tags = item.get('RepoTags') or []
             digests = item.get('RepoDigests') or []
-            if (item['Id'] not in protected and tags
-                    and all(t.startswith(REPO) for t in tags)
-                    and all(t.startswith(REPO[:-1] + '@') for t in digests)):
+            tagged = (tags and all(t.startswith(REPO) for t in tags)
+                      and all(t.startswith(REPO[:-1] + '@') for t in digests))
+            labels = (item.get('Config') or {}).get('Labels') or {}
+            dangling = not tags and not digests and labels.get(PROJECT_LABEL) == PROJECT
+            if item['Id'] not in protected and (tagged or dangling):
                 remove.append({'id': item['Id'], 'tags': sorted(tags)})
         return {'remove': remove, 'protected': sorted(p for p in protected if p), 'live': live}
 
@@ -104,7 +111,7 @@ class Docker:
             current = self.plan(data)
             if item not in current['remove']:
                 continue
-            self.run('docker', 'image', 'rm', *item['tags'])
+            self.run('docker', 'image', 'rm', *(item['tags'] or [item['id']]))
             removed.append(item)
             store.report('cleanup-result.json', {'removed': removed})
         # Pending builds/preparations retain their caches as well as their images.

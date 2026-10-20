@@ -7,7 +7,7 @@ import pytest
 
 ROOT = Path(__file__).parent
 HELPERS = {'release-retention.py', 'release-retention-state.py',
-           'release-retention-docker.py', 'release-build.py'}
+           'release-retention-docker.py', 'release-retention-failures.py', 'release-build.py'}
 
 
 @pytest.mark.parametrize('path', sorted(ROOT.glob('package*.py')), ids=lambda p: p.name)
@@ -32,7 +32,10 @@ def test_all_packages_include_helpers_without_selecting_tests(path):
         assert module.selected('scripts/release/' + name) is None
 
 
-ENTRIES = [*ROOT.glob('*-deploy.py'), ROOT / 'member-release-resume.py', ROOT / 'overseas-codex-prepare.py']
+# The credential-broker rollout only changes native services, not Docker images;
+# its independent lock/drain/recovery contract is tested in test_codex_auth_deploy.py.
+ENTRIES = [*(p for p in ROOT.glob('*-deploy.py') if p.name != 'codex-auth-deploy.py'),
+           ROOT / 'member-release-resume.py', ROOT / 'overseas-codex-prepare.py']
 
 
 @pytest.mark.parametrize('path', sorted(ENTRIES), ids=lambda p: p.name)

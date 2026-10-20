@@ -34,12 +34,23 @@ def validate(data):
             images(value['previous'])
             require(set(value['previous']) == set(value['current']), 'Inconsistent service history')
     require(isinstance(data.get('pending'), dict), 'Invalid pending releases')
+    counters = data.get('successCounters', {})
+    require(isinstance(counters, dict) and set(counters) <= set(GROUPS)
+            and all(type(v) is int and v >= 0 for v in counters.values()),
+            'Invalid success counters')
+    require(isinstance(data.get('retiredFailures', {}), dict), 'Invalid retired failures')
     for release, value in data['pending'].items():
         require(RELEASE.fullmatch(release) and isinstance(value, dict), 'Invalid candidate')
         require(value.get('phase') in ('build', 'built', 'prepare', 'prepared',
                                       'deploy', 'failed', 'verified'), 'Invalid candidate phase')
         require(value.get('image') is None or (isinstance(value['image'], str)
                 and IMAGE.fullmatch(value['image'])), 'Invalid candidate ID')
+        if 'failedAtSuccess' in value:
+            baseline = value['failedAtSuccess']
+            require(isinstance(baseline, dict) and len(baseline) == 1
+                    and set(baseline) <= set(GROUPS)
+                    and all(type(v) is int and 0 <= v <= counters.get(k, 0)
+                            for k, v in baseline.items()), 'Invalid failure success baseline')
         if 'before' in value:
             require(set(value['before']) == set(GROUPS), 'Incomplete deployment snapshot')
             for group in value['before'].values():
@@ -61,6 +72,8 @@ def advance(data, before, after):
             require(old['current'] == before[group], 'Recorded current version drift: ' + group)
         if before[group] != after[group]:
             data['groups'][group] = {'current': after[group], 'previous': before[group]}
+            counters = data.setdefault('successCounters', {})
+            counters[group] = counters.get(group, 0) + 1
         elif not old:
             data['groups'][group] = {'current': after[group], 'previous': None}
     return validate(data)

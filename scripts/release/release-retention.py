@@ -15,10 +15,12 @@ def module(name):
 
 s = module('release-retention-state')
 d = module('release-retention-docker')
+f = module('release-retention-failures')
 
 
 def safe_cleanup(docker, data, store):
     try:
+        f.retire(data, store, docker)
         docker.cleanup(data, store)
     except Exception as error:
         # Never propagate into a successful deployment's failure/stop handler.
@@ -61,6 +63,8 @@ def managed(main, argv=None, store=None, docker=None):
     store, docker = store or s.Store(), docker or d.Docker()
     with store.locked():
         data = store.load()
+        if f.seed_legacy(data):
+            store.write(data)
         pending = data['pending'].get(release, {})
         completed = data.get('completed', {})
         if release in completed:
@@ -92,6 +96,7 @@ def managed(main, argv=None, store=None, docker=None):
             result = main()
         except BaseException:
             pending['phase'] = 'failed'
+            f.record(data, release)
             store.write(data)
             raise
         if before is None:
@@ -146,8 +151,11 @@ def main():
             del data['pending'][args.release]
             store.write(data)
         elif args.action == 'preview':
-            print(json.dumps(docker.plan(data), indent=2))
+            plan = docker.plan(data)
+            plan['retire_failed'] = f.preview(data, store, docker)
+            print(json.dumps(plan, indent=2))
         else:
+            f.retire(data, store, docker)
             docker.cleanup(data, store)
 
 

@@ -10,7 +10,7 @@
 
 保留集合还包括：全部容器引用（含停止的容器）、跨阶段构建/准备的候选、失败待恢复的候选及部署前镜像。多于两版时优先保留这些引用；不会强删容器来凑数量。
 
-清理只删除 `hengxin-smart-image-backend` 仓库中无保护引用的镜像标签；存在其他仓库别名则跳过。删除前再次核对运行状态和引用，不使用强制删除。数据库、对象存储、图片、任务、会话、备份、CLI 环境、发布目录及基础服务均不清理；历史 Compose 配置链仍有用途。
+清理删除 `hengxin-smart-image-backend` 仓库中无保护引用的镜像标签；同时以 `--all --filter label=io.hengxin.project=smart-image --filter dangling=true` 发现无标签旧镜像，只有检查结果仍无 RepoTags、无 RepoDigests 且项目标记匹配才按完整镜像 ID 删除。外部标签、摘要别名及归属不明镜像跳过。删除前再次核对运行状态、归属、别名和引用，不使用强制删除。数据库、对象存储、图片、任务、会话、备份、CLI 环境、发布目录及基础服务均不清理；历史 Compose 配置链仍有用途。
 
 ## 首次启用
 
@@ -54,6 +54,12 @@ python3 scripts/release/release-retention.py abandon --release "$CANCELLED_RELEA
 解除保护要求当前各业务健康且与台账一致；容器仍引用的镜像依然保留。不要在另一终端运行旧脚本或直接 Docker 改动来绕过锁。锁保护新入口之间的并发；外部 Docker 管理操作不受本锁控制。
 
 ## 缓存与兼容边界
+
+2026-10-20 起，成功台账新增可选 `successCounters`：仅在某业务实际切换版本且原部署验证成功后递增，重复执行和未变化业务不增加。`domestic-`、`overseas-`、`identity-` 前缀用于识别构建/准备失败所属业务，不从名称中的日期推断先后。失败时记录 `failedAtSuccess` 基线；只有同业务成功计数增加，且候选 ID/同名标签均不被保留版本、任何容器及其它待处理发布引用，才自动把记录移至 `retiredFailures` 留审计。
+
+自动退休与镜像清理同用发布锁，退休前重查健康、运行快照、回滚镜像和引用。有 `before` 部署快照、成功回执、未知业务范围、还在 build/prepare/deploy 等阶段的记录继续保护。实际部署/迁移/恢复失败不能只凭新版本上线自动放弃，仍须恢复或明确 abandon。旧台账兼容：缺少失败基线的记录先登记当前计数，必须再经历一次同业务验证成功；旧成功不能倒算成替代证据。`preview` 只读展示 `retire_failed`，不会写入基线或解除保护。
+
+同名重建在构建结束前保留旧候选 ID 和当前标签指向的候选。已经验证完成的 release 仍禁止再次 build/prepare，避免标签覆盖破坏回滚。更新工具不扫描删除历史目录，不接管旧默认 builder。
 
 新构建使用专属 `hengxin-release` Buildx builder（docker-container driver，`--load`），默认复用缓存。此名称仅供本项目使用；不得给其他项目共用。需要全量重建时设置 `HENGXIN_RELEASE_NO_CACHE=1`。
 

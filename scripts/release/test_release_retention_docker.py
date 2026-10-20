@@ -29,10 +29,10 @@ class Runner:
         for number in range(1, 10):
             self.add_image(number)
 
-    def add_image(self, number, tags=None, digests=None):
+    def add_image(self, number, tags=None, digests=None, labels=None):
         self.images[image(number)] = {
-            'Id': image(number), 'RepoTags': tags or [module.REPO + str(number)],
-            'RepoDigests': digests or [],
+            'Id': image(number), 'RepoTags': [module.REPO + str(number)] if tags is None else tags,
+            'RepoDigests': digests or [], 'Config': {'Labels': labels or {}},
         }
 
     def __call__(self, *args, capture=False):
@@ -42,8 +42,17 @@ class Runner:
         if args[:3] == ('docker', 'container', 'inspect'):
             return json.dumps([self.containers[name] for name in args[3:]])
         if args[:3] == ('docker', 'image', 'ls'):
-            assert args[3:] == ('--filter', 'reference=' + module.REPO + '*', '--no-trunc', '--quiet')
-            return '\n'.join(self.images)
+            if args[3:] == ('--filter', 'reference=' + module.REPO + '*', '--no-trunc', '--quiet'):
+                matches = [key for key, value in self.images.items()
+                           if any(tag.startswith(module.REPO) for tag in value.get('RepoTags') or [])]
+            else:
+                assert args[3:] == ('--all', '--filter', 'label=io.hengxin.project=smart-image',
+                                    '--filter', 'dangling=true', '--no-trunc', '--quiet')
+                matches = [key for key, value in self.images.items()
+                           if not value.get('RepoTags') and not value.get('RepoDigests')
+                           and (value.get('Config') or {}).get('Labels', {}).get('io.hengxin.project')
+                           == 'smart-image']
+            return '\n'.join(matches)
         if args[:3] == ('docker', 'image', 'inspect'):
             return json.dumps([next(value for key, value in self.images.items()
                                     if ref == key or ref in value['RepoTags']) for ref in args[3:]])

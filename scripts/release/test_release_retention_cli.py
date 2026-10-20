@@ -62,3 +62,23 @@ def test_missing_retained_image_forbids_cleanup(cli):
     with pytest.raises((RuntimeError, StopIteration)):
         invoke('cleanup')
     assert not any(call[:3] == ('docker', 'image', 'rm') for call in runner.calls)
+
+
+def test_cli_preview_then_cleanup_retires_proven_failure_without_touching_services(cli, capsys):
+    store, runner, invoke = cli
+    data = ledger()
+    data['successCounters'] = {'overseas': 1}
+    data['pending']['overseas-old'] = {'phase': 'failed', 'image': image(3),
+                                      'failedAtSuccess': {'overseas': 0}}
+    store.write(data)
+    before = store.path.read_bytes()
+    invoke('preview')
+    assert 'overseas-old' in capsys.readouterr().out and store.path.read_bytes() == before
+    invoke('cleanup')
+    after = store.load()
+    assert after['groups'] == data['groups'] and after['pending'] == {}
+    assert 'overseas-old' in after['retiredFailures']
+    assert ('docker', 'image', 'rm', module.REPO + '3') in runner.calls
+    assert not any(c[0] in ('systemctl', 'rm') or c[:2] in
+                   [('docker', 'stop'), ('docker', 'volume'), ('docker', 'system')]
+                   for c in runner.calls)
