@@ -32,7 +32,9 @@ Key = Annotated[str, Header(alias='Idempotency-Key', min_length=1, max_length=12
 def status(user: User, session: Database):
     gate = session.get(ApiChannel, 1)
     return {'enabled': get_api_settings().enabled, 'paused': bool(gate and gate.paused),
-            'reason': gate.reason if gate else None}
+            'reason': gate.reason if gate else None,
+            'cooldownUntil': gate.cooldown_until if gate else None,
+            'recovering': bool(gate and gate.recovering)}
 
 
 @router.post('/files', openapi_extra=UPLOAD_BODY)
@@ -141,6 +143,12 @@ def retry_item(task_id: UUID, item_id: UUID, user: User, session: Database, key:
 @router.post('/tasks/{task_id}/items/{item_id}/restore')
 def restore_item(task_id: UUID, item_id: UUID, data: RestoreVersion, user: User, session: Database, key: Key):
     return {'taskId': str(versions.restore(session, user, task_id, item_id, data, key))}
+
+
+@router.post('/tasks/{task_id}/items/{item_id}/stop', status_code=202)
+def stop_item(task_id: UUID, item_id: UUID, user: User, session: Database, key: Key):
+    from .retry_stop import stop
+    return {'taskId': str(stop(session, user, task_id, item_id, key))}
 
 
 @router.get('/tasks/{task_id}/zip')

@@ -38,13 +38,15 @@ def test_manual_collection_retry_bypasses_uncertain_without_regeneration(files_e
     assert len(task['items'][0]['versions']) == 1
     assert task['status'] == 'uncertain'
     assert downloads == ['https://example.test/result.png'] and not client.calls
-    assert claim(factory) is None
+    assert claim(factory)[2] == 'running'  # The unknown sibling owns only its slot.
 
 
 def test_collection_backoff_runs_and_exhausts_while_generation_blocked(files_env):
     web, factory, store, _ = files_env
     task_id, _ = pending_collection(web, factory)
     client, downloads = Client(), []
+    with factory.begin() as session:
+        session.get(ApiChannel, 1).paused = True  # Pause generation, not receipt recovery.
     def download(url):
         downloads.append(url)
         raise OSError('temporary download failure')
@@ -66,10 +68,11 @@ def test_blocked_collection_requires_result_and_honors_pause_and_live_lease(file
     _, items = pending_collection(web, factory)
     with factory.begin() as session:
         session.get(ApiChannel, 1).paused = True
-    assert claim(factory) is None
+    collected = claim(factory)
+    assert collected[2] == 'collecting'
     with factory.begin() as session:
-        session.get(ApiChannel, 1).paused = False
         first = session.get(ApiItem, UUID(items[0]['id']))
+        first.lease_token = first.lease_until = None
         first.result_url = None
     assert claim(factory) is None
     with factory.begin() as session:
@@ -93,5 +96,5 @@ def test_safe_collection_still_obeys_global_ten_lease_limit(files_env):
             item.state, item.result_bytes = 'collecting', image_bytes()
         items[-1].state = 'uncertain'
     reservations = [claim(factory) for _ in range(12)]
-    assert len([value for value in reservations if value]) == 10
-    assert len({value[0] for value in reservations if value}) == 10
+    assert len([value for value in reservations if value]) == 9
+    assert len({value[0] for value in reservations if value}) == 9

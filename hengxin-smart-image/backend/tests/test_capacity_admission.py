@@ -106,11 +106,15 @@ def test_delete_request_retains_capacity_until_actual_cleanup_and_expired_lease_
     assert store.objects == {}
     create(web, 1)
     first = api_claim(factory)
+    # Only a final send permit can leave an unknown upstream call on expiry.
+    assert start_attempt(factory, *first[:2])
     with factory.begin() as session:
         session.get(ApiItem, first[0]).lease_until = utcnow() - timedelta(seconds=1)
     assert api_claim(factory) is None
     with factory() as session:
         assert pending_bytes(session) == 60 * MIB
+        item = session.get(ApiItem, first[0])
+        assert item.state == 'uncertain' and item.lease_token == first[1]
 
 
 def test_revision_has_new_cycle_and_preserves_previous_debt(files_env):

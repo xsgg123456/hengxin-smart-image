@@ -13,14 +13,15 @@ export const operationLabel = (kind?: ApiOperationKind) => kind === 'image_edit'
 export interface ApiVersion { kind?: ApiOperationKind; number: number; picture: ApiPicture; created: string; operator: string; text: string; annotation: ApiPicture | null; baseVersion: number | null }
 export interface ApiRevision { kind?: ApiOperationKind; state: ApiItemState; text: string; annotation: ApiPicture | null; operator: string; baseVersion: number; retries: number; error: string | null }
 export interface ApiRevisionInput { kind?: 'image_edit' | 'text_edit' | 'text_repair'; prompt?: string; baseVersion: number; text: string; annotationFileId?: string | null }
-export interface ApiItem { cliActivity?: CliActivity; currentVersion: number | null; versions: ApiVersion[]; revision: ApiRevision | null; id: string; position: number; source: ApiPicture | null; state: ApiItemState; retries: number; nextAttemptAt: string | null; result: ApiPicture | null; error: string | null }
+export interface ApiRetry { cycleId: string | null; attempts: number; maxAttempts: number; startedAt: string | null; deadlineAt: string | null; nextAttemptAt: string | null; stopRequested: boolean; canStop: boolean; reason: string | null }
+export interface ApiItem { retry?: ApiRetry; cliActivity?: CliActivity; currentVersion: number | null; versions: ApiVersion[]; revision: ApiRevision | null; id: string; position: number; source: ApiPicture | null; state: ApiItemState; retries: number; nextAttemptAt: string | null; result: ApiPicture | null; error: string | null }
 export interface ApiTask extends ApiTaskActivity {
   id: string; name: string; prompt: string; created: string; status: ApiTaskState
   operator: string; batch: { current: number; total: number; running: number }
   material: ApiPicture | null; items: ApiItem[]; events: string[]; error: string | null
   metrics: { requestCount: number; retryCount: number; elapsedSeconds: number | null; queueSeconds?: number | null; generationSeconds?: number | null }
 }
-export interface ApiChannel { enabled: boolean; paused: boolean; reason: string | null }
+export interface ApiChannel { enabled: boolean; paused: boolean; reason: string | null; cooldownUntil?: string | null; recovering?: boolean }
 export interface ApiTaskInput { name: string; prompt: string; originalFileIds: string[]; materialFileId: string }
 export interface ApiTaskSummary extends ApiTaskActivity {
   id: string; name: string; created: string; status: ApiTaskState; operator: string

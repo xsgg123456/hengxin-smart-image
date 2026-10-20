@@ -21,13 +21,10 @@ def test_five_tasks_sixth_queues_and_failure_releases_slot(files_env):
     with factory() as session:
         assert {session.get(ApiItem, r[0]).task_id for r in reservations} == set(ids[:5])
         assert session.get(ApiTask, ids[5]).state == 'queued'
-    # Backoff still owns a task slot even though no image lease is live.
+    # Backoff without an upstream call yields its task slot to the sixth task.
     failure(factory, *reservations[0][:2], 'retryable', 'HTTP_503')
     with factory.begin() as session:
         session.get(ApiItem, reservations[0][0]).next_attempt_at = utcnow() + timedelta(hours=1)
-    assert claim(factory) is None
-    # Definitive failure finishes the task and admits the next queued task.
-    failure(factory, *reservations[1][:2], 'permanent', 'INVALID_INPUT')
     sixth = claim(factory)
     assert sixth
     with factory() as session:

@@ -10,14 +10,18 @@ from .models import ApiAttempt, ApiItem, ApiTask
 from .deletion_models import ApiTaskDeletion
 from .scheduling import IMAGES_PER_TASK, TASK_CONCURRENCY, candidates
 from .state import ACTIVE, aware, channel, event, refresh_task, release, release_item
+from .retry_policy import database_now, inherit_legacy, exhausted, end_wait, consume
+from . import limiter
 
 
 def mark_uncertain(session, item):
     item.state, item.error = 'uncertain', '请求状态不确定，需管理员确认旧调用停止'
-    release_item(item)
+    item.retry_reason = 'uncertain'
+    # Unknown requests keep their ownership token, capacity and late-result path.
     task = session.get(ApiTask, item.task_id)
     for attempt in session.scalars(select(ApiAttempt).where(ApiAttempt.item_id == item.id,
                                                           ApiAttempt.state == 'running')):
+        limiter.outcome(channel(session), attempt, 'uncertain', database_now(session))
         attempt.state, attempt.error = 'uncertain', item.error
         attempt.completed_at = utcnow()
         from app.modules.management.api_stats.facts import record_attempt
@@ -42,7 +46,7 @@ def claim(factory):
     with factory.begin() as session:
         gate = channel(session)
         adopt_legacy(session, gate)
-        now = utcnow()
+        now = database_now(session)
         # Only admission holds the DB lock; each image owns its network-call lease.
         pending = session.scalars(select(ApiItem).join(ApiTask).where(
             ApiTask.deleted_at.is_(None), ApiItem.state.in_(ACTIVE),
@@ -51,16 +55,30 @@ def claim(factory):
         if not pending:
             return None
         for item in pending:
+            inherit_legacy(session, item)
             if item.state == 'running' and (not item.lease_until or aware(item.lease_until) <= now):
-                mark_uncertain(session, item)
-        if gate.paused:
-            return None
-        leased = [item for item in pending if item.lease_token and item.lease_until
-                  and aware(item.lease_until) > now]
+                sent = session.scalar(select(ApiAttempt.id).where(ApiAttempt.item_id == item.id,
+                    ApiAttempt.state == 'running').limit(1))
+                if sent or item.retry_policy_version == 'legacy-v1':
+                    mark_uncertain(session, item)
+                else:
+                    item.state = 'queued'
+                    release_item(item)
+            if item.state in {'queued', 'retry_wait'} and not (item.result_url or item.result_bytes):
+                reason = exhausted(item, now)
+                if reason:
+                    end_wait(item, reason)
+                    refresh_task(session, session.get(ApiTask, item.task_id))
+        pending = [item for item in pending if item.state in ACTIVE]
+        leased = [item for item in pending if item.state == 'uncertain' or
+                  (item.lease_token and item.lease_until and aware(item.lease_until) > now)]
         if len(leased) >= TASK_CONCURRENCY * IMAGES_PER_TASK:
             return None
-        blocked = any(item.state == 'uncertain' for item in pending)
-        for item in candidates(session, pending, leased, blocked):
+        for item in candidates(session, pending, leased, False, now):
+            if item.state == 'uncertain':
+                continue
+            if gate.paused and not (item.result_url or item.result_bytes):
+                continue
             if item.lease_token and item.lease_until and aware(item.lease_until) > now:
                 continue
             if item.next_attempt_at and aware(item.next_attempt_at) > now:
@@ -90,32 +108,53 @@ def owned(session, item_id, token):
         return None, None
     if session.get(ApiTaskDeletion, item.task_id):
         return None, None
-    if aware(item.lease_until) <= utcnow():
+    if aware(item.lease_until) <= database_now(session):
         if item.state == 'running':
             mark_uncertain(session, item)
-        return None, None
+        if item.state != 'uncertain':
+            return None, None
     return gate, item
 
 
 def start_attempt(factory, item_id, token, requested_size=None):
     with factory.begin() as session:
-        _, item = owned(session, item_id, token)
+        gate, item = owned(session, item_id, token)
         if not item or item.state != 'running':
+            return False
+        inherit_legacy(session, item)
+        now = database_now(session)
+        task = session.get(ApiTask, item.task_id)
+        if session.scalar(select(ApiAttempt.id).where(ApiAttempt.item_id == item.id,
+                ApiAttempt.state == 'running').limit(1)):
+            return False
+        reason = exhausted(item, now)
+        if reason:
+            end_wait(item, reason)
+            refresh_task(session, task)
+            return False
+        reason, due = limiter.waiting(session, gate, now)
+        if reason:
+            item.state, item.retry_reason, item.next_attempt_at = 'retry_wait', reason, due
+            release_item(item)
+            refresh_task(session, task)
             return False
         if not covered(session, item.capacity_cycle_id, 'api', item.id,
                        2 * get_api_settings().max_download_bytes):
             item.state, item.error = 'queued', WAITING
             release_item(item)
             return False
-        task = session.get(ApiTask, item.task_id)
         if item.cycle_retries > 0:
             item.retries += 1
         dimensions = tuple(map(int, requested_size.split("x"))) if requested_size else (None, None)
         attempt = ApiAttempt(item_id=item.id,
                              operator_id=item.request_operator_id or item.revision_operator_id or task.owner_id,
-                             request_width=dimensions[0], request_height=dimensions[1])
+                             request_width=dimensions[0], request_height=dimensions[1],
+                             retry_cycle_id=item.retry_cycle_id)
         session.add(attempt)
         session.flush()
+        consume(item, now)
+        task.last_send_at = now
+        limiter.granted(gate, attempt, now)
         from app.modules.management.api_stats.facts import record_attempt
         record_attempt(session, item, task, attempt, started=True)
         return True

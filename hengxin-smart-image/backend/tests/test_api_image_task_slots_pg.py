@@ -47,7 +47,10 @@ def test_racing_deliveries_claim_only_five_tasks_and_fifty_images(pg_api):
         assert session.get(ApiTask, ids[5]).state == 'queued'
 
 
-def test_five_executor_batches_overlap_with_fifty_calls(pg_api):
+def test_task_cap_remains_fifty_when_channel_cap_explicitly_allows_it(pg_api, monkeypatch):
+    from app.modules.api_image_edits.config import get_api_settings
+    monkeypatch.setenv("API_IMAGE_MAX_INFLIGHT", "50")
+    get_api_settings.cache_clear()
     factory, user, _, store = pg_api
     ids = six_tasks(factory, user, store)
     barrier, lock = Barrier(50), Lock()
@@ -69,6 +72,9 @@ def test_five_executor_batches_overlap_with_fifty_calls(pg_api):
         for key in ids[:5]:
             assert session.get(ApiTask, key).state == 'running'  # Batch 2 keeps its slot.
         assert session.get(ApiTask, ids[5]).state == 'queued'
-    # The next invocation finishes the second batches, then allows task six.
+    # A task that has not sent yet gets a fair slot before old second batches.
     reservations = [claim(factory) for _ in range(6)]
-    assert all(reservations[:5]) and reservations[5] is None
+    assert all(reservations)
+    with factory() as session:
+        assert session.get(ApiItem, reservations[0][0]).task_id == ids[5]
+        assert len({session.get(ApiItem, value[0]).task_id for value in reservations}) == 5

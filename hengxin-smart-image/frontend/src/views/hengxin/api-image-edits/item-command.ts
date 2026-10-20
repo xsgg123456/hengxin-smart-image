@@ -3,7 +3,7 @@ import { reactive } from 'vue'
 import { errorText, uncertainResponse } from '@/api/api-image-edits'
 import type { RevisionReference } from './revision-references'
 import type { ApiPicture, ApiRevisionInput } from '@/types/api-image-edits'
-export type ItemCommand = { kind: 'revise'; input: ApiRevisionInput; annotation?: ApiPicture; references?: RevisionReference[] } | { kind: 'restore'; version: number } | { kind: 'retry' }
+export type ItemCommand = { kind: 'revise'; input: ApiRevisionInput; annotation?: ApiPicture; references?: RevisionReference[] } | { kind: 'restore'; version: number } | { kind: 'retry' } | { kind: 'stop' }
 export interface PendingCommand { key: string; command: ItemCommand; uncertain: boolean }
 export interface CommandStorage { load(): PendingCommand | null; save(value: PendingCommand | null): void }
 export function createItemCommand(storage?: CommandStorage, key = () => crypto.randomUUID()) {
@@ -30,7 +30,7 @@ const commands = new Map<string, ReturnType<typeof createItemCommand>>()
 export function itemCommand(user: string, task: string, item: string) {
   const id = `api-image-command:${user}:${task}:${item}`
   if (!commands.has(id)) commands.set(id, createItemCommand({
-    load() { try { const value = JSON.parse(sessionStorage.getItem(id) || 'null') as PendingCommand | null; return value?.key && ['revise', 'restore', 'retry'].includes(value.command?.kind) ? { ...value, uncertain: true } : null } catch { return null } },
+    load() { try { const value = JSON.parse(sessionStorage.getItem(id) || 'null') as PendingCommand | null; return value?.key && ['revise', 'restore', 'retry', 'stop'].includes(value.command?.kind) ? { ...value, uncertain: true } : null } catch { return null } },
     save(value) { try { if (value) sessionStorage.setItem(id, JSON.stringify(value)); else sessionStorage.removeItem(id) } catch { /* 内存仍保留原请求 */ } }
   }))
   return commands.get(id)!

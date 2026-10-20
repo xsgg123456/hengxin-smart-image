@@ -10,6 +10,7 @@ from .config import PARAMETERS, get_api_settings
 from .files import find_file
 from .models import ApiDispatch, ApiItem, ApiOperation, ApiTask
 from .state import channel, event, refresh_task
+from .retry_policy import new_cycle
 
 def enabled():
     if not get_api_settings().enabled:
@@ -56,8 +57,10 @@ def submit(session, user, data, key):
     from app.modules.management.api_stats.facts import record_task
     record_task(session, task)
     for position, source_id in enumerate(data.originalFileIds, 1):
-        session.add(ApiItem(task_id=task.id, source_id=source_id, position=position,
-                            request_operator_id=user.id, request_is_retry=False))
+        item = ApiItem(task_id=task.id, source_id=source_id, position=position,
+                       request_operator_id=user.id, request_is_retry=False)
+        new_cycle(item)
+        session.add(item)
     session.add(ApiDispatch(id=task.id))
     session.add(ApiOperation(operator_id=user.id, key=key, payload_hash=digest, task_id=task.id))
     session.commit()
@@ -76,6 +79,8 @@ def retry(session, user, task_id, key):
     items = session.scalars(select(ApiItem).where(ApiItem.task_id == task.id,
                                                 ApiItem.state == 'failed')).all()
     for item in items:
+        if not (item.result_url or item.result_bytes):
+            new_cycle(item)
         item.request_operator_id, item.request_is_retry = user.id, True
         item.state = 'collecting' if item.result_url or item.result_bytes else 'queued'
         item.cycle_retries = item.collection_retries = 0

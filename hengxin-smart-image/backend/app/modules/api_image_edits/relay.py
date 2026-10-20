@@ -2,6 +2,7 @@
 import base64
 import binascii
 import json
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -15,9 +16,11 @@ from .config import PARAMETERS, get_api_settings
 
 
 class RelayError(Exception):
-    def __init__(self, kind, code, message, retry_after=None):
+    def __init__(self, kind, code, message, retry_after=None, request_id=None, retry_after_at=None):
         super().__init__(message)
         self.kind, self.code, self.retry_after = kind, code, retry_after
+        self.request_id = request_id
+        self.retry_after_at = retry_after_at
 
 
 @dataclass(frozen=True)
@@ -31,15 +34,25 @@ def retry_after_seconds(value):
     if not value:
         return None
     try:
-        seconds = int(value) if str(value).isdigit() else int(
+        seconds = int(value) if str(value).isdigit() else math.ceil(
             (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds())
-        return max(0, min(seconds, 86400))
+        if seconds > 365 * 86400:
+            raise RelayError('channel', 'RETRY_AFTER_TOO_LONG', '上游要求长时间暂停，请管理员核实')
+        return max(0, seconds)
     except (TypeError, ValueError, OverflowError):
         return None
 
 
 def safe_request_id(value):
     return value if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9._:-]{1,128}', value) else None
+
+
+def retry_after_date(value):
+    try:
+        parsed = parsedate_to_datetime(value)
+        return parsed if parsed.tzinfo is not None else None
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 CHANNEL_CODES = frozenset({
@@ -98,11 +111,10 @@ class RelayClient:
                                                for data, mime in additional_images)):
             raise RelayError('permanent', 'INVALID_INPUT', '修改参照图片不完整或格式不受支持')
 
-    def generate(self, original_bytes, original_mime, material_bytes, material_mime, prompt,
+    def prepare(self, original_bytes, original_mime, material_bytes, material_mime, prompt,
                  parameters=None, additional_images=None):
         self.preflight(original_bytes, original_mime, material_bytes, material_mime, prompt, parameters,
                        additional_images)
-        config = self.settings
         images = []
         for data, mime in [(original_bytes, original_mime), (material_bytes, material_mime),
                            *(additional_images or [])]:
@@ -110,6 +122,13 @@ class RelayClient:
                 continue
             images.append({'image_url': f'data:{mime};base64,' + base64.b64encode(data).decode('ascii')})
         body = json.dumps({**(PARAMETERS if parameters is None else parameters), 'prompt': prompt, 'images': images}, ensure_ascii=False).encode()
+        return body
+
+    def generate(self, *args):
+        return self.send_prepared(self.prepare(*args))
+
+    def send_prepared(self, body):
+        config = self.settings
         response = None
         started = time.monotonic()
         try:
@@ -121,15 +140,19 @@ class RelayClient:
                                         total=config.request_timeout_seconds),
                 retries=False, redirect=False, preload_content=False)
             return self._parse(response, started)
-        except RelayError:
+        except RelayError as error:
+            if response is not None:
+                error.request_id = safe_request_id(response.headers.get('x-request-id'))
             raise
         except (NewConnectionError, ConnectTimeoutError):
             raise RelayError('retryable', 'CONNECT_FAILED', '连接中转站失败，可稍后重试') from None
         except SSLError:
             # TLS failures can also occur while reading a response, after send.
-            raise RelayError('uncertain', 'TLS_UNCERTAIN', '安全连接中断，需先核实上游执行状态') from None
+            raise RelayError('uncertain', 'TLS_UNCERTAIN', '安全连接中断，需先核实上游执行状态',
+                request_id=safe_request_id(response.headers.get('x-request-id')) if response is not None else None) from None
         except (HTTPError, OSError, TimeoutError):
-            raise RelayError('uncertain', 'REQUEST_UNCERTAIN', '请求结果尚未确认，请先核实上游执行状态') from None
+            raise RelayError('uncertain', 'REQUEST_UNCERTAIN', '请求结果尚未确认，请先核实上游执行状态',
+                request_id=safe_request_id(response.headers.get('x-request-id')) if response is not None else None) from None
         finally:
             if response is not None:
                 response.close()
@@ -142,8 +165,9 @@ class RelayClient:
         if 400 <= status <= 599 and channel_rejection(response):
             raise RelayError('channel', 'CHANNEL_REJECTED', '中转站拒绝调用，请检查密钥、额度和模型配置')
         if status == 429 or 500 <= status <= 599:
+            retry_after = response.headers.get('Retry-After')
             raise RelayError('retryable', f'HTTP_{status}', '中转站繁忙或暂时不可用',
-                             retry_after_seconds(response.headers.get('Retry-After')))
+                             retry_after_seconds(retry_after), retry_after_at=retry_after_date(retry_after))
         if status == 408:
             raise RelayError('uncertain', 'UPSTREAM_TIMEOUT', '中转站请求超时，需核实是否已生成')
         if status != 200:

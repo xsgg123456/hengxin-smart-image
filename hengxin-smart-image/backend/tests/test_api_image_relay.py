@@ -51,10 +51,11 @@ def test_text_only_revision_sends_only_current_result_without_extra_prompt():
 @pytest.mark.parametrize(('status', 'kind'), [(429, 'retryable'), (503, 'retryable'),
     (401, 'channel'), (402, 'channel'), (403, 'channel'), (400, 'permanent'), (408, 'uncertain')])
 def test_http_error_categories_are_sanitized(status, kind):
-    pool = Mock(); pool.request.return_value = response(status, headers={'Retry-After': '7'})
+    pool = Mock(); pool.request.return_value = response(status, headers={'Retry-After': '7', 'x-request-id': 'req-error-1'})
     with pytest.raises(RelayError) as exc:
         generate(RelayClient(config(), pool))
     assert exc.value.kind == kind
+    assert exc.value.request_id == 'req-error-1'
     assert 'test-only-key' not in str(exc.value)
     if kind == 'retryable': assert exc.value.retry_after == 7
     assert pool.request.call_count == 1
@@ -90,12 +91,13 @@ def test_connect_and_post_send_uncertainty_are_distinct(error, kind):
 
 
 def test_tls_error_reading_success_response_is_uncertain_not_replayable():
-    pool = Mock(); reply = response()
+    pool = Mock(); reply = response(headers={'x-request-id': 'req-unknown-1'})
     reply.read1.side_effect = SSLError('private post-send TLS failure')
     pool.request.return_value = reply
     with pytest.raises(RelayError) as error:
         generate(RelayClient(config(), pool))
     assert error.value.kind == 'uncertain'
+    assert error.value.request_id == 'req-unknown-1'
     assert pool.request.call_count == 1
     assert 'private' not in str(error.value)
 

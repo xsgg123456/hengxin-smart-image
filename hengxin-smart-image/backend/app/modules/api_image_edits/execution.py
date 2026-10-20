@@ -159,21 +159,26 @@ def _execute_claim(factory, store, client, downloader, item_id, token, state):
             return True
         relay = client or RelayClient()
         try:
-            if hasattr(relay, 'preflight'):
+            prepared = relay.prepare(*args) if hasattr(relay, 'prepare') else None
+            if prepared is None and hasattr(relay, 'preflight'):
                 relay.preflight(*args)
         except RelayError as error:
-            failure(factory, item_id, token, error.kind, error.code, error.retry_after)
+            failure(factory, item_id, token, error.kind, error.code, error.retry_after,
+                    error.request_id, error.retry_after_at)
+            return True
+        except Exception:
+            failure(factory, item_id, token, 'permanent', 'request_serialization_failed')
             return True
         if not start_attempt(factory, item_id, token, args[5]["size"]):
             return True
         try:
-            result = relay.generate(*args)
+            result = relay.send_prepared(prepared) if prepared is not None else relay.generate(*args)
         except RelayError as error:
-            kind = 'retryable' if error.kind == 'permanent' else error.kind
-            failure(factory, item_id, token, kind, error.code, error.retry_after)
+            failure(factory, item_id, token, error.kind, error.code, error.retry_after,
+                    error.request_id, error.retry_after_at)
             return True
         except Exception:
-            # The call has ended locally; the user opted into bounded retries.
+            # Local completion does not prove the upstream did not generate an image.
             failure(factory, item_id, token, 'uncertain', 'request_outcome_unknown')
             return True
         if not save_response(factory, item_id, token, result):

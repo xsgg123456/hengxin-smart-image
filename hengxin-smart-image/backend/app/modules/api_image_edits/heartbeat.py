@@ -2,10 +2,10 @@ from contextlib import contextmanager
 from datetime import timedelta
 from threading import Event, Thread
 
-from app.models import utcnow
 from .claims import owned
 from .config import get_api_settings
 from .state import aware
+from .retry_policy import database_now
 
 
 def renew(factory, item_id, token):
@@ -13,9 +13,10 @@ def renew(factory, item_id, token):
         gate, item = owned(session, item_id, token)
         if not item or item.state not in {'running', 'collecting'}:
             return False
-        if aware(item.lease_until) <= utcnow():
+        now = database_now(session)
+        if aware(item.lease_until) <= now:
             return False
-        item.lease_until = utcnow() + timedelta(seconds=get_api_settings().lease_seconds)
+        item.lease_until = now + timedelta(seconds=get_api_settings().lease_seconds)
         return True
 
 

@@ -17,6 +17,7 @@ export function createApiImageClient(baseUrl: string, fetcher: typeof fetch = fe
     retry: (id: string, key: string) => request(`${path(id)}/retry`, valid.accepted, 'POST', undefined, 10000, { 'Idempotency-Key': key }),
     revise: (id: string, item: string, input: ApiRevisionInput, key: string) => request(path(id) + '/items/' + encodeURIComponent(item) + '/revise', valid.accepted, 'POST', input, 10000, { 'Idempotency-Key': key }),
     retryItem: (id: string, item: string, key: string) => request(path(id) + '/items/' + encodeURIComponent(item) + '/retry', valid.accepted, 'POST', undefined, 10000, { 'Idempotency-Key': key }),
+    stopItem: (id: string, item: string, key: string) => request(path(id) + '/items/' + encodeURIComponent(item) + '/stop', valid.accepted, 'POST', undefined, 10000, { 'Idempotency-Key': key }),
     restore: (id: string, item: string, version: number, key: string) => request(path(id) + '/items/' + encodeURIComponent(item) + '/restore', valid.accepted, 'POST', { version }, 10000, { 'Idempotency-Key': key }),
     zip: async (id: string) => {
       const blob = await readIdentityBlob(root + path(id) + '/zip', { signal: AbortSignal.timeout(120000) }, fetcher)

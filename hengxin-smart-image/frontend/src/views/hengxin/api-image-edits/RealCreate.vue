@@ -13,13 +13,13 @@
         </ElCard>
       </div>
       <aside class="hx-summary"><ElCard class="art-card hx-summary-card" shadow="never">
-        <div class="hx-section-title"><h2>本次换图</h2><ElTag round>串行处理</ElTag></div>
+        <div class="hx-section-title"><h2>本次换图</h2><ElTag round>按序分批</ElTag></div>
         <div v-if="material" class="hx-summary-art"><PicturePreview :picture="material" title="共用素材" /><span>共用替换素材</span></div><ElEmpty v-else description="添加图片后预览素材" :image-size="75" />
         <dl><div><dt>待修改原图</dt><dd>{{ originalCount }} 张</dd></div><div><dt>共用素材</dt><dd>{{ material || state.pending ? '1 张' : '尚未添加' }}</dd></div><div><dt>预计输出</dt><dd>{{ originalCount }} 张</dd></div><div><dt>成品规格</dt><dd>按原图尺寸 · PNG</dd></div></dl>
-        <div class="hx-skill-note"><ArtSvgIcon icon="ri:refresh-line" /><div><strong>可恢复错误自动重试，最多 3 次</strong><small>等待 1 秒、2 秒、4 秒后依次重试</small></div></div>
+        <div class="hx-skill-note"><ArtSvgIcon icon="ri:refresh-line" /><div><strong>每张每轮最多尝试 20 次（含首次）</strong><small>从首次发送起 45 分钟内，对临时错误错峰重试；随机等待 5–60 秒后排队，上游冷却时可能更久。成功即停止。</small></div></div>
         <p v-if="state.images.some(p => p.state !== 'ready')" class="hx-footnote">请等待上传完成，并重传或移除失败图片。</p><p v-else-if="!draft.valid()" class="hx-footnote">请添加至少 1 张原图和 1 张素材，并填写任务名称与提示词。</p>
         <ElButton type="primary" size="large" class="hx-full hx-gap" :loading="state.busy" :disabled="state.busy || (!state.pending && (blocked || !draft.valid()))" @click="submit">{{ state.pending ? '再次确认原提交结果' : `开始处理，共 ${originalCount} 张` }} <ArtSvgIcon icon="ri:arrow-right-line" /></ElButton>
-        <p class="hx-footnote">逐张处理，结果按原图顺序展示。请求结果不确定时需管理员核实。</p>
+        <p class="hx-footnote">分批处理，结果按原图顺序展示。请求结果不确定时需管理员核实。</p>
       </ElCard></aside>
     </div>
   </div>

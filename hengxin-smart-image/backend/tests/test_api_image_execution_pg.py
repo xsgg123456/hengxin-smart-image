@@ -80,7 +80,7 @@ def test_postgres_concurrent_submit_and_single_global_claim(pg_api):
     assert sum(value is not None for value in claims) == 1
 
 
-def test_postgres_expired_claim_fences_late_results(pg_api):
+def test_postgres_expired_claim_keeps_unknown_and_accepts_owned_late_result(pg_api):
     factory, user, data, _ = pg_api
     with factory() as session:
         submit(session, user, data, 'one')
@@ -89,10 +89,10 @@ def test_postgres_expired_claim_fences_late_results(pg_api):
     assert start_attempt(factory, item_id, token)
     with factory.begin() as session:
         session.get(ApiItem, item_id).lease_until = utcnow() - timedelta(seconds=1)
-    assert claim(factory) is None
-    assert not save_response(factory, item_id, token, RelayResult(image_bytes=image_bytes()))
+    assert claim(factory) is not None  # Another task is not globally blocked.
+    assert save_response(factory, item_id, token, RelayResult(image_bytes=image_bytes()))
     assert claim(factory) is None
     with factory() as session:
         item = session.get(ApiItem, item_id)
-        assert item.state == 'uncertain' and item.result_bytes is None
-        assert item.lease_token is None
+        assert item.state == 'collecting' and item.result_bytes is not None
+        assert item.lease_token == token

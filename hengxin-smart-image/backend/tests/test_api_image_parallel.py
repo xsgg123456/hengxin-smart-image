@@ -32,19 +32,14 @@ def test_waiting_retry_does_not_block_sibling_but_blocks_next_batch(files_env):
     assert len(client.calls) == 12
 
 
-def test_finished_timeout_call_retries_three_times_then_fails(files_env):
+def test_finished_timeout_call_stays_unknown_without_automatic_replay(files_env):
     web, factory, store, _ = files_env
     task_id, _ = create(web, 1)
-    client = Client([RelayError('uncertain', 'REQUEST_UNCERTAIN', 'safe')] * 4)
-    for index in range(4):
-        before = utcnow()
-        assert execute_next(factory, store, client)
-        task = web.get(ROOT + '/tasks/' + task_id).json()
-        item = task['items'][0]
-        assert item['state'] == ('retry_wait' if index < 3 else 'failed')
-        if index < 3:
-            from datetime import datetime
-            delay = (datetime.fromisoformat(item['nextAttemptAt']) - before).total_seconds()
-            assert 2 ** index <= delay < 2 ** index + 2
+    client = Client([RelayError('uncertain', 'REQUEST_UNCERTAIN', 'safe')])
+    assert execute_next(factory, store, client)
+    for _ in range(4):
         due(factory)
-    assert len(client.calls) == 4
+        assert not execute_next(factory, store, client)
+    item = web.get(ROOT + '/tasks/' + task_id).json()['items'][0]
+    assert item['state'] == 'uncertain' and item['retry']['attempts'] == 1
+    assert len(client.calls) == 1

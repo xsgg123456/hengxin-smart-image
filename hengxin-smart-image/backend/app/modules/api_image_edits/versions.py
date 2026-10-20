@@ -10,6 +10,7 @@ from .files import find_file
 from .models import ApiDispatch, ApiItem, ApiOperation, ApiVersion
 from .service import enabled, find_task, operation
 from .state import channel, event, refresh_task
+from .retry_policy import new_cycle
 
 
 def ensure_legacy(session, item, task):
@@ -73,6 +74,8 @@ def target(session, task_id, item_id):
 
 
 def enqueue(session, task, item):
+    if not (item.result_url or item.result_bytes):
+        new_cycle(item)
     if task.state not in {'queued', 'running', 'uncertain'}:
         task.state = 'queued'
     item.state = 'collecting' if item.result_url or item.result_bytes else 'queued'

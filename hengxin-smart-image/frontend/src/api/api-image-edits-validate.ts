@@ -20,12 +20,16 @@ const version = (v: unknown): v is ApiVersion => object(v) && operationKind(v.ki
 const revision = (v: unknown) => v === null || (object(v) && operationKind(v.kind) && state(v.state) && text(v.text) && text(v.operator)
   && positive(v.baseVersion) && count(v.retries) && nullableText(v.error) && (v.annotation === null || picture(v.annotation)))
 const cliActivity = (v: unknown) => v === undefined || (text(v) && ['idle', 'queued', 'running', 'uncertain'].includes(v))
+const retry = (v: unknown) => v === undefined || (object(v) && nullableText(v.cycleId)
+  && count(v.attempts) && positive(v.maxAttempts) && v.attempts <= v.maxAttempts
+  && nullableText(v.startedAt) && nullableText(v.deadlineAt) && nullableText(v.nextAttemptAt)
+  && typeof v.stopRequested === 'boolean' && typeof v.canStop === 'boolean' && nullableText(v.reason))
 const activity = (v: Record<string, unknown>) => cliActivity(v.cliActivity)
   && (v.canDelete === undefined || typeof v.canDelete === 'boolean')
   && (v.deleteBlockedReason === undefined || nullableText(v.deleteBlockedReason))
   && (v.deletionState === undefined || (text(v.deletionState) && ['idle', 'deleting', 'failed'].includes(v.deletionState)))
   && (v.deletionError === undefined || nullableText(v.deletionError))
-const item = (v: unknown): v is ApiItem => object(v) && cliActivity(v.cliActivity) && id(v.id) && count(v.position) && v.position > 0 && (v.source === null || picture(v.source))
+const item = (v: unknown): v is ApiItem => object(v) && retry(v.retry) && cliActivity(v.cliActivity) && id(v.id) && count(v.position) && v.position > 0 && (v.source === null || picture(v.source))
   && text(v.state) && ['queued', 'running', 'retry_wait', 'collecting', 'succeeded', 'failed', 'uncertain'].includes(v.state)
   && (v.currentVersion === null || positive(v.currentVersion)) && Array.isArray(v.versions) && v.versions.every(version)
   && new Set(v.versions.map(i => i.number)).size === v.versions.length && revision(v.revision)
@@ -48,6 +52,7 @@ export const summary = (v: unknown): v is ApiTaskSummary => object(v) && activit
 export const page = (v: unknown): v is ApiTaskPage => object(v) && Array.isArray(v.items) && v.items.every(summary)
   && count(v.total) && count(v.page) && v.page > 0 && count(v.pageSize) && v.pageSize > 0
 export const channel = (v: unknown): v is ApiChannel => object(v) && typeof v.enabled === 'boolean' && typeof v.paused === 'boolean' && nullableText(v.reason)
+  && (v.cooldownUntil === undefined || nullableText(v.cooldownUntil)) && (v.recovering === undefined || typeof v.recovering === 'boolean')
 export const accepted = (v: unknown): v is { taskId: string } => object(v) && id(v.taskId)
 export const deleted = (v: unknown): v is { deleted: true } => object(v) && v.deleted === true
 export const empty = (v: unknown): v is void => v === undefined

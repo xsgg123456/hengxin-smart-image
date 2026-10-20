@@ -41,6 +41,7 @@ class ApiTask(Timestamps, Base):
     events: Mapped[list] = mapped_column(JSON, default=list)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_send_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_by: Mapped[UUID | None] = mapped_column(ForeignKey('users.id'))
 
@@ -67,6 +68,14 @@ class ApiItem(Timestamps, Base):
     state: Mapped[str] = mapped_column(String(20), default='queued')
     retries: Mapped[int] = mapped_column(Integer, default=0)
     cycle_retries: Mapped[int] = mapped_column(Integer, default=0)
+    retry_cycle_id: Mapped[UUID | None] = mapped_column(Uuid)
+    retry_policy_version: Mapped[str] = mapped_column(String(30), default='legacy-v1')
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=4)
+    retry_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stop_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    retry_reason: Mapped[str | None] = mapped_column(String(100))
     collection_retries: Mapped[int] = mapped_column(Integer, default=0)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(String(300))
@@ -90,6 +99,10 @@ class ApiAttempt(Timestamps, Base):
     request_height: Mapped[int | None] = mapped_column(Integer)
     return_width: Mapped[int | None] = mapped_column(Integer)
     return_height: Mapped[int | None] = mapped_column(Integer)
+    retry_cycle_id: Mapped[UUID | None] = mapped_column(Uuid)
+    gate_generation: Mapped[int | None] = mapped_column(Integer)
+    is_probe: Mapped[bool] = mapped_column(Boolean, default=False)
+    request_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class ApiDispatch(Timestamps, Base):
@@ -119,6 +132,13 @@ class ApiChannel(Timestamps, Base):
     item_id: Mapped[UUID | None] = mapped_column(ForeignKey('api_image_items.id'))
     token: Mapped[UUID | None] = mapped_column(Uuid)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_send_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_streak: Mapped[int] = mapped_column(Integer, default=0)
+    generation: Mapped[int] = mapped_column(Integer, default=0)
+    probe_attempt_id: Mapped[UUID | None] = mapped_column(Uuid)
+    recovering: Mapped[bool] = mapped_column(Boolean, default=False)
+    recovery_limit: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class ApiVersion(Timestamps, Base):

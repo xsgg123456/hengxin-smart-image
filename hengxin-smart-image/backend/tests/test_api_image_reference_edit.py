@@ -51,7 +51,8 @@ def test_v2_freezes_all_roles_across_automatic_manual_retry_and_confirmation(fil
         item.revision_text = '之后改变的说明'
     assert post(web, path + '/revise', body, 'accepted').status_code == 202
     assert web.delete(ROOT + '/files/' + snapshot['fileIds'][2]).status_code == 409
-    client = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 4)
+    client = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 3 +
+                    [RelayError('permanent', 'HTTP_400', 'safe')])
     for _ in range(4):
         assert execute_next(factory, store, client)
         due(factory)
@@ -88,7 +89,8 @@ def test_v1_executes_and_retries_original_one_or_two_images_without_new_referenc
     monkeypatch.setattr('app.modules.api_image_edits.versions.build_image_prompt',
                         lambda *args: pytest.fail('legacy policy must never be rebuilt'))
     assert post(web, path + '/revise', body, 'legacy-request').status_code == 202
-    failed = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 4)
+    failed = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 3 +
+                    [RelayError('permanent', 'HTTP_400', 'safe')])
     for _ in range(4):
         assert execute_next(factory, store, failed)
         due(factory)

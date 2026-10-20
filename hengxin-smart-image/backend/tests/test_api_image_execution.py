@@ -40,7 +40,9 @@ def test_order_single_claim_success_and_message_replay(files_env):
     client = Client()
     first = claim(factory)
     assert first and claim(factory) is None
-    # Expiry models process loss; it must block all further work, not resend.
+    from app.modules.api_image_edits.claims import start_attempt
+    assert start_attempt(factory, *first[:2])
+    # Expiry after the final permit models a genuinely unknown upstream call.
     with factory.begin() as session:
         session.get(ApiItem, first[0]).lease_until = utcnow() - timedelta(seconds=1)
     assert claim(factory) is None
@@ -78,9 +80,12 @@ def test_missing_key_pauses_before_counting_network_attempt(files_env):
     assert web.get(ROOT + '/status').json()['paused'] is True
 
 
-def test_three_backoffs_then_continue_and_idempotent_manual_retry(files_env):
+def test_legacy_three_backoffs_and_explicit_new_policy_retry(files_env):
     web, factory, store, _ = files_env
     task_id, _ = create(web, 1)
+    with factory.begin() as session:
+        item = session.scalar(select(ApiItem))
+        item.retry_policy_version, item.max_attempts = 'legacy-v1', 4
     client = Client([RelayError('retryable', 'HTTP_429', 'safe')] * 4)
     for index in range(4):
         assert execute_next(factory, store, client)
@@ -188,11 +193,11 @@ def test_invalid_result_and_api_rejection_continue_siblings(files_env):
     for _ in range(3):
         assert execute_next(factory, store, client)
     task = web.get(ROOT + '/tasks/' + task_id).json()
-    assert task['status'] == 'running'
-    assert [i['state'] for i in task['items']] == ['retry_wait', 'failed', 'succeeded']
+    assert task['status'] == 'partial_failed'
+    assert [i['state'] for i in task['items']] == ['failed', 'failed', 'succeeded']
     assert len(client.calls) == 3
     due(factory)
-    assert execute_next(factory, store, client)
+    assert not execute_next(factory, store, client)
     assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'partial_failed'
 
 

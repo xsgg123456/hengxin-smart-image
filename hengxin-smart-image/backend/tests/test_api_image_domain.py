@@ -15,6 +15,9 @@ ROOT = '/api/v1/api-image-edits'
 @pytest.fixture(autouse=True)
 def enabled_api(monkeypatch):
     monkeypatch.setenv('API_IMAGE_ENABLED', 'true')
+    # Existing business tests exercise inputs/versions, not elapsed wall time.
+    # Admission contract tests explicitly restore the production 5-second gate.
+    monkeypatch.setenv('API_IMAGE_SEND_INTERVAL_SECONDS', '0.000001')
     get_api_settings.cache_clear()
     yield
     get_api_settings.cache_clear()

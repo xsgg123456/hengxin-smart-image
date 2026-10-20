@@ -17,12 +17,16 @@ class ApiImageSettings(BaseSettings):
     enabled: bool = False
     api_key: SecretStr = Field(default=SecretStr(''), repr=False)
     base_url: str = 'https://api.qhhengxin.top'
-    request_timeout_seconds: int = Field(default=180, ge=10, le=600)
+    request_timeout_seconds: int = Field(default=300, ge=10, le=600)
     download_timeout_seconds: int = Field(default=60, ge=5, le=180)
     max_download_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=30 * 1024 * 1024)
     allowed_result_hosts: list[str] = Field(default_factory=lambda: ['cdn3.dmiapi.com'])
     broker_url: str = Field(default='redis://localhost:6379/1', repr=False)
-    lease_seconds: int = Field(default=360, ge=60, le=1800)
+    lease_seconds: int = Field(default=600, ge=60, le=1800)
+    send_interval_seconds: float = Field(default=5, gt=0, le=300)
+    max_inflight: int = Field(default=10, ge=1, le=50)
+    failure_threshold: int = Field(default=5, ge=1, le=20)
+    cooldown_seconds: int = Field(default=60, ge=1, le=3600)
 
     @field_validator('base_url')
     @classmethod

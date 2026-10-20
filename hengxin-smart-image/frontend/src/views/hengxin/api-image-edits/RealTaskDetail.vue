@@ -6,7 +6,8 @@
       <ElAlert v-if="actionError || downloadError" :title="actionError || downloadError" type="error" :closable="false" />
       <ElAlert v-if="task.deletionState && task.deletionState !== 'idle'" :title="task.deletionState === 'deleting' ? '正在永久删除任务及关联资料' : '删除未完成，请返回列表重试删除'" type="warning" :closable="false" />
       <ElAlert v-if="task.error" :title="task.error" type="warning" :closable="false" />
-      <ElAlert v-if="task.status === 'uncertain'" title="请求结果需核实，通道保持阻塞" description="旧请求可能仍在处理，不会自动重复生成。请联系超级管理员核实旧请求已停止后再恢复。" type="warning" show-icon :closable="false" />
+      <ElAlert v-if="channelMessage" :title="channelMessage" type="warning" :closable="false" />
+      <ElAlert v-if="task.status === 'uncertain'" title="部分请求结果需核实，保留发送名额" description="旧请求可能仍在处理，这些图片不会自动重复生成；其他图片按剩余名额和通道状态排队。请联系超级管理员核实旧请求已停止后，再重试这些图片。" type="warning" show-icon :closable="false" />
       <div class="hx-detail-toolbar hx-gap"><div><ElTag :type="task.status === 'succeeded' ? 'success' : task.status === 'uncertain' || failed ? 'danger' : 'primary'">{{ taskLabels[task.status] }}</ElTag><span class="hx-muted">{{ task.id }}</span></div><div class="detail-actions">
         <ElButton type="primary" :loading="packing" :disabled="!canZip || packing" @click="downloadZip">{{ packing ? '打包中…' : '下载整套 ZIP' }}</ElButton>
         <ElButton :loading="loading" @click="$emit('refresh')">刷新详情</ElButton>
@@ -26,10 +27,10 @@
           <div class="hx-row"><strong>原图 {{ item.position }}</strong><ElTag :type="item.state === 'succeeded' ? 'success' : ['failed', 'uncertain'].includes(item.state) ? 'danger' : item.state === 'retry_wait' ? 'warning' : 'info'" size="small">{{ itemLabels[item.state] }}</ElTag><CliActivityTag :state="item.cliActivity" /></div>
           <ElButton text type="primary" @click="comparisonId = item.id; comparisonOpen = true">查看原图 / 对照成品</ElButton>
           <div class="result-picture hx-gap"><ApiResultPicture :item="item" :results="results" /></div>
-          <p v-if="item.nextAttemptAt" class="hx-footnote">下次尝试：{{ friendlyTime(item.nextAttemptAt) }}</p><p v-if="item.error" class="item-error">{{ item.error }}</p>
+          <ItemRetryStatus :task-id="task.id" :item="item" :user="user" :locked="deleting || packing || busy" @accepted="emit('refresh')" />
+          <p v-if="item.error" class="item-error">{{ item.error }}</p>
           <div class="result-footer"><span>{{ item.result ? `当前 V${item.currentVersion} · 点击放大` : item.source?.name || '原图未记录' }}</span><ElButton v-if="item.result" text type="primary" :loading="downloading === item.result.fileId" :disabled="!!downloading" @click="download(item.result)">下载图片</ElButton></div>
           <p v-if="item.revision" class="hx-footnote">{{ operationLabel(item.revision.kind) }}：{{ itemLabels[item.revision.state] }} · {{ item.revision.operator }} · 基于 V{{ item.revision.baseVersion }}<span v-if="item.state !== 'succeeded'"> · 旧结果保留</span></p>
-          <p v-if="item.retries" class="hx-footnote">已自动重试 {{ item.retries }} / 3 次</p>
           <div class="card-actions">
             <ElButton v-if="item.result" size="small" :disabled="!canRevise(item, false)" @click="revisionId = item.id; revisionOpen = true">{{ pendingRevision(item, false) ? '确认原修改请求' : '修改图片' }}</ElButton>
             <ElButton v-if="item.result" size="small" :loading="command(item).state.busy && pendingRevision(item, true)" :disabled="!canRevise(item, true)" @click="repairText(item)">{{ pendingRevision(item, true) ? '确认原修复请求' : '修复文案' }}</ElButton>
@@ -50,7 +51,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { apiImages, errorText } from '@/api/api-image-edits'
-import { taskLabels, itemLabels, operationLabel, isTaskActive, type ApiPicture, type ApiTask, type ApiItem } from '@/types/api-image-edits'
+import { taskLabels, itemLabels, operationLabel, isTaskActive, type ApiPicture, type ApiTask, type ApiItem, type ApiChannel } from '@/types/api-image-edits'
+import ItemRetryStatus from './ItemRetryStatus.vue'
+import { channelRetryText } from './retry-status'
+import { useRetryClock } from './use-retry-clock'
 import CliActivityTag from './CliActivityTag.vue'
 import PicturePreview from '../components/PicturePreview.vue'
 import SharedMaterial from './SharedMaterial.vue'
@@ -62,7 +66,9 @@ import { useUserStore } from '@/store/modules/user'
 import { itemCommand, friendlyTime, saveBlob } from './item-command'
 import { identity } from '@/api/hengxin/identity'
 const open = defineModel<boolean>({ required: true })
-const props = defineProps<{ task?: ApiTask; loading: boolean; error: string; actionError: string; busy: boolean; admin: boolean; retryPending: boolean; channelBlocked: boolean }>()
+const props = defineProps<{ task?: ApiTask; loading: boolean; error: string; actionError: string; busy: boolean; admin: boolean; retryPending: boolean; channelBlocked: boolean; channel?: ApiChannel }>()
+const now = useRetryClock()
+const channelMessage = computed(() => channelRetryText(props.channel, now.value))
 const emit = defineEmits<{ refresh: []; retry: [id: string]; resolve: [id: string] }>()
 const success = computed(() => props.task?.items.filter(i => i.state === 'succeeded').length || 0), failed = computed(() => props.task?.items.filter(i => i.state === 'failed').length || 0)
 const results = computed(() => props.task?.items.flatMap(i => i.result ? [i.result] : []) || [])
@@ -144,6 +150,7 @@ async function download(picture: ApiPicture) {
 .input-grid p { margin-top:6px; text-align:center; }
 .prompt-text { white-space:pre-wrap; margin-bottom:16px; overflow-wrap:anywhere; }
 @media(max-width:700px) { .result-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .input-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:480px) { .result-grid { grid-template-columns:1fr; } }
 </style>
 
 <style scoped>.detail-actions { display:flex; flex-wrap:wrap; gap:8px; }.detail-actions .el-button { margin:0; }.item-error { margin-top:10px; font-size:12px; color:var(--el-color-danger); overflow-wrap:anywhere; }.hx-log { overflow-wrap:anywhere; }</style>

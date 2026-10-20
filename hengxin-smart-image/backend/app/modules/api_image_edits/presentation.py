@@ -9,6 +9,7 @@ from .state import aware
 from .summaries import summaries
 from .activity import activities
 from .deletion_state import describe
+from .retry_policy import view as retry_view
 
 
 def task_view(session, task):
@@ -63,6 +64,7 @@ def task_view(session, task):
             'items': [{'id': str(i.id), 'position': i.position, 'source': pic(i.source_id),
                        'state': i.state, 'cliActivity': item_activity.get(i.id, 'idle'),
                        'retries': i.cycle_retries, 'error': i.error,
+                       **({'retry': retry_view(i)} if i.retry_cycle_id else {}),
                        'nextAttemptAt': aware(i.next_attempt_at).isoformat() if i.next_attempt_at else None,
                        'result': pic(i.result_id), 'currentVersion': i.current_version or (1 if i.result_id else None),
                        'versions': item_versions(i),

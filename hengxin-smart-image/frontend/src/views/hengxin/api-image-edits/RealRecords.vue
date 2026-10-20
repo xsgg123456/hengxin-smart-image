@@ -16,7 +16,7 @@
       </ArtTable>
       <ElPagination v-if="total" v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next" class="hx-gap" />
     </ElCard>
-    <RealTaskDetail v-model="open" :task="selected" :loading="detailLoading" :error="detailError" :action-error="actionError" :busy="busy" :admin="isAdmin" :retry-pending="retryPending" :channel-blocked="blocked" @refresh="loadDetail()" @retry="retry" @resolve="resolve" />
+    <RealTaskDetail v-model="open" :task="selected" :loading="detailLoading" :error="detailError" :action-error="actionError" :busy="busy" :admin="isAdmin" :retry-pending="retryPending" :channel-blocked="blocked" :channel="status" @refresh="loadDetail()" @retry="retry" @resolve="resolve" />
   </div>
 </template>
 <script setup lang="ts">

@@ -42,7 +42,8 @@ def test_failed_revision_preserves_version_then_retry_uses_frozen_result_and_ann
         frozen_prompt = record.revision_snapshot['prompt']
     monkeypatch.setattr('app.modules.api_image_edits.versions.build_text_prompt',
                         lambda **kwargs: 'later policy must never replace frozen prompt')
-    failures = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 4)
+    failures = Client([RelayError('retryable', 'HTTP_503', 'safe')] * 3 +
+                      [RelayError('permanent', 'HTTP_400', 'safe')])
     for _ in range(4):
         assert execute_next(factory, store, failures)
         with factory.begin() as session:

@@ -31,7 +31,8 @@ def test_retry_freezes_actor_and_preserves_prior_attempt(files_env):
     client, factory, store, identity = files_env
     creator = identity[0]
     task, _ = create(client, 1)
-    relay = Client([RelayError('retryable', 'HTTP_429', 'safe')] * 4)
+    relay = Client([RelayError('retryable', 'HTTP_429', 'safe')] * 3 +
+                   [RelayError('permanent', 'HTTP_400', 'safe')])
     for _ in range(4):
         assert execute_next(factory, store, relay)
         due(factory)

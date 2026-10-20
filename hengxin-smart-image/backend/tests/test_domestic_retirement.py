@@ -8,13 +8,13 @@ import pytest
 from alembic.migration import MigrationContext
 from alembic import context
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import create_engine, inspect, select, text, MetaData, Table
 from sqlalchemy.orm import Session
 
 from app.main import app
 from app.models import Base, Job, Outbox, utcnow
 from app.resource_models import UserRecord
-from app.modules.api_image_edits.models import ApiFile, ApiTask, ApiItem
+from app.modules.api_image_edits.models import ApiFile
 from app.modules.management.models import SystemSettings, SettingsAuditRecord
 from app.capacity.models import CapacityReservation
 from app.worker.models import WorkerHeartbeat
@@ -83,11 +83,17 @@ def test_populated_api_and_shared_rows_preserved_exactly(migrated_pg, monkeypatc
                        content_type='image/png', checksum='a' * 64, size_bytes=10, width=2, height=2, status='ready')
         session.add(file)
         session.flush()
-        task = ApiTask(id=uuid4(), owner_id=user.id, operator_id=user.id, name='keep', prompt='keep',
-                       material_id=file.id, parameters={'frozen': True}, state='succeeded')
-        session.add(task)
-        session.flush()
-        session.add(ApiItem(task_id=task.id, source_id=file.id, result_id=file.id, position=1, state='succeeded'))
+        # This fixture deliberately remains at 0029. Seed its reflected shape,
+        # not current ORM columns introduced by later migrations such as 0031.
+        old = MetaData()
+        tasks = Table('api_image_tasks', old, autoload_with=session.connection())
+        items = Table('api_image_items', old, autoload_with=session.connection())
+        task_id, now = uuid4(), utcnow()
+        session.execute(tasks.insert().values(id=task_id, owner_id=user.id, operator_id=user.id,
+            name='keep', prompt='keep', material_id=file.id, parameters={'frozen': True},
+            state='succeeded', events=[], created_at=now, updated_at=now))
+        session.execute(items.insert().values(id=uuid4(), task_id=task_id, source_id=file.id,
+            result_id=file.id, position=1, state='succeeded', created_at=now, updated_at=now))
         for kind in ['api_cli_edit', 'skill_sync']:
             job = Job(id=uuid4(), idempotency_key=uuid4().hex, payload_hash='b' * 64, value='keep', kind=kind, status='succeeded')
             session.add(job)
@@ -98,7 +104,7 @@ def test_populated_api_and_shared_rows_preserved_exactly(migrated_pg, monkeypatc
         session.add(SystemSettings(id=1, version=3, values={'concurrency': 1, 'defaultSkillIds': {'text': 'old'}}))
         session.add(SettingsAuditRecord(operator_id=user.id, operator_name=user.name, version=3,
                     before={'defaultSkillIds': {'text': 'keep historical audit'}}, after={'concurrency':1}, fields=['defaultSkillIds']))
-        session.add(CapacityReservation(id=uuid4(), kind='cli', owner_id=task.id, bytes=2048, state='held'))
+        session.add(CapacityReservation(id=uuid4(), kind='cli', owner_id=task_id, bytes=2048, state='held'))
         session.add(WorkerHeartbeat(node='keep', dependencies={'cli': True}))
         session.add(RetentionObject(bucket='isolated', object_key='pending-object', next_attempt_at=utcnow()))
         session.add(ApiTaskDeletion(task_id=uuid4(), actor_id=user.id, manifest={'files': []}))
