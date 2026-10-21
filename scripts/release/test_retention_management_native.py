@@ -141,7 +141,7 @@ def test_ready_uses_snapshot_environment_and_rejects_pid_drift(monkeypatch, tmp_
         assert argv[:4] == ['runuser', '-u', 'codex', '--']
         assert kw['env']['PYTHONPATH'] == str(Path(row['cwd']))
         assert kw['env']['CODEX_AUTH_BROKER_SOCKET'] == '/run/broker'
-        assert kw['timeout'] <= 20
+        assert 20 < kw['timeout'] <= 45
         return SimpleNamespace(returncode=0, stdout='NATIVE_WORKER_READY\n', stderr='')
     monkeypatch.setattr(n.subprocess, 'run', run)
     if drift:

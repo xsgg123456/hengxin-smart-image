@@ -141,7 +141,7 @@ def ready(work, timeout=120):
         try:
             result = subprocess.run(['runuser', '-u', 'codex', '--', str(cwd / '.venv/bin/python'),
                 '-c', READINESS], cwd=cwd, env=env, capture_output=True, text=True,
-                timeout=min(20, remaining))
+                timeout=min(45, remaining))
             if result.returncode == 0 and result.stdout.strip() == 'NATIVE_WORKER_READY':
                 assert show(UNIT, 'MainPID') == str(row['pid']), 'Native worker restarted during check'
                 return
