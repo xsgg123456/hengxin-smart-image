@@ -67,7 +67,7 @@ def test_expire_preserves_adopted_versions_inputs_and_restarts_explicitly(files_
     before_objects = dict(store.objects)
     root = Path(cli_enabled.codex_execution_root)
     before = client.get(url + '/conversation').json()
-    assert api.process(factory, store, root, identifier, now + timedelta(days=7)) == 'expired'
+    assert api.process(factory, store, root, identifier, now + timedelta(days=3)) == 'expired'
     assert not home.parents[1].exists()
     view = client.get(url + '/conversation').json()
     assert view['retention']['status'] == 'expired' and view['turns'] == []
@@ -95,7 +95,7 @@ def test_unadopted_candidate_deleted_with_retryable_object_receipt(files_env, mo
     _, factory, store, _ = files_env
     with factory() as session:
         key = session.get(ApiFile, candidate).object_key
-    expiry = now + timedelta(days=7)
+    expiry = now + timedelta(days=3)
     assert api.process(factory, store, Path(cli_enabled.codex_execution_root), identifier, expiry) == 'expired'
     with factory() as session:
         assert session.get(ApiFile, candidate) is None
@@ -127,7 +127,7 @@ def test_filesystem_failure_fences_submit_and_retries(files_env, monkeypatch, cl
     client, factory, store, _ = files_env
     real = paths.clean
     monkeypatch.setattr(paths, 'clean', lambda *a, **kw: (_ for _ in ()).throw(OSError('disk')))
-    expiry = now + timedelta(days=7)
+    expiry = now + timedelta(days=3)
     assert api.process(factory, store, Path(cli_enabled.codex_execution_root), identifier, expiry) == 'retry'
     assert client.get(url + '/conversation').json()['retention']['status'] == 'expire_pending'
     assert post(client, url + '/conversation/turns', {'text': 'new', 'restartExpired': True}).status_code == 409
@@ -136,20 +136,26 @@ def test_filesystem_failure_fences_submit_and_retries(files_env, monkeypatch, cl
     assert not home.exists()
 
 
-def test_old_identity_gets_seven_day_grace_and_disabled_never_connects(files_env, monkeypatch, cli_enabled):
+def test_old_identity_preserves_activity_and_disabled_never_connects(files_env, monkeypatch, cli_enabled):
     identifier, _, _, now, _ = sample(files_env, monkeypatch, cli_enabled)
     _, factory, _, _ = files_env
+    expected = now - timedelta(hours=30)
     with factory.begin() as session:
+        conversation = session.get(Conversation, identifier)
+        conversation.created_at = now - timedelta(hours=60)
+        conversation.updated_at = now - timedelta(hours=40)
+        turn = session.scalar(select(ConversationTurn).where(ConversationTurn.conversation_id == identifier))
+        turn.created_at, turn.finished_at = now - timedelta(hours=50), expected
         session.delete(entry(session, 'api_cli', identifier))
     future = now + timedelta(days=50)
     register_existing(factory, 25, future)
     with factory() as session:
         from app.retention.state import aware
-        assert aware(entry(session, 'api_cli', identifier).last_activity_at) == future
+        assert aware(entry(session, 'api_cli', identifier).last_activity_at) == expected
     assert run_once(settings=cli_enabled) == {'status': 'disabled'}
 
 
-def test_pre_enable_tracking_gets_grace_only_once(files_env, monkeypatch, cli_enabled):
+def test_pre_enable_tracking_never_refreshes_activity(files_env, monkeypatch, cli_enabled):
     identifier, _, _, now, _ = sample(files_env, monkeypatch, cli_enabled)
     _, factory, _, _ = files_env
     future = now + timedelta(days=50)
@@ -158,7 +164,7 @@ def test_pre_enable_tracking_gets_grace_only_once(files_env, monkeypatch, cli_en
     with factory() as session:
         from app.retention.state import aware
         row = entry(session, 'api_cli', identifier)
-        assert aware(row.last_activity_at) == future
+        assert aware(row.last_activity_at) == now
         assert aware(row.initialized_at) == future
 
 
@@ -169,7 +175,7 @@ def test_thumbnail_lease_keeps_pending_until_safe(files_env, monkeypatch, cli_en
     with factory.begin() as session:
         variant = session.get(ImageVariants, ('api-image-edits', candidate))
         variant.lease_until = now + timedelta(days=8)
-    expiry = now + timedelta(days=7)
+    expiry = now + timedelta(days=3)
     assert api.process(factory, store, Path(cli_enabled.codex_execution_root), identifier, expiry) == 'retry'
     with factory() as session:
         assert session.get(ApiFile, candidate) is not None
@@ -189,7 +195,7 @@ def test_cross_item_reference_preserves_unadopted_object(files_env, monkeypatch,
         other.revision_snapshot = {'fileIds': [str(candidate)]}
         key = session.get(ApiFile, candidate).object_key
     assert api.process(factory, store, Path(cli_enabled.codex_execution_root), identifier,
-                       now + timedelta(days=7)) == 'expired'
+                       now + timedelta(days=3)) == 'expired'
     with factory() as session:
         assert session.get(ApiFile, candidate) is not None
     retry_objects(factory, store, now=now + timedelta(days=8))

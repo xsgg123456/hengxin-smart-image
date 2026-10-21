@@ -25,6 +25,6 @@ export function getPreviewUser(search = globalThis.location?.search ?? ''): User
 export function safeReturnPath(value: unknown): string {
   if (typeof value !== 'string' || !value.startsWith('/') || /[\\\r\n]/.test(value) || value.startsWith('//')) return '/api-image-edits/create'
   const path = value.split(/[?#]/)[0]
-  return /^\/(api-image-edits\/(create|records)|management\/(usage|monitor|users|settings))$/.test(path)
+  return /^\/(api-image-edits\/(create|records)|management\/(usage|monitor|retention|users|settings))$/.test(path)
     ? value : '/api-image-edits/create'
 }

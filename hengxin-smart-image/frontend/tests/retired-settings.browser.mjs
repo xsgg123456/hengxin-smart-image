@@ -25,7 +25,7 @@ await context.route('**/*', async route => {
   } else if (p.endsWith('/management/execution-settings')) body = {
     api: { enabled: true, taskConcurrency: 5, imagesPerBatch: 10, requestTimeoutSeconds: 180, downloadTimeoutSeconds: 60, leaseSeconds: 360, model: 'test', quality: 'xhigh', resolution: '1K', imagesPerRequest: 1, sizePolicy: '跟随原图宽高' },
     cli: { enabled: true, concurrency: config.concurrency, capacity: 10, timeoutSeconds: 600, timeoutCapacity: 7200, model: 'test', reasoningEffort: 'high', usesSkills: false },
-    maxUploadBytes: config.maxUploadBytes, retention: { enabled: true, cacheIdleDays: 1, historyIdleDays: 7 }
+    maxUploadBytes: config.maxUploadBytes, retention: { enabled: true, cacheIdleDays: 1, historyIdleDays: 3 }
   }
   else { errors.push(`Unexpected API ${p}`); return route.fulfill({ status: 501, body: '{}' }) }
   return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })

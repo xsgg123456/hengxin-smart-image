@@ -5,7 +5,7 @@ from app.models import utcnow
 from .models import RetentionEntry
 
 CACHE_AGE = timedelta(days=1)
-HISTORY_AGE = timedelta(days=7)
+HISTORY_AGE = timedelta(days=3)
 PENDING = ('cache_pending', 'expire_pending')
 
 

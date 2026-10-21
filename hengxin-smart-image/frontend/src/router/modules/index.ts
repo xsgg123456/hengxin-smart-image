@@ -14,6 +14,7 @@ export const routeModules: AppRouteRecord[] = [{
   children: [
     { path: 'usage', title: '调用统计', icon: 'ri:bar-chart-line' },
     { path: 'monitor', title: '执行监控', icon: 'ri:pulse-line', roles: ['super_admin', 'design_manager'] },
+    { path: 'retention', title: '自动清理', icon: 'ri:history-line', roles: ['super_admin', 'design_manager'] },
     { path: 'users', title: '用户与角色', icon: 'ri:group-line', roles: ['super_admin'] },
     { path: 'settings', title: '系统配置', icon: 'ri:settings-3-line', roles: ['super_admin'] }
   ].map(({ path, title, icon, roles }) => ({

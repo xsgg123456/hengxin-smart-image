@@ -1,7 +1,7 @@
 <template>
   <div class="image-conversation">
     <div class="conversation-status" role="status"><span>{{ status }}</span><ElButton v-if="loadError" text @click="refresh">重新读取</ElButton></div>
-    <p class="hx-footnote">闲置24小时清理缓存与插件；连续7天无操作后清理会话历史和未采用候选。正式图片、原图及素材保留。</p>
+    <p class="hx-footnote">闲置24小时清理缓存与插件；连续3天无操作后清理会话历史和未采用候选。正式图片、原图及素材保留。</p>
     <p v-if="latest?.messages.length" class="latest-reply" role="status">{{ latest.messages.at(-1) }}</p>
     <ImageConversationHistory :conversation="conversation" :versions="item.versions" :connection="connection" :disabled="locked" @select-version="selectVersion" @select-turn="selectTurn" />
     <div v-if="source" class="revision-editor"><AnnotationEditor :key="draftEpoch" ref="editor" :draft-key="draftKey" :load-original="loadOriginal" :confirm-label="expired ? '开启新会话并提交' : '确认提交修改'" :base-label="baseLabel" :limit="4000" marking-optional require-text :preview-prompt="buildImageEditPrompt" :disabled="locked || !!referenceError" description="当前底图是唯一编辑基础，原图与素材仅参考指定修改；其余内容保持不变。候选可继续修改，采用后才更新成品。" @preview-state="$emit('previewState', $event)" @submit="submit">

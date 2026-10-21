@@ -198,7 +198,7 @@ def test_pg_active_and_uncertain_turns_protect_history(pg_edit, tmp_path, status
     assert directory.exists()
 
 
-def test_pg_first_enabled_scan_grants_existing_activity_seven_days(pg_edit, tmp_path, monkeypatch):
+def test_pg_first_enabled_scan_expires_old_activity_without_grace(pg_edit, tmp_path, monkeypatch):
     factory, _, _, _ = pg_edit
     now, identifier, turn_id, _, _ = prepared_api(pg_edit)
     directory = workspace(tmp_path, identifier)
@@ -208,13 +208,14 @@ def test_pg_first_enabled_scan_grants_existing_activity_seven_days(pg_edit, tmp_
     monkeypatch.setattr(settings, 'cli_retention_enabled', True)
     monkeypatch.setattr(settings, 'codex_execution_root', str(tmp_path))
     result = run_once(factory, Store(), settings, now)
-    assert result['resources'] == []
+    assert result['resources'][0]['status'] == 'expired'
     register_existing(factory, 25, now + timedelta(days=2))
     with factory() as session:
         row = entry(session, 'api_cli', identifier)
-        assert row.initialized_at == row.last_activity_at == now
-        assert session.get(ConversationTurn, turn_id)
-    assert directory.exists()
+        assert row.initialized_at == now
+        assert row.last_activity_at == now - timedelta(days=8)
+        assert session.get(ConversationTurn, turn_id) is None
+    assert not directory.exists()
 
 
 @pytest.mark.parametrize('evidence', ['unfinished', 'lease', 'unknown_process'])

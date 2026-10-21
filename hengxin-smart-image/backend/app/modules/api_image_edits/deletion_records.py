@@ -1,12 +1,13 @@
 """Erase business payloads after physical cleanup, retaining only content-free facts."""
 from uuid import UUID
 from sqlalchemy import delete, select, update
-from app.models import Job, Outbox
+from app.models import Job, Outbox, utcnow
 from app.capacity.models import CapacityReservation
 from app.modules.files.variants import ImageVariants
 from app.modules.management.api_stats.backfill import preserve
 from app.modules.management.api_stats.models import ApiUsageFact
 from app.retention.models import RetentionEntry, RetentionObject
+from app.retention.events import object_result
 from .conversation_models import Conversation, ConversationEvent, ConversationTurn
 from .deletion_files import related
 from .models import ApiAttempt, ApiDispatch, ApiFile, ApiItem, ApiOperation, ApiVersion
@@ -40,5 +41,8 @@ def erase(session, task, manifest, objects):
         ImageVariants.file_id.in_(files)))
     session.execute(delete(ApiFile).where(ApiFile.id.in_(files)))
     for bucket, key in objects:
-        session.execute(delete(RetentionObject).where(RetentionObject.bucket == bucket,
-            RetentionObject.object_key == key))
+        receipt = session.scalar(select(RetentionObject).where(RetentionObject.bucket == bucket,
+            RetentionObject.object_key == key).with_for_update())
+        if receipt is not None:
+            object_result(session, receipt.id, utcnow(), removed=True)
+            session.delete(receipt)

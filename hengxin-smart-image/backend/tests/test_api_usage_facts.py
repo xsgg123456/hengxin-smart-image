@@ -84,7 +84,7 @@ def test_read_has_no_writes_backfill_idempotent_and_legacy_unknown(files_env):
     assert not {'prompt', 'text', 'messages', 'result_bytes'} & set(ApiUsageFact.__table__.columns.keys())
 
 
-def test_spawn_candidate_adopt_restore_and_seven_day_cleanup(files_env, monkeypatch, cli_enabled):
+def test_spawn_candidate_adopt_restore_and_three_day_cleanup(files_env, monkeypatch, cli_enabled):
     client, factory, store, _ = files_env
     task_id, _, url = setup_result(client, factory)
     fake_executor(monkeypatch, image=True)
@@ -113,7 +113,7 @@ def test_spawn_candidate_adopt_restore_and_seven_day_cleanup(files_env, monkeypa
     with factory() as session:
         before = {r['key']: r for r in read_facts(session)}
         conversation_id = session.get(ConversationTurn, UUID(turn['id'])).conversation_id
-        expiry = aware(entry(session, 'api_cli', conversation_id).last_activity_at) + timedelta(days=7)
+        expiry = aware(entry(session, 'api_cli', conversation_id).last_activity_at) + timedelta(days=3)
     monkeypatch.setattr(api, 'same_process', lambda *args: False)
     assert api.process(factory, store, Path(cli_enabled.codex_execution_root), conversation_id, expiry) == 'expired'
     with factory() as session:

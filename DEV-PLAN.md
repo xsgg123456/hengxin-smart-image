@@ -1,3 +1,7 @@
+# 当前开发：国内 CLI 三天清理与管理中心（2026-10-21）
+
+用户已批准预览并要求正式接入及存量超过3天下轮清理。使用product-spec-builder/dev-planner同步源文档，按dev-builder实施，release-builder生产交付。顺序和验收以 [实施合同](docs/CLI-RETENTION-MANAGEMENT-20261021.md) 为准：0032增量迁移及清理回执/心跳/统计 → 只读管理API与真实前端 → 全测试/编译/PG/浏览器及独立审查 → 版本化打包/排空备份/迁移切换 → 首轮真实清理与正式页面验收。关键文件backend/app/retention、backend/app/modules/management/retention*、backend/migrations/versions/0032*、对应tests；frontend/src/{api,types,views/hengxin/admin}/retention*及导航/会话提示；scripts/release/*retention-management*。不改海外逻辑。实施中，不将预览通过当正式验收。
+
 # 已完成开发：国内 API 提示简化与取消管理员核实（2026-10-20）
 
 用户已追加授权提交、打包与生产部署。按 [生产发布记录](docs/API-RETRY-SIMPLIFICATION-RELEASE-20261020.md) 完成：生产实查 → 0.2.45发布适配/测试/审查 → 中文提交/打包 → 实际镜像安装验证 → 持久任务安全交接/备份/切换 → 正式入口验收。2026-10-20 18:16生产切换完成；源码34fea3b、前端0.2.45、国内0031。实际镜像2057项通过；真实失败重试入口、历史图片下载及窄屏验收通过，其余服务和运行参数保持。

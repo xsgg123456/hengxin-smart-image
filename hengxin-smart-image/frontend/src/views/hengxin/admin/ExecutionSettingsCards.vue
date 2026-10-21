@@ -11,12 +11,14 @@
   </ElCard>
   <ElCard class="art-card hx-section hx-admin-settings-card">
     <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">RETENTION POLICY</span><h2>会话清理与数据保留</h2><p>读取当前部署策略；配置开关不代表清理服务已在线。</p></div><ElTag type="info">{{ data.retention.enabled ? '配置已启用' : '配置未启用' }}</ElTag></div>
-    <p>闲置 {{ data.retention.cacheIdleDays }} 天清理任务私有缓存与插件；闲置 {{ data.retention.historyIdleDays }} 天清理会话与过程数据。</p>
+    <ElButton type="primary" plain @click="router.push('/management/retention')">查看清理记录</ElButton><p>闲置 {{ data.retention.cacheIdleDays }} 天清理任务私有缓存与插件；闲置 {{ data.retention.historyIdleDays }} 天清理会话与过程数据。</p>
     <p class="hx-footnote">已采用的正式图片、必要素材及独立统计事实保留。排队、运行、收图、取消中或待核实执行保留现场；查看、刷新与轮询不续期。过期后可基于正式图片开启新会话。</p>
   </ElCard>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+const router = useRouter()
 import type { ExecutionSettings } from '@/types/execution-management'
 const props = defineProps<{data: ExecutionSettings}>()
 const apiRows = computed(() => [

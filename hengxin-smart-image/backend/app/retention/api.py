@@ -9,6 +9,7 @@ from app.modules.api_image_edits.conversation_models import Conversation, Conver
 from .state import entry, due, aware, HISTORY_AGE
 from .objects import queue_unused
 from . import paths
+from .events import receipt, transition, finish
 
 ITEM_TERMINAL = ('succeeded', 'failed', 'cancelled')
 TURN_TERMINAL = ('candidate', 'waiting_user', 'adopted', 'failed', 'cancelled')
@@ -56,7 +57,7 @@ def busy(session, item, conversation):
     return False
 
 
-def erase_history(session, conversation, row, now):
+def erase_history(session, conversation, row, now, record):
     from app.modules.management.api_stats.backfill import preserve
     item = session.get(ApiItem, conversation.item_id)
     preserve(session, task_id=item.task_id)
@@ -77,7 +78,8 @@ def erase_history(session, conversation, row, now):
         session.execute(delete(Outbox).where(Outbox.job_id.in_(jobs)))
         session.execute(delete(Job).where(Job.id.in_(jobs)))
     session.flush()
-    queue_unused(session, 'api-image-edits', candidates, now)
+    record.turns_removed = len(turns)
+    queue_unused(session, 'api-image-edits', candidates, now, receipt=record)
     conversation.session_id = None
     conversation.last_event_id += 1  # Old GET/SSE snapshots cannot resurrect deleted turns.
     row.status, row.expired_at, row.next_cleanup_at, row.error = 'expired', now, None, None
@@ -89,29 +91,37 @@ def process(factory, store, root, resource_id, now=None):
         data = locked(session, resource_id)
         if data is None or data[3] is None:
             return 'missing_or_locked'
-        _, item, conversation, row = data
+        task, item, conversation, row = data
         action = due(row, now)
         if not action:
             return 'not_due'
+        record = receipt(session, task, item, row, action, now)
         if busy(session, item, conversation):
             row.next_cleanup_at = now + timedelta(hours=1)
+            transition(record, 'protected', now, row.next_cleanup_at)
             return 'protected'
         row.status, row.next_cleanup_at = action, now + timedelta(hours=1)
+        transition(record, 'processing', now, row.next_cleanup_at)
     # A committed pending fence survives crashes between filesystem and DB commits.
     try:
         with factory.begin() as session:
             data = locked(session, resource_id)
             if data is None:
                 return 'locked'
-            _, item, conversation, row = data
-            if row.status != action or busy(session, item, conversation):
+            task, item, conversation, row = data
+            if row.status != action:
+                return 'protected'
+            record = receipt(session, task, item, row, action, now)
+            if busy(session, item, conversation):
+                transition(record, 'protected', now, row.next_cleanup_at)
                 return 'protected'
             paths.clean(root / 'api-edits', resource_id, cache_only=action == 'cache_pending')
             if action == 'expire_pending':
-                erase_history(session, conversation, row, now)
+                erase_history(session, conversation, row, now, record)
             else:
                 row.status, row.cache_cleared_at, row.error = 'active', now, None
                 row.next_cleanup_at = aware(row.last_activity_at) + HISTORY_AGE
+            finish(session, record, now)
         return 'expired' if action == 'expire_pending' else 'cache_cleared'
     except Exception:
         with factory.begin() as session:
@@ -119,4 +129,6 @@ def process(factory, store, root, resource_id, now=None):
             if data is not None and data[3].status == action:
                 data[3].error = '清理尚未完成，将自动重试'
                 data[3].next_cleanup_at = now + timedelta(hours=1)
+                record = receipt(session, data[0], data[1], data[3], action, now)
+                transition(record, 'retry', now, data[3].next_cleanup_at)
         return 'retry'

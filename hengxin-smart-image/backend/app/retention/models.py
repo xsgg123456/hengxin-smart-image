@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Integer, JSON, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models import Base
 from app.resource_models import Timestamps
+from . import observability_models  # noqa: F401 - domestic metadata registration
 
 
 class RetentionEntry(Timestamps, Base):

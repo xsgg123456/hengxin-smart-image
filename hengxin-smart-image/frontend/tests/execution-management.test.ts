@@ -18,6 +18,6 @@ test('actual HTTP endpoint returns unknown unchanged and failures never fabricat
   await assert.rejects(createExecutionManagement('/api',async()=>new Response('{}',{headers:{'content-type':'application/json'}})).getApiMonitor(),{code:'INVALID_RESPONSE'})
 })
 test('configuration contract rejects missing API or CLI fields',()=>{
-  const data={api:{enabled:true,taskConcurrency:7,imagesPerBatch:9,requestTimeoutSeconds:190,downloadTimeoutSeconds:70,leaseSeconds:400,model:'image',quality:'xhigh',resolution:'1K',imagesPerRequest:1,sizePolicy:'跟随原图宽高'},cli:{enabled:true,concurrency:3,capacity:4,timeoutSeconds:600,timeoutCapacity:7200,model:'gpt-6-astra',reasoningEffort:'high',usesSkills:false},maxUploadBytes:1048576,retention:{enabled:false,cacheIdleDays:1,historyIdleDays:7}}
+  const data={api:{enabled:true,taskConcurrency:7,imagesPerBatch:9,requestTimeoutSeconds:190,downloadTimeoutSeconds:70,leaseSeconds:400,model:'image',quality:'xhigh',resolution:'1K',imagesPerRequest:1,sizePolicy:'跟随原图宽高'},cli:{enabled:true,concurrency:3,capacity:4,timeoutSeconds:600,timeoutCapacity:7200,model:'gpt-6-astra',reasoningEffort:'high',usesSkills:false},maxUploadBytes:1048576,retention:{enabled:false,cacheIdleDays:1,historyIdleDays:3}}
   assert.ok(isExecutionSettings(data));assert.equal(isExecutionSettings({...data,cli:{...data.cli,usesSkills:undefined}}),false)
 })

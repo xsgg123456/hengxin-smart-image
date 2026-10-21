@@ -7,16 +7,16 @@ from sqlalchemy import exists, select
 from app.core.config import get_settings
 from app.db.session import session_factory
 from app.models import utcnow
-from app.modules.api_image_edits.conversation_models import Conversation
+from app.modules.api_image_edits.conversation_models import Conversation, ConversationTurn
 from app.modules.api_image_edits.models import ApiItem, ApiTask
 from app.storage.minio_store import get_store
 from .models import RetentionEntry
-from .state import touch
+from .state import touch, aware, CACHE_AGE, HISTORY_AGE
 from .objects import retry_objects
 
 
 def register_existing(factory, limit, now):
-    """First discovery starts the grace period; no historical timestamp backdating."""
+    """Preserve tracked activity; recover missing baselines from durable activity."""
     domain = 'api_cli'
     with factory() as session:
         ids = session.scalars(select(Conversation.id).where(~exists().where(
@@ -38,8 +38,18 @@ def register_existing(factory, limit, now):
             row = session.scalar(select(RetentionEntry).where(
                 RetentionEntry.domain == domain, RetentionEntry.resource_id == identifier))
             if row is None or row.initialized_at is None:
-                if row is None or row.status == 'active':
-                    row = touch(session, domain, identifier, now)
+                if row is None:
+                    dates = [conversation.updated_at, conversation.created_at]
+                    for turn in session.scalars(select(ConversationTurn).where(
+                            ConversationTurn.conversation_id == identifier)):
+                        dates.extend([turn.created_at, turn.finished_at])
+                        if turn.adopted_version is not None:
+                            dates.append(turn.updated_at)
+                    baseline = max(aware(value) for value in dates if value is not None)
+                    row = touch(session, domain, identifier, baseline)
+                elif row.status == 'active':
+                    row.next_cleanup_at = aware(row.last_activity_at) + (
+                        CACHE_AGE if row.cache_cleared_at is None else HISTORY_AGE)
                 row.initialized_at = now
 
 
@@ -52,16 +62,27 @@ def run_once(factory=None, store=None, settings=None, now=None):
     with factory() as session:
         if session.get_bind().dialect.name != 'postgresql':
             return {'status': 'unsupported_database'}
+    from .service import begin_scan, end_scan
+    scan_id = begin_scan(factory, now)
+    try:
+        result = scan(factory, store or get_store(), settings, now)
+    except Exception:
+        end_scan(factory, scan_id, 'failed')
+        raise
+    end_scan(factory, scan_id, result['status'])
+    return result
+
+
+def scan(factory, store, settings, now):
     from . import api
-    store = store or get_store()
-    limit = settings.cli_retention_batch_size
+    limit = min(settings.cli_retention_batch_size, 25)
     register_existing(factory, limit, now)
     with factory() as session:
         entries = session.execute(select(RetentionEntry.domain, RetentionEntry.resource_id).where(
             RetentionEntry.next_cleanup_at <= now, RetentionEntry.status != 'expired')
             .where(RetentionEntry.initialized_at.is_not(None))
             .order_by(RetentionEntry.next_cleanup_at, RetentionEntry.id).limit(limit)).all()
-    results = []
+    results, failed = [], False
     for domain, identifier in entries:
         adapter = {'api_cli': api}.get(domain)
         if adapter is None:
@@ -70,8 +91,10 @@ def run_once(factory=None, store=None, settings=None, now=None):
             status = adapter.process(factory, store, Path(settings.codex_execution_root), identifier, now)
         except Exception:
             status = 'retry'  # A concurrent lock conflict does not terminate the batch.
+            failed = True  # Persist this scan failure even when no resource lock was obtained.
         results.append({'domain': domain, 'resourceId': str(identifier), 'status': status})
-    return {'status': 'completed', 'resources': results, 'objectsRemoved': retry_objects(factory, store, limit, now)}
+    return {'status': 'failed' if failed else 'completed', 'resources': results,
+            'objectsRemoved': retry_objects(factory, store, limit, now)}
 
 
 def main():
@@ -85,6 +108,15 @@ def main():
     args = parser.parse_args()
     if args.interval < 1:
         parser.error('--interval must be positive')
+    if not args.deletions_only and get_settings().cli_retention_enabled:
+        from .service import beating
+        with beating(session_factory()):
+            execute_loop(args)
+    else:
+        execute_loop(args)
+
+
+def execute_loop(args):
     while True:
         try:
             if args.deletions_only:

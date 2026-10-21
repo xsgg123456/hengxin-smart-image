@@ -7,6 +7,9 @@ from app.modules.api_image_edits.models import ApiFile, ApiItem, ApiTask, ApiVer
 from app.modules.api_image_edits.conversation_models import ConversationTurn
 from app.modules.files.variants import ImageVariants
 from .models import RetentionObject
+from .observability_models import RetentionObjectLink
+from .events import object_result
+from .state import aware
 
 
 def contains_id(value, file_id):
@@ -36,7 +39,7 @@ def referenced(session, domain, file_id):
     return False
 
 
-def queue_unused(session, domain, file_ids, now=None):
+def queue_unused(session, domain, file_ids, now=None, receipt=None):
     now = now or utcnow()
     model = ApiFile
     if domain != 'api-image-edits':
@@ -63,9 +66,16 @@ def queue_unused(session, domain, file_ids, now=None):
                 keys.append(f'derived/{domain}/{file_id}/v1-{size}-{data["checksum"]}.webp')
             session.delete(variant)
         for key in keys:
-            if not session.scalar(select(RetentionObject.id).where(
-                    RetentionObject.bucket == record.bucket, RetentionObject.object_key == key)):
-                session.add(RetentionObject(bucket=record.bucket, object_key=key, next_attempt_at=now))
+            obj = session.scalar(select(RetentionObject).where(
+                    RetentionObject.bucket == record.bucket, RetentionObject.object_key == key))
+            if obj is None:
+                obj = RetentionObject(bucket=record.bucket, object_key=key, next_attempt_at=now)
+                session.add(obj)
+                session.flush()
+            if receipt is not None and not session.scalar(select(RetentionObjectLink.id).where(
+                    RetentionObjectLink.record_id == receipt.id, RetentionObjectLink.object_id == obj.id)):
+                session.add(RetentionObjectLink(record_id=receipt.id, object_id=obj.id))
+                receipt.objects_pending += 1
         session.delete(record)
         removed += 1
     return removed
@@ -81,20 +91,23 @@ def retry_objects(factory, store, limit=25, now=None):
         with factory.begin() as session:
             row = session.scalar(select(RetentionObject).where(RetentionObject.id == identifier)
                                  .with_for_update(skip_locked=True))
-            if row is None:
+            if row is None or aware(row.next_attempt_at) > aware(now):
                 continue
             # Last line of defence if a key has been reintroduced after the receipt.
             if any(session.scalar(select(model.id).where(model.bucket == row.bucket,
                     model.object_key == row.object_key).limit(1))
                     for model in (ApiFile,)):
                 row.next_attempt_at = now + timedelta(hours=1)
+                object_result(session, row.id, now, protected=True, next_attempt=row.next_attempt_at)
                 continue
             try:
                 store.remove(row)
             except Exception:
                 row.attempts += 1
                 row.next_attempt_at = now + timedelta(hours=1)
+                object_result(session, row.id, now, next_attempt=row.next_attempt_at)
             else:
+                object_result(session, row.id, now, removed=True)
                 session.delete(row)
                 removed += 1
     return removed
