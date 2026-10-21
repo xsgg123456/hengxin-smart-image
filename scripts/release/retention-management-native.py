@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import time
 
 spec = importlib.util.spec_from_file_location('retirement_native', Path(__file__).with_name('retirement-native.py'))
@@ -14,6 +15,22 @@ show, target_argv = old.show, old.target_argv
 POLICY = (*old.POLICY, 'SupplementaryGroups', 'NoNewPrivileges', 'ProtectSystem',
           'ProtectHome', 'PrivateTmp', 'SendSIGKILL')
 SYSTEMD = Path('/etc/systemd/system')
+READINESS = '''from app.modules.api_image_edits import conversation_runner
+from app.execution import credential_broker_client
+from app.retention.state import HISTORY_AGE
+from app.worker.celery_app import celery_app
+assert HISTORY_AGE.total_seconds() == 259200
+inspect = celery_app.control.inspect(timeout=5)
+ping = inspect.ping()
+assert isinstance(ping, dict) and len(ping) == 1
+node = next(iter(ping))
+assert ping[node]['ok'] == 'pong'
+queues, stats = inspect.active_queues(), inspect.stats()
+assert set(queues) == set(stats) == {node}
+assert {q['name'] for q in queues[node]} == {'celery'}
+assert stats[node]['pool']['max-concurrency'] == 5
+print('NATIVE_WORKER_READY')
+'''
 
 
 def snapshot(unit):
@@ -110,3 +127,25 @@ def verify(work):
         clean = lambda env: {k: v for k, v in env.items() if k not in transient}
         assert clean(after['environment']) == clean(before['environment']), 'Native environment changed'
         assert after['argv'] == target_argv(before, target), 'Native command changed'
+
+
+def ready(work, timeout=120):
+    """Inspect current API CLI modules and worker; retired batch modules are irrelevant."""
+    row = snapshot(UNIT)
+    cwd = Path(row['cwd'])
+    env = dict(row['environment'], PYTHONPATH=str(cwd))
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        assert remaining > 0, 'Native worker readiness not confirmed'
+        try:
+            result = subprocess.run(['runuser', '-u', 'codex', '--', str(cwd / '.venv/bin/python'),
+                '-c', READINESS], cwd=cwd, env=env, capture_output=True, text=True,
+                timeout=min(20, remaining))
+            if result.returncode == 0 and result.stdout.strip() == 'NATIVE_WORKER_READY':
+                assert show(UNIT, 'MainPID') == str(row['pid']), 'Native worker restarted during check'
+                return
+            m.private(work / 'native-readiness.private.log', result.stderr)
+        except subprocess.TimeoutExpired:
+            m.private(work / 'native-readiness.private.log', 'Native worker inspection timed out')
+        time.sleep(min(2, max(0, deadline - time.monotonic())))

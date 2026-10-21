@@ -47,7 +47,7 @@ def release(monkeypatch, tmp_path):
     for owner, name in ((d.gate, 'close'), (d.gate, 'verify_closed'), (d.gate, 'open_intake'),
         (d.s.p, 'graceful_stop'), (d.drain, 'stop'), (d.backup, 'verify_after'),
         (d.checks, 'migrated'), (d.checks, 'frontend'), (d.checks, 'mark_start'), (d.checks, 'first_scan'),
-        (d.n, 'switch'), (d.n, 'verify'), (d.s, 'installed'), (d.s, 'unchanged'),
+        (d.n, 'switch'), (d.n, 'verify'), (d.n, 'ready'), (d.s, 'installed'), (d.s, 'unchanged'),
         (d.r, 'publish'), (d.r, 'worker'), (d.s.p.base, 'public_verify')):
         monkeypatch.setattr(owner, name, lambda *args, label=name: events.append((label, *args)))
     monkeypatch.setattr(d.n, 'stop', lambda unit: events.append(('pause-cleanup', unit)))
@@ -72,7 +72,7 @@ def test_cleanup_only_after_restore_migration_consumers_and_frontend(release):
 
 @pytest.mark.parametrize('owner,name', [
     ('gate', 'close'), ('drain', 'stop'), ('backup', 'create'), ('backup', 'verify_after'),
-    ('checks', 'migrated'), ('n', 'switch'), ('r', 'publish'), ('checks', 'frontend'),
+    ('checks', 'migrated'), ('n', 'switch'), ('n', 'ready'), ('r', 'publish'), ('checks', 'frontend'),
     ('checks', 'first_scan'), ('n', 'verify'), ('s', 'installed'), ('gate', 'open_intake'),
 ])
 def test_every_failure_closes_and_never_restores_old_database(release, monkeypatch, owner, name):
@@ -104,3 +104,17 @@ def test_backup_must_be_restore_verified(release, monkeypatch):
     with pytest.raises(AssertionError):
         d.deploy(*args)
     assert not any(e[:2] == ('compose', 'run') for e in events)
+
+
+def test_invalid_drain_schema_fails_before_intake_or_services_change(release, monkeypatch):
+    *args, events = release
+    original = d.r.sql
+    def sql(query):
+        if query == d.drain.VARIANTS:
+            raise RuntimeError('schema mismatch')
+        return original(query)
+    monkeypatch.setattr(d.r, 'sql', sql)
+    with pytest.raises(RuntimeError, match='schema mismatch'):
+        d.deploy(*args)
+    assert not (args[0] / 'DEPLOY_STARTED').exists()
+    assert not any(e[0] in ('close', 'graceful_stop', 'stop', 'backup') for e in events)

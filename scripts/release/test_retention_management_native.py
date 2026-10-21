@@ -106,3 +106,60 @@ def test_verify_rejects_policy_env_or_command_drift(monkeypatch, tmp_path, field
         after[n.UNIT][field]['extra'] = 'changed'
     with pytest.raises(AssertionError):
         n.verify(tmp_path)
+
+
+@pytest.mark.parametrize('bad', [None, 'ping', 'queue', 'pool'])
+def test_readiness_imports_current_modules_and_checks_actual_worker(monkeypatch, capsys, bad):
+    from types import SimpleNamespace
+    import sys
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / 'hengxin-smart-image/backend'))
+    monkeypatch.setenv('DATABASE_URL', 'postgresql+psycopg://test:test@localhost/retention_test')
+    monkeypatch.setenv('MINIO_ACCESS_KEY', 'test')
+    monkeypatch.setenv('MINIO_SECRET_KEY', 'test-secret')
+    from app.worker.celery_app import celery_app
+    inspector = SimpleNamespace(
+        ping=lambda: None if bad == 'ping' else {'worker': {'ok': 'pong'}},
+        active_queues=lambda: {'worker': [{'name': 'wrong' if bad == 'queue' else 'celery'}]},
+        stats=lambda: {'worker': {'pool': {'max-concurrency': 1 if bad == 'pool' else 5}}})
+    monkeypatch.setattr(celery_app.control, 'inspect', lambda **kw: inspector)
+    if bad:
+        with pytest.raises(AssertionError):
+            exec(n.READINESS, {})
+    else:
+        exec(n.READINESS, {})
+        assert capsys.readouterr().out.strip() == 'NATIVE_WORKER_READY'
+        assert 'app.modules.api_image_edits.conversation_runner' in sys.modules
+
+
+@pytest.mark.parametrize('drift', [False, True])
+def test_ready_uses_snapshot_environment_and_rejects_pid_drift(monkeypatch, tmp_path, drift):
+    from types import SimpleNamespace
+    row = rows()[n.UNIT]
+    monkeypatch.setattr(n, 'snapshot', lambda _: row)
+    monkeypatch.setattr(n, 'show', lambda *_: '2' if drift else '1')
+    def run(argv, **kw):
+        assert argv[:4] == ['runuser', '-u', 'codex', '--']
+        assert kw['env']['PYTHONPATH'] == str(Path(row['cwd']))
+        assert kw['env']['CODEX_AUTH_BROKER_SOCKET'] == '/run/broker'
+        assert kw['timeout'] <= 20
+        return SimpleNamespace(returncode=0, stdout='NATIVE_WORKER_READY\n', stderr='')
+    monkeypatch.setattr(n.subprocess, 'run', run)
+    if drift:
+        with pytest.raises(AssertionError, match='restarted'):
+            n.ready(tmp_path)
+    else:
+        n.ready(tmp_path)
+
+
+def test_ready_timeout_remains_bounded(monkeypatch, tmp_path):
+    monkeypatch.setattr(n.m, 'private', lambda path, value: path.write_text(value))
+    monkeypatch.setattr(n, 'snapshot', lambda _: rows()[n.UNIT])
+    clock = iter([0, 0, 2, 2])
+    monkeypatch.setattr(n.time, 'monotonic', lambda: next(clock))
+    monkeypatch.setattr(n.time, 'sleep', lambda _: None)
+    def expired(*args, **kw):
+        raise n.subprocess.TimeoutExpired(args[0], kw['timeout'])
+    monkeypatch.setattr(n.subprocess, 'run', expired)
+    with pytest.raises(AssertionError, match='readiness'):
+        n.ready(tmp_path, timeout=1)
+    assert 'timed out' in (tmp_path / 'native-readiness.private.log').read_text()

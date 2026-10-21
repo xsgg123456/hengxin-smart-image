@@ -15,6 +15,11 @@ CLI = """SELECT (SELECT count(*) FROM job_records WHERE status IS NULL OR
  status NOT IN ('succeeded','partial','failed','cancelled')) +
  (SELECT count(*) FROM api_edit_turns WHERE status IS NULL OR
  status NOT IN ('candidate','waiting_user','adopted','failed','cancelled'))"""
+VARIANTS = """SELECT
+ (SELECT count(*) FROM image_variants WHERE domain='api-image-edits'
+    AND (NOT completed OR token IS NOT NULL OR lease_until IS NOT NULL))
+ +(SELECT count(*) FROM api_image_files f WHERE status='ready' AND deleted_at IS NULL AND NOT EXISTS
+   (SELECT 1 FROM image_variants v WHERE v.domain='api-image-edits' AND v.file_id=f.id))"""
 
 
 def native_probe(work, timeout):
@@ -43,7 +48,7 @@ def wait_cli(work, timeout=1200):
         assert remaining > 0
         db = p.DATABASE
         value = m.run('docker', 'exec', db[0], 'psql', '-v', 'ON_ERROR_STOP=1', '-U', db[1],
-            '-d', db[2], '-Atc', 'SELECT (' + CLI + ') + (' + probe.VARIANTS + ')', capture=True, timeout=remaining)
+            '-d', db[2], '-Atc', 'SELECT (' + CLI + ') + (' + VARIANTS + ')', capture=True, timeout=remaining)
         assert time.monotonic() <= deadline
         count = int(value)
         assert count >= 0
@@ -71,6 +76,6 @@ def stop(work, source, data):
     p.graceful_stop('api-image-worker')
     p.graceful_stop('image-variants')
     assert handoff.safe(handoff.database(p)), 'API handoff changed after stop'
-    assert r.sql(CLI) == '0' and r.sql(probe.VARIANTS) == '0'
+    assert r.sql(CLI) == '0' and r.sql(VARIANTS) == '0'
     assert all(n.show(unit, 'MainPID') == '0' for unit in n.UNITS)
     m.private(work / 'EXECUTORS_STOPPED', 'CLI/broker/variants drained; API durable handoff proven; cleanup stopped')

@@ -30,6 +30,8 @@ def deploy(work, source, manifest, image):
     assert r.sql('SELECT paused FROM api_image_channel WHERE id=1') == 'f'
     destination = BACKUPS / manifest['release']
     assert not destination.exists()
+    # Validate current-schema drain probes before closing intake or stopping anything.
+    assert int(r.sql(drain.CLI)) >= 0 and int(r.sql(drain.VARIANTS)) >= 0
     m.private(work / 'DEPLOY_STARTED', manifest['release'])
     phase = 'close-intake'
     try:
@@ -53,7 +55,7 @@ def deploy(work, source, manifest, image):
         m.compose(data['domestic'], 'up', '-d', '--no-deps', '--no-build', '--pull', 'never',
             '--wait', '--wait-timeout', '180', 'api', 'api-image-worker', 'image-variants', overlay=overlay)
         m.run('systemctl', 'start', n.UNIT)
-        r.worker(source / 'scripts/release/image-inputs-worker.py', 'native-verify')
+        n.ready(work)
         r.worker(source / 'scripts/release/image-inputs-worker.py', 'api-verify')
         gate.verify_closed()
         phase = 'publish'
