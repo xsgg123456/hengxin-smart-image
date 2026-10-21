@@ -1,6 +1,6 @@
-# 当前开发：国内 CLI 三天清理与管理中心（2026-10-21）
+# 已完成上线：国内 CLI 三天清理与管理中心（2026-10-21）
 
-用户已批准预览并要求正式接入及存量超过3天下轮清理。使用product-spec-builder/dev-planner同步源文档，按dev-builder实施，release-builder生产交付。顺序和验收以 [实施合同](docs/CLI-RETENTION-MANAGEMENT-20261021.md) 为准：0032增量迁移及清理回执/心跳/统计 → 只读管理API与真实前端 → 全测试/编译/PG/浏览器及独立审查 → 版本化打包/排空备份/迁移切换 → 首轮真实清理与正式页面验收。关键文件backend/app/retention、backend/app/modules/management/retention*、backend/migrations/versions/0032*、对应tests；frontend/src/{api,types,views/hengxin/admin}/retention*及导航/会话提示；scripts/release/*retention-management*。不改海外逻辑。实施中，不将预览通过当正式验收。
+用户已批准预览并要求正式接入及存量超过3天下轮清理。使用product-spec-builder/dev-planner同步源文档，按dev-builder实施，release-builder生产交付。顺序和验收以 [实施合同](docs/CLI-RETENTION-MANAGEMENT-20261021.md) 为准：0032增量迁移及清理回执/心跳/统计 → 只读管理API与真实前端 → 全测试/编译/PG/浏览器及独立审查 → 版本化打包/排空备份/迁移切换 → 首轮真实清理与正式页面验收。关键文件backend/app/retention、backend/app/modules/management/retention*、backend/migrations/versions/0032*、对应tests；frontend/src/{api,types,views/hengxin/admin}/retention*及导航/会话提示；scripts/release/*retention-management*。不改海外逻辑。2026-10-21 16:22完成生产启用，0.2.46/0032。业务实现745b608、发布包bec8dd7、就绪续发修正eb746cc；独立审查、正式镜像2066项、备份恢复、首扫及正式页/保留文件验收通过。详见 [发布记录](docs/CLI-RETENTION-MANAGEMENT-RELEASE-20261021.md)。
 
 # 已完成开发：国内 API 提示简化与取消管理员核实（2026-10-20）
 
