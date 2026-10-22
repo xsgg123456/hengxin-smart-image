@@ -1,11 +1,31 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createManagementApi, isUsage, isJobs, isSkill, isSettings, managementCapability, type Settings } from '../src/api/overseas/management'
+import { createManagementApi, isUsage, isJobs, isSkill, isSkillCatalog, isSettings, managementCapability, type Settings } from '../src/api/overseas/management'
 import { IdentityError } from '../src/api/identity/auth'
 const settings: Settings = {version:1,paused:false,concurrency:5,timeoutSeconds:60,defaults:{analysis:null,generation:null,revision:null},autoCleanup:false}
 const skill = {id:'a/b',name:'layout',displayName:'排版分析',description:'按资料分析完整商品套图'}
 const usage = {jobs:1,queued:0,running:0,uncertain:1,succeeded:0,failed:0,cancelled:0,generationImages:0,revisionImages:0}
 const json = (v:unknown,status=200) => new Response(JSON.stringify(v),{status})
+
+test('管理 Skill 契约严格校验状态、正整数版本及账号能力，工作台 Skill 类型保持兼容', async () => {
+  const managed = { ...skill, enabled: true, version: 1 }
+  assert.equal(isSkillCatalog({ items: [managed], canToggle: true }), true)
+  for (const item of [skill, { ...managed, enabled: 'true' }, { ...managed, version: 0 }, { ...managed, version: 1.5 }, { ...managed, version: undefined }]) {
+    assert.equal(isSkillCatalog({ items: [item], canToggle: false }), false)
+  }
+  for (const canToggle of [undefined, null, 'true', 1]) assert.equal(isSkillCatalog({ items: [managed], canToggle }), false)
+  assert.equal(isSkill(skill), true)
+  const api = createManagementApi(async (url, options) => {
+    assert.equal(url, '/api/overseas/v1/management/skills/a%2Fb/availability')
+    assert.equal(options?.method, 'PATCH'); assert.equal(options?.credentials, 'include')
+    assert.equal((options?.headers as Record<string, string>)['X-HX-Request'], '1')
+    assert.deepEqual(JSON.parse(String(options?.body)), { enabled: false, version: 1 })
+    return json({ items: [{ ...managed, enabled: false, version: 2 }], canToggle: true })
+  })
+  assert.equal((await api.setSkillAvailability(skill.id, false, 1)).items[0].version, 2)
+  for (const status of [403, 409, 500]) await assert.rejects(createManagementApi(async () => json({}, status)).setSkillAvailability(skill.id, false, 1), (error: unknown) => error instanceof IdentityError && error.status === status)
+  await assert.rejects(createManagementApi(async () => json({ items: [skill], canToggle: true })).setSkillAvailability(skill.id, false, 1), /格式错误/)
+})
 test('管理数据拒绝缺失字段、非法范围和格式', () => {
   assert.equal(isUsage(usage),true)
   for (const v of [{...usage,jobs:-1},{...usage,uncertain:undefined}]) assert.equal(isUsage(v),false)
@@ -25,13 +45,13 @@ test('配置写入只发送白名单字段，不传清理或环境配置', async
   })
   await api.saveSettings(settings)
 })
-test('Skill 目录只读、真实中文描述，不再暴露网页写方法', async () => {
+test('Skill 管理目录读取真实中文描述、状态与账号权限', async () => {
   let calls = 0
   const api = createManagementApi(async (url, options) => {
     calls++; assert.equal(url, '/api/overseas/v1/management/skills'); assert.equal(options?.method, 'GET')
-    return json({items:[skill]})
+    return json({items:[{...skill,enabled:true,version:1}],canToggle:false})
   })
-  assert.deepEqual((await api.skills()).items,[skill]); assert.equal(calls,1)
+  assert.deepEqual((await api.skills()).items,[{...skill,enabled:true,version:1}]); assert.equal(calls,1)
   for (const name of ['createSkill','publish','toggle','uploadPackage']) assert.equal(name in api,false)
 })
 test('统计监控编码时间、任务和分页；页面按能力放行',async()=>{

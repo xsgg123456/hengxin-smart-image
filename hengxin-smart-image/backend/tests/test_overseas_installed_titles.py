@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from app.core.config import get_settings
 from app.overseas.management import installed_catalog as catalog
 from app.overseas.management.settings import freeze_selected
-from overseas_installed_helpers import install_sample
+from overseas_installed_helpers import install_sample, enable_sample
 from test_overseas_tasks import overseas, setup, ROOT
 from test_overseas_materials import materials
 from test_overseas_studio import studio
@@ -37,6 +37,7 @@ def test_real_install_title_shared_by_management_studio_and_freeze(studio, monke
     description = '读取完整参考素材，生成整套新品图片；适用于实际平台要求。'
     document = f'---\nname: sample\n# 非正文标题\ndescription: {description}\n---\n# {title}'
     item = install_sample(files={'SKILL.md': document.encode()}, display_name='OUTON Wayfair 新品主图')
+    enable_sample(factory)
     root = Path(get_settings().local_skill_root)
     release = json.loads((root / 'current.json').read_bytes())['release']
     manifest_path = root / 'releases' / release / 'manifest.json'
@@ -51,7 +52,7 @@ def test_real_install_title_shared_by_management_studio_and_freeze(studio, monke
         called.append(args[1]['name'])
         return verify(*args, **kwargs)
     monkeypatch.setattr(catalog, 'verify_package', counted)
-    assert client.get(ROOT + '/management/skills').json()['items'] == [expected]
+    assert client.get(ROOT + '/management/skills').json()['items'] == [{**expected, 'enabled': True, 'version': 1}]
     assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').json()['skills'] == [expected]
     with factory.begin() as session:
         frozen = freeze_selected(session, item['id'])['skill']

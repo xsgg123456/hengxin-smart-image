@@ -10,6 +10,7 @@
     <ElCard shadow="never" class="art-card studio-chat-card" :class="{ 'studio-expanded': expanded }" @keydown.esc="expanded = false">
       <div class="studio-chat-heading"><strong>与 Codex 协作{{ completed ? ' · 已完成' : data?.reopened ? ' · 继续设计' : '' }}</strong><div class="studio-actions"><ElButton size="small" @click="materialsOpen = !materialsOpen">任务素材 · {{ data?.materials.length || 0 }}</ElButton><ElButton size="small" :loading="loading" @click="refresh">刷新</ElButton><ElButton size="small" :disabled="!canNewConversation" @click="conversationOpen = true">开始新对话</ElButton><ElButton v-if="!completed" size="small" type="primary" :disabled="locked || !!data?.activeTurnId || !selected.length" @click="archiveOpen = true">归档成品（{{ selected.length }}）</ElButton><ElButton size="small" :disabled="!data?.archiveId" @click="viewArchive">查看归档成品</ElButton><ElButton v-if="completed" size="small" type="primary" :disabled="!canReopen" @click="reopenOpen = true">解冻工作台</ElButton><ElButton v-else size="small" :disabled="!canComplete" @click="completeOpen = true">完成任务</ElButton><ElButton size="small" @click="expanded = !expanded">{{ expanded ? '退出展开' : '展开工作台' }}</ElButton></div></div>
       <ElAlert v-if="error || limitError" :title="limitError || error" type="error" :closable="false" />
+      <ElAlert v-if="draftNotice && !skillError" :title="draftNotice" type="warning" :closable="false" />
       <ElAlert v-if="pending" title="上次操作的结果尚未确认。请使用相同请求重试，避免重复提交。" type="warning" :closable="false"><ElButton :loading="busy" :disabled="!task.capabilities.includes('task.design')" @click="retry">核实并重试上次操作</ElButton></ElAlert>
       <div class="studio-workspace"><section class="studio-conversation">
         <StudioTurns :turns="data?.turns || []" :transcript="transcript" :conversation-id="data?.conversationId" :selected="selected" :disabled="locked" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" />
@@ -22,12 +23,13 @@
             <StudioRevisionDraft v-for="revision in revisions" :key="revision.base.id" :revision="revision" :disabled="locked" @edit="openAnnotation(revision.base)" @remove="removeRevision(revision.base.id)" @failure="fail" />
           </div>
           <small v-if="revisionError" class="studio-revision-hint">{{ revisionError }}</small>
+          <small v-if="skillError" class="studio-revision-hint" role="alert">{{ skillError }}</small>
           <ElInput v-model="text" type="textarea" :rows="2" resize="none" :disabled="locked" aria-label="设计要求" placeholder="描述设计要求，或继续提出修改意见…" @keydown="handleStudioSendKey($event, send)" />
           <div class="studio-compose-tools"><div class="studio-input-tools"><StudioSkillSelect v-model="skill" :skills="data?.skills || []" :disabled="locked" /></div><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || !!pending || uploading || activeTurn?.status === 'cancelling'" @click="stop">停止</ElButton><ElButton v-else type="primary" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div>
           <p class="studio-compose-note">支持 JPG/PNG/WebP、PDF/DOCX/PPTX/XLS/XLSX/CSV/TXT · Enter 发送，Shift + Enter 换行（兼容 Ctrl + Enter）。执行期间可离开，回来后继续。</p>
           <input ref="input" hidden type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.pptx,.xls,.xlsx,.csv,.txt" @change="upload">
         </div>
-      </section><StudioMaterials v-if="materialsOpen" :assets="data?.materials || []" :disabled="locked" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @failure="fail" /></div>
+      </section><StudioMaterials v-if="materialsOpen" :assets="data?.materials || []" :disabled="locked" :removing="removingMaterials" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @remove-selected="confirmRemoveMaterials" @failure="fail" /></div>
     </ElCard>
     <StudioAnnotationDialog v-if="editing && data" :key="editingKey" ref="annotationDialog" :picture="editing" :draft-key="editingKey" :submitting="uploading" :error="annotationError" @close="closeAnnotation" @confirm="applyAnnotation" @failure="fail" />
     <ElDialog v-model="conversationOpen" title="开始新对话" width="min(480px,94vw)" append-to-body><p>开始后将使用新的对话上下文。旧对话、任务材料和已生成或归档的成品都会保留。</p><p>草稿和当前引用将清空；需要使用旧材料时，请重新选择引用。</p><template #footer><ElButton @click="conversationOpen = false">取消</ElButton><ElButton type="primary" :loading="busy" :disabled="!canNewConversation" @click="doNewConversation">确认开始新对话</ElButton></template></ElDialog>
@@ -60,13 +62,21 @@ import { useStudio } from './use-studio'
 import './studio.css'
 const props = defineProps<{ actorId: string; task: TaskDetail }>()
 const emit = defineEmits<{ failure: [reason: unknown]; changed: [] }>()
-const { data, text, skill, attachments, references, revisions, revisionError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, materialNotice } = useStudio(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
+const { data, text, skill, attachments, references, revisions, revisionError, skillError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, removeMaterials, removingMaterials, materialNotice, draftNotice } = useStudio(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
 const completed = computed(() => data.value?.completed ?? props.task.status === 'completed')
 watch(materialNotice, value => { if (value) ElMessage.info(value) })
 async function confirmRemoveMaterial(asset: Asset) {
   if (locked.value) return
   try { await ElMessageBox.confirm('仅从任务素材列表移除，不影响历史消息和已发送文件。', `移除 ${asset.name}`, { confirmButtonText: '移除', cancelButtonText: '取消', type: 'warning' }) } catch { return }
   if (await removeMaterial(asset.id)) ElMessage.success('已从列表移除，历史消息和待发送附件保留')
+}
+async function confirmRemoveMaterials(ids: string[]) {
+  if (locked.value || !ids.length) return
+  try { await ElMessageBox.confirm(`将从任务素材列表移除这 ${ids.length} 项，历史消息、已发送文件和输入区已引用的附件保留。`, '移除所选素材', { confirmButtonText: '确认移除', cancelButtonText: '取消', type: 'warning' }) } catch { return }
+  const result = await removeMaterials(ids)
+  if (!result) return
+  if (result.remaining) ElMessage.warning(`已移除 ${result.removed} 项，${result.remaining} 项未完成，请检查后重试`)
+  else ElMessage.success(`已从列表移除 ${result.removed} 项，历史消息和待发送附件保留`)
 }
 const editing = ref<StudioPicture>(), editingKey = ref(''), annotationDialog = ref<InstanceType<typeof StudioAnnotationDialog>>(), annotationError = ref('')
 const ordinaryAttachments = computed(() => attachments.value.filter(a => !revisions.value.some(r => r.annotation?.id === a.id)))

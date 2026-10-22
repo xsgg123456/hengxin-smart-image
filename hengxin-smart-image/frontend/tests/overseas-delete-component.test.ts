@@ -51,7 +51,7 @@ function component(name: string): Vue.Component {
 }
 function mount(name: string, props: Record<string, unknown>) {
   const app = renderer.createApp(component(name), props)
-  for (const n of ['ElCard', 'ElAlert', 'ElForm', 'ElFormItem', 'ElInput', 'ElButton', 'ElDialog', 'ElImage']) app.component(n, stub(n))
+  for (const n of ['ElTag', 'ElCard', 'ElAlert', 'ElForm', 'ElFormItem', 'ElInput', 'ElButton', 'ElDialog', 'ElImage']) app.component(n, stub(n))
   const root = node(); app.mount(root)
   const find = (tag: string) => flatten(root).find(n => n.tag === tag)!
   const button = (label: string) => flatten(root).find(n => n.tag === 'ElButton' && textOf(n) === label)
@@ -87,12 +87,12 @@ test('真实删除 SFC：取消不写入，409保留确认并更新版本，网�
   mode = 'slow'; const late = mount('OverseasTaskDelete', { task: task(), api, onChanged: (value: Tasks.TaskDeletion) => changes.push(value) })
   await late.click('删除'); await late.click('确认删除'); late.app.unmount(); const count = changes.length; resolve({ taskId: 'task', status: 'deleted', error: null }); await flush(); assert.equal(changes.length, count)
 })
-test('实际 Skill SFC：两列只读、名称描述搜索、空/失败区分、刷新恢复与权限拒绝', async () => {
+test('实际 Skill SFC：状态只读、名称描述搜索、空/失败区分、刷新恢复与权限拒绝', async () => {
   let mode = 'data'; const failures: unknown[] = []
   const skills = [{id:'old',name:'walmart-old',displayName:'沃尔玛新品主图 · 原版',description:'完整描述\n参考图说明'}, {id:'new',name:'walmart-new',displayName:'沃尔玛新品主图 · 新版（9.27）',description:'新版差异'}]
-  const view = mount('admin/OverseasLiveSkills', { api: { skills: async () => { if (mode === 'error') throw Error('目录不可用'); if (mode === 'denied') throw new IdentityError(403, '暂无权限'); return {items: mode === 'empty' ? [] : skills} } }, onFailure: (reason: unknown) => failures.push(reason) })
+  const view = mount('admin/OverseasLiveSkills', { api: { skills: async () => { if (mode === 'error') throw Error('目录不可用'); if (mode === 'denied') throw new IdentityError(403, '暂无权限'); return {items: mode === 'empty' ? [] : skills.map(skill => ({...skill,enabled:true,version:1})),canToggle:false} } }, onFailure: (reason: unknown) => failures.push(reason) })
   await flush(); const table = view.find('ArtTable'); assert.equal((table.props.data as unknown[]).length, 2)
-  assert.deepEqual((table.props.columns as {label:string}[]).map(c => c.label), ['名称','描述'])
+  assert.deepEqual((table.props.columns as {label:string}[]).map(c => c.label), ['名称','描述','状态'])
   assert.equal(view.button('添加 Skill'), undefined); assert.equal(view.find('ElDialog'), undefined)
   await view.type('参考图'); assert.equal((view.find('ArtTable').props.data as unknown[]).length, 1)
   await view.type('不存在'); assert.match(String(view.find('ArtTable').props['empty-text']), /暂无匹配/)

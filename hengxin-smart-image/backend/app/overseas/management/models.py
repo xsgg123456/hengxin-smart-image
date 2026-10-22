@@ -16,6 +16,14 @@ class Skill(Timestamps, Base):
     current_version: Mapped[int] = mapped_column(Integer, default=1)
 
 
+class InstalledSkillAvailability(Timestamps, Base):
+    __tablename__ = 'overseas_installed_skill_availability'
+    __table_args__ = (CheckConstraint('version >= 1'),)
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class SkillVersion(Timestamps, Base):
     __tablename__ = 'overseas_skill_versions'
     __table_args__ = (UniqueConstraint('skill_id', 'version'),)

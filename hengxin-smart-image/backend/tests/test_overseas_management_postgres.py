@@ -11,7 +11,7 @@ from app.overseas.execution.queue import enqueue, lock_gate
 from app.overseas.management import settings
 from app.overseas.management.models import Audit, Settings
 from app.overseas.management.schemas import SettingsPatch
-from overseas_installed_helpers import install_sample
+from overseas_installed_helpers import install_sample, enable_sample
 from app.overseas.plans.snapshot import SKILL
 from test_overseas_members_postgres import pg_factory, member
 from test_overseas_concurrency import execution, add
@@ -83,6 +83,7 @@ def test_freeze_waits_for_atomic_skill_and_settings_update(pg_factory):
         session.add(ExecutionGate(id=1))
     with pg_factory() as session:
         item = install_sample('bound', content='one')
+        enable_sample(pg_factory, 'bound')
         patch = SettingsPatch(**{**body().model_dump(), 'defaults': {
             'analysis': item['id'], 'generation': None, 'revision': None}})
         settings.save(session, session.get(Member, actor), patch)

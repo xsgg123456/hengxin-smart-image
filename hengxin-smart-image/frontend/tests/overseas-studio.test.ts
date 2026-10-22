@@ -5,7 +5,7 @@ import { createStudioApi, isStudio, validateStudioFile, type Studio, type Studio
 import { emptyTaskDraft, type TaskDetail } from '../src/api/overseas/tasks'
 import { IdentityError } from '../src/api/identity/request'
 import { useStudio } from '../src/views/overseas/studio/use-studio'
-const snapshot = (): Studio => ({ taskId:'t',taskVersion:1,archiveId:null,reopened:false,completed:false,turns:[],materials:[{id:'task:m',name:'需求.pdf',contentType:'application/pdf',sizeBytes:10,url:'/api/overseas/v1/materials/m/content',source:'task'}],skills:[],activeTurnId:null })
+const snapshot = (): Studio => ({ taskId:'t',taskVersion:1,archiveId:null,reopened:false,completed:false,turns:[],materials:[{id:'task:m',name:'需求.pdf',contentType:'application/pdf',sizeBytes:10,url:'/api/overseas/v1/materials/m/content',source:'task'}],skills:[{id:"skill",name:"test",displayName:"测试 Skill",description:""}],activeTurnId:null })
 const task: TaskDetail = {...emptyTaskDraft(),id:'t',workflow:'studio',status:'studio',version:1,createdAt:'',updatedAt:'',createdBy:{id:'u',name:'用户'},designer:{id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.design'],events:[]}
 const flush = async () => { for(let i=0;i<10;i++) await Promise.resolve() }
 const renderer=createRenderer<object,object>({createElement:()=>({}),createText:()=>({}),createComment:()=>({}),insert(){},remove(){},parentNode:()=>null,nextSibling:()=>null,patchProp(){},setText(){},setElementText(){}})

@@ -11,7 +11,7 @@
       <div class="material-info"><span :title="asset.name">{{ asset.name }}</span><small>{{ asset.source === 'task' ? '图需资料' : '上传附件' }} · {{ formatAttachmentSize(asset.sizeBytes) }}</small><AttachmentDownload :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" /></div>
       <button class="material-remove" :disabled="disabled" :aria-label="`从列表移除 ${asset.name}`" title="从列表移除" @click.stop="$emit('remove', asset)"><ElIcon><Delete /></ElIcon></button>
     </div></div>
-    <div class="studio-materials-bottom"><ElButton type="primary" :disabled="disabled || !chosen.length" @click="$emit('add', chosen)">引用所选素材（{{ chosen.length }}）</ElButton></div>
+    <div class="studio-materials-bottom"><ElButton type="primary" :disabled="disabled || !chosen.length" @click="$emit('add', chosen)">引用所选素材（{{ chosen.length }}）</ElButton><ElButton type="danger" plain :loading="removing" :disabled="disabled || !chosen.length" @click="$emit('removeSelected', [...chosen])">移除所选素材（{{ chosen.length }}）</ElButton></div>
   </aside>
 </template>
 <script setup lang="ts">
@@ -22,8 +22,8 @@ import StudioAssetImage from './StudioAssetImage.vue'
 import AttachmentDownload from '../AttachmentDownload.vue'
 import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import type { Asset } from '@/api/overseas/studio'
-const props = defineProps<{ assets: Asset[]; disabled: boolean }>()
-defineEmits<{ close: []; add: [ids: string[]]; remove: [asset: Asset]; failure: [reason: unknown] }>()
+const props = defineProps<{ assets: Asset[]; disabled: boolean; removing?: boolean }>()
+defineEmits<{ close: []; add: [ids: string[]]; remove: [asset: Asset]; removeSelected: [ids: string[]]; failure: [reason: unknown] }>()
 const chosen = ref<string[]>([]), all = computed(() => props.assets.length > 0 && chosen.value.length === props.assets.length)
 watch(() => props.assets, assets => { chosen.value = chosen.value.filter(id => assets.some(a => a.id === id)) })
 function toggle(id: string) { chosen.value = chosen.value.includes(id) ? chosen.value.filter(v => v !== id) : [...chosen.value, id] }

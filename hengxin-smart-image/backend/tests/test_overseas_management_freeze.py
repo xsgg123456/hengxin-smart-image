@@ -7,7 +7,7 @@ from test_overseas_assignment import change_roles
 from test_overseas_plans import prepared, plans, publish, post
 from test_overseas_pictures import generate, picture_list, action
 from test_overseas_management import MANAGE, config
-from overseas_installed_helpers import install_sample
+from overseas_installed_helpers import install_sample, enable_sample
 
 
 def test_confirmation_uses_new_binding_retry_keeps_old_revision_uses_current(materials, monkeypatch, tmp_path):
@@ -15,6 +15,8 @@ def test_confirmation_uses_new_binding_retry_keeps_old_revision_uses_current(mat
     change_roles(factory, actor, ('super_admin',))
     generation = install_sample('new-generation')
     revision = install_sample('new-revision')
+    enable_sample(factory, 'new-generation')
+    enable_sample(factory, 'new-revision')
     body = config(client, timeoutSeconds=120, defaults={
         'analysis': None, 'generation': generation['id'], 'revision': revision['id']})
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 200

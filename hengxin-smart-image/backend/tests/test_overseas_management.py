@@ -22,10 +22,11 @@ def config(client, **updates):
 
 
 def test_installed_freeze_and_settings_audit(overseas):
-    from overseas_installed_helpers import install_sample
+    from overseas_installed_helpers import install_sample, enable_sample
     from app.overseas.management.installed_catalog import frozen_package
     client, factory, actor, _ = setup(overseas, ('super_admin',))
     item = install_sample()
+    enable_sample(factory)
     body = config(client, timeoutSeconds=120, defaults={'analysis': item['id'], 'generation': None, 'revision': None})
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 200
     with factory.begin() as session:
@@ -52,7 +53,7 @@ def test_skill_browser_writes_are_removed(overseas):
                          ('PATCH', '/skills/' + str(uuid4())), ('POST', '/skill-packages')]:
         response = client.request(method, MANAGE + path, json={'files': {'SKILL.md': 'x'}}, headers=HEADERS)
         assert response.status_code in (404, 405)
-    assert client.get(MANAGE + '/skills').json() == {'items': []}
+    assert client.get(MANAGE + '/skills').json() == {'items': [], 'canToggle': False}
 
 
 def test_settings_bounds_binding_csrf_and_secret_rejection(overseas):

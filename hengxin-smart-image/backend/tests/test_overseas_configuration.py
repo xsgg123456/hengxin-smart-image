@@ -170,6 +170,7 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/management/usage', '/api/overseas/v1/management/jobs',
         '/api/overseas/v1/management/operators',
         '/api/overseas/v1/management/skills', '/api/overseas/v1/management/settings',
+        '/api/overseas/v1/management/skills/{skill_id}/availability',
         '/api/overseas/v1/health/live', '/api/overseas/v1/health/ready',
         '/api/overseas/v1/auth/identity/session', '/api/overseas/v1/auth/me',
         '/api/overseas/v1/auth/logout',

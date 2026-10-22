@@ -46,7 +46,7 @@ try {
     } else if(p.endsWith('/management/skills')){
       assert.equal(r.method(),'GET')
       if(mode==='skill-error'){await route.abort();return}
-      body={items:skills}
+      body={items:skills.map(skill=>({...skill,enabled:true,version:1})),canToggle:false}
     }
     else throw Error('Unexpected '+p)
     await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)})
@@ -81,7 +81,7 @@ try {
   assert.equal(await page.getByRole('button',{name:'添加 Skill',exact:true}).count(),0)
   skills=[{id:'s1',name:'layout',displayName:'沃尔玛新品主图 · 原版',description:'完整说明：'+ '按真实参考图制作。'.repeat(60)},{id:'s2',name:'layout-new',displayName:'沃尔玛新品主图 · 新版（9.27）',description:'新版差异描述'}]
   await page.getByRole('button',{name:'刷新 Skill',exact:true}).click();await page.getByText(skills[1].displayName,{exact:true}).waitFor()
-  assert.equal(await page.getByRole('columnheader').count(),2)
+  assert.equal(await page.getByRole('columnheader').count(),3)
   await page.getByRole('textbox',{name:'搜索 Skill',exact:true}).fill('新版差异');await page.getByText(skills[1].displayName,{exact:true}).waitFor();assert.equal(await page.getByText(skills[0].displayName,{exact:true}).count(),0)
   await page.getByRole('textbox',{name:'搜索 Skill',exact:true}).fill('不匹配');await page.getByText('暂无匹配的 Skill，请调整搜索',{exact:true}).waitFor()
   await page.getByRole('textbox',{name:'搜索 Skill',exact:true}).fill('')

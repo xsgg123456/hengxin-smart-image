@@ -8,7 +8,7 @@ import { annotationDraft } from '../src/views/hengxin/components/annotation/anno
 import { studioDraftKey } from '../src/views/overseas/studio/studio-revisions'
 import { checkImage, imageUrl, isImage, loadStudioImage } from '../src/views/overseas/studio/studio-images'
 import { useStudio } from '../src/views/overseas/studio/use-studio'
-const snapshot = (): Studio => ({ taskId:'t',taskVersion:1,archiveId:null,reopened:false,completed:false,turns:[],materials:[{id:'task:m',name:'需求.pdf',contentType:'application/pdf',sizeBytes:10,url:'/api/overseas/v1/materials/m/content',source:'task'}],skills:[],activeTurnId:null })
+const snapshot = (): Studio => ({ taskId:'t',taskVersion:1,archiveId:null,reopened:false,completed:false,turns:[],materials:[{id:'task:m',name:'需求.pdf',contentType:'application/pdf',sizeBytes:10,url:'/api/overseas/v1/materials/m/content',source:'task'}],skills:[{id:"selected",name:"test",displayName:"测试 Skill",description:""}],activeTurnId:null })
 const task: TaskDetail = {...emptyTaskDraft(),id:'t',workflow:'studio',status:'studio',version:1,createdAt:'',updatedAt:'',createdBy:{id:'u',name:'用户'},designer:{id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.design'],events:[]}
 const flush = async () => { for(let i=0;i<10;i++) await Promise.resolve() }
 const renderer=createRenderer<object,object>({createElement:()=>({}),createText:()=>({}),createComment:()=>({}),insert(){},remove(){},parentNode:()=>null,nextSibling:()=>null,patchProp(){},setText(){},setElementText(){}})

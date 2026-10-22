@@ -26,7 +26,7 @@ export function compile(path: string, deps: Record<string, unknown>) {
 }
 export function mount(component: Vue.Component, props = {}) {
   const root = node('root'), app = renderer.createApp({ render: () => Vue.h(component, props) })
-  for (const name of ['ElAlert', 'ElButton', 'ElCard', 'ElDialog', 'ElForm', 'ElFormItem', 'ElInput', 'ElOption', 'ElPagination', 'ElSelect', 'ElSwitch', 'ElTabs', 'ElTabPane', 'ElTag', 'ElRadioGroup', 'ElRadio', 'ElRadioButton']) app.component(name, simple(name))
+  for (const name of ['ElEmpty', 'ElInputNumber', 'ElAlert', 'ElButton', 'ElCard', 'ElDialog', 'ElForm', 'ElFormItem', 'ElInput', 'ElOption', 'ElPagination', 'ElSelect', 'ElSwitch', 'ElTabs', 'ElTabPane', 'ElTag', 'ElRadioGroup', 'ElRadio', 'ElRadioButton']) app.component(name, simple(name))
   app.mount(root); return { root, close: () => app.unmount() }
 }
 export const all = (n: Node): Node[] => [n, ...n.children.flatMap(all)]

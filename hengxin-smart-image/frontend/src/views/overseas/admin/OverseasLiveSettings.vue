@@ -37,7 +37,7 @@ async function load(preserve = false) {
   try {
     const [value, list] = await Promise.all([props.api.settings(),props.api.skills()])
     if (!active) return
-    saved.value = copy(value); skills.value = list.items
+    saved.value = copy(value); skills.value = list.items.filter(skill => skill.enabled)
     if (!preserve || !form.value) form.value = copy(value)
     else form.value.version = value.version
     blocked.value = false

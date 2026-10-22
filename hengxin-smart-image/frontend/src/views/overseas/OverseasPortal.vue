@@ -129,6 +129,18 @@ const managementAdapter: ManagementApi = {
   usage: query => managementCall('stats.read', () => managementApi.usage(query)),
   jobs: query => managementCall('stats.read', () => managementApi.jobs(query)),
   skills: () => managementCall('skills.manage', () => managementApi.skills()),
+  async setSkillAvailability(id, enabled, version) {
+    await taskAuthorize('skills.manage')
+    try {
+      const result = await managementApi.setSkillAvailability(id, enabled, version)
+      await taskAuthorize('skills.manage')
+      return result
+    } catch (reason) {
+      // An owner-only denial leaves the readable catalog open; role checks run separately.
+      if (!(reason instanceof IdentityError && reason.status === 403)) await managementFailure(reason)
+      throw reason
+    }
+  },
   settings: () => managementCall('settings.manage', () => managementApi.settings()),
   saveSettings: value => managementCall('settings.manage', () => managementApi.saveSettings(value), true)
 }

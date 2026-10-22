@@ -7,6 +7,7 @@ from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
 from .models import Audit, Settings, Skill
 from .installed_catalog import freeze as freeze_installed
+from .skills import require_enabled
 
 STAGES = ('analysis', 'generation', 'revision')
 
@@ -24,7 +25,9 @@ def values(session):
 def selected(session, identity, stage=None):
     # Old configured UUIDs are resolved by name, but only when truly installed.
     legacy = session.get(Skill, UUID(str(identity)))
-    return freeze_installed(identity, legacy.name if legacy else None)
+    frozen = freeze_installed(identity, legacy.name if legacy else None)
+    require_enabled(session, frozen['name'])
+    return frozen
 
 
 def save(session, actor, body):

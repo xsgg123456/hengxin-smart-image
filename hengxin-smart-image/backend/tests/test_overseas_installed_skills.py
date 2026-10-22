@@ -13,7 +13,7 @@ from app.overseas.management.installed_tree import tree
 from app.overseas.management.models import Skill, SkillVersion
 from app.overseas.management.settings import freeze_selected, freeze
 from app.overseas.execution.materials import prepare
-from overseas_installed_helpers import install_sample
+from overseas_installed_helpers import install_sample, enable_sample
 from test_overseas_tasks import overseas, setup, ROOT
 from test_overseas_materials import materials
 from test_overseas_studio import studio, send, finish
@@ -24,9 +24,11 @@ def test_catalog_and_studio_share_real_install_and_complete_frozen_round(studio,
     contents = {'assets/ref.png': bytes(range(256)), 'scripts/check.py': b'print("ok")',
                 'references/rules.md': b'Rules', 'agents/openai.yaml': b'interface: {}'}
     item = install_sample(files=contents, display_name='沃尔玛新品主图 · 新版（9.27）')
+    enable_sample(factory)
     listing = client.get(ROOT + '/management/skills').json()['items']
     view = client.get(ROOT + '/tasks/' + task['id'] + '/studio').json()
-    assert listing == view['skills'] == [item]
+    assert listing == [{**item, 'enabled': True, 'version': 1}]
+    assert view['skills'] == [item]
     assert set(item) == {'id', 'name', 'displayName', 'description'}
     response = send(client, task, skillId=item['id'])
     assert response.status_code == 200, response.text
@@ -61,11 +63,12 @@ def test_uninstalled_rows_hidden_and_old_defaults_only_map_installed_names(overs
         session.add(Skill(id=old_id, name='sample', stage='analysis'))
         session.flush()
         session.add(SkillVersion(skill_id=old_id, version=1, files={'SKILL.md': 'uninstalled'}))
-    assert client.get(ROOT + '/management/skills').json() == {'items': []}
+    assert client.get(ROOT + '/management/skills').json() == {'items': [], 'canToggle': False}
     with factory.begin() as session, pytest.raises(HTTPException) as caught:
         freeze_selected(session, old_id)
     assert caught.value.status_code == 422
     install_sample()
+    enable_sample(factory)
     with factory.begin() as session:
         frozen = freeze_selected(session, old_id)
         assert frozen['skill']['id'] == catalog.identity('sample')

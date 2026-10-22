@@ -1,4 +1,5 @@
 """Overseas settings reuse common validation without domestic environment fallback."""
+from uuid import UUID
 from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import SettingsConfigDict
 
@@ -23,7 +24,14 @@ class OverseasSettings(Settings):
     db_application_name: str = Field(default='hx-overseas', pattern=r'^[a-z][a-z0-9-]{0,39}$')
     worker_node_name: str = 'overseas-worker-1'
     bootstrap_admin_corp_id: str = ''
+    # Stable overseas member ID; unset means nobody can change availability.
+    skill_toggle_owner_id: UUID | None = None
     bootstrap_admin_user_ids: str = Field(default='', repr=False)
+
+    @field_validator('skill_toggle_owner_id', mode='before')
+    @classmethod
+    def optional_skill_owner(cls, value):
+        return None if value == '' else value
 
     @field_validator(
         'database_url', 'redis_url', 'minio_endpoint', 'minio_access_key',

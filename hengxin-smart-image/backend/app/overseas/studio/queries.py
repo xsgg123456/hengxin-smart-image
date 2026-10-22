@@ -6,7 +6,7 @@ from app.overseas.tasks.models import TaskEvent
 from app.overseas.archives.models import Archive, ArchiveAsset, ArchiveDeletion
 from app.overseas.permissions import principal_for, require_task_access
 from app.overseas.materials.models import Material
-from app.overseas.management.installed_catalog import listing
+from app.overseas.management.skills import enabled_listing
 from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
 from .models import Turn, Upload, Picture, Conversation, Transcript
 from .material_list import visible
@@ -101,7 +101,7 @@ def view(session, actor, task_id):
         completed=task.status == 'completed', taskVersion=task.version,
         archiveId=str(record.id) if record else None, reopened=reopened, turns=turns,
         materials=[asset(row, source) for row, source in visible(session, task.id)],
-        skills=listing(),
+        skills=enabled_listing(session),
         activeTurnId=active)
 
 

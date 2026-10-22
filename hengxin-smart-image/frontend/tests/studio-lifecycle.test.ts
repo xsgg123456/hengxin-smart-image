@@ -8,7 +8,7 @@ import { emptyTaskDraft, type TaskDetail } from '../src/api/overseas/tasks'
 import { IdentityError } from '../src/api/identity/request'
 
 const task: TaskDetail = { ...emptyTaskDraft(), id: 'task', workflow: 'studio', status: 'studio', version: 3, createdAt: '', updatedAt: '', createdBy: { id: 'u', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.design'], events: [] }
-const snapshot = (): Studio => ({ taskId: task.id, taskVersion: 3, archiveId: 'real-archive', reopened: false, completed: false, conversationId: 'original', turns: [], materials: [], skills: [], activeTurnId: null })
+const snapshot = (): Studio => ({ taskId: task.id, taskVersion: 3, archiveId: 'real-archive', reopened: false, completed: false, conversationId: 'original', turns: [], materials: [], skills: [{ id: "skill", name: "test", displayName: "测试 Skill", description: "" }], activeTurnId: null })
 const store = new Map<string, string>()
 Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: (k: string) => store.get(k) || null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) } })
 function fake(extra: Partial<StudioApi> = {}): StudioApi {
