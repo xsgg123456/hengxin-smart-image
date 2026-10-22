@@ -47,9 +47,6 @@ export function isTranscriptPage(v: unknown): v is TranscriptPage {
 }
 export function validateStudioFile(file: Pick<File, 'name' | 'size'>) {
   if (!file.size || file.size > MAX_UPLOAD_BYTES) throw Error('请选择非空文件，单个最大 500 MB')
-  const extension = file.name.split('.').pop()?.toLowerCase() || ''
-  if (['doc', 'ppt'].includes(extension)) throw Error('请先将 DOC/PPT 转换为 DOCX/PPTX 或 PDF')
-  if (!['jpg','jpeg','png','webp','pdf','docx','pptx','xls','xlsx','csv','txt'].includes(extension)) throw Error('不支持此文件格式')
 }
 export function createStudioApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store' }))

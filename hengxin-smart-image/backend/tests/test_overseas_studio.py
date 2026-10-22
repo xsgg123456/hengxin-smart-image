@@ -103,8 +103,8 @@ def test_upload_original_content_formats_and_permissions(studio, monkeypatch):
     assert asset['id'].startswith('upload:') and client.get(asset['url']).content == b'hello'
     sent = send(client, task, text='', attachmentIds=[asset['id']])
     assert sent.status_code == 200
-    for name, data, status in [('old.doc', b'doc', 422), ('old.ppt', b'ppt', 422),
-                               ('bad.png', b'bad', 422), ('bad.txt', b'\x00', 422),
+    for name, data, status in [('old.doc', b'doc', 200), ('old.ppt', b'ppt', 200),
+                               ('bad.png', b'bad', 200), ('bad.txt', b'\x00', 200),
                                ('huge.txt', b'x' * (20 * 1024 * 1024 + 1), 413)]:
         result = client.post(path, files={'file': (name, data)}, headers=HEADERS)
         assert result.status_code == status, result.text

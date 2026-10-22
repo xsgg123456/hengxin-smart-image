@@ -7,7 +7,7 @@
     <div class="studio-materials-list"><div v-for="asset in assets" :key="asset.id" class="studio-source-file" :data-material-id="asset.id" :draggable="!disabled" @dragstart="drag($event, asset.id)">
       <ElCheckbox :model-value="chosen.includes(asset.id)" :disabled="disabled" :aria-label="`选择 ${asset.name}`" @change="toggle(asset.id)" />
       <StudioAssetImage v-if="isImage(asset)" :asset="asset" :group="assets" title="任务素材" @failure="$emit('failure', $event)" />
-      <span v-else class="studio-doc-icon">文档</span>
+      <span v-else class="studio-doc-icon">文件</span>
       <div class="material-info"><span :title="asset.name">{{ asset.name }}</span><small>{{ asset.source === 'task' ? '图需资料' : '上传附件' }} · {{ formatAttachmentSize(asset.sizeBytes) }}</small><AttachmentDownload :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" /></div>
       <button class="material-remove" :disabled="disabled" :aria-label="`从列表移除 ${asset.name}`" title="从列表移除" @click.stop="$emit('remove', asset)"><ElIcon><Delete /></ElIcon></button>
     </div></div>

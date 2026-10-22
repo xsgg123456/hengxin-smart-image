@@ -25,10 +25,23 @@ test('工作台DTO拒绝跨任务与外部文件URL，上传格式边界',()=>{
   assert.equal(isStudio(snapshot(),'other'),false)
   const bad=snapshot();bad.materials[0].url='https://example.com/private';assert.equal(isStudio(bad,'t'),false)
   for(const name of ['a.jpg','a.png','a.webp','a.pdf','a.docx','a.pptx','a.xls','a.xlsx','a.csv','a.txt'])assert.doesNotThrow(()=>validateStudioFile({name,size:1}))
-  assert.throws(()=>validateStudioFile({name:'a.doc',size:1}),/转换/)
-  assert.throws(()=>validateStudioFile({name:'a.ppt',size:1}),/转换/)
+  for(const name of ['a.doc','a.ppt','a.zip','a.rar','a.7z','a.ttf','a.otf','a.psd','a.mp4','a.mp3','a.html','a.svg','a.exe','a.custom','README','.env'])assert.doesNotThrow(()=>validateStudioFile({name,size:1}))
   assert.throws(()=>validateStudioFile({name:'a.png',size:500_000_000+1}),/500 MB/)
-  assert.throws(()=>validateStudioFile({name:'a.html',size:1}),/不支持/)
+  assert.throws(()=>validateStudioFile({name:'a.zip',size:0}),/非空/)
+  assert.doesNotThrow(()=>validateStudioFile({name:'a.zip',size:500_000_000}))
+})
+
+test('任意格式原件通过multipart上传且保留文件名和字节',async()=>{
+  for(const name of ['字体包.ZIP','品牌.ttf','产品.psd','README']){
+    const bytes=new Uint8Array([0,255,13,10,128])
+    const api=createStudioApi(async(_url,options)=>{
+      assert.equal(options?.method,'POST');assert.equal(options?.credentials,'include')
+      const file=(options?.body as FormData).get('file') as File
+      assert.equal(file.name,name);assert.deepEqual(new Uint8Array(await file.arrayBuffer()),bytes)
+      return new Response(JSON.stringify({...snapshot().materials[0],id:'upload:a',name,contentType:'application/octet-stream',sizeBytes:bytes.length,source:'upload',url:'/api/overseas/v1/tasks/t/studio/files/a/content'}))
+    })
+    assert.equal((await api.upload('t',new File([bytes],name),new AbortController().signal)).name,name)
+  }
 })
 test('工作台 Skill 与管理目录共用中文名称和描述契约，不要求版本或阶段',()=>{
   const value=snapshot();value.skills=[{id:'old',name:'walmart-old',displayName:'沃尔玛新品主图 · 原版',description:'原版说明'},{id:'new',name:'walmart-new',displayName:'沃尔玛新品主图 · 新版（9.27）',description:'新版说明'}]

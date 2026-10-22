@@ -2,9 +2,9 @@
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+import re
 from urllib.parse import quote
 from uuid import uuid4
-from zipfile import ZipFile, BadZipFile
 from fastapi import HTTPException, Response
 from app.core.config import get_settings
 from app.modules.files.validation import safe_name
@@ -25,37 +25,13 @@ TYPES = {**CONTENT_TYPES, '.txt': 'text/plain', '.pptx':
 
 def validate(data, filename):
     extension = Path((filename or '').replace(chr(92), '/')).suffix.lower()
-    if extension in ('.doc', '.ppt'):
-        raise HTTPException(422, '旧版DOC/PPT请转换成DOCX/PPTX或PDF后上传')
-    if extension not in TYPES or not data:
-        raise HTTPException(422, '文件为空或格式不支持')
+    if not data:
+        raise HTTPException(422, '文件不能为空')
     if len(data) > MAX_BYTES:
         raise HTTPException(413, '单个附件不能超过 500 MB')
-    signatures = {'.pdf': b'%PDF-', '.xls': bytes.fromhex('d0cf11e0a1b11ae1')}
-    if extension in signatures and not data.startswith(signatures[extension]):
-        raise HTTPException(422, '文件内容与扩展名不一致')
-    if extension in ('.docx', '.pptx', '.xlsx'):
-        try:
-            with ZipFile(BytesIO(data)) as archive:
-                prefix = {'.docx': 'word/', '.pptx': 'ppt/', '.xlsx': 'xl/'}[extension]
-                if '[Content_Types].xml' not in archive.namelist() or not any(
-                        name.startswith(prefix) for name in archive.namelist()):
-                    raise ValueError()
-                if sum(item.file_size for item in archive.infolist()) > 200 * 1024 * 1024:
-                    raise ValueError()
-        except (BadZipFile, ValueError):
-            raise HTTPException(422, 'Office文件结构无效或解压后过大') from None
-    if extension in ('.txt', '.csv'):
-        if b'\x00' in data:
-            raise HTTPException(422, '文本文件包含无效内容')
-        try:
-            data.decode('utf-8-sig')
-        except UnicodeError:
-            try:
-                data.decode('gb18030')
-            except UnicodeError:
-                raise HTTPException(422, '文本须使用UTF-8或GB18030编码') from None
-    if TYPES[extension].startswith('image/'):
+    content_type = TYPES.get(extension, 'application/octet-stream')
+    # Validation controls preview eligibility, never acceptance of original files.
+    if content_type.startswith('image/'):
         from PIL import Image
         try:
             with Image.open(BytesIO(data)) as image:
@@ -70,8 +46,9 @@ def validate(data, filename):
                     image.seek(frame)
                     image.load()
         except Exception:
-            raise HTTPException(422, '图片无效或尺寸过大') from None
-    return safe_name(filename, extension), TYPES[extension]
+            content_type = 'application/octet-stream'
+    extension = re.sub(r'[\x00-\x1f\x7f<>:"|?*]', '_', extension)[:30]
+    return safe_name(filename, extension), content_type
 
 
 def read(store, row):

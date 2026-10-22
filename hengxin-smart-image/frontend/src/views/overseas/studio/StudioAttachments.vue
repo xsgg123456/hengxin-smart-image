@@ -2,7 +2,7 @@
   <div class="studio-image-attachments" :class="{ compact }">
     <div v-for="asset in visible" :key="asset.id" class="studio-image-file" :class="{ 'is-image': isImage(asset) }" :title="asset.name">
       <StudioAssetImage v-if="isImage(asset)" :asset="asset" :group="assets" :title="title" @failure="$emit('failure', $event)" />
-      <span v-else class="studio-doc-icon">文档</span>
+      <span v-else class="studio-doc-icon">文件</span>
       <div class="studio-image-file-meta"><span :title="asset.name">{{ asset.name }}</span></div>
       <AttachmentDownload v-if="!isImage(asset)" :url="asset.url" :name="asset.name" @failure="$emit('failure', $event)" />
       <ElButton v-if="removable" class="remove-file" text :disabled="disabled" :aria-label="`移除 ${asset.name}`" @click="$emit('remove', asset.id)">×</ElButton>

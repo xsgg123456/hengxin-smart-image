@@ -26,8 +26,8 @@
           <small v-if="skillError" class="studio-revision-hint" role="alert">{{ skillError }}</small>
           <ElInput v-model="text" type="textarea" :rows="2" resize="none" :disabled="locked" aria-label="设计要求" placeholder="描述设计要求，或继续提出修改意见…" @keydown="handleStudioSendKey($event, send)" />
           <div class="studio-compose-tools"><div class="studio-input-tools"><StudioSkillSelect v-model="skill" :skills="data?.skills || []" :disabled="locked" /></div><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || !!pending || uploading || activeTurn?.status === 'cancelling'" @click="stop">停止</ElButton><ElButton v-else type="primary" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div>
-          <p class="studio-compose-note">支持 JPG/PNG/WebP、PDF/DOCX/PPTX/XLS/XLSX/CSV/TXT · Enter 发送，Shift + Enter 换行（兼容 Ctrl + Enter）。执行期间可离开，回来后继续。</p>
-          <input ref="input" hidden type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.pptx,.xls,.xlsx,.csv,.txt" @change="upload">
+          <p class="studio-compose-note">支持任意格式文件 · Enter 发送，Shift + Enter 换行（兼容 Ctrl + Enter）。执行期间可离开，回来后继续。</p>
+          <input ref="input" hidden type="file" multiple @change="upload">
         </div>
       </section><StudioMaterials v-if="materialsOpen" :assets="data?.materials || []" :disabled="locked" :removing="removingMaterials" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @remove-selected="confirmRemoveMaterials" @failure="fail" /></div>
     </ElCard>
