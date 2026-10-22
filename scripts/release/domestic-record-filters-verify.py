@@ -9,6 +9,9 @@ spec = importlib.util.spec_from_file_location('record_runtime', Path(__file__).w
 s = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(s)
 m, r, b, DATABASE = s.m, s.r, s.p.b, s.p.DATABASE
+schema_spec = importlib.util.spec_from_file_location('record_schema', Path(__file__).with_name('domestic-record-filters-schema.py'))
+schema = importlib.util.module_from_spec(schema_spec)
+schema_spec.loader.exec_module(schema)
 SCHEMA = """SELECT json_build_object(
  'columns',(SELECT json_agg(t ORDER BY table_name,ordinal_position) FROM
    (SELECT table_name,column_name,ordinal_position,column_default,is_nullable,data_type,
@@ -31,7 +34,10 @@ def state(database):
         # Include every column, schedule, heartbeat, receipt and Alembic version row.
         rows[name] = b.query(database, "SELECT count(*)||':'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' "
             f"ORDER BY to_jsonb(t)::text),'')) FROM public.\"{name}\" t")
-    return dict(rows=rows, schema=json.loads(b.query(database, SCHEMA)), columns=s.p.columns(database))
+    structure = json.loads(b.query(database, SCHEMA))
+    for constraint in structure['constraints'] or []:
+        constraint['definition'] = schema.constraint_definition(constraint['definition'])
+    return dict(rows=rows, schema=structure, columns=s.p.columns(database))
 
 
 def backup(work, destination, data, release):

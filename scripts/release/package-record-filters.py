@@ -7,7 +7,7 @@ spec = importlib.util.spec_from_file_location('retention_package', Path(__file__
 p = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(p)
 APP, package = p.APP, p.package
-SCRIPTS = {'domestic-record-filters-' + name + '.py' for name in ('deploy', 'runtime', 'verify', 'native')}
+SCRIPTS = {'domestic-record-filters-' + name + '.py' for name in ('deploy', 'runtime', 'verify', 'native', 'schema')}
 REQUIRED = p.REQUIRED | {'scripts/release/' + name for name in SCRIPTS} | {
     'backend/app/modules/api_image_edits/listing.py',
     'backend/tests/test_api_image_records.py', 'backend/tests/test_api_image_records_pg.py',
