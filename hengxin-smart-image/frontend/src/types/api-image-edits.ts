@@ -24,11 +24,15 @@ export interface ApiTask extends ApiTaskActivity {
 export interface ApiChannel { enabled: boolean; paused: boolean; reason: string | null; cooldownUntil?: string | null; recovering?: boolean }
 export interface ApiTaskInput { name: string; prompt: string; originalFileIds: string[]; materialFileId: string }
 export interface ApiTaskSummary extends ApiTaskActivity {
+  creatorId?: string
   id: string; name: string; created: string; status: ApiTaskState; operator: string
   cover: ApiPicture | null; counts: { total: number; success: number; failed: number; uncertain: number }
   batch: { current: number; total: number; running: number }
 }
-export interface ApiTaskPage { items: ApiTaskSummary[]; total: number; page: number; pageSize: number }
+export interface ApiRecordsStats { tasks: number; pendingTasks: number; successImages: number; failedImages: number }
+export interface ApiTaskCreator { id: string; name: string }
+export interface ApiRecordsQuery { page: number; pageSize: number; search: string; status: ApiTaskState | ''; scope?: 'mine' | 'all'; creatorId?: string; dateFrom?: string; dateTo?: string }
+export interface ApiTaskPage { items: ApiTaskSummary[]; total: number; page: number; pageSize: number; stats?: ApiRecordsStats }
 export const taskLabels: Record<ApiTaskState, string> = { queued: '等待中', running: '处理中', succeeded: '已完成', partial_failed: '部分未完成', failed: '未完成', uncertain: '等待结果' }
 export const itemLabels: Record<ApiItemState, string> = { queued: '等待中', running: '生成中', retry_wait: '重试中', collecting: '保存中', succeeded: '已完成', failed: '未完成', uncertain: '生成中' }
 export const isApiTaskPending = (task: Pick<ApiTask, 'status'>) => ['queued', 'running', 'uncertain'].includes(task.status)

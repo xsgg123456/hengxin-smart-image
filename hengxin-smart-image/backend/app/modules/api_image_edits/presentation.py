@@ -1,4 +1,4 @@
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import load_only
 
 from app.models import utcnow
@@ -10,6 +10,7 @@ from .summaries import summaries
 from .activity import activities
 from .deletion_state import describe
 from .retry_policy import view as retry_view
+from .listing import filtered_tasks, task_stats
 
 
 def task_view(session, task):
@@ -51,7 +52,7 @@ def task_view(session, task):
     return {'id': str(task.id), 'name': task.name, 'prompt': task.prompt,
             'cliActivity': task_activity.get(task.id, 'idle'), **deletion,
             'created': aware(task.created_at).isoformat(), 'status': task.state,
-            'operator': operator(task.owner_id),
+            'operator': operator(task.owner_id), 'creatorId': str(task.owner_id),
             'batch': {'current': batch_current, 'total': batch_total,
                       'running': sum(i.state in {'running', 'collecting'} for i in items)},
             'material': pic(task.material_id), 'events': task.events, 'error': task.error,
@@ -77,20 +78,16 @@ def task_view(session, task):
                                     if i.revision_base_version is not None else None)} for i in items]}
 
 
-def list_tasks(session, page, size, search, status, summary=True):
-    query = select(ApiTask).where(ApiTask.deleted_at.is_(None))
-    if search:
-        query = query.where(or_(ApiTask.name.icontains(search, autoescape=True),
-                               func.replace(cast(ApiTask.id, String), '-', '').icontains(
-                                   search.replace('-', '') or search, autoescape=True),
-                               cast(ApiTask.id, String).icontains(search, autoescape=True)))
-    if status:
-        query = query.where(ApiTask.state == status)
-    total = session.scalar(select(func.count()).select_from(query.with_only_columns(ApiTask.id).subquery()))
+def list_tasks(session, page, size, search, status, summary=True, *,
+               owner_id=None, date_from=None, date_to=None):
+    query = filtered_tasks(search, status, owner_id=owner_id,
+                           date_from=date_from, date_to=date_to)
+    stats = task_stats(session, query)
     if summary:
         query = query.options(load_only(ApiTask.id, ApiTask.name, ApiTask.state,
             ApiTask.created_at, ApiTask.owner_id, raiseload=True))
     rows = session.scalars(query.order_by(ApiTask.created_at.desc(), ApiTask.id)
         .offset((page - 1) * size).limit(size)).all()
-    return {'items': summaries(session, rows) if summary else [task_view(session, task) for task in rows], 'total': total,
-            'page': page, 'pageSize': size}
+    return {'items': summaries(session, rows) if summary else [task_view(session, task) for task in rows],
+            'total': stats['tasks'], 'page': page, 'pageSize': size,
+            'view': 'summary' if summary else 'detail', 'stats': stats}

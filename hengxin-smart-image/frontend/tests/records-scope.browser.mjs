@@ -1,0 +1,186 @@
+// Real production dist + real loopback API; never intercept product API responses.
+// Start scripts/records-scope/live-app.py first. PLAYWRIGHT_MODULE can point at a local installation.
+import assert from 'node:assert/strict'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const base = process.env.RECORDS_QA_URL || 'http://127.0.0.1:18926'
+assert.equal(new URL(base).origin, 'http://127.0.0.1:18926', 'Only the isolated harness is permitted')
+const output = fileURLToPath(new URL('../../../output/records-scope-formal/', import.meta.url))
+await mkdir(output, { recursive: true })
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome' })
+const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Shanghai' })
+const page = await context.newPage()
+const requests = [], responses = [], errors = [], passed = []
+page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push({ method: request.method(), url: request.url() }) })
+page.on('pageerror', error => errors.push(error.message))
+page.on('response', response => { if (new URL(response.url()).pathname.startsWith('/api/')) responses.push({ status: response.status(), url: response.url() }) })
+const api = '/api/v1/api-image-edits'
+const fixture = await (await context.request.get(`${base}/__qa__/fixture`)).json()
+const stats = rows => ({ tasks: rows.length, pendingTasks: rows.filter(t => ['queued', 'running', 'uncertain'].includes(t.state)).length,
+  successImages: rows.reduce((n, t) => n + t.success, 0), failedImages: rows.reduce((n, t) => n + t.failed, 0) })
+async function get(params = {}) {
+  const response = await context.request.get(`${base}${api}/tasks`, { params })
+  assert.equal(response.status(), 200)
+  return response.json()
+}
+async function listAfter(action, check = () => true) {
+  const result = page.waitForResponse(response => new URL(response.url()).pathname === `${api}/tasks` && response.status() === 200 && check(new URL(response.url()).searchParams))
+  result.catch(() => {}) // Keep failure attached while an action may still be waiting.
+  await action()
+  const body = await (await result).json()
+  await page.locator('.scope-summary').getByText(`共 ${body.total} 套任务`, { exact: false }).waitFor()
+  return body
+}
+async function select(label, value) {
+  await page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: label, exact: true }) }).click()
+  await page.getByRole('option', { name: value, exact: true }).last().click()
+}
+async function cards(expected) {
+  const actual = await page.locator('.hx-stats strong').allTextContents()
+  assert.deepEqual(actual.map(s => Number(s.replace(/[^0-9]/g, ''))), Object.values(expected))
+}
+async function shot(name) {
+  if (await page.locator('.hx-heading').count()) await page.locator('.hx-heading').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(250) // Allow the Element Plus tab indicator/layout animation to settle.
+  await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
+}
+async function faults(values = {}) { const response = await context.request.post(`${base}/__qa__/faults`, { data: values }); assert.equal(response.status(), 200) }
+try {
+  await faults()
+  const mine = fixture.tasks.filter(t => t.owner === fixture.users[0])
+  const initial = await get()
+  assert.equal(initial.total, 25)
+  assert.deepEqual(initial.stats, stats(mine))
+  assert.ok(initial.items.every(t => t.creatorId === fixture.users[0]), 'HTTP defaults to server-authenticated owner, not last operator')
+  const all = await get({ scope: 'all', pageSize: 100 })
+  assert.equal(all.total, 51)
+  assert.deepEqual(all.stats, stats(fixture.tasks))
+  const creators = await (await context.request.get(`${base}${api}/creators`)).json()
+  assert.equal(creators.items.filter(p => p.name === '同名创建人').length, 2)
+  assert.deepEqual(Object.keys(creators.items[0]).sort(), ['id', 'name'])
+  for (const owner of fixture.users.slice(1, 3)) {
+    const selected = await get({ scope: 'all', creatorId: owner })
+    assert.equal(selected.total, fixture.tasks.filter(t => t.owner === owner).length)
+    assert.ok(selected.items.every(t => t.creatorId === owner))
+  }
+  const today = await get({ scope: 'all', dateFrom: fixture.today, dateTo: fixture.today })
+  assert.equal(today.total, fixture.tasks.filter(t => t.day === fixture.today).length, 'Beijing inclusive boundaries')
+  assert.equal((await context.request.get(`${base}${api}/tasks`, { params: { scope: 'mine', creatorId: fixture.users[1] } })).status(), 422)
+  assert.equal((await context.request.get(`${base}${api}/tasks`, { params: { dateFrom: '2026-12-02', dateTo: '2026-12-01' } })).status(), 422)
+  passed.push('HTTP defaults, owner not operator, deleted exclusion, duplicate/disabled creators, aggregate and Beijing bounds')
+
+  await listAfter(() => page.goto(`${base}/#/api-image-edits/records`))
+  await cards(stats(mine))
+  assert.equal(await page.getByRole('tab', { name: '我的任务', exact: true }).getAttribute('aria-selected'), 'true')
+  assert.equal(await page.getByRole('combobox', { name: '创建人', exact: true }).count(), 0)
+  await shot('01-mine-desktop')
+  await listAfter(() => page.getByRole('tab', { name: '全部任务', exact: true }).click(), p => p.get('scope') === 'all')
+  await cards(stats(fixture.tasks))
+  await listAfter(() => page.locator('.el-pager').getByText('2', { exact: true }).click(), p => p.get('page') === '2')
+  await cards(stats(fixture.tasks))
+  const page2 = await page.locator('.hx-table-name strong').allTextContents()
+  await shot('02-all-page-two')
+  await page.getByRole('button', { name: '查看详情', exact: true }).first().click()
+  await page.getByRole('dialog').waitFor()
+  await page.getByRole('dialog').locator('.el-drawer__close-btn').click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await listAfter(() => page.getByRole('button', { name: '刷新', exact: true }).click(), p => p.get('page') === '2')
+  assert.deepEqual(await page.locator('.hx-table-name strong').allTextContents(), page2)
+  await cards(stats(fixture.tasks))
+  await listAfter(() => Promise.resolve(), p => p.get('page') === '2')
+  assert.deepEqual(await page.locator('.hx-table-name strong').allTextContents(), page2)
+  passed.push('Default UI, all tasks, pagination invariant aggregates, detail close/manual refresh/silent polling preserve page')
+
+  const creatorBox = page.getByRole('combobox', { name: '创建人', exact: true })
+  await creatorBox.fill('同名')
+  const duplicateOptions = page.getByRole('option', { name: '同名创建人', exact: true })
+  assert.equal(await duplicateOptions.count(), 2)
+  const selectedPerson = await listAfter(() => duplicateOptions.nth(1).click(), p => !!p.get('creatorId'))
+  assert.equal(selectedPerson.total, 10, 'Disabled historical creator remains queryable by ID')
+  assert.equal(selectedPerson.page, 1)
+  await shot('03-creator-filter')
+  await listAfter(() => select('换图状态', '未完成'), p => p.get('status') === 'failed')
+  const target = fixture.tasks.find(t => t.owner === fixture.users[2] && t.state === 'failed')
+  await listAfter(() => select('创建时间', '近 30 天'), p => !!p.get('dateFrom'))
+  const combined = await listAfter(() => page.getByRole('textbox', { name: '搜索换图记录', exact: true }).fill(target.id), p => p.get('search') === target.id)
+  assert.equal(combined.total, 1)
+  await cards(stats([target]))
+  await shot('04-combined-id-status-date')
+  await listAfter(() => page.getByRole('button', { name: '重置', exact: true }).click(), p => !p.get('search') && !p.get('status') && !p.get('creatorId'))
+  assert.equal(await page.getByRole('tab', { name: '全部任务', exact: true }).getAttribute('aria-selected'), 'true')
+  passed.push('Searchable duplicate creators, disabled historical ID, status/date/UUID intersection, reset keeps scope')
+
+  await page.locator('.el-pagination .el-select').click()
+  await listAfter(() => page.getByRole('option', { name: '50条/页', exact: true }).click(), p => p.get('pageSize') === '50')
+  assert.equal(await page.locator('.hx-table-name strong').count(), 50)
+  await cards(stats(fixture.tasks))
+  await page.locator('.el-pagination .el-select').click()
+  await listAfter(() => page.getByRole('option', { name: '100条/页', exact: true }).click(), p => p.get('pageSize') === '100')
+  assert.equal(await page.locator('.hx-table-name strong').count(), 51)
+  await page.locator('.el-pagination .el-select').click()
+  await listAfter(() => page.getByRole('option', { name: '50条/页', exact: true }).click(), p => p.get('pageSize') === '50')
+  await listAfter(() => select('创建时间', '今天'), p => p.get('dateFrom') === fixture.today && p.get('dateTo') === fixture.today)
+  await cards(today.stats)
+  await listAfter(() => select('创建时间', '自定义'), p => !p.get('dateFrom') && !p.get('dateTo'))
+  await page.getByText('请选择起止日期，当前暂不限制时间', { exact: true }).waitFor()
+  await page.getByPlaceholder('开始日期', { exact: true }).fill(fixture.today)
+  await page.getByPlaceholder('结束日期', { exact: true }).fill(fixture.today)
+  await listAfter(() => page.getByPlaceholder('结束日期', { exact: true }).press('Enter'), p => p.get('dateFrom') === fixture.today && p.get('dateTo') === fixture.today)
+  await cards(today.stats)
+  await shot('04b-custom-date-inclusive')
+  await listAfter(() => page.getByRole('button', { name: '重置', exact: true }).click())
+  passed.push('50/100 page sizes, today preset, custom inclusive dates and incomplete date does not filter')
+
+  await faults({ tasks: true })
+  await page.getByRole('button', { name: '刷新', exact: true }).click()
+  await page.getByText('刷新失败，已保留上次记录，请重试。', { exact: true }).waitFor()
+  assert.equal(await page.locator('.hx-table-name strong').count(), 50)
+  await shot('05-refresh-error-keeps-data')
+  await page.getByRole('textbox', { name: '搜索换图记录', exact: true }).fill('不存在的隔离任务')
+  await page.getByText('记录加载失败，请重试。', { exact: true }).waitFor()
+  assert.equal(await page.locator('.hx-table-name strong').count(), 0, 'Changed query must clear previous scope data on error')
+  assert.ok((await page.locator('.hx-stats strong').allTextContents()).every(t => t.includes('—')))
+  await shot('06-new-query-error-no-stale-data')
+  await faults()
+  await listAfter(() => page.getByRole('button', { name: '重新加载', exact: true }).click())
+  await page.getByText('没有匹配的记录，请调整筛选条件', { exact: true }).waitFor()
+  await shot('07-no-match')
+  await listAfter(() => page.getByRole('button', { name: '清空筛选', exact: true }).click())
+  passed.push('Same-query failure keeps data; changed-query failure clears data/unknown stats; recoverable no-match empty state')
+
+  await page.getByRole('button', { name: '新建换图', exact: true }).click()
+  await page.waitForURL('**/#/api-image-edits/create')
+  await listAfter(() => page.getByRole('menuitem', { name: '换图记录', exact: true }).click(), p => p.get('scope') === 'mine')
+  await cards(stats(mine))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await shot('08-mobile-mine')
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Narrow viewport must not overflow document')
+  await listAfter(() => page.getByRole('tab', { name: '全部任务', exact: true }).click())
+  await shot('09-mobile-all')
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+  passed.push('Route re-entry defaults mine, 390px mine/all layout')
+
+  await context.addCookies([{ name: 'qa_identity', value: 'empty', url: base }])
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await listAfter(() => page.reload(), p => p.get('scope') === 'mine')
+  await page.getByText('你还没有创建换图任务', { exact: true }).waitFor()
+  await page.getByRole('button', { name: '查看全部任务', exact: true }).waitFor()
+  await cards(stats([]))
+  await shot('10-empty-new-identity')
+  passed.push('New identity bootstrap does not reuse prior records and exposes first-task empty actions')
+  assert.deepEqual(errors, [])
+  assert.ok(requests.some(r => r.url.includes(`${api}/tasks?`)))
+  assert.ok(requests.some(r => r.url.includes(`${api}/files/`)), 'Real memory image route exercised')
+  assert.ok(requests.every(r => r.method === 'GET'), 'Browser must never send business writes')
+  passed.push('No browser exceptions; real list/detail/media HTTP; zero business writes')
+  console.log(JSON.stringify({ result: 'PASS', passed, businessRequests: requests.length }, null, 2))
+} catch (error) {
+  await shot('failure')
+  await writeFile(`${output}/failure-dom.txt`, await page.locator('body').innerText())
+  throw error
+} finally {
+  await faults()
+  await writeFile(`${output}/browser-evidence.json`, JSON.stringify({ passed, errors, requests, responses }, null, 2))
+  await browser.close()
+}

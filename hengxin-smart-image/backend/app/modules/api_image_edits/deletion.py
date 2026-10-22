@@ -1,6 +1,5 @@
 """Durable idle-only erasure, executed by the owning native CLI maintenance user."""
 from datetime import timedelta
-import logging
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID
@@ -9,6 +8,7 @@ from minio.error import S3Error
 from sqlalchemy import select
 from app.core.config import get_settings
 from app.execution.process import same_process
+from app.execution.cleanup_diagnostics import report
 from app.models import utcnow
 from . import deletion_files, deletion_paths, deletion_records
 from .deletion_models import ApiTaskDeletion
@@ -132,7 +132,7 @@ def process(factory, store, task_id, settings=None, now=None):
             row.error, row.next_attempt_at, row.completed_at = None, None, now
         return 'deleted'
     except Exception as error:
-        logging.exception('API task deletion deferred: %s (%s)', task_id, type(error).__name__)
+        report(error, stage='task_delete', resource_id=task_id)
         with factory.begin() as session:
             _, row = locked(session, task_id)
             if row is not None and row.status != 'deleted':

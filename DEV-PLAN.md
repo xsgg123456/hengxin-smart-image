@@ -1,3 +1,15 @@
+## 2026-10-22 · 记录筛选与安全清理联合生产发布（已追加授权）
+
+用户现已授权提交 Git、打包并部署生产，覆盖此前暂停指示。按 [联合发布计划](docs/RECORDS-CLEANUP-RELEASE-20261022.md) 完成生产实查、原生执行器发布适配及审查、不可变打包、排空备份恢复校验、切换和正式入口验收。业务范围保持0.2.49记录筛选与共享安全清理修复；数据库版本保持国内0032、海外0020。
+
+## 2026-10-22 · 自动清理统一修复
+
+按 [修复合同](docs/CLEANUP-UNIFICATION-20261022.md) 完成共享安全目录组件、脱敏诊断、真实挂载竞态与业务保留测试、隔离Linux/PG全回归及独立两阶段审查。最终后端2456通过/27环境跳过，Linux专项171通过、Windows专项63通过，前端355通过且类型/构建通过；审查凭据e7065e20已批准，见 [验收记录](docs/CLEANUP-UNIFICATION-VALIDATION-20261022.md) 和 [最终审查](docs/CLEANUP-UNIFICATION-APPROVAL-20261022.md)。现停止，不提交、不部署。Linux临时环境已清理，Windows三个测试临时目录因工具自动审批拦截保留。原先records仅API/前端发布准备不能覆盖本修复所需原生清理/删除执行器，未来发布需另行适配和验收，当前不修改或运行发布入口。
+
+## 2026-10-22 · 国内换图记录筛选正式接入
+
+用户已授权开发、验证；最新指示：完成后先停下来，暂不提交Git、不部署，等待补充查看内容。执行 [本轮计划与验收](docs/RECORDS-SCOPE-20261022.md)：先同步契约，再并行后端过滤/汇总/创建人接口与正式前端接线，完成单测/类型/构建/隔离功能验证及独立审查。当前状态：本轮开发、本地验证和独立两阶段审查均完成；前端355项、UTC Linux后端2394项、新增PG六项通过，24项环境条件跳过。独立审查绑定候选e40dcd0f；旧东八区极端Retry-After边界问题有HEAD对照，未纳入本轮修复，详情见 [验收记录](docs/RECORDS-SCOPE-VALIDATION-20261022.md) 和 [独立审查](docs/RECORDS-SCOPE-REVIEW-20261022.md)。版本0.2.49的提交、打包及生产部署继续暂停；无本轮提交或生产变更。
+
 # 已完成上线：国内 CLI 三天清理与管理中心（2026-10-21）
 
 用户已批准预览并要求正式接入及存量超过3天下轮清理。使用product-spec-builder/dev-planner同步源文档，按dev-builder实施，release-builder生产交付。顺序和验收以 [实施合同](docs/CLI-RETENTION-MANAGEMENT-20261021.md) 为准：0032增量迁移及清理回执/心跳/统计 → 只读管理API与真实前端 → 全测试/编译/PG/浏览器及独立审查 → 版本化打包/排空备份/迁移切换 → 首轮真实清理与正式页面验收。关键文件backend/app/retention、backend/app/modules/management/retention*、backend/migrations/versions/0032*、对应tests；frontend/src/{api,types,views/hengxin/admin}/retention*及导航/会话提示；scripts/release/*retention-management*。不改海外逻辑。2026-10-21 16:22完成生产启用，0.2.46/0032。业务实现745b608、发布包bec8dd7、就绪续发修正eb746cc；独立审查、正式镜像2066项、备份恢复、首扫及正式页/保留文件验收通过。详见 [发布记录](docs/CLI-RETENTION-MANAGEMENT-RELEASE-20261021.md)。

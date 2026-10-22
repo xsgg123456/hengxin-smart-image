@@ -38,6 +38,7 @@ def summaries(session, tasks):
         result.append(dict(id=str(task.id), name=task.name, status=task.state,
             cliActivity=task_activity.get(task.id, 'idle'), **deletion[task.id],
             created=aware(task.created_at).isoformat(), operator=owners.get(task.owner_id, '未知用户'),
+            creatorId=str(task.owner_id),
             cover=covers.get(task.id), counts=dict(total=total, success=row.success if row else 0,
                 failed=row.failed if row else 0, uncertain=row.uncertain if row else 0),
             batch=dict(total=batches, current=(row.first_pending - 1) // 10 + 1

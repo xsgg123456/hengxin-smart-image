@@ -4,7 +4,8 @@ import { apiImages, errorText, uncertainResponse } from '@/api/api-image-edits'
 import { bootstrap, retryBootstrap } from '@/api/hengxin/bootstrap'
 import { identity } from '@/api/hengxin/identity'
 import { isTaskActive } from '@/types/api-image-edits'
-import type { ApiDeletion, ApiTask, ApiTaskSummary, ApiTaskState } from '@/types/api-image-edits'
+import type { ApiDeletion, ApiTask, ApiTaskSummary, ApiTaskState, ApiRecordsStats, ApiTaskCreator } from '@/types/api-image-edits'
+import { recordsDateRange, type RecordsPeriod } from './records-filters'
 // 未确认的重试请求跨详情关闭和路由切换保留原键。
 const retryKeys = new Map<string, { key: string; uncertain: boolean }>()
 function savedRetry(id: string) {
@@ -21,19 +22,26 @@ export function useRecords() {
   const userId = String(useUserStore().getUserInfo.userId)
   const retryId = (id: string) => `${userId}:${id}`
   const tasks = ref<ApiTaskSummary[]>([]), total = ref(0), page = ref(1), pageSize = ref(20), search = ref(''), filter = ref<ApiTaskState | ''>('')
+  const scope = ref<'mine' | 'all'>('mine'), creatorId = ref(''), period = ref<RecordsPeriod>('all'), dates = ref<[string, string] | null>(null)
+  const stats = ref<ApiRecordsStats>(), creators = ref<ApiTaskCreator[]>([]), creatorsLoading = ref(false), creatorsError = ref('')
+  const hasFilters = computed(() => !!(creatorId.value || filter.value || search.value || period.value !== 'all'))
   const selectedId = ref(''), selected = ref<ApiTask>(), loading = ref(false), detailLoading = ref(false)
   const deletedName = ref(''), deletedId = ref(''), pendingDeletions = new Map<string, string>()
   const error = ref(''), detailError = ref(''), actionError = ref(''), busy = ref(false)
   const retryPending = computed(() => { void actionError.value; void selected.value; return !!savedRetry(retryId(selectedId.value)) })
-  let detailLoadedAt = 0
+  let detailLoadedAt = 0, displayedQuery = '', creatorSerial = 0
   let alive = true, listSerial = 0, detailSerial = 0, timer: ReturnType<typeof setTimeout> | undefined, debounce: ReturnType<typeof setTimeout> | undefined
   async function load(silent = false) {
+    const query = { page: page.value, pageSize: pageSize.value, search: search.value, status: filter.value, scope: scope.value,
+      ...(scope.value === 'all' && creatorId.value ? { creatorId: creatorId.value } : {}), ...recordsDateRange(period.value, dates.value) }
+    const queryKey = JSON.stringify(query)
+    if (displayedQuery !== queryKey) { tasks.value = []; total.value = 0; stats.value = undefined; error.value = ''; displayedQuery = queryKey; silent = false }
     const serial = ++listSerial; if (!silent) loading.value = true
     try {
-      const result = await apiImages.list({ page: page.value, pageSize: pageSize.value, search: search.value, status: filter.value })
+      const result = await apiImages.list(query)
       if (!alive || serial !== listSerial) return
       if (page.value > 1 && !result.items.length && result.total <= (page.value - 1) * pageSize.value) { page.value = Math.max(1, Math.ceil(result.total / pageSize.value)); return }
-      tasks.value = result.items; total.value = result.total; error.value = ''
+      tasks.value = result.items; total.value = result.total; stats.value = result.stats; error.value = ''
       for (const task of result.items) if (task.deletionState === 'deleting') pendingDeletions.set(task.id, task.name)
       for (const [id, name] of pendingDeletions) {
         try { const result = await apiImages.deletion(id); if (alive && serial === listSerial) applyDeletion(id, name, result) }
@@ -42,6 +50,13 @@ export function useRecords() {
     } catch (e) { if (alive && serial === listSerial) error.value = tasks.value.length ? '刷新失败，已保留上次记录，请重试。' : '记录加载失败，请重试。' }
     finally { if (alive && serial === listSerial) loading.value = false }
   }
+  async function loadCreators() {
+    const serial = ++creatorSerial; creatorsLoading.value = true; creatorsError.value = ''
+    try { const result = await apiImages.creators(); if (alive && serial === creatorSerial) creators.value = result.items }
+    catch { if (alive && serial === creatorSerial) creatorsError.value = '创建人列表加载失败，请重试。' }
+    finally { if (alive && serial === creatorSerial) creatorsLoading.value = false }
+  }
+  function resetFilters() { creatorId.value = ''; filter.value = ''; search.value = ''; period.value = 'all'; dates.value = null; page.value = 1 }
   async function loadDetail(silent = false) {
     const id = selectedId.value, serial = ++detailSerial
     if (!id) { selected.value = undefined; detailError.value = ''; detailLoading.value = false; return }
@@ -71,9 +86,10 @@ export function useRecords() {
     await refresh(true); schedule()
   }
   document.addEventListener('visibilitychange', visibility)
-  watch([filter, pageSize], () => { page.value = 1 }, { flush: 'sync' })
-  watch([page, filter, pageSize], () => { clearTimeout(debounce); void load() })
-  watch(search, () => { ++listSerial; clearTimeout(debounce); debounce = setTimeout(() => { if (page.value !== 1) page.value = 1; else void load() }, 300) })
+  watch(scope, () => { creatorId.value = ''; if (scope.value === 'all') void loadCreators() }, { flush: 'sync' })
+  watch([scope, creatorId, period, dates, filter, pageSize, search], () => { ++listSerial; page.value = 1; tasks.value = []; total.value = 0; stats.value = undefined; error.value = ''; loading.value = true }, { flush: 'sync' })
+  watch([page, scope, creatorId, period, dates, filter, pageSize], () => { clearTimeout(debounce); void load() })
+  watch(search, () => { clearTimeout(debounce); debounce = setTimeout(() => void load(), 300) })
   watch(selectedId, () => { selected.value = undefined; actionError.value = ''; void loadDetail() })
   async function action(run: () => Promise<unknown>, failureMessage?: () => string) {
     if (busy.value) return
@@ -87,7 +103,7 @@ export function useRecords() {
     if (result.state === 'deleted') {
       pendingDeletions.delete(id)
       tasks.value = tasks.value.filter(task => task.id !== id)
-      if (row) total.value = Math.max(0, total.value - 1)
+      if (row) { total.value = Math.max(0, total.value - 1); stats.value = undefined }
       deletedName.value = name; deletedId.value = id
       if (selectedId.value === id) { selectedId.value = ''; selected.value = undefined }
       return
@@ -116,5 +132,5 @@ export function useRecords() {
   }
   void refresh().then(schedule)
   onBeforeUnmount(() => { alive = false; document.removeEventListener('visibilitychange', visibility); clearTimeout(timer); clearTimeout(debounce) })
-  return { tasks, total, page, pageSize, search, filter, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry, removeTask, deletedId, deletedName }
+  return { tasks, total, page, pageSize, search, filter, scope, creatorId, period, dates, stats, creators, creatorsLoading, creatorsError, hasFilters, loadCreators, resetFilters, userId, selectedId, selected, loading, detailLoading, error, detailError, actionError, busy, retryPending, load, loadDetail, refresh, action, retry, removeTask, deletedId, deletedName }
 }

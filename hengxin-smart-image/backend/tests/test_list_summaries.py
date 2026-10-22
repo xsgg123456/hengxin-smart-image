@@ -29,7 +29,7 @@ def test_api_summary_counts_cover_and_no_history_queries(files_env):
         response, two = sample(client, ROOT + '/tasks?view=summary&pageSize=20')
     finally:
         event.remove(engine, 'before_cursor_execute', capture)
-    assert one['sql_before_headers'] == two['sql_before_headers'] == 14
+    assert one['sql_before_headers'] == two['sql_before_headers'] == 15
     assert not any('api_image_versions' in s for s in sql)
     assert all('api_image_attempts.receipt' not in s and 'api_edit_turns.messages' not in s
                and 'api_edit_turns.prompt' not in s for s in sql)

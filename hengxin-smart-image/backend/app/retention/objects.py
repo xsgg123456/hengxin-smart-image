@@ -10,6 +10,7 @@ from .models import RetentionObject
 from .observability_models import RetentionObjectLink
 from .events import object_result
 from .state import aware
+from app.execution.cleanup_diagnostics import report, ThumbnailOwnershipUnresolved
 
 
 def contains_id(value, file_id):
@@ -59,7 +60,7 @@ def queue_unused(session, domain, file_ids, now=None, receipt=None):
         variant = session.scalar(select(ImageVariants).where(ImageVariants.domain == domain,
             ImageVariants.file_id == file_id).with_for_update(nowait=True))
         if variant and variant.lease_until is not None:
-            raise RuntimeError('Thumbnail ownership is unresolved; retry after reconciliation')
+            raise ThumbnailOwnershipUnresolved('Thumbnail ownership is unresolved; retry after reconciliation')
         keys = [record.object_key]
         if variant:
             for size, data in variant.outputs.items():
@@ -102,7 +103,8 @@ def retry_objects(factory, store, limit=25, now=None):
                 continue
             try:
                 store.remove(row)
-            except Exception:
+            except Exception as error:
+                report(error, stage='object_remove', resource_id=row.id)
                 row.attempts += 1
                 row.next_attempt_at = now + timedelta(hours=1)
                 object_result(session, row.id, now, next_attempt=row.next_attempt_at)

@@ -10,6 +10,7 @@ from .state import entry, due, aware, HISTORY_AGE
 from .objects import queue_unused
 from . import paths
 from .events import receipt, transition, finish
+from app.execution.cleanup_diagnostics import report
 
 ITEM_TERMINAL = ('succeeded', 'failed', 'cancelled')
 TURN_TERMINAL = ('candidate', 'waiting_user', 'adopted', 'failed', 'cancelled')
@@ -103,6 +104,7 @@ def process(factory, store, root, resource_id, now=None):
         row.status, row.next_cleanup_at = action, now + timedelta(hours=1)
         transition(record, 'processing', now, row.next_cleanup_at)
     # A committed pending fence survives crashes between filesystem and DB commits.
+    stage = 'cache_filesystem' if action == 'cache_pending' else 'history_filesystem'
     try:
         with factory.begin() as session:
             data = locked(session, resource_id)
@@ -117,13 +119,16 @@ def process(factory, store, root, resource_id, now=None):
                 return 'protected'
             paths.clean(root / 'api-edits', resource_id, cache_only=action == 'cache_pending')
             if action == 'expire_pending':
+                stage = 'history_database'
                 erase_history(session, conversation, row, now, record)
             else:
                 row.status, row.cache_cleared_at, row.error = 'active', now, None
                 row.next_cleanup_at = aware(row.last_activity_at) + HISTORY_AGE
+            stage = 'cache_receipt' if action == 'cache_pending' else 'history_receipt'
             finish(session, record, now)
         return 'expired' if action == 'expire_pending' else 'cache_cleared'
-    except Exception:
+    except Exception as error:
+        report(error, stage=stage, resource_id=resource_id)
         with factory.begin() as session:
             data = locked(session, resource_id)
             if data is not None and data[3].status == action:

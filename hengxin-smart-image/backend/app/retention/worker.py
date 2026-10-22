@@ -13,6 +13,7 @@ from app.storage.minio_store import get_store
 from .models import RetentionEntry
 from .state import touch, aware, CACHE_AGE, HISTORY_AGE
 from .objects import retry_objects
+from app.execution.cleanup_diagnostics import report
 
 
 def register_existing(factory, limit, now):
@@ -66,7 +67,8 @@ def run_once(factory=None, store=None, settings=None, now=None):
     scan_id = begin_scan(factory, now)
     try:
         result = scan(factory, store or get_store(), settings, now)
-    except Exception:
+    except Exception as error:
+        report(error, stage='scan', resource_id=scan_id)
         end_scan(factory, scan_id, 'failed')
         raise
     end_scan(factory, scan_id, result['status'])
@@ -89,7 +91,8 @@ def scan(factory, store, settings, now):
             continue
         try:
             status = adapter.process(factory, store, Path(settings.codex_execution_root), identifier, now)
-        except Exception:
+        except Exception as error:
+            report(error, stage='resource_scan', resource_id=identifier)
             status = 'retry'  # A concurrent lock conflict does not terminate the batch.
             failed = True  # Persist this scan failure even when no resource lock was obtained.
         results.append({'domain': domain, 'resourceId': str(identifier), 'status': status})
@@ -108,12 +111,16 @@ def main():
     args = parser.parse_args()
     if args.interval < 1:
         parser.error('--interval must be positive')
-    if not args.deletions_only and get_settings().cli_retention_enabled:
-        from .service import beating
-        with beating(session_factory()):
+    try:
+        if not args.deletions_only and get_settings().cli_retention_enabled:
+            from .service import beating
+            with beating(session_factory()):
+                execute_loop(args)
+        else:
             execute_loop(args)
-    else:
-        execute_loop(args)
+    except Exception as error:
+        report(error, stage='worker_lifecycle', resource_id=None)
+        raise SystemExit(1) from None
 
 
 def execute_loop(args):
@@ -125,9 +132,10 @@ def execute_loop(args):
             else:
                 result = run_once()
             print(json.dumps(result, ensure_ascii=False), flush=True)
-        except Exception:
+        except Exception as error:
+            report(error, stage='worker_loop', resource_id=None)
             if args.once:
-                raise
+                raise SystemExit(1) from None
             print(json.dumps({'status': 'unavailable'}), flush=True)
         if args.once:
             return

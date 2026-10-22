@@ -1,6 +1,6 @@
 import { readIdentityBlob } from './hengxin/identity-download'
 import { ApiError, createRequest } from './hengxin/http'
-import type { ApiTaskInput, ApiTaskState, ApiRevisionInput } from '../types/api-image-edits'
+import type { ApiTaskInput, ApiRecordsQuery, ApiRevisionInput } from '../types/api-image-edits'
 import * as valid from './api-image-edits-validate'
 export const apiImageDemo = ['demo', 'mock'].includes(import.meta.env?.MODE || '')
 export function createApiImageClient(baseUrl: string, fetcher: typeof fetch = fetch) {
@@ -12,7 +12,8 @@ export function createApiImageClient(baseUrl: string, fetcher: typeof fetch = fe
     upload: (file: File) => { const body = new FormData(); body.append('file', file); return request('/files', valid.picture, 'POST', body, 60000) },
     deleteFile: (id: string) => request(`/files/${encodeURIComponent(id)}`, (v): v is void | { deleted: true } => valid.empty(v) || valid.deleted(v), 'DELETE'),
     create: (input: ApiTaskInput, key: string) => request('/tasks', valid.accepted, 'POST', input, 10000, { 'Idempotency-Key': key }),
-    list: (query: { page: number; pageSize: number; search: string; status: ApiTaskState | '' }) => request(`/tasks?${new URLSearchParams(Object.entries({ ...query, view: 'summary' }).map(([key, value]) => [key, String(value)]))}`, valid.page),
+    list: (query: ApiRecordsQuery) => request(`/tasks?${new URLSearchParams(Object.entries({ scope: 'mine', ...query, view: 'summary' }).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)]))}`, valid.page),
+    creators: () => request('/creators', valid.creators),
     task: async (id: string) => { const task = await request(path(id), valid.task); task.items.sort((a, b) => a.position - b.position); return task },
     retry: (id: string, key: string) => request(`${path(id)}/retry`, valid.accepted, 'POST', undefined, 10000, { 'Idempotency-Key': key }),
     revise: (id: string, item: string, input: ApiRevisionInput, key: string) => request(path(id) + '/items/' + encodeURIComponent(item) + '/revise', valid.accepted, 'POST', input, 10000, { 'Idempotency-Key': key }),

@@ -1,7 +1,34 @@
 """Exercise the actual retention path boundary without user files."""
+import os
 from uuid import uuid4
 import pytest
 from app.retention.paths import clean
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='Linux executor tool links')
+def test_retention_accepts_tool_links_and_cache_preserves_session_material(tmp_path):
+    identifier = uuid4()
+    target = tmp_path / str(identifier)
+    home = target / 'home/.codex'
+    tools = home / 'tmp/arg0/codex-arg0Safe42'
+    tools.mkdir(parents=True)
+    for name in ('apply_patch', 'applypatch', 'codex-execve-wrapper', 'codex-linux-sandbox'):
+        (tools / name).symlink_to('/opt/codex')
+    for name in ('cache', 'plugins', 'sessions'):
+        (home / name).mkdir()
+        (home / name / 'data').write_bytes(b'private data')
+    auth = home / 'auth.json'
+    auth.write_bytes(b'private credential')
+    neighbor = tmp_path / str(uuid4())
+    neighbor.mkdir()
+    clean(tmp_path, identifier, cache_only=True)
+    assert not (home / 'cache').exists() and not (home / 'plugins').exists()
+    assert (home / 'sessions/data').read_bytes() == b'private data'
+    assert auth.read_bytes() == b'private credential'
+    assert all(path.is_symlink() and os.readlink(path) == '/opt/codex' for path in tools.iterdir())
+    clean(tmp_path, identifier)
+    clean(tmp_path, identifier)
+    assert not target.exists() and neighbor.is_dir()
 
 
 def link(path, target):

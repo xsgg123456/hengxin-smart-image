@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated, Literal
 from urllib.parse import quote
 from uuid import UUID
@@ -18,6 +19,7 @@ from app.storage.minio_store import get_store
 from . import control, files, service, versions, zip_download
 from .config import get_api_settings
 from .models import ApiChannel
+from .listing import list_creators
 from .presentation import list_tasks, task_view
 from .schemas import CreateTask, ReviseItem, RestoreVersion
 
@@ -93,8 +95,19 @@ def create(data: CreateTask, user: User, session: Database, key: Key):
 @router.get('/tasks')
 def tasks(user: User, session: Database, page: int = Query(1, ge=1),
           pageSize: int = Query(20, ge=1, le=100), search: str = Query('', max_length=60),
-          status: str = Query('', max_length=30), view: Literal['summary', 'detail'] = 'detail'):
-    return list_tasks(session, page, pageSize, search, status, summary=view == 'summary')
+          status: str = Query('', max_length=30), view: Literal['summary', 'detail'] = 'detail',
+          scope: Literal['mine', 'all'] = 'mine', creatorId: UUID | None = None,
+          dateFrom: date | None = None, dateTo: date | None = None):
+    if scope == 'mine' and creatorId is not None:
+        raise HTTPException(422, '我的任务不能指定其他创建人')
+    return list_tasks(session, page, pageSize, search, status, summary=view == 'summary',
+                      owner_id=user.id if scope == 'mine' else creatorId,
+                      date_from=dateFrom, date_to=dateTo)
+
+
+@router.get('/creators')
+def creators(user: User, session: Database):
+    return list_creators(session, user.id)
 
 
 @router.get('/tasks/{task_id}')
