@@ -46,6 +46,8 @@ def archive(session, actor, task_id, body, key, store):
 def picture_dto(row):
     return dict(id=str(row.id), name=row.name, sku=row.sku, width=row.width, height=row.height,
         contentType=row.content_type, sizeBytes=row.size_bytes,
+        sourceConversationId=str(row.source_conversation_id) if row.source_conversation_id else None,
+        sourceConversationName=row.source_conversation_name,
         url=f'/api/overseas/v1/archives/{row.archive_id}/pictures/{row.id}/content')
 
 

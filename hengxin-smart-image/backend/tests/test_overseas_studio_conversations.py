@@ -17,13 +17,14 @@ def test_new_conversation_preserves_history_and_uses_fresh_cli_home(studio, monk
     client, factory, _, task, _, _ = studio
     commands = fake_runtime(studio, monkeypatch, tmp_path)
     first = send(client, task).json()
-    assert post(client, task, '/studio/conversations', {}, 'busy').status_code == 409
     runner.run(factory, first['turns'][0]['jobId'])
     second = post(client, task, '/studio/conversations', {}, 'new')
     assert second.status_code == 200
     data = second.json()
     assert data['conversationId'] != first['conversationId']
-    assert data['turns'][0]['conversationId'] == first['conversationId']
+    assert data['turns'] == []
+    previous = client.get(ROOT + '/tasks/' + task['id'] + '/studio', params={'conversationId': first['conversationId']}).json()
+    assert previous['turns'][0]['conversationId'] == first['conversationId']
     assert data['materials'] == first['materials']
     assert post(client, task, '/studio/conversations', {}, 'new').json() == data
     turn = send(client, task, key='second').json()['turns'][-1]

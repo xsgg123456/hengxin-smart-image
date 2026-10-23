@@ -19,13 +19,13 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeUpdate, onUpdated, ref } from 'vue'
+import { computed, onBeforeUpdate, onUpdated, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { StudioTranscript as Transcript, StudioPicture, StudioTurn } from '@/api/overseas/studio'
 import StudioAttachments from './StudioAttachments.vue'
 import StudioAssetImage from './StudioAssetImage.vue'
 import StudioProcess from './StudioProcess.vue'
-const props = defineProps<{ turns: StudioTurn[]; transcript: Transcript[]; conversationId?: string | null; selected: string[]; disabled: boolean }>()
-defineEmits<{ failure: [reason: unknown]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()
+const props = defineProps<{ turns: StudioTurn[]; transcript: Transcript[]; conversationId?: string | null; selected: string[]; disabled: boolean; scrollPosition?: number | null }>()
+const emit = defineEmits<{ 'scroll-position': [position: number, conversationId?: string | null]; failure: [reason: unknown]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()
 const labels: Record<string, string> = { queued: '排队中', running: '执行中', collecting: '收取结果中', cancelling: '正在停止', uncertain: '执行状态待核实', succeeded: '已回复', failed: '执行失败', cancelled: '已停止' }
 const byTurn = computed(() => {
   const result = new Map<string, Transcript[]>()
@@ -34,8 +34,10 @@ const byTurn = computed(() => {
 })
 const scroller = ref<HTMLElement>()
 let nearBottom = true
-function trackScroll() { const node = scroller.value; if (node) nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 64 }
+function trackScroll() { const node = scroller.value; if (node) { nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 64; emit('scroll-position', node.scrollTop, props.conversationId) } }
 function followBottom() { if (nearBottom && scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight }
+onMounted(() => { if (scroller.value && props.scrollPosition != null) { scroller.value.scrollTop = props.scrollPosition; trackScroll() } else followBottom() })
+onBeforeUnmount(trackScroll)
 // Read the old DOM before patching: a pending browser scroll event must not lose a user's position.
 onBeforeUpdate(trackScroll)
 onUpdated(followBottom)

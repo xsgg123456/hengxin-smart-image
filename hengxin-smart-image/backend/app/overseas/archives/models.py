@@ -21,6 +21,8 @@ class Archive(Timestamps, Base):
 
 class ArchiveAsset(Timestamps, Base):
     __tablename__ = 'overseas_archive_assets'
+    source_conversation_id: Mapped[UUID | None] = mapped_column(Uuid)
+    source_conversation_name: Mapped[str | None] = mapped_column(String(30))
     __table_args__ = (UniqueConstraint('archive_id', 'source_version'),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     archive_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_archives.id'), index=True)

@@ -1,5 +1,5 @@
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
 
 class Strict(BaseModel):
@@ -13,6 +13,7 @@ class ImageEdit(Strict):
 
 
 class Send(Strict):
+    conversationId: UUID | None = None
     text: str = Field('', max_length=100000)
     skillId: UUID | None = None
     attachmentIds: list[str] = Field(default_factory=list, max_length=100)
@@ -54,6 +55,7 @@ class Cancel(Strict):
 
 
 class ArchiveRequest(Strict):
+    conversationId: UUID | None = None
     pictureIds: list[UUID] = Field(min_length=1, max_length=1000)
     sku: str = Field(min_length=1, max_length=80)
 
@@ -63,4 +65,22 @@ class Complete(Strict):
 
 
 class NewConversation(Strict):
-    pass
+    name: str | None = Field(None, min_length=1, max_length=30)
+
+    @field_validator('name')
+    @classmethod
+    def valid_name(cls, value):
+        if value is not None:
+            value = value.strip()
+            if not value or any(ord(char) < 32 for char in value):
+                raise ValueError('会话名称须为1–30字，不能包含控制字符')
+        return value
+
+
+class RenameConversation(NewConversation):
+    name: str = Field(min_length=1, max_length=30)
+    version: int = Field(ge=1, strict=True)
+
+
+class DeleteConversation(Strict):
+    version: int = Field(ge=1, strict=True)

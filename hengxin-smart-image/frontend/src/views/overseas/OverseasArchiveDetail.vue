@@ -23,7 +23,8 @@
       </details>
       <p v-if="detail.sourceDeleted || !detail.taskId" class="hx-gap">原任务已删除</p>
       <ElButton v-else text type="primary" @click="$emit('source', detail.taskId)">查看原任务</ElButton>
-      <div class="archive-pictures hx-gap"><OverseasArchivePicture v-for="(picture, index) in detail.pictures" :key="detail.id + picture.id + revision" :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = index" /></div>
+      <ElSelect v-model="sourceFilter" aria-label="筛选来源会话" class="hx-gap"><ElOption label="全部会话" value="" /><ElOption v-for="source in archiveSources" :key="source.id" :label="source.name" :value="source.id" /></ElSelect>
+      <div class="archive-pictures hx-gap"><div v-for="picture in filteredPictures" :key="detail.id + picture.id + revision"><OverseasArchivePicture :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = detail.pictures.findIndex(p => p.id === picture.id)" /><p class="hx-footnote">来源会话：{{ picture.sourceConversationName || '历史会话未记录' }}</p></div></div>
     </template>
     <template #footer><ElButton @click="$emit('close')">关闭</ElButton></template>
   </ElDialog>
@@ -32,7 +33,7 @@
 <script setup lang="ts">
 import { formatBeijingTime } from '@/utils/beijing-time'
 
-import { onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import type { ArchiveDetail, ArchivesApi } from '@/api/overseas/archives'
 import { archiveError } from '@/api/overseas/archives'
@@ -42,7 +43,9 @@ import OverseasArchiveViewer from './OverseasArchiveViewer.vue'
 const props = defineProps<{ id: string; api: ArchivesApi }>()
 const emit = defineEmits<{ close: []; source: [taskId: string]; failure: [reason: unknown] }>()
 const detail = ref<ArchiveDetail>(), error = ref(''), loading = ref(false), revision = ref(0)
-const previewIndex = ref<number | null>(null)
+const previewIndex = ref<number | null>(null), sourceFilter = ref('')
+const archiveSources = computed(() => [...new Map((detail.value?.pictures || []).map(p => [p.sourceConversationId || 'legacy', { id: p.sourceConversationId || 'legacy', name: p.sourceConversationName || '历史会话未记录' }])).values()])
+const filteredPictures = computed(() => (detail.value?.pictures || []).filter(p => !sourceFilter.value || (p.sourceConversationId || 'legacy') === sourceFilter.value))
 let epoch = 0, alive = true
 function failure(reason: unknown) {
   error.value = reason instanceof IdentityError && reason.status === 409 ? '成品正在删除或暂不可用，请刷新成品详情。' : archiveError(reason)
@@ -50,7 +53,7 @@ function failure(reason: unknown) {
 }
 async function load() {
   const id = props.id, current = ++epoch
-  detail.value = undefined; previewIndex.value = null; error.value = ''; loading.value = false
+  detail.value = undefined; previewIndex.value = null; sourceFilter.value = ''; error.value = ''; loading.value = false
   if (!id) return
   loading.value = true
   try { const value = await props.api.get(id); if (alive && current === epoch) { detail.value = value; revision.value++ } }

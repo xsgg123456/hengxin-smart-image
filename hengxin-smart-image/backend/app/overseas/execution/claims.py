@@ -73,6 +73,18 @@ def claim(factory, job_id, admission=None):
             job.process_exited = True  # A queued job has never started a process.
             end(session, job, 'cancelled')
             return None
+        if job.kind == 'studio':
+            from app.overseas.studio.models import Conversation, ConversationDeletion, Turn
+            turn = session.scalar(select(Turn).where(Turn.job_id == job.id))
+            if (not turn or not session.get(Conversation, turn.conversation_id)
+                    or session.get(ConversationDeletion, turn.conversation_id)):
+                job.process_exited = True
+                end(session, job, 'cancelled')
+                return None
+            competing = session.scalar(select(Job.id).join(Turn, Turn.job_id == Job.id).where(
+                Turn.conversation_id == turn.conversation_id, Job.id != job.id, Job.status.in_(ACTIVE)).limit(1))
+            if competing:
+                return None
         occupied = session.scalar(select(func.count()).select_from(Job).where(Job.status.in_(ACTIVE)))
         config = session.get(Settings, 1)
         capacity = (config.values.get('concurrency', 5) if config else 5)

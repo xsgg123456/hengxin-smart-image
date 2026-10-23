@@ -59,10 +59,15 @@ def test_visibility_migration_preserves_populated_duplicates_and_is_repeatable(d
             assert conn.execute(select(visibility)).all() == []
             conn.execute(visibility.insert().values(id=uuid4(), task_id=task, checksum='a' * 64,
                                                   hidden=True, **times))
-            assert any(c['column_names'] == ['task_id', 'checksum']
+            assert any(c['column_names'] == ['task_id', 'checksum', 'scope']
                        for c in inspect(conn).get_unique_constraints(visibility.name))
         after = snapshot(url)[1]
-        assert all(after[name] == rows for name, rows in before.items() if name != 'overseas_alembic_version')
+        for name, rows in before.items():
+            if name == 'overseas_alembic_version':
+                continue
+            additions = {'overseas_studio_conversations': ('会话 1', 1),
+                         'overseas_studio_uploads': (None,)}.get(name, ())
+            assert after[name] == [(*row, *additions) for row in rows]
         assert snapshot(domestic) == domestic_before
         with pytest.raises(RuntimeError, match='forward-only'):
             migration['downgrade']()

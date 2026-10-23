@@ -52,6 +52,7 @@ class TaskEvent(Timestamps, Base):
 
 class TaskRequest(Timestamps, Base):
     __tablename__ = 'overseas_task_requests'
+    conversation_id: Mapped[UUID | None] = mapped_column(Uuid)
     __table_args__ = (UniqueConstraint('user_id', 'operation', 'target', 'key'),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'))

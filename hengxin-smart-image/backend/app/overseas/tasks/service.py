@@ -38,8 +38,10 @@ def record_change(session, task, actor, kind, before=None):
 
 
 def request_record(session, actor, operation, target, key, body_hash, task):
-    session.add(TaskRequest(user_id=actor.id, operation=operation, target=target, key=key,
-                            body_hash=body_hash, task_id=task.id))
+    row = TaskRequest(user_id=actor.id, operation=operation, target=target, key=key,
+                      body_hash=body_hash, task_id=task.id)
+    session.add(row)
+    return row
 
 
 def create_task(session, actor, body, key):

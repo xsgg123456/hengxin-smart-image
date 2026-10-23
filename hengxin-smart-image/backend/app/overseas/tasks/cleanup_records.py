@@ -4,7 +4,7 @@ from app.overseas.materials.models import Material, ParseVersion
 from app.overseas.pictures.models import Picture, PictureVersion
 from app.overseas.plans.models import Plan
 from app.overseas.studio.models import Conversation, Turn, Upload, Transcript, Picture as StudioPicture
-from app.overseas.studio.models import MaterialVisibility
+from app.overseas.studio.models import MaterialVisibility, ConversationDeletion
 from app.overseas.execution.models import Job, JobOutbox, ExecutionEvent
 from app.overseas.archives.models import Archive
 from .models import Task, TaskSku, TaskEvent, TaskOutbox, TaskRequest, RequirementsReview, ExecutionObject
@@ -23,6 +23,7 @@ def erase(session, task_id):
         (MaterialVisibility, MaterialVisibility.task_id == task_id),
         (Transcript, Transcript.task_id == task_id),
         (StudioPicture, StudioPicture.task_id == task_id), (Turn, Turn.task_id == task_id),
+        (ConversationDeletion, ConversationDeletion.task_id == task_id),
         (Conversation, Conversation.task_id == task_id),
         (PictureVersion, PictureVersion.picture_id.in_(select(Picture.id).where(Picture.task_id == task_id))),
         (Picture, Picture.task_id == task_id), (Plan, Plan.task_id == task_id),

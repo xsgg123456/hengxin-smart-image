@@ -5,7 +5,7 @@ export interface ArchiveDeletion { archiveId: string; status: 'deleting' | 'dele
 export function isArchiveDeletion(value: unknown): value is ArchiveDeletion {
   return record(value) && typeof value.archiveId === 'string' && ['deleting', 'delete_failed', 'deleted'].includes(String(value.status)) && (value.error === null || typeof value.error === 'string')
 }
-export interface ArchivePicture { id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
+export interface ArchivePicture { sourceConversationId?: string | null; sourceConversationName?: string | null; id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
 export interface ArchiveEvent { id: string; actorId: string; actorName: string; at: string; pictures: { id: string; name: string; sku: string }[] }
 export interface ArchiveDetail extends Archive { pictures: ArchivePicture[]; archiveHistory?: ArchiveEvent[]; historyIncomplete?: boolean }
 export interface ArchiveQuery { search: string; page: number; pageSize: number }
@@ -15,7 +15,7 @@ const text = (value: unknown): value is string => typeof value === 'string'
 export const archivePictureUrl = (id: string, pictureId: string) => `${root}/${encodeURIComponent(id)}/pictures/${encodeURIComponent(pictureId)}/content`
 export const archiveError = (reason: unknown) => reason instanceof IdentityError && reason.status === 404 ? '成品不存在或已不可访问。' : reason instanceof Error ? reason.message : '成品读取失败，请重试'
 function isPicture(picture: unknown, id: string): picture is ArchivePicture {
-  return record(picture) && ['id', 'name', 'sku'].every(key => text(picture[key]))
+  return record(picture) && (picture.sourceConversationId == null || text(picture.sourceConversationId)) && (picture.sourceConversationName == null || text(picture.sourceConversationName)) && ['id', 'name', 'sku'].every(key => text(picture[key]))
     && ['image/png', 'image/jpeg', 'image/webp'].includes(String(picture.contentType)) && positive(picture.width) && positive(picture.height) && positive(picture.sizeBytes)
     && picture.url === archivePictureUrl(id, String(picture.id))
 }

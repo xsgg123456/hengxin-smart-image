@@ -79,7 +79,10 @@ export function useComposerDraft(actor: string, task: string, state: Composer) {
     finally { changing = false }
   }
   function clear(conversation?: string | null) {
-    changing = true; clearFields(); changing = false; save()
+    // A late receipt may target a different draft than the currently activated one.
+    if (conversation === undefined || key === composerDraftKey(actor, task, conversation)) {
+      changing = true; clearFields(); changing = false; save()
+    }
     if (actor && conversation !== undefined) {
       try { localStorage.removeItem(composerDraftKey(actor, task, conversation)) } catch { notice.value = storageWarning }
     }

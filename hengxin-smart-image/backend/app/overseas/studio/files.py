@@ -69,21 +69,24 @@ def read(store, row):
                 stream.release_conn()
 
 
-def upload(session, store, actor, task_id, data, filename):
+def upload(session, store, actor, task_id, data, filename, conversation_id=None):
     name, content_type = validate(data, filename)
     actor = lock_actor(session, actor, 'task.design')
     task = queries.access(session, actor, task_id, write=True)
     if task.status != 'studio':
         raise HTTPException(409, '当前任务不能上传工作台附件')
+    if conversation_id is not None:
+        queries.conversation(session, task.id, conversation_id, writable=True)
     identity = uuid4()
-    row = Upload(id=identity, task_id=task.id, name=name, content_type=content_type,
+    namespace = f'{task.id}/{conversation_id}' if conversation_id else str(task.id)
+    row = Upload(id=identity, task_id=task.id, conversation_id=conversation_id, name=name, content_type=content_type,
         size_bytes=len(data), checksum=sha256(data).hexdigest(),
-        bucket=get_settings().minio_bucket, object_key=f'studio/uploads/{task.id}/{identity}')
+        bucket=get_settings().minio_bucket, object_key=f'studio/uploads/{namespace}/{identity}')
     try:
         store.put(row, data)
     except Exception:
         raise HTTPException(503, '附件存储失败，请重试') from None
-    material_state = material_list.uploaded(session, task.id, row.checksum)
+    material_state = material_list.uploaded(session, task.id, row.checksum, conversation_id)
     session.add(row)
     session.flush()
     result = queries.asset(row, 'upload')

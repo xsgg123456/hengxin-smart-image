@@ -158,6 +158,7 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/tasks/{task_id}/studio/events',
         '/api/overseas/v1/tasks/{task_id}/studio/transcript',
         '/api/overseas/v1/tasks/{task_id}/studio/conversations',
+        '/api/overseas/v1/tasks/{task_id}/studio/conversations/{conversation_id}',
         '/api/overseas/v1/tasks/{task_id}/studio/turns',
         '/api/overseas/v1/tasks/{task_id}/studio/turns/{turn_id}/cancel',
         '/api/overseas/v1/tasks/{task_id}/studio/archive',

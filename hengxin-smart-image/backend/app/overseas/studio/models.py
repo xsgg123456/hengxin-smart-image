@@ -10,6 +10,8 @@ class Conversation(Timestamps, Base):
     __tablename__ = 'overseas_studio_conversations'
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    name: Mapped[str] = mapped_column(String(30), default='新会话', server_default='新会话')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     session_id: Mapped[str | None] = mapped_column(String(128))
 
 
@@ -32,8 +34,19 @@ class Turn(Timestamps, Base):
     dispatched: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class ConversationDeletion(Timestamps, Base):
+    __tablename__ = 'overseas_studio_conversation_deletions'
+    conversation_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    actor_id: Mapped[UUID] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(20), default='deleting', index=True)
+    error: Mapped[str | None] = mapped_column(String(200))
+    manifest: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class Upload(Timestamps, Base):
     __tablename__ = 'overseas_studio_uploads'
+    conversation_id: Mapped[UUID | None] = mapped_column(ForeignKey('overseas_studio_conversations.id'), index=True)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
     name: Mapped[str] = mapped_column(String(255))
@@ -46,7 +59,8 @@ class Upload(Timestamps, Base):
 
 class MaterialVisibility(Timestamps, Base):
     __tablename__ = 'overseas_studio_material_visibility'
-    __table_args__ = (UniqueConstraint('task_id', 'checksum'),)
+    scope: Mapped[str] = mapped_column(String(36), default='', server_default='')
+    __table_args__ = (UniqueConstraint('task_id', 'checksum', 'scope'),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
     checksum: Mapped[str] = mapped_column(String(64))
@@ -57,7 +71,8 @@ class Picture(Timestamps, Base):
     __tablename__ = 'overseas_studio_pictures'
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
-    turn_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_studio_turns.id'), index=True)
+    turn_id: Mapped[UUID | None] = mapped_column(ForeignKey('overseas_studio_turns.id'), index=True)
+    origin_turn_id: Mapped[UUID | None] = mapped_column(Uuid)
     name: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(100))
     size_bytes: Mapped[int] = mapped_column(Integer)

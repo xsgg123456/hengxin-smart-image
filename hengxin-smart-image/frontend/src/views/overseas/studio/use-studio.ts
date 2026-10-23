@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { createStudioApi, type Asset, type Studio, type StudioTranscript, type StudioPicture, type TurnInput } from '@/api/overseas/studio'
 import type { TaskDetail } from '@/api/overseas/tasks'
@@ -7,27 +7,30 @@ import { turnLimitError } from '@/api/overseas/upload-limits'
 import { forgetAnnotationDraft } from '@/views/hengxin/components/annotation/annotation-drafts'
 import { studioDraftKey, type StudioRevision } from './studio-revisions'
 import { useComposerDraft } from './studio-composer-draft'
-type Pending = ({ key: string; kind: 'send'; body: TurnInput; draftKeys?: string[] } | { key: string; kind: 'archive'; body: { pictureIds: string[]; sku: string } } | { key: string; kind: 'complete' | 'reopen'; body: { version: number } } | { key: string; kind: 'conversation' }) & { draftConversationId?: string | null }
-export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => void, changed: () => void, api = createStudioApi(), actorId = '') {
+import { pendingKey, pendingOwner, type Pending } from './studio-pending'
+import { ObsoleteStudioSnapshot } from './studio-session-api'
+export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => void, changed: () => void, api = createStudioApi(), actorId = '', session?: { id?: string; available: () => boolean; normalize?: (value: Studio) => Studio }) {
   const data = ref<Studio>(), text = ref(''), skill = ref(''), attachments = ref<Asset[]>([]), references = ref<StudioPicture[]>([])
   const revisions = ref<StudioRevision[]>([])
   const draft = useComposerDraft(actorId, task().id, { text, skill, attachments, references, revisions })
   const removingMaterials = ref(false)
   const selected = ref<string[]>([]), transcript = ref<StudioTranscript[]>([]), error = ref(''), busy = ref(false), uploading = ref(false), loading = ref(false)
-  const pending = ref<Pending>(), storageKey = `hx-studio-pending:${actorId}:${task().id}`
+  const pending = ref<Pending>()
+  let conversationId = session?.id
+  let storageKey = pendingKey(actorId, task().id, conversationId)
   const materialNotice = ref('')
-  try { const saved = sessionStorage.getItem(storageKey); if (saved) pending.value = JSON.parse(saved) as Pending } catch { /* Storage may be disabled. */ }
-  const editable = computed(() => !!data.value && !data.value.completed && task().capabilities.includes('task.design'))
+  try { const saved = (!session || conversationId) && sessionStorage.getItem(storageKey); if (saved) pending.value = JSON.parse(saved) as Pending } catch { /* Storage may be disabled. */ }
+  const editable = computed(() => !!data.value && !data.value.completed && (!session || session.available()) && task().capabilities.includes('task.design'))
   const activeTurn = computed(() => data.value?.turns.find(t => t.id === data.value?.activeTurnId))
   const locked = computed(() => !editable.value || busy.value || uploading.value || !!pending.value)
-  const canComplete = computed(() => !locked.value && !data.value?.activeTurnId && !!data.value?.archiveId)
+  const canComplete = computed(() => !!data.value && !data.value.completed && task().capabilities.includes('task.design') && !busy.value && !uploading.value && !pending.value && !(data.value?.activeConversationCount ?? (data.value?.activeTurnId ? 1 : 0)) && !!data.value?.archiveId)
   const canReopen = computed(() => !!data.value?.completed && task().capabilities.includes('task.design') && !busy.value && !uploading.value && !pending.value && !data.value.activeTurnId)
   const limitError = computed(() => turnLimitError(attachments.value.length, references.value.length))
   const revisionError = computed(() => revisions.value.some(r => (!r.text.trim() && (!text.value.trim() || !!r.annotation))) ? '请在工作台输入区补充修改要求' : '')
   const skillError = computed(() => data.value && skill.value && !data.value.skills.some(item => item.id === skill.value) ? '所选 Skill 已关闭或不可用，请重新选择或清空选择后发送。' : '')
   const canSend = computed(() => !locked.value && !limitError.value && !revisionError.value && !skillError.value && !data.value?.activeTurnId && !!(text.value.trim() || attachments.value.length || references.value.length))
   const canNewConversation = computed(() => !locked.value && !data.value?.activeTurnId)
-  let alive = true, cursor = 0, operation = 0, refreshError = false, denied = false, timer: ReturnType<typeof setTimeout> | undefined
+  let alive = true, cursor = 0, operation = 0, refreshError = false, retryRead = false, denied = false, timer: ReturnType<typeof setTimeout> | undefined
   let reading: Promise<void> | undefined
   let readController: AbortController | undefined
   const page = typeof document === 'undefined' ? undefined : document
@@ -39,7 +42,13 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     error.value = reason instanceof IdentityError && [409,422].includes(reason.status)
       ? (typeof reason.detail === 'string' ? reason.detail : '任务状态或输入已变化，请检查附件、SKU 与执行状态后重试')
       : reason instanceof Error ? reason.message : '工作台请求失败，请重试'
-    if (reason instanceof IdentityError && [401,403,404].includes(reason.status)) { denied = true; clearTimeout(timer); data.value = undefined; failure(reason) }
+    if (reason instanceof IdentityError && [401,403,...(session ? [] : [404])].includes(reason.status)) { denied = true; clearTimeout(timer); data.value = undefined; failure(reason) }
+  }
+  function applySnapshot(value: Studio) {
+    value = session?.normalize?.(value) ?? value
+    if (data.value && value.taskVersion < data.value.taskVersion) return
+    if (!session || value.conversationId === conversationId) data.value = value
+    else if (data.value) data.value = { ...data.value, taskVersion: value.taskVersion, completed: value.completed, reopened: value.reopened, archiveId: value.archiveId, conversations: value.conversations, activeConversationCount: value.activeConversationCount }
   }
   function savePending(value?: Pending) { pending.value = value; try { if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey) } catch { /* Same-page key remains available. */ } }
   function restoreOversizedDraft(value: Studio) {
@@ -56,26 +65,33 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   }
   function schedule(delay?: number) {
     clearTimeout(timer)
-    if (alive && visible() && !denied && !busy.value) timer = setTimeout(() => { void sync() }, delay ?? (data.value?.activeTurnId ? 1000 : 30000))
+    if (alive && visible() && !denied && !busy.value) timer = setTimeout(() => { void sync() }, delay ?? ((retryRead || data.value?.activeConversationCount || data.value?.activeTurnId || data.value?.conversations?.some(c => c.deletionStatus === 'deleting')) ? 1000 : 30000))
   }
   async function read() {
+    retryRead = false
     const snapshot = operation
     const request = new AbortController(); readController = request
     try {
-      const value = await api.get(task().id, request.signal)
+      let value = await api.get(task().id, request.signal, conversationId)
       if (!alive || snapshot !== operation || request.signal.aborted) return
+      value = session?.normalize?.(value) ?? value
       const versionChanged = (data.value?.taskVersion ?? task().version) !== value.taskVersion
+      if (data.value && value.taskVersion < data.value.taskVersion) return
+      if (session && !conversationId && value.conversationId) {
+        conversationId = value.conversationId; storageKey = pendingKey(actorId, task().id, conversationId)
+        try { const saved = sessionStorage.getItem(storageKey); if (saved) pending.value = JSON.parse(saved) as Pending } catch { /* unavailable */ }
+      }
       data.value = value; denied = false; draft.activate(value); restoreOversizedDraft(value)
       if (versionChanged) changed()
       do {
-        const result = await api.transcript(task().id, cursor, request.signal)
+        const result = await api.transcript(task().id, cursor, request.signal, conversationId)
         if (!alive || snapshot !== operation || request.signal.aborted) return
         if (result.cursor < cursor || (result.hasMore && result.cursor <= cursor)) throw Error('对话同步游标异常，请重试')
         transcript.value = mergeTranscript(transcript.value, result.items); cursor = result.cursor
         if (!result.hasMore) break
       } while (visible())
       if (refreshError) { error.value = ''; refreshError = false }
-    } catch (reason) { if (alive && snapshot === operation && !request.signal.aborted) fail(reason, true) }
+    } catch (reason) { if (reason instanceof ObsoleteStudioSnapshot) retryRead = true; else if (alive && snapshot === operation && !request.signal.aborted) fail(reason, true) }
   }
   async function sync(manual = false) {
     if (!alive || busy.value || (!manual && (!visible() || denied))) return
@@ -90,7 +106,7 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   page?.addEventListener('visibilitychange', visibilityChanged)
   void sync()
   async function run(value: Pending) {
-    if (busy.value || !task().capabilities.includes('task.design') || (!editable.value && value.kind !== 'reopen' && pending.value?.key !== value.key)) return
+    if (busy.value || !task().capabilities.includes('task.design') || (!editable.value && value.kind !== 'reopen' && !(value.kind === 'complete' && canComplete.value) && pending.value?.key !== value.key)) return
     if ((value.kind === 'complete' || value.kind === 'reopen') && (!value.body || !Number.isInteger(value.body.version) || value.body.version < 1)) {
       savePending(); error.value = '旧版操作缺少任务版本，请刷新任务后重新确认'; return false
     }
@@ -101,41 +117,52 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
         error.value = reason; return false
       }
     }
+    if (session && ['send', 'archive', 'conversation'].includes(value.kind)) {
+      const owner = pendingOwner(value)
+      if (!owner || owner !== conversationId || !data.value?.conversations?.some(row => row.id === owner && !row.deletionStatus)) {
+        error.value = '原请求会话缺失、已删除或不一致；请求及草稿已保留，请核实历史记录，勿重新发送。'; return false
+      }
+    }
     savePending(value); ++operation; readController?.abort(); clearTimeout(timer); busy.value = true; error.value = ''
     try {
-      const result = value.kind === 'send' ? await api.send(task().id, value.body, value.key)
-        : value.kind === 'archive' ? await api.archive(task().id, value.body.pictureIds, value.body.sku, value.key)
+      let result = value.kind === 'send' ? await api.send(task().id, value.body, value.key, !value.body.conversationId ? pendingOwner(value) : undefined)
+        : value.kind === 'archive' ? await api.archive(task().id, value.body.pictureIds, value.body.sku, value.key, value.body.conversationId)
           : value.kind === 'conversation' ? await api.newConversation(task().id, value.key)
             : value.kind === 'reopen' ? await api.reopen(task().id, value.body.version, value.key) : await api.complete(task().id, value.body.version, value.key)
       if (!alive) return false
-      if (value.kind === 'send' || value.kind === 'conversation') { clearRevisions(); draft.clear(value.draftConversationId) }
-      if (!data.value || result.taskVersion >= data.value.taskVersion) { data.value = result; draft.activate(result) }
+      result = session?.normalize?.(result) ?? result
+      if (value.kind === 'send' && session && result.conversationId !== conversationId) throw Error('核实响应不属于原会话，请核实历史记录；请求与草稿已保留')
+      if (value.kind === 'send' || (value.kind === 'conversation' && !session)) { clearRevisions(); draft.clear(value.draftConversationId) }
+      if (!data.value || result.taskVersion >= data.value.taskVersion) {
+        if (!session || result.conversationId === conversationId) { data.value = result; draft.activate(result) }
+        else if (data.value) data.value = { ...data.value, taskVersion: result.taskVersion, archiveId: result.archiveId, completed: result.completed, reopened: result.reopened, conversations: result.conversations, activeConversationCount: result.activeConversationCount }
+      }
       savePending()
       if (value.kind === 'send') { (value.draftKeys || []).forEach(forgetAnnotationDraft); clearRevisions(); text.value = ''; attachments.value = []; references.value = [] }
-      if (value.kind === 'conversation') { clearRevisions(); text.value = ''; skill.value = ''; attachments.value = []; references.value = []; selected.value = [] }
+      if (value.kind === 'conversation' && !session) { clearRevisions(); text.value = ''; skill.value = ''; attachments.value = []; references.value = []; selected.value = [] }
       if (value.kind === 'archive') selected.value = []
       changed(); return true
     } catch (reason) {
       // Unknown response keeps the exact payload/key, including across a browser refresh.
-      if (reason instanceof IdentityError && reason.status >= 400 && reason.status < 500 && reason.status !== 408) savePending()
+      if (!value.legacy && reason instanceof IdentityError && reason.status >= 400 && reason.status < 500 && reason.status !== 408) savePending()
       fail(reason); return false
     } finally { busy.value = false; schedule(0) }
   }
   function send() {
     if (!canSend.value) return
-    const body: TurnInput = { text: text.value, skillId: skill.value || null, attachmentIds: attachments.value.map(a => a.id), referencePictureIds: references.value.map(p => p.id) }
+    const body: TurnInput = { ...(data.value?.conversationId ? { conversationId: data.value.conversationId } : {}), text: text.value, skillId: skill.value || null, attachmentIds: attachments.value.map(a => a.id), referencePictureIds: references.value.map(p => p.id) }
     if (revisions.value.length) body.imageEdits = revisions.value.map(r => ({ pictureId: r.base.id, annotationId: r.annotation?.id || null, text: r.text }))
     return run({ key: crypto.randomUUID(), kind: 'send', body, draftKeys: revisions.value.map(r => r.draftKey), draftConversationId: data.value?.conversationId || null })
   }
   function newConversation() { if (canNewConversation.value) return run({ key: crypto.randomUUID(), kind: 'conversation', draftConversationId: data.value?.conversationId || null }) }
   function retry() { if (pending.value) return run(pending.value) }
-  function archive(sku: string) { if (!locked.value && !data.value?.activeTurnId && selected.value.length) return run({ key: crypto.randomUUID(), kind: 'archive', body: { pictureIds: [...selected.value], sku } }) }
+  function archive(sku: string) { if (!locked.value && !data.value?.activeTurnId && selected.value.length) return run({ key: crypto.randomUUID(), kind: 'archive', body: { pictureIds: [...selected.value], sku, ...(conversationId ? { conversationId } : {}) }, draftConversationId: data.value?.conversationId }) }
   function complete() { if (canComplete.value && data.value) return run({ key: crypto.randomUUID(), kind: 'complete', body: { version: data.value.taskVersion } }) }
   function reopen() { if (canReopen.value && data.value) return run({ key: crypto.randomUUID(), kind: 'reopen', body: { version: data.value.taskVersion } }) }
   async function stop() {
     if (!activeTurn.value || !editable.value || busy.value || uploading.value || pending.value) return
     ++operation; readController?.abort(); clearTimeout(timer); busy.value = true; error.value = ''
-    try { const value = await api.cancel(task().id, activeTurn.value); if (alive) data.value = value }
+    try { const value = await api.cancel(task().id, activeTurn.value); if (alive) applySnapshot(value) }
     catch (reason) { fail(reason) } finally { busy.value = false; schedule(0) }
   }
   function add(ids: string[]) {
@@ -150,9 +177,9 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     if (locked.value) return false
     ++operation; readController?.abort(); clearTimeout(timer); busy.value = true; error.value = ''
     try {
-      const value = await api.removeMaterial(task().id, assetId)
+      const value = await api.removeMaterial(task().id, assetId, conversationId)
       if (!alive) return false
-      data.value = value
+      applySnapshot(value)
       return true
     } catch (reason) { fail(reason); return false }
     finally { busy.value = false; schedule(0) }
@@ -167,9 +194,9 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
       for (const id of ids) {
         if (!alive || denied || !editable.value) break
         try {
-          const value = await api.removeMaterial(task().id, id)
+          const value = await api.removeMaterial(task().id, id, conversationId)
           if (!alive) break
-          data.value = value; removed.push(id)
+          applySnapshot(value); removed.push(id)
         } catch (reason) { fail(reason) }
       }
       return { removed: removed.length, remaining: ids.length - removed.length }
@@ -181,7 +208,7 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     if (reason) { error.value = reason; return }
     uploading.value = true; error.value = ''; materialNotice.value = ''
     try { for (const file of files) {
-      const asset = await api.upload(task().id, file, controller.signal)
+      const asset = await api.upload(task().id, file, controller.signal, conversationId)
       if (alive) {
         attachments.value.push(asset)
         if (asset.materialState === 'existing') materialNotice.value = '该文件已在任务素材中'
@@ -215,7 +242,7 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     if (prepared.file && !prepared.text.trim()) { error.value = '请填写每一处标注的修改意见'; return false }
     uploading.value = true; error.value = ''
     try {
-      const annotation = prepared.file ? await api.upload(taskId, prepared.file, controller.signal) : undefined
+      const annotation = prepared.file ? await api.upload(taskId, prepared.file, controller.signal, conversationId) : undefined
       if (!alive || !editable.value) return false
       if (task().id !== taskId || data.value?.conversationId !== conversation) throw Error('当前对话已变化，请重新选择图片进行修改')
       if (old?.annotation) attachments.value = attachments.value.filter(a => a.id !== old.annotation!.id)
@@ -228,6 +255,6 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   }
   function toggle(id: string) { if (!locked.value) selected.value = selected.value.includes(id) ? selected.value.filter(p => p !== id) : [...selected.value, id] }
   function toggleGroup(pictures: StudioPicture[]) { if (locked.value) return; const ids = pictures.map(p => p.id), all = ids.every(id => selected.value.includes(id)); selected.value = all ? selected.value.filter(id => !ids.includes(id)) : [...new Set([...selected.value, ...ids])] }
-  onUnmounted(() => { alive = false; clearRevisions(); clearTimeout(timer); page?.removeEventListener('visibilitychange', visibilityChanged); controller.abort(); readController?.abort() })
+  onScopeDispose(() => { alive = false; clearTimeout(timer); page?.removeEventListener('visibilitychange', visibilityChanged); controller.abort(); readController?.abort() })
   return { api, data, text, skill, attachments, references, revisions, revisionError, skillError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, modify, toggle, toggleGroup, fail, removeMaterial, removeMaterials, removingMaterials, materialNotice, draftNotice: draft.notice }
 }

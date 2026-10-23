@@ -39,6 +39,8 @@ def test_upgrade_0004_preserves_existing_tasks(disposable_databases):
                     assert after[table] == [(*row, False, None, 'legacy') for row in rows]
                 elif table == 'overseas_members':
                     assert after[table] == [(*row, 'enrolled') for row in rows]
+                elif table == 'overseas_task_requests':
+                    assert after[table] == [(*row, None) for row in rows]
                 elif table != 'overseas_alembic_version':
                     assert after[table] == rows
             assert after['overseas_alembic_version'] == [(SCHEMA_REVISION,)]

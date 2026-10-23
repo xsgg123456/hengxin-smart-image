@@ -20,6 +20,8 @@ def main():
             from app.overseas.tasks.cleanup import cleanup_once
             from app.overseas.archives.cleanup import cleanup_once as cleanup_archives
             cleanup_archives(factory)
+            from app.overseas.studio.conversation_cleanup import cleanup_once as cleanup_conversations
+            cleanup_conversations(factory)
             cleanup_once(factory)
             dispatch_once(factory)
         except Exception:

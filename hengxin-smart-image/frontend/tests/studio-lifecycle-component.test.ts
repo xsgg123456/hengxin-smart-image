@@ -41,11 +41,12 @@ const unused = () => undefined
 const component = compile('views/overseas/studio/OverseasStudio.vue', {
   'vue-router': { useRoute: () => route, useRouter: () => router },
   '@/api/overseas/archives': { createArchivesApi: () => archiveApi }, '@/api/identity/request': { IdentityError }, '../OverseasArchiveDetail.vue': { default: detail },
-  './studio.css': {}, './studio-send-key': { handleStudioSendKey },
+  './studio.css': {}, './studio-sessions.css': {}, './studio-send-key': { handleStudioSendKey },
   'element-plus': { ElMessage: { info: unused, success: unused }, ElMessageBox: { confirm: async () => undefined } },
   '@/views/hengxin/components/annotation/annotation-drafts': { forgetAnnotationDraft: unused },
-  ...Object.fromEntries(['StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioAnnotationDialog', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
-  './use-studio': { useStudio: () => ({
+  ...Object.fromEntries(['StudioSessionList', 'StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioAnnotationDialog', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
+  './use-studio-sessions': { useStudioSessions: () => ({
+    sessions: Vue.ref([{ id: 'same', name: '原会话' }]), activeId: Vue.ref('same'), currentSession: Vue.ref({ id: 'same', name: '原会话' }), runningCount: Vue.ref(0), canManage: Vue.computed(() => !locked.value), sessionBusy: Vue.ref(false), sessionError: Vue.ref(''), sessionPending: Vue.ref(), preferenceNotice: Vue.ref(''), selectSession: unused, renameConversation: unused, deleteConversation: unused, saveScroll: unused, scrollPosition: Vue.ref(null), retrySession: unused,
     data, text: draft, skill: Vue.ref(''), attachments: Vue.ref([]), references: Vue.ref([]), revisions: Vue.ref([]), selected: Vue.ref([]), transcript: Vue.ref([]), error: Vue.ref(''), revisionError: Vue.ref(''), limitError: Vue.ref(''), materialNotice: Vue.ref(''),
     busy, uploading: Vue.ref(false), loading: Vue.ref(false), pending, editable: Vue.computed(() => !data.value.completed), activeTurn: Vue.ref(), locked, canSend: Vue.computed(() => !locked.value), canNewConversation: Vue.computed(() => !locked.value), canComplete, canReopen,
     refresh: unused, retry: unused, send: unused, newConversation: unused, archive: unused, stop: unused, add: unused, receive: unused, toggle: unused, toggleGroup: unused, fail: unused,
@@ -81,7 +82,7 @@ test('正式工作台完成四步全部完成；确认解冻回③继续设计�
 test('归档按钮将真实ID放入当前任务query，按ID加载正式详情、返回原任务保留草稿', async () => {
   reset(); const view = open()
   try {
-    click(view.root, '查看归档成品'); await flush()
+    click(view.root, '查看本任务成品'); await flush()
     assert.equal(route.query.archive, 'exact-archive'); assert.deepEqual(archiveCalls, ['exact-archive'])
     click(view.root, '查看原任务'); await flush()
     assert.equal(route.query.archive, undefined); assert.equal(draft.value, '保留的修改草稿')
@@ -92,7 +93,7 @@ test('归档按钮将真实ID放入当前任务query，按ID加载正式详情�
 test('无归档真实说明，解冻仍可；忙、待核实、活动和无权限时解冻禁用', async () => {
   reset(); data.value.archiveId = null; const view = open()
   try {
-    assert.match(text(view.root), /暂无可用归档成品/); assert.equal(button(view.root, '查看归档成品').props.disabled, true)
+    assert.match(text(view.root), /暂无可用归档成品/); assert.equal(button(view.root, '查看本任务成品').props.disabled, true)
     assert.equal(button(view.root, '解冻工作台').props.disabled, false)
     for (const change of [() => { busy.value = true }, () => { pending.value = {} }, () => { data.value.activeTurnId = 'running' }, () => { permitted.value = false }]) {
       busy.value = false; pending.value = undefined; data.value.activeTurnId = null; permitted.value = true; change(); await flush()

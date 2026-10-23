@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from app.overseas.tasks.models import Task, TaskSku
 from app.overseas.pictures.models import Picture, PictureVersion
-from app.overseas.studio.models import Picture as StudioPicture
+from app.overseas.studio.models import Picture as StudioPicture, Turn, Conversation
 from app.overseas.studio.files import read
 from .models import ArchiveAsset
 
@@ -55,7 +55,12 @@ def protect(session, store, record, task=None):
         if owner.sku not in {item['code'] for item in record.skus}:
             raise HTTPException(503, '归档SKU关联异常，已保留原任务')
         identity_id = uuid5(record.id, identity)
-        row = ArchiveAsset(id=identity_id, archive_id=record.id, source_version=identity,
+        channel = None
+        if identity.startswith('studio:'):
+            turn = session.get(Turn, source.turn_id)
+            channel = session.get(Conversation, turn.conversation_id) if turn else None
+        row = ArchiveAsset(source_conversation_id=channel.id if channel else None,
+            source_conversation_name=channel.name if channel else None, id=identity_id, archive_id=record.id, source_version=identity,
             position=position, sku=owner.sku, bucket=source.bucket,
             object_key=f'archives/{task.id}/{record.id}/{identity_id}', **{key: getattr(source, key)
                 for key in ('name', 'content_type', 'size_bytes', 'checksum', 'width', 'height')})

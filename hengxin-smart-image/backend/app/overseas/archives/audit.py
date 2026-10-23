@@ -8,7 +8,9 @@ from .snapshot import assets
 
 def record_confirmation(session, record, actor, versions, had_versions=False):
     selected = set(versions)
-    pictures = [dict(id=str(row.id), name=row.name, sku=row.sku)
+    pictures = [dict(id=str(row.id), name=row.name, sku=row.sku,
+                     sourceConversationId=str(row.source_conversation_id) if row.source_conversation_id else None,
+                     sourceConversationName=row.source_conversation_name)
                 for row in assets(session, record) if row.source_version in selected]
     if len(pictures) != len(selected):
         raise RuntimeError('Archive audit pictures do not match protected assets')

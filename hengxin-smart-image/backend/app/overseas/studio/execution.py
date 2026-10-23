@@ -143,7 +143,9 @@ class StudioProtocol:
         channel = session.get(Conversation, turn.conversation_id)
         if channel.session_id and channel.session_id != result['sessionId']:
             raise ValueError('Session mismatch')
+        from app.db.timestamps import utcnow
         channel.session_id = result['sessionId']
+        channel.updated_at = utcnow()
         turn.reply = result['reply']
         turn.delivery_error = result.get('deliveryError')
         for data in result['pictures']:
