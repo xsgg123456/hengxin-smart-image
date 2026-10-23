@@ -49,4 +49,10 @@
 
 复审补充：可信稳定GET现在允许同任务版本的`archiveId:null`清除已删除成品，禁用完成入口；迟到mutation的null仍不会抹掉新归档。新增第7项回归先实际红测`archive !== null`、修复后通过。最终前端全量更新为**384通过**，typecheck退出0，正式构建退出0（4674模块、35.03秒）；以上三个final日志为本次最终结果。生产基线只读preflight再次通过。
 
+## 安装包与生产 Skill 基线
+
+首包`overseas-20261024-39780d3`的实际镜像安装测试2293通过、203按环境跳过、1项因未打包前端源码而排除；容量测试4通过。585份镜像后端文件摘要与包完全一致。prepare随后在旧发布helper的14包/181文件Skill固定断言处停止，未进入关流量、迁移或生产切换。
+
+只读实查native/API/真实sandbox一致：现有Skill release=`8ea5d6ffc55e6508a1f4003a8f5bed4ffc3ca4b25de42cba29f8724a8488c339`，15包、227文件，目录device64770/inode1708242；sandbox uid999，所有Skill只读。新增本版本专用verify以该实际摘要固定基线，保留完整目录/挂载/权限核验并检查每个sandbox结果，不修改旧安装helper、不安装或删除Skill、不修改开关。发布回归50通过、3项Windows不适用跳过。应用源码与前端构建未变。
+
 

@@ -18,6 +18,8 @@ a = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(a)
 d, m, u = a.d, a.m, a.u
 data_check = m.module('overseas-studio-sessions-data')
+skills_check = m.module('overseas-studio-sessions-skills')
+m.skills.verify = skills_check.verify
 a.BASE_VERSION = d.BASE_VERSION = '0.2.49'
 d.TARGET_VERSION = '0.2.50'
 d.DOMESTIC_MIGRATION, d.TARGET_MIGRATION = '0032', 'overseas_0021'
@@ -36,6 +38,7 @@ GRANT_OVERLAY = '/opt/hengxin-releases/member-grant-20261023/grant-overlay.json'
 OWNER_KEY, GRANT_KEY = 'OVERSEAS_SKILL_TOGGLE_OWNER_ID', 'OVERSEAS_FULL_ACCESS_MEMBER_IDS'
 REQUIRED = {'scripts/release/overseas-studio-sessions-deploy.py',
             'scripts/release/overseas-studio-sessions-data.py',
+            'scripts/release/overseas-studio-sessions-skills.py',
             'backend/migrations/overseas/versions/0021_studio_sessions.py',
             'backend/tests/test_studio_sessions.py',
             'backend/tests/studio_sessions_helpers.py',

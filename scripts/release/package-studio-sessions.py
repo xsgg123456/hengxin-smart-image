@@ -13,6 +13,7 @@ p.PACKAGING_HELPERS = (*p.PACKAGING_HELPERS, 'package-studio-sessions.py')
 p.REQUIRED |= {
     'scripts/release/overseas-studio-sessions-deploy.py',
     'scripts/release/overseas-studio-sessions-data.py',
+    'scripts/release/overseas-studio-sessions-skills.py',
     'backend/migrations/overseas/versions/0021_studio_sessions.py',
     'backend/tests/test_studio_sessions.py',
     'backend/tests/studio_sessions_helpers.py',
