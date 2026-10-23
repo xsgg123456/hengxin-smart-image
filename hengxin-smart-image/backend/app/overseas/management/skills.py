@@ -5,13 +5,14 @@ from app.core.config import get_settings
 from app.db.timestamps import utcnow
 from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
+from app.overseas.permissions import has_full_access_grant
 from .installed_catalog import listing
 from .models import Audit, InstalledSkillAvailability
 
 
 def can_toggle(actor):
     owner = getattr(get_settings(), 'skill_toggle_owner_id', None)
-    return owner is not None and actor is not None and actor.id == owner
+    return has_full_access_grant(actor) or (owner is not None and actor is not None and actor.id == owner)
 
 
 def states(session):

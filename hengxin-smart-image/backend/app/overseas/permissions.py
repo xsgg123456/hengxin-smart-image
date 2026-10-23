@@ -7,6 +7,7 @@ from sqlalchemy import false, or_, true
 from sqlalchemy.orm import Session
 
 from app.db.session import get_session
+from app.core.config import get_settings
 from app.overseas.auth.dependencies import get_current_member, member_roles
 from app.overseas.auth.models import Member, ROLES
 
@@ -50,8 +51,17 @@ def capabilities(roles) -> list[str]:
     return [permission for permission in CAPABILITIES if scopes(roles, permission)]
 
 
+def has_full_access_grant(member: Member | None) -> bool:
+    return (member is not None and member.status == 'active'
+            and member.directory_state == 'enrolled'
+            and member.id in getattr(get_settings(), 'full_access_member_ids', frozenset()))
+
+
 def principal_for(session: Session, member: Member) -> Principal:
-    return Principal(member.id, frozenset(member_roles(session, member)))
+    # Validate membership and the real single role before applying an account grant.
+    roles = member_roles(session, member)
+    policy_roles = ('super_admin',) if has_full_access_grant(member) else roles
+    return Principal(member.id, frozenset(policy_roles))
 
 
 def authorize_member(session: Session, member: Member, permission: str):
