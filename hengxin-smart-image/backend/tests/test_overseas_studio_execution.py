@@ -47,7 +47,6 @@ def fake_runtime(studio, monkeypatch, tmp_path, image_count=0, crash=False):
         assert not monitor()
         sessions = workspace.home / '.codex/sessions'
         sessions.mkdir(parents=True, exist_ok=True)
-        (sessions / 'rollout-session-123.jsonl').write_text('{}')
         reply = '请确认方向'
         if image_count:
             from PIL import Image
@@ -56,6 +55,17 @@ def fake_runtime(studio, monkeypatch, tmp_path, image_count=0, crash=False):
                 name = f'output{number}.png'
                 Image.new('RGB', (24, 24), 'blue').save(workspace.work / name)
                 reply += f'![设计](/work/{name})\n'
+        rollout = sessions / 'rollout-session-123.jsonl'
+        records = [] if rollout.exists() else [dict(type='session_meta', payload=dict(id='session-123'))]
+        native_turn = control.name
+        records += [dict(type='event_msg', payload=dict(type='task_started', turn_id=native_turn)),
+            dict(type='event_msg', payload=dict(type='item_completed', turn_id=native_turn,
+                thread_id='session-123', item=dict(type='AgentMessage', phase='final_answer',
+                    content=[dict(type='Text', text=reply)]))),
+            dict(type='event_msg', payload=dict(type='task_complete', turn_id=native_turn,
+                last_agent_message=reply))]
+        with rollout.open('a', encoding='utf-8') as stream:
+            stream.write(''.join(json.dumps(row) + '\n' for row in records))
         events += [dict(type='item.completed', item=dict(type='agent_message', text=reply)),
                    dict(type='turn.completed', usage=dict(input_tokens=2, output_tokens=3))]
         (control / 'events.jsonl').write_text('\n'.join(json.dumps(e) for e in events))

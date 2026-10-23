@@ -37,6 +37,10 @@ class StudioProtocol:
                     .where(Turn.conversation_id == conversation.id, Turn.id != turn.id,
                            Turn.task_id == job.task_id, Job.task_id == job.task_id,
                            Turn.dispatched.is_(True)).order_by(Turn.created_at, Turn.id))]
+            delivered = {(row.source_path.removeprefix('sandbox:'), row.checksum)
+                for row in session.scalars(select(Picture).join(Turn, Picture.turn_id == Turn.id)
+                    .where(Turn.conversation_id == conversation.id, Picture.task_id == job.task_id))
+                if row.source_path}
         workspace = prepare_workspace(Path(settings.codex_execution_root) / 'studio',
             conversation.id, turn.id, settings.codex_auth_file, copy_auth=False)
         home = workspace.home / '.codex'
@@ -49,6 +53,9 @@ class StudioProtocol:
         from .context_workspace import prepare
         workspace.input_paths = prepare(workspace, history, job.payload['inputs'],
             lambda data: read(get_store(), SimpleNamespace(**data)))
+        from .native_images import snapshot
+        workspace.native_cursor = snapshot(workspace.home, previous)
+        workspace.delivered_images = delivered
         return workspace
 
     def arguments(self, workspace):
@@ -127,7 +134,7 @@ class StudioProtocol:
                 put(get_store(), row, image.data)
                 outputs.append(row)
             except Exception:
-                warnings.append('一张正式交付图片保存失败')
+                warnings.append('一张正式交付图片保存失败，原文件仍在会话中；请联系管理员补收，无需重新生成。')
         return dict(reply=summary.final_text, sessionId=summary.session_id, pictures=outputs,
                     deliveryError='；'.join(warnings) or None)
 

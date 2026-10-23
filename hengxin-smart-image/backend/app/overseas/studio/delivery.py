@@ -15,6 +15,7 @@ from app.execution.final_delivery import _local_file
 from app.execution.output_collector import OutputCollectionError, _root
 from app.modules.files.validation import MAX_UPLOAD_BYTES, validate_image
 from .work_baseline import IMAGE_EXTENSIONS, check_work_version
+from .delivery_evidence import evidence
 
 EXTENSIONS = IMAGE_EXTENSIONS
 NON_DELIVERY = re.compile(
@@ -151,24 +152,44 @@ def collect_delivery(workspace, summary):
         links = list(references(summary.final_text))
     except (ValueError, OSError, TypeError, RecursionError):
         return [], ['正式交付图片的引用无法读取，文字回复已保留。']
+    native, proven, evidence_warnings = evidence(workspace, summary, links)
+    warnings.extend(evidence_warnings)
+    # A final explicit list is authoritative; never append other tool-side images.
+    # A public native image presentation is also delivery, unless final prose
+    # marks the work as a draft or declines delivery.
+    if not links and not any(non_delivery(token) for token in MarkdownIt('commonmark').parse(
+            summary.final_text) if token.type == 'inline'):
+        links = [(row['path'], row['path']) for row in native]
     for target, logical in links:
         try:
             if logical is None:
                 raise OutputCollectionError('invalid_image_reference')
             path, boundary = _local_file(logical, workspace.work, workspace.home / '.codex',
-                                        root, workspace.baseline)
+                                        root, {} if logical in proven else workspace.baseline)
             identity = path.resolve()
             if identity in seen:
                 continue
             data = _safe_read(path, MAX_UPLOAD_BYTES, allow_windows_fallback=True)
             image = validate_image(SimpleNamespace(file=BytesIO(data), filename=path.name,
                                                     content_type=None))
+            if logical in proven and image.checksum != proven[logical]:
+                raise OutputCollectionError('native_image_checksum_mismatch')
             if boundary == workspace.work:
                 baseline = getattr(workspace, 'work_baseline',
                                    None if getattr(workspace, 'persistent', False) else {})
                 check_work_version(path, workspace.work, baseline, image.checksum)
-            delivered.append((target, image))
             seen.add(identity)
-        except (OutputCollectionError, HTTPException, OSError, ValueError):
-            warnings.append('一张正式交付图片未通过文件或归属校验，文字回复已保留。')
+            if (logical, image.checksum) in getattr(workspace, 'delivered_images', set()):
+                continue
+            delivered.append((target, image))
+        except (OutputCollectionError, HTTPException, OSError, ValueError) as exc:
+            if str(exc) == 'historical_output_forbidden':
+                warnings.append('该图片来自先前轮次，缺少可核验的交付记录；请联系管理员补收，无需重新生成。')
+            else:
+                warnings.append('一张正式交付图片未通过文件或归属校验，文字回复已保留。')
+    if not links and not warnings and re.search(r'已(?:成功)?生成[^。\n]{0,50}(?:图|image)|'
+            r'(?:image|picture)s?\s+(?:has|have|was|were)\s+(?:been\s+)?generated',
+            summary.final_text, re.I) and not any(non_delivery(token) for token in
+                MarkdownIt('commonmark').parse(summary.final_text) if token.type == 'inline'):
+        warnings.append('本轮回复称已生成图片，但未收到可验证的图片交付；请联系管理员核查，无需重新生成。')
     return delivered, warnings

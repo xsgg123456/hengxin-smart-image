@@ -118,6 +118,8 @@ def test_legacy_resume_missing_or_changed_identity_never_dispatches(
     first = send(client, task).json()['turns'][0]
     runner.run(factory, first['jobId'])
     workspace = commands[-1][0]
+    session_file = workspace.home / '.codex/sessions/rollout-session-123.jsonl'
+    session_before = session_file.read_bytes()
     (workspace.control.parent / 'auth-identity.json').unlink()
     if change == 'missing':
         (workspace.home / '.codex/auth.json').unlink()
@@ -131,7 +133,7 @@ def test_legacy_resume_missing_or_changed_identity_never_dispatches(
         assert job.status == 'failed' and job.error == FAILURES[code]
         assert session.get(Turn, UUID(second['id'])).dispatched is False
         assert session.scalar(select(Conversation)).session_id == 'session-123'
-    assert (workspace.home / '.codex/sessions/rollout-session-123.jsonl').read_text() == '{}'
+    assert session_file.read_bytes() == session_before
 
 
 def test_runner_passes_broker_configuration_without_reading_master(execution, monkeypatch):
