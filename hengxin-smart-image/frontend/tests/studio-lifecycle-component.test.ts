@@ -44,7 +44,7 @@ const component = compile('views/overseas/studio/OverseasStudio.vue', {
   './studio.css': {}, './studio-sessions.css': {}, './studio-send-key': { handleStudioSendKey },
   'element-plus': { ElMessage: { info: unused, success: unused }, ElMessageBox: { confirm: async () => undefined } },
   '@/views/hengxin/components/annotation/annotation-drafts': { forgetAnnotationDraft: unused },
-  ...Object.fromEntries(['StudioRecoveryDialog', 'StudioSessionList', 'StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioAnnotationDialog', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
+  ...Object.fromEntries(['StudioTextEditor', 'StudioRecoveryDialog', 'StudioSessionList', 'StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioAnnotationDialog', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
   './use-studio-sessions': { useStudioSessions: () => ({
     sessions: Vue.ref([{ id: 'same', name: '原会话' }]), activeId: Vue.ref('same'), currentSession: Vue.ref({ id: 'same', name: '原会话' }), runningCount: Vue.ref(0), canManage: Vue.computed(() => !locked.value), sessionBusy: Vue.ref(false), sessionError: Vue.ref(''), sessionPending: Vue.ref(), preferenceNotice: Vue.ref(''), selectSession: unused, renameConversation: unused, deleteConversation: unused, saveScroll: unused, scrollPosition: Vue.ref(null), retrySession: unused,
     data, text: draft, skill: Vue.ref(''), attachments: Vue.ref([]), references: Vue.ref([]), revisions: Vue.ref([]), selected: Vue.ref([]), transcript: Vue.ref([]), error: Vue.ref(''), revisionError: Vue.ref(''), limitError: Vue.ref(''), materialNotice: Vue.ref(''),
@@ -126,3 +126,4 @@ test('解冻未知结果关闭确认层露出相同请求重试入口，状态�
     assert.ok(button(view.root, '核实并重试上次操作')); assert.equal(button(view.root, '解冻工作台').props.disabled, true)
   } finally { view.close() }
 })
+

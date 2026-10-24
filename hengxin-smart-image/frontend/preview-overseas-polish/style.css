@@ -1,0 +1,4 @@
+.polish-switch{display:flex;align-items:center;gap:16px;padding:12px 24px 0;flex-wrap:wrap}.polish-switch>span{color:var(--art-gray-600);font-size:12px}
+.polish-editor .el-textarea__inner{height:clamp(200px,55dvh,620px)!important;font-size:16px;line-height:1.8;padding:16px;box-shadow:0 0 0 1px var(--el-border-color) inset!important}
+.polish-editor-note{margin:0 0 14px;color:var(--art-gray-600);font-size:13px}.polish-editor-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.polish-editor-footer>span{font-size:12px;color:var(--art-gray-600)}
+.polish-send-tools{display:flex;align-items:center;gap:8px;margin-left:auto}.polish-send-tools>.el-button+.el-button{margin-left:0}

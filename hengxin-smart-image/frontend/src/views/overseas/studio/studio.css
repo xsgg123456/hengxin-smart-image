@@ -67,3 +67,5 @@
 .studio-materials-bottom{display:flex;flex-direction:column;gap:8px;flex-shrink:0}.studio-materials-bottom .el-button+.el-button{margin-left:0}
 .studio-chat-card>.el-card__body>.el-alert{flex-shrink:0;overflow-wrap:anywhere}
 @media(max-width:900px){.studio-steps i{max-width:24px}}
+
+.studio-send-tools{display:flex;align-items:center;gap:8px;margin-left:auto}.studio-send-tools>.el-button+.el-button{margin-left:0}

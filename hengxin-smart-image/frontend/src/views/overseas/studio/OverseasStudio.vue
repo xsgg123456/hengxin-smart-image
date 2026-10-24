@@ -33,7 +33,7 @@
           <small v-if="revisionError" class="studio-revision-hint">{{ revisionError }}</small>
           <small v-if="skillError" class="studio-revision-hint" role="alert">{{ skillError }}</small>
           <ElInput v-model="text" type="textarea" :rows="2" resize="none" :disabled="locked" aria-label="设计要求" placeholder="描述设计要求，或继续提出修改意见…" @keydown="handleStudioSendKey($event, send)" />
-          <div class="studio-compose-tools"><div class="studio-input-tools"><StudioSkillSelect v-model="skill" :skills="data?.skills || []" :disabled="locked" /></div><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || !!pending || uploading || activeTurn?.status === 'cancelling'" @click="stop">停止</ElButton><ElButton v-else type="primary" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div>
+          <div class="studio-compose-tools"><div class="studio-input-tools"><StudioSkillSelect v-model="skill" :skills="data?.skills || []" :disabled="locked" /></div><div class="studio-send-tools"><StudioTextEditor :key="activeId" v-model="text" :disabled="locked" :session-name="currentSession?.name || '会话'" /><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || !!pending || uploading || activeTurn?.status === 'cancelling'" @click="stop">停止</ElButton><ElButton v-else type="primary" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div></div>
           <p class="studio-compose-note">发送到：{{ currentSession?.name || '请先新建会话' }} · Enter 发送，Shift + Enter 换行 · 切换会话保留草稿</p>
           <input ref="input" hidden type="file" multiple @change="upload">
         </div>
@@ -67,6 +67,7 @@ import StudioRevisionDraft from './StudioRevisionDraft.vue'
 import StudioAnnotationDialog from './StudioAnnotationDialog.vue'
 import StudioMaterials from './StudioMaterials.vue'
 import StudioSkillSelect from './StudioSkillSelect.vue'
+import StudioTextEditor from './StudioTextEditor.vue'
 import { useStudioSessions } from './use-studio-sessions'
 import StudioSessionList from './StudioSessionList.vue'
 import type { SessionView } from './studio-session-state'

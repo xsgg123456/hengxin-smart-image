@@ -26,7 +26,7 @@ export function validateDraft(d: Draft) {
       s.trim(),
     )
   )
-    throw new Error("请填写任务名称、品名、品牌、平台和目标站点 / 语言");
+    throw new Error("请填写任务名称、品名、品牌、平台和目标站点");
   if (!d.skus.length || d.skus.some((s) => !s.code.trim()))
     throw new Error("请为每个 SKU 填写编码");
   if (

@@ -34,18 +34,12 @@
             ><ElFormItem label="目标平台" required
               ><ElSelect v-model="draft.platform"
                 ><ElOption
-                  v-for="p in [
-                    'Amazon',
-                    'TikTok Shop',
-                    'Shopee',
-                    'Lazada',
-                    '其他',
-                  ]"
-                  :key="p"
-                  :value="p" /></ElSelect></ElFormItem
+                  v-for="p in platformOptions"
+                  :key="p.value"
+                  :value="p.value" :label="p.label" /></ElSelect></ElFormItem
             ><ElFormItem label="品牌" required
               ><ElInput v-model="draft.brand" maxlength="60" /></ElFormItem
-            ><ElFormItem label="目标站点 / 语言" required
+            ><ElFormItem label="目标站点" required
               ><ElInput v-model="draft.market" maxlength="60"
             /></ElFormItem>
           </div>
@@ -100,9 +94,11 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { OVERSEAS_PLATFORMS } from './platforms'
 import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
 interface Fields { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[] }
 const draft = defineModel<Fields>({ required: true })
+const platformOptions = computed(() => OVERSEAS_PLATFORMS.some(p => p.value === draft.value.platform) || !draft.value.platform ? OVERSEAS_PLATFORMS : [...OVERSEAS_PLATFORMS, { value: draft.value.platform, label: draft.value.platform }])
 const props = defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean; editing?: boolean; workflow?: 'studio' | 'legacy' }>()
 const studio = computed(() => !props.preview && props.workflow !== 'legacy')
 const stages = computed(() => studio.value ? STUDIO_STAGES : STAGES)
