@@ -57,12 +57,12 @@ def test_first_turn_without_markdown_and_no_sensitive_output(tmp_path):
 
 
 @pytest.mark.parametrize('final,accepted', [
-    ('![最终图](/work/final.png)', False),
+    ('![最终图](/work/final.png)', True),
     ('![图](' + PREFIX + 'exec-1.png)', True),
-    ('![损坏引用](https://example.test/another.png)', False),
+    ('![损坏引用](https://example.test/another.png)', True),
     ('## 草稿\n![预览](/work/draft.png)\n## 最终成品\n![图](' + PREFIX + 'exec-1.png)', True),
 ])
-def test_history_honors_original_explicit_final_list(tmp_path, final, accepted):
+def test_history_authenticates_generation_without_prior_final_selection(tmp_path, final, accepted):
     write(tmp_path, turn(final=final))
     proof = native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'})
     assert bool(proof) is accepted
@@ -85,14 +85,16 @@ def test_unpresented_generation_and_unrelated_tool_are_not_deliveries(tmp_path):
                         item={'type': 'Extension', 'kind': 'another.tool', 'result': ENCODED}))
     write(tmp_path, rows)
     assert native.read_current(tmp_path, SESSION, {}, '完成') == []
-    assert native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'}) == {}
+    assert native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'}) == {
+        PREFIX + 'exec-1.png': hashlib.sha256(PNG).hexdigest()}
 
 
 def test_displayed_hash_must_match_generation(tmp_path):
     rows = turn()
     rows[2]['payload']['output'][0]['image_url'] += 'AAAA'
     write(tmp_path, rows)
-    assert native.read_current(tmp_path, SESSION, {}, '完成') == []
+    with pytest.raises(ValueError, match='not yet available'):
+        native.read_current(tmp_path, SESSION, {}, '完成')
 
 
 @pytest.mark.parametrize('change', [
@@ -129,8 +131,9 @@ def test_bad_session_duplicate_fields_truncation_and_final(tmp_path):
     with pytest.raises(ValueError):
         native.snapshot(tmp_path, SESSION)
     path = write(tmp_path, turn())
-    with path.open('ab') as stream:
-        stream.write(b'{"type":"unknown","type":"unknown"}\n')
+    raw = path.read_bytes().splitlines(keepends=True)
+    raw.insert(-1, b'{"type":"unknown","type":"unknown"}\n')
+    path.write_bytes(b''.join(raw))
     with pytest.raises(ValueError):
         native.read_current(tmp_path, SESSION, {}, '完成')
     path.write_bytes(path.read_bytes()[:-1])
@@ -151,8 +154,7 @@ def test_no_rollout_and_missing_resume(tmp_path):
 
 def test_multiple_rollouts_or_turns_and_repeated_paths_rejected(tmp_path):
     path = write(tmp_path, turn() + turn('turn-2'))
-    with pytest.raises(ValueError):
-        native.read_current(tmp_path, SESSION, {}, '完成')
+    assert native.read_current(tmp_path, SESSION, {}, '完成')[0]['cli_turn_id'] == 'turn-1'
     with pytest.raises(ValueError):
         native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'})
     second = path.with_name(f'rollout-another-{SESSION}.jsonl')
@@ -235,6 +237,7 @@ def test_history_ignores_failed_turns_before_success(tmp_path, failure):
 
 
 @pytest.mark.parametrize('final', ['这是草稿', '仅供预览，不是最终交付', 'Draft image'])
-def test_history_does_not_promote_declined_images(tmp_path, final):
+def test_history_does_not_require_formal_delivery_wording(tmp_path, final):
     write(tmp_path, turn(final=final))
-    assert native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'}) == {}
+    assert native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'}) == {
+        PREFIX + 'exec-1.png': hashlib.sha256(PNG).hexdigest()}

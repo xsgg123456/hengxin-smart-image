@@ -1,4 +1,4 @@
-"""Bridge explicit native image presentations without discovering output files."""
+"""Bridge final native presentations without discovering output files."""
 import logging
 from pathlib import PurePosixPath
 
@@ -8,26 +8,30 @@ UNREADABLE = '原生图片交付记录校验失败，文字已保留；请联系
 
 
 def evidence(workspace, summary, links):
-    current, proven, warnings = [], {}, []
     cursor = getattr(workspace, 'native_cursor', None)
-    if cursor is not None:
-        try:
-            current = read_current(workspace.home, summary.session_id, cursor, summary.final_text)
-            proven.update({row['path']: row['checksum'] for row in current})
-        except (OSError, ValueError, TypeError, RecursionError):
-            logging.getLogger(__name__).warning('Studio native delivery evidence rejected')
-            warnings.append(UNREADABLE)
+    end = getattr(workspace, 'native_end_cursor', None)
     prefix = PurePosixPath('/home/runner/.codex/generated_images') / summary.session_id
-    historical = set()
-    for _, target in links:
-        if target and PurePosixPath(target).is_relative_to(prefix):
+    targets = {target for _, target in links if target and PurePosixPath(target).is_relative_to(prefix)}
+    proven = {}
+    if links:
+        # Explicit final references establish selection. Unrelated generation or
+        # display records must never prevent collecting ordinary work images.
+        for target in targets:
             relative = PurePosixPath(target).relative_to(prefix).as_posix()
-            if relative in workspace.baseline:
-                historical.add(target)
-    if historical and cursor is not None:
-        try:
-            proven.update(read_history(workspace.home, summary.session_id, historical))
-        except (OSError, ValueError, TypeError, RecursionError):
-            logging.getLogger(__name__).warning('Studio historical delivery evidence rejected')
-            warnings.append(UNREADABLE)
-    return current, proven, warnings
+            checksum = getattr(workspace, 'baseline', {}).get(relative)
+            if checksum:
+                proven[target] = checksum
+        if targets and cursor is not None:
+            try:
+                proven.update(read_history(workspace.home, summary.session_id, targets, end))
+            except (OSError, ValueError, TypeError, RecursionError):
+                logging.getLogger(__name__).warning('Studio optional native digest evidence unavailable')
+        return [], proven, []
+    if cursor is None:
+        return [], {}, []
+    try:
+        current = read_current(workspace.home, summary.session_id, cursor, summary.final_text, end)
+        return current, {row['path']: row['checksum'] for row in current}, []
+    except (OSError, ValueError, TypeError, RecursionError):
+        logging.getLogger(__name__).warning('Studio native delivery evidence rejected')
+        return [], {}, [UNREADABLE]

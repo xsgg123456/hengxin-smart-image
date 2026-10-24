@@ -108,17 +108,16 @@ def test_dry_run_repair_replay_and_accounting(missed):
 @pytest.mark.parametrize('mode', ['hash', 'receipt', 'reason', 'text', 'session', 'payload',
     'job_owner', 'channel_owner', 'failed', 'cancelled', 'cancel', 'running', 'queued',
     'deleted', 'archived', 'unpaused', 'outbox', 'event_invalid', 'event_incomplete',
-    'history_incomplete', 'unpresented', 'image_hash', 'invalid_reference', 'permissions'])
+    'history_incomplete', 'image_hash', 'invalid_reference', 'permissions'])
 def test_unsafe_recovery_never_writes(missed, mode):
     if mode == 'hash':
         missed.digest = '0' * 64
     elif mode in ('receipt', 'reason'):
         missed.events.with_name('exit.json').write_text(json.dumps(
             dict(exit_code=1 if mode == 'receipt' else 0, reason='aborted' if mode == 'reason' else None)))
-    elif mode in ('history_incomplete', 'unpresented'):
+    elif mode == 'history_incomplete':
         lines = missed.history.read_text().splitlines()
-        missed.history.write_text('\n'.join(lines[:-1] if mode == 'history_incomplete' else
-            [line for line in lines if 'custom_tool_call_output' not in line]) + '\n')
+        missed.history.write_text('\n'.join(lines[:-1]) + '\n')
     elif mode == 'image_hash':
         Image.new('RGB', (24, 32), 'red').save(missed.image)
     elif mode == 'permissions':
@@ -155,6 +154,21 @@ def test_unsafe_recovery_never_writes(missed, mode):
     with pytest.raises((ValueError, HTTPException)):
         run(missed, apply=True)
     assert count(missed, Picture) == count(missed, ExecutionObject) == 0
+
+
+def test_explicit_final_reference_recovers_same_session_image_not_previously_presented(missed):
+    lines = missed.history.read_text().splitlines()
+    missed.history.write_text('\n'.join(
+        line for line in lines if 'custom_tool_call_output' not in line) + '\n')
+    assert run(missed)['status'] == 'eligible'
+    assert count(missed, Picture) == count(missed, ExecutionObject) == 0
+    assert run(missed, apply=True)['status'] == 'succeeded'
+    assert run(missed, apply=True)['status'] == 'already_recovered'
+    assert count(missed, Picture) == count(missed, ExecutionObject) == 1
+    with missed.factory() as session:
+        picture = session.scalar(select(Picture))
+        assert picture.source_path == missed.target
+        assert picture.checksum == sha256(missed.data).hexdigest()
 
 
 def test_failed_storage_has_durable_ledger_and_retry_is_idempotent(missed, monkeypatch):

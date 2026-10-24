@@ -78,7 +78,7 @@ def run(factory, job_id):
     token = claims.claim(factory, job_id, admission=lambda: resources_available(settings))
     if not token:
         return
-    spawning, exited = False, False
+    spawning, exited, completion_confirmed = False, False, False
     handler = workspace = job = None
     failure = True
     try:
@@ -99,6 +99,8 @@ def run(factory, job_id):
             prompt = handler.prepare(job, workspace)
             if not isinstance(prompt, str) or not prompt.strip():
                 raise ValueError('Empty protocol prompt')
+            if hasattr(handler, 'prepare_collection'):
+                handler.prepare_collection(job, workspace)
             args = (handler.arguments(workspace) if hasattr(handler, 'arguments') else
                     ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '-'])
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
@@ -133,12 +135,10 @@ def run(factory, job_id):
             receipt = execute(command, prompt, workspace.control, timeout,
                               monitor, started)
             exited = True
-            _exit(factory, job_id, token)
-            if hasattr(handler, 'final_poll'):
-                handler.final_poll(factory, job, token, workspace)
-            elif hasattr(handler, 'poll'):
-                handler.poll(factory, job, token, workspace)
-            summary = parse_events(workspace.control / 'events.jsonl', getattr(workspace, 'previous_session', None))
+            reader = parse_events
+            if job.kind == 'studio':
+                from app.overseas.studio.completion import read as reader
+            summary = reader(workspace.control / 'events.jsonl', getattr(workspace, 'previous_session', None))
             if receipt.get('exit_code') != 0 or receipt.get('reason'):
                 failure = execution_error_code(workspace.control, receipt)
                 raise ValueError('CLI did not complete')
@@ -149,6 +149,15 @@ def run(factory, job_id):
                 logging.getLogger(__name__).warning('CLI event validation failed job=%s code=%s',
                                                    job_id, summary.error or 'incomplete_stream')
                 raise ValueError('Protocol stream incomplete')
+            completion_confirmed = True
+            if job.kind == 'studio':
+                from app.overseas.studio.delivery_context import exited as remember_exit
+                remember_exit(workspace, receipt)
+            _exit(factory, job_id, token)
+            if hasattr(handler, 'final_poll'):
+                handler.final_poll(factory, job, token, workspace)
+            elif hasattr(handler, 'poll'):
+                handler.poll(factory, job, token, workspace)
             with factory.begin() as session:
                 current = claims.locked_job(session, job_id)
                 if not claims.valid(current, token) or lost.is_set():
@@ -156,6 +165,9 @@ def run(factory, job_id):
                 current.status = 'collecting'
                 current.version += 1
                 record(session, current)
+            if hasattr(handler, 'collect'):
+                handler.collect(factory, job, token, workspace, summary)
+                return
             from .objects import collecting
             with collecting(factory, job, token):
                 result = handler.validate(job, workspace, summary)
@@ -172,6 +184,16 @@ def run(factory, job_id):
                 handler.final_poll(factory, job, token, workspace)
             except Exception:
                 pass  # Preserve process fencing even when transcript storage is unavailable.
+        # Once normal CLI completion is established, collection failures retain
+        # the stopped invocation and its workspace for the maintenance worker.
+        if job is not None and job.kind == 'studio' and completion_confirmed:
+            try:
+                from app.overseas.studio.delivery_job import defer
+                _exit(factory, job_id, token)
+                defer(factory, job_id, token)
+            except Exception:
+                logging.getLogger(__name__).warning('Studio collection retained for reconciliation job=%s', job_id)
+            return
         if exited or not spawning:
             _exit(factory, job_id, token)
             _fail(factory, job_id, token, error=failure)

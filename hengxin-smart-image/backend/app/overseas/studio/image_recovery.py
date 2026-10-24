@@ -81,6 +81,9 @@ def _evidence(turn, channel, job, digest):
             and isinstance(job.result.get('pictures'), list), 'Stored result mismatch')
     links = list(references(summary.final_text))
     if not links:
+        from .native_images import _turns
+        require(len(list(_turns(workspace / 'home', channel.session_id))) == 1,
+                'Native-only recovery requires exactly one native turn')
         # Empty cursor intentionally requires exactly one complete native turn.
         workspace_view = SimpleNamespace(home=workspace / 'home', work=workspace / 'work',
             baseline={}, native_cursor={}, delivered_images=set())

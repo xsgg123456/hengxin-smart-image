@@ -90,27 +90,49 @@ def snapshot(home: Path, session_id: str | None) -> dict:
                 'dev': info.st_dev, 'ino': info.st_ino}
 
 
-def records(home, session_id, cursor=None):
+def _offset(stream, path, home, cursor, minimum):
+    root = fs.checked(Path(home), directory=True)
+    info = os.fstat(stream.fileno())
+    offset = cursor.get('offset')
+    if (cursor.get('path') != path.relative_to(root).as_posix()
+            or (cursor.get('dev'), cursor.get('ino')) != (info.st_dev, info.st_ino)
+            or type(offset) is not int or not minimum <= offset <= info.st_size):
+        raise ValueError('Native rollout identity or cursor changed')
+    position = stream.tell()
+    stream.seek(offset - 1)
+    if stream.read(1) != b'\n':
+        raise ValueError('Native rollout cursor is not a line boundary')
+    stream.seek(position)
+    return offset
+
+
+def records(home, session_id, cursor=None, end_cursor=None, *, first_turn_only=False):
     path = locate(home, session_id)
     if path is None:
-        if cursor:
+        if cursor or end_cursor:
             raise ValueError('Native session rollout is missing')
         return
+    terminal = None
     with fs.reader(path) as stream:
         budget = [0]
         header(stream, session_id, budget)
-        if cursor:
-            root = fs.checked(Path(home), directory=True)
-            info = os.fstat(stream.fileno())
-            offset = cursor.get('offset')
-            if (cursor.get('path') != path.relative_to(root).as_posix()
-                    or (cursor.get('dev'), cursor.get('ino')) != (info.st_dev, info.st_ino)
-                    or type(offset) is not int or not stream.tell() <= offset <= info.st_size):
-                raise ValueError('Native rollout identity or cursor changed')
-            stream.seek(offset - 1)
-            if stream.read(1) != b'\n':
-                raise ValueError('Native rollout cursor is not a line boundary')
-        while (value := line(stream, budget)) is not None:
+        start = _offset(stream, path, home, cursor, stream.tell()) if cursor else stream.tell()
+        end = (_offset(stream, path, home, end_cursor, start) if end_cursor
+               else os.fstat(stream.fileno()).st_size)
+        stream.seek(start)
+        while stream.tell() < end:
+            value = line(stream, budget)
+            if value is None or stream.tell() > end:
+                raise ValueError('Native rollout end boundary changed')
             if value.get('type') == 'session_meta':
                 raise ValueError('Duplicate native rollout session metadata')
+            payload = value.get('payload')
+            if (first_turn_only and value.get('type') == 'event_msg'
+                    and isinstance(payload, dict) and payload.get('type') == 'task_complete'):
+                terminal = value
+                break
             yield value
+    # Exit the safe-reader context normally before publishing completion so
+    # replacement/mtime/link checks still run when a caller stops at this turn.
+    if terminal is not None:
+        yield terminal

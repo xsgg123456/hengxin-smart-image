@@ -1,8 +1,7 @@
-"""Accept explicit final image references only; never discover draft files."""
+"""Collect images from the completed final reply, never by scanning output files."""
 from io import BytesIO
 from pathlib import PurePosixPath
 import re
-import unicodedata
 from types import SimpleNamespace
 from urllib.parse import unquote
 
@@ -11,123 +10,25 @@ from markdown_it import MarkdownIt
 
 from app.execution.delivery_markdown import _legacy_space_paths
 from app.execution.diagnostics import _safe_read
-from app.execution.final_delivery import _local_file
+from app.execution.final_delivery import _local_file, _PROTECTED
 from app.execution.output_collector import OutputCollectionError, _root
 from app.modules.files.validation import MAX_UPLOAD_BYTES, validate_image
-from .work_baseline import IMAGE_EXTENSIONS, check_work_version
 from .delivery_evidence import evidence
 
-EXTENSIONS = IMAGE_EXTENSIONS
-NON_DELIVERY = re.compile(
-    r'临时|草稿|初稿|工作稿|试验|测试图|中间(?:产物|文件|图片|图|结果|版本)|过程(?:文件|图片|图)|候选|'
-    r'未交付|不交付|未(?:定稿|完成|完稿)|非正式|'
-    r'\b(?:draft|temporary|intermediate|candidate|wip|experimental|experimentation|'
-    r'preliminary|provisional|unfinished|incomplete|unapproved)\b|'
-    r'\b(?:test(?:ing)?|trial|rough)[\s-]+(?:images?|pictures?|renders?|outputs?|files?|sketch(?:es)?)\b|'
-    r'\b(?:testing[\s-]+only|for[\s-]+testing|work[\s-]+in[\s-]+progress|working[\s-]+copy)\b', re.I)
-FORMAL = re.compile(r'正式(?:交付|成品|图片|图)|最终(?:交付|成品|结果|设计|图片|图)|'
-                    r'交付(?:图片|结果|成品)|\b(?:final\s+(?:delivery|images?|results?|designs?)|deliverables)\b', re.I)
-FILE_PROSE = re.compile(r'[/\\]|\.(?:png|jpe?g|webp)\b', re.I)
-DECLINED = re.compile(
-    r'(?:不|非|未|没|勿|禁止)[^。！？\n.!?]{0,32}(?:正式|最终|交付|成品|定稿)|'
-    r'仅(?:供|作|用于|用作)?(?:预览|参考|演示|测试|试验|实验)|待(?:确认|审核|定稿)|预览稿|样稿|试做|试作|实验图|'
-    r'\b(?:not|never|no|non|cannot|can[’\x27]t|isn[’\x27]t|aren[’\x27]t|wasn[’\x27]t|weren[’\x27]t)'
-    r'(?:[\s-]+[\w’\x27]+){0,6}[\s-]+(?:final|deliver\w*|finished|approved)\b|'
-    r'\b(?:preview[\s-]+only|for[\s-]+preview|pending[\s-]+approval)\b', re.I)
-
-
-def formal_prose(token):
-    """File names, image captions, link labels and code cannot declare delivery."""
-    parts, link_depth = [], 0
-    for child in token.children or []:
-        if child.type == 'link_open':
-            link_depth += 1
-        elif child.type == 'link_close':
-            link_depth -= 1
-        elif not link_depth and child.type == 'text' and not FILE_PROSE.search(child.content):
-            parts.append(child.content)
-        elif child.type in ('softbreak', 'hardbreak'):
-            parts.append(' ')
-    return bool(FORMAL.search(''.join(parts)))
-
-
-def visible_text(token):
-    """Image alt is an inline subtree too, not an already plain text string."""
-    if token.children is not None:
-        return ''.join(visible_text(child) for child in token.children)
-    if token.type in ('text', 'text_special', 'code_inline', 'image'):
-        return token.content
-    return ' ' if token.type in ('softbreak', 'hardbreak') else ''
-
-
-def description_labels(token):
-    """Visit descriptions at every nesting level, including an image inside alt."""
-    yield token.content
-    yield visible_text(token)
-    title = token.attrGet('title')
-    if title:
-        yield title
-        for part in MarkdownIt('commonmark').parseInline(title):
-            yield from description_labels(part)
-    for child in token.children or []:
-        yield from description_labels(child)
-
-
-def non_delivery(token):
-    """Apply the same negation rules to visible prose, alt and title labels."""
-    labels = list(description_labels(token))
-    # Conservatively recognize negation even when literal decoration or invisible
-    # formatting surrounds it. This affects eligibility only, never saved text.
-    normalized = [''.join(char for char in unicodedata.normalize('NFKC', label)
-                          if char not in '*_~`' and unicodedata.category(char) != 'Cf')
-                  for label in labels]
-    return any(NON_DELIVERY.search(label) or DECLINED.search(label) for label in labels + normalized)
-
-
-def delivery_blocks(tokens):
-    """Keep non-delivery scope across blank lines and nested neutral headings.
-
-    Inspect complete sections before yielding links, so a trailing draft notice
-    also excludes the preceding unqualified previews. Explicit formal sections
-    may start a new scope, but never override a non-delivery parent heading.
-    """
-    sections, parents, depth = [], [], None
-    current = dict(blocked=False, tokens=[])
-    sections.append(current)
-    for token in tokens:
-        if token.type == 'heading_open':
-            depth = int(token.tag[1:])
-        if token.type != 'inline':
-            continue
-        # A negated delivery declaration always wins over the formal words inside it.
-        negative = non_delivery(token)
-        formal = not negative and formal_prose(token)
-        if depth is not None:
-            while parents and parents[-1][0] >= depth:
-                parents.pop()
-            parents.append((depth, negative))
-            blocked = any(value for _, value in parents) or (current['blocked'] and not formal)
-            current = dict(blocked=blocked, tokens=[])
-            sections.append(current)
-            depth = None
-        elif negative:
-            current['blocked'] = True
-        elif formal and not any(value for _, value in parents):
-            current = dict(blocked=False, tokens=[])
-            sections.append(current)
-        current['tokens'].append(token)
-    return [token for section in sections if not section['blocked'] for token in section['tokens']]
+EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
+INVALID_REFERENCE = '一张最终回复图片未通过文件或归属校验，文字回复已保留。'
 
 
 def references(text):
-    """A link in the completed final answer is delivery, not a tool-side file."""
+    """Rendered images and image downloads need no heading or delivery wording."""
     parser = MarkdownIt('commonmark')
-    parser.validateLink = lambda _url: True  # Files are validated below, not fetched.
-    for token in delivery_blocks(parser.parse(_legacy_space_paths(text))):
+    parser.validateLink = lambda _url: True  # Validated locally, never fetched.
+    for token in parser.parse(_legacy_space_paths(text)):
+        if token.type != 'inline':
+            continue
         for child in token.children or []:
             target = (child.attrGet('src') if child.type == 'image' else
-                      child.attrGet('href') if child.type == 'link_open'
-                      and child.markup != 'autolink' else None)
+                      child.attrGet('href') if child.type == 'link_open' else None)
             if target is None:
                 continue
             try:
@@ -142,54 +43,91 @@ def references(text):
                 yield decoded, None
 
 
-def collect_delivery(workspace, summary):
-    """Return valid formal images and warnings without discarding public text."""
-    if not summary.turn_completed or summary.error or not summary.final_text:
-        return [], []
-    delivered, warnings, seen = [], [], set()
+def _canonical(logical, session_id):
+    """Validate ownership without opening a file, so missing files stay expected."""
+    if (not isinstance(logical, str) or not logical
+            or any(ord(char) < 32 or ord(char) == 127 for char in logical)
+            or any(char in logical for char in '\\:?#') or logical.startswith('//')
+            or any(part in ('.', '..') for part in logical.split('/'))):
+        raise OutputCollectionError('invalid_image_reference')
+    path = PurePosixPath(logical)
+    native = PurePosixPath('/home/runner/.codex/generated_images') / session_id
+    if path.is_relative_to(native):
+        return str(path)
+    if not path.is_absolute():
+        path = PurePosixPath('/work') / path
+    if not path.is_relative_to('/work') or any(
+            part in _PROTECTED for part in path.relative_to('/work').parts):
+        raise OutputCollectionError('output_path_escape')
+    return str(path)
+
+
+def enumerate_delivery(workspace, summary):
+    """Return unique expected references, optional digests and selection warnings.
+
+    No image file is opened here. A missing or unreadable selected file still
+    contributes one expected output for durable capture and later recovery.
+    """
+    if not summary.turn_completed or summary.error or summary.final_text is None:
+        return [], {}, []
     try:
-        root = _root(workspace.home / '.codex', summary.session_id)
+        from .native_rollout import session
+        session(summary.session_id)
         links = list(references(summary.final_text))
     except (ValueError, OSError, TypeError, RecursionError):
-        return [], ['正式交付图片的引用无法读取，文字回复已保留。']
-    native, proven, evidence_warnings = evidence(workspace, summary, links)
-    warnings.extend(evidence_warnings)
-    # A final explicit list is authoritative; never append other tool-side images.
-    # A public native image presentation is also delivery, unless final prose
-    # marks the work as a draft or declines delivery.
-    if not links and not any(non_delivery(token) for token in MarkdownIt('commonmark').parse(
-            summary.final_text) if token.type == 'inline'):
-        links = [(row['path'], row['path']) for row in native]
+        return [], {}, ['最终回复图片的引用无法读取，文字回复已保留。']
+    selected, seen, warnings = [], set(), []
+    for _, logical in links:
+        try:
+            canonical = _canonical(logical, summary.session_id)
+        except (OutputCollectionError, TypeError, ValueError):
+            warnings.append(INVALID_REFERENCE)
+            continue
+        if canonical not in seen:
+            seen.add(canonical)
+            selected.append((canonical, canonical))
+    # Normalize before digest lookup too: alternate spellings cannot bypass
+    # checksum evidence. An invalid explicit list never triggers native fallback.
+    if links:
+        if selected:
+            _, proven, evidence_warnings = evidence(workspace, summary, selected)
+            warnings.extend(evidence_warnings)
+        else:
+            proven = {}
+    else:
+        native, proven, evidence_warnings = evidence(workspace, summary, [])
+        warnings.extend(evidence_warnings)
+        selected = [(row['path'], row['path']) for row in native]
+    if not links and not selected and not warnings and re.search(
+            r'已(?:成功)?生成[^。\n]{0,50}(?:图|image)|'
+            r'(?:image|picture)s?\s+(?:has|have|was|were)\s+(?:been\s+)?generated',
+            summary.final_text, re.I):
+        warnings.append('本轮回复称已生成图片，但未收到可验证的图片交付；请联系管理员核查，无需重新生成。')
+    return selected, proven, warnings
+
+
+def collect_reference(workspace, summary, target, logical, proven):
+    """Read one selected file; callers can persist successes and retry failures."""
+    if not summary.turn_completed or summary.error:
+        raise OutputCollectionError('final_delivery_uncertain')
+    canonical = _canonical(logical, summary.session_id)
+    root = _root(workspace.home / '.codex', summary.session_id)
+    path, _ = _local_file(canonical, workspace.work, workspace.home / '.codex', root, {})
+    data = _safe_read(path, MAX_UPLOAD_BYTES, allow_windows_fallback=True)
+    image = validate_image(SimpleNamespace(file=BytesIO(data), filename=path.name,
+                                          content_type=None))
+    if canonical in proven and image.checksum != proven[canonical]:
+        raise OutputCollectionError('native_image_checksum_mismatch')
+    return image
+
+
+def collect_delivery(workspace, summary):
+    """Compatibility wrapper: valid final images plus per-reference warnings."""
+    links, proven, warnings = enumerate_delivery(workspace, summary)
+    delivered = []
     for target, logical in links:
         try:
-            if logical is None:
-                raise OutputCollectionError('invalid_image_reference')
-            path, boundary = _local_file(logical, workspace.work, workspace.home / '.codex',
-                                        root, {} if logical in proven else workspace.baseline)
-            identity = path.resolve()
-            if identity in seen:
-                continue
-            data = _safe_read(path, MAX_UPLOAD_BYTES, allow_windows_fallback=True)
-            image = validate_image(SimpleNamespace(file=BytesIO(data), filename=path.name,
-                                                    content_type=None))
-            if logical in proven and image.checksum != proven[logical]:
-                raise OutputCollectionError('native_image_checksum_mismatch')
-            if boundary == workspace.work:
-                baseline = getattr(workspace, 'work_baseline',
-                                   None if getattr(workspace, 'persistent', False) else {})
-                check_work_version(path, workspace.work, baseline, image.checksum)
-            seen.add(identity)
-            if (logical, image.checksum) in getattr(workspace, 'delivered_images', set()):
-                continue
-            delivered.append((target, image))
-        except (OutputCollectionError, HTTPException, OSError, ValueError) as exc:
-            if str(exc) == 'historical_output_forbidden':
-                warnings.append('该图片来自先前轮次，缺少可核验的交付记录；请联系管理员补收，无需重新生成。')
-            else:
-                warnings.append('一张正式交付图片未通过文件或归属校验，文字回复已保留。')
-    if not links and not warnings and re.search(r'已(?:成功)?生成[^。\n]{0,50}(?:图|image)|'
-            r'(?:image|picture)s?\s+(?:has|have|was|were)\s+(?:been\s+)?generated',
-            summary.final_text, re.I) and not any(non_delivery(token) for token in
-                MarkdownIt('commonmark').parse(summary.final_text) if token.type == 'inline'):
-        warnings.append('本轮回复称已生成图片，但未收到可验证的图片交付；请联系管理员核查，无需重新生成。')
+            delivered.append((target, collect_reference(workspace, summary, target, logical, proven)))
+        except (OutputCollectionError, HTTPException, OSError, ValueError):
+            warnings.append(INVALID_REFERENCE)
     return delivered, warnings

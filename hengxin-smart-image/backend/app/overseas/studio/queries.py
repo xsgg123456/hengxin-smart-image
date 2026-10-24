@@ -100,14 +100,19 @@ def view(session, actor, task_id, conversation_id=None):
         if job.status not in TERMINAL:
             active = str(turn.id)
         attachments = [asset(*attachment(session, task, identity)) for identity in turn.attachment_ids]
+        result = job.result or {}
+        order = {value: index for index, value in enumerate(result.get('deliveryOrder', []))}
+        pictures = list(session.scalars(select(Picture).where(Picture.turn_id == turn.id)
+            .order_by(Picture.created_at, Picture.id)))
+        pictures.sort(key=lambda p: order.get(str(p.id), len(order)))
         turns.append(dict(id=str(turn.id), conversationId=str(turn.conversation_id),
             text=turn.text, skillName=turn.skill_name, deliveryError=turn.delivery_error,
+            deliveryStatus=result.get('deliveryStatus'),
             status=job.status, reply=turn.reply, error=job.error, jobId=str(job.id),
             jobVersion=job.version, attachments=attachments,
             referencePictures=[picture_dto(picture(session, task, UUID(value)))
                                for value in turn.reference_ids],
-            pictures=[picture_dto(p) for p in session.scalars(select(Picture).where(
-                Picture.turn_id == turn.id).order_by(Picture.created_at, Picture.id))],
+            pictures=[picture_dto(p) for p in pictures],
             createdAt=turn.created_at))
     channels = conversations(session, task.id)
     record = available_archive(session, task.id)

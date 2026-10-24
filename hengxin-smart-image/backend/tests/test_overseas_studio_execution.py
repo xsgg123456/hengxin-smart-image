@@ -135,7 +135,7 @@ def test_runner_collects_arbitrary_multiple_images(studio, monkeypatch, tmp_path
     '## Experimental images\nFor experimentation.\n\n![Image](/work/output0.png)',
     '这些是工作稿。\n\n![图片](/work/output0.png)',
 ])
-def test_non_delivery_images_never_reach_api_but_text_survives(studio, monkeypatch, tmp_path, reply):
+def test_final_reply_images_reach_api_regardless_of_wording(studio, monkeypatch, tmp_path, reply):
     client, factory, _, task, _, _ = studio
     commands = fake_runtime(studio, monkeypatch, tmp_path, image_count=1)
     original = runner.execute
@@ -154,7 +154,10 @@ def test_non_delivery_images_never_reach_api_but_text_survives(studio, monkeypat
     runner.run(factory, turn['jobId'])
     root = ROOT + '/tasks/' + task['id'] + '/studio'
     result = client.get(root).json()['turns'][0]
-    assert result['status'] == 'succeeded' and result['pictures'] == []
+    assert result['status'] == 'succeeded' and len(result['pictures']) == 1
+    picture = result['pictures'][0]
+    assert picture['sourcePath'] == ('/work/final.png' if '/final.png' in reply else '/work/output0.png')
+    assert client.get(picture['url']).status_code == 200
     assert result['reply'] == reply
     assert client.get(root + '/transcript').json()['items'][0]['text'] == reply
 

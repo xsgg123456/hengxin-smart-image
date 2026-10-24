@@ -1,4 +1,4 @@
-"""Persistent work stays readable without re-publishing unchanged historical images."""
+"""Final references may re-deliver history; snapshots retain filesystem safety."""
 import hashlib
 import os
 from types import SimpleNamespace
@@ -52,7 +52,7 @@ def test_snapshot_covers_history_and_research_but_excludes_protected_resources(s
         (space.work / name).read_bytes()).hexdigest() for name in paths}
 
 
-def test_only_explicit_new_or_changed_work_images_are_delivered(space):
+def test_only_explicit_final_work_images_are_delivered_including_history(space):
     picture(space.work / 'old.png')
     picture(space.work / 'history/turn-1/restored.png')
     space.work_baseline = snapshot_work(space.work)
@@ -61,8 +61,12 @@ def test_only_explicit_new_or_changed_work_images_are_delivered(space):
     outputs, warnings = collect(space, '正式交付：\n![旧](/work/old.png)\n'
                                '![恢复图](/work/history/turn-1/restored.png)\n'
                                '![新图](/work/new.png)')
-    assert [target for target, _ in outputs] == ['/work/new.png']
-    assert len(warnings) == 2
+    assert [target for target, _ in outputs] == [
+        '/work/old.png', '/work/history/turn-1/restored.png', '/work/new.png']
+    assert warnings == []
+    assert [image.data for _, image in outputs] == [
+        (space.work / name).read_bytes() for name in
+        ('old.png', 'history/turn-1/restored.png', 'new.png')]
 
 
 def test_content_change_same_path_size_and_mtime_is_new_version(space):
@@ -77,14 +81,15 @@ def test_content_change_same_path_size_and_mtime_is_new_version(space):
     assert outputs[0][1].data == path.read_bytes()
 
 
-def test_metadata_change_without_byte_change_does_not_create_output(space):
+def test_final_reference_redelivers_unchanged_bytes_after_metadata_change(space):
     path = picture(space.work / 'old.png')
     space.work_baseline = snapshot_work(space.work)
     raw = path.read_bytes()
     path.unlink()
     path.write_bytes(raw)
     outputs, warnings = collect(space, '![图](/work/old.png)')
-    assert outputs == [] and len(warnings) == 1
+    assert [target for target, _ in outputs] == ['/work/old.png']
+    assert outputs[0][1].data == raw and warnings == []
 
 
 def test_rewriting_work_file_does_not_mutate_previous_delivery_bytes(space):
@@ -116,32 +121,43 @@ def test_protected_and_other_conversation_paths_stay_forbidden(space, target):
     assert outputs == [] and len(warnings) == 1
 
 
-def test_native_session_history_gate_is_unchanged(space):
+def test_final_reference_can_redeliver_unchanged_same_session_native_image(space):
     root = space.home / '.codex/generated_images/session'
-    picture(root / 'old.png')
-    space.baseline = {'old.png': 'original-hash'}
+    old = picture(root / 'old.png')
+    space.baseline = {'old.png': hashlib.sha256(old.read_bytes()).hexdigest()}
     space.work_baseline = snapshot_work(space.work)
-    picture(root / 'old.png', 'red')
     picture(root / 'new.png')
     prefix = '/home/runner/.codex/generated_images/session/'
     outputs, warnings = collect(space, f'![旧]({prefix}old.png)\n![新]({prefix}new.png)')
-    assert [target for target, _ in outputs] == [prefix + 'new.png']
-    assert len(warnings) == 1
+    assert [target for target, _ in outputs] == [prefix + 'old.png', prefix + 'new.png']
+    assert warnings == []
+    assert outputs[0][1].data == old.read_bytes()
+
+
+def test_native_checksum_evidence_still_rejects_changed_bytes(space):
+    path = picture(space.home / '.codex/generated_images/session/old.png')
+    space.baseline = {'old.png': hashlib.sha256(path.read_bytes()).hexdigest()}
+    picture(path, 'red')
+    outputs, warnings = collect(space,
+        '![图](/home/runner/.codex/generated_images/session/old.png)')
+    assert outputs == [] and len(warnings) == 1
 
 
 @pytest.mark.parametrize('baseline', [None, [], {'old.png': 'broken-hash'},
                                      {'../old.png': 'a' * 64}])
-def test_invalid_baseline_fails_closed(space, baseline):
-    picture(space.work / 'old.png')
+def test_legacy_work_baseline_does_not_gate_final_references(space, baseline):
+    path = picture(space.work / 'old.png')
     space.work_baseline = baseline
     outputs, warnings = collect(space, '![图](/work/old.png)')
-    assert outputs == [] and len(warnings) == 1
+    assert [target for target, _ in outputs] == ['/work/old.png']
+    assert outputs[0][1].data == path.read_bytes() and warnings == []
 
 
-def test_persistent_workspace_missing_snapshot_fails_closed(space):
-    picture(space.work / 'old.png')
+def test_persistent_workspace_without_snapshot_can_deliver_final_reference(space):
+    path = picture(space.work / 'old.png')
     outputs, warnings = collect(space, '![图](/work/old.png)')
-    assert outputs == [] and len(warnings) == 1
+    assert [target for target, _ in outputs] == ['/work/old.png']
+    assert outputs[0][1].data == path.read_bytes() and warnings == []
 
 
 def test_bad_image_does_not_hide_valid_explicit_delivery(space):

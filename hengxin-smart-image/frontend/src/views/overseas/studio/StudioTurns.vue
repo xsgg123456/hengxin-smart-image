@@ -8,6 +8,7 @@
         <StudioProcess :turn="turn" :entries="byTurn.get(turn.id) || []" />
         <ElAlert v-if="turn.error" :title="turn.error" type="error" :closable="false" />
         <ElAlert v-if="turn.deliveryError" :title="turn.deliveryError" type="warning" :closable="false" />
+        <ElAlert v-if="deliveryProgress(turn)" :title="deliveryProgress(turn)" type="info" :closable="false" />
         <div v-if="turn.pictures.length" class="studio-selection-bar"><ElCheckbox :model-value="turn.pictures.every(p => selected.includes(p.id))" :indeterminate="turn.pictures.some(p => selected.includes(p.id)) && !turn.pictures.every(p => selected.includes(p.id))" :disabled="disabled" @change="$emit('group', turn.pictures)">全选本组</ElCheckbox><span>已选 {{ turn.pictures.filter(p => selected.includes(p.id)).length }} / {{ turn.pictures.length }} 张</span></div>
         <div class="studio-pictures"><div v-for="picture in turn.pictures" :key="picture.id" class="studio-picture" :class="{ selected: selected.includes(picture.id) }">
           <StudioAssetImage :asset="picture" :group="turn.pictures" title="本组生成图片" @failure="$emit('failure', $event)" />
@@ -27,6 +28,12 @@ import StudioProcess from './StudioProcess.vue'
 const props = defineProps<{ turns: StudioTurn[]; transcript: Transcript[]; conversationId?: string | null; selected: string[]; disabled: boolean; scrollPosition?: number | null }>()
 const emit = defineEmits<{ 'scroll-position': [position: number, conversationId?: string | null]; failure: [reason: unknown]; group: [pictures: StudioPicture[]]; toggle: [id: string]; modify: [picture: StudioPicture] }>()
 const labels: Record<string, string> = { queued: '排队中', running: '执行中', collecting: '收取结果中', cancelling: '正在停止', uncertain: '执行状态待核实', succeeded: '已回复', failed: '执行失败', cancelled: '已停止' }
+function deliveryProgress(turn: StudioTurn) {
+  const delivery = turn.deliveryStatus
+  if (!delivery || delivery.state === 'complete') return ''
+  if (delivery.state === 'capturing') return '正在接收图片'
+  return `图片保存中 ${delivery.saved}${delivery.expected === null ? ' 张' : `/${delivery.expected}`}，系统会自动补收`
+}
 const byTurn = computed(() => {
   const result = new Map<string, Transcript[]>()
   for (const entry of props.transcript) { const items = result.get(entry.turnId) || []; items.push(entry); result.set(entry.turnId, items) }

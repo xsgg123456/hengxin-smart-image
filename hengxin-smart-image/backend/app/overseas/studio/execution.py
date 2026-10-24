@@ -80,9 +80,6 @@ class StudioProtocol:
                 with path.open('xb') as output:
                     output.write(read(get_store(), source))
                 paths.append(dict(name=source.name, path='/work/inputs/' + path.name))
-        if getattr(workspace, 'persistent', False):
-            from .work_baseline import snapshot_work
-            workspace.work_baseline = snapshot_work(workspace.work)
         skill = job.payload.get('skill')
         parts = []
         if not workspace.previous_session:
@@ -98,6 +95,14 @@ class StudioProtocol:
         if getattr(workspace, 'recovery_notice', False):
             parts.append('本对话的历史文件已恢复，可用路径与同名版本见 /work/.context-files.json。')
         return '\n\n'.join(parts)
+
+    def prepare_collection(self, job, workspace):
+        from .delivery_context import remember
+        remember(job, workspace)
+
+    def collect(self, factory, job, token, workspace, summary):
+        from .delivery_job import deliver
+        return deliver(factory, job, token, workspace, summary, get_store())
 
     def before_execute(self, factory, job, token):
         with factory.begin() as session:

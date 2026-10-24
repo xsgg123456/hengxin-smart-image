@@ -48,9 +48,10 @@ def test_native_without_markdown_is_delivered_and_validated(case):
 
 @pytest.mark.parametrize('final', ['草稿，尚未正式交付。', '这是临时测试图。',
     'Preview only. Not final.', '仅供预览，待确认。'])
-def test_drafts_never_become_native_cards(case, final):
+def test_final_native_cards_need_no_delivery_wording(case, final):
     native(case, final)
-    assert collect(case, final) == ([], [])
+    images, warnings = collect(case, final)
+    assert len(images) == 1 and not warnings
 
 
 def test_explicit_final_list_excludes_other_native_outputs(case):
@@ -72,16 +73,17 @@ def test_same_conversation_missed_image_can_be_explicitly_delivered(case):
     images, warnings = collect(case, final)
     assert not warnings and len(images) == 1
     case.delivered_images = {(PREFIX + 'exec-1.png', sha256(case.data).hexdigest())}
-    assert collect(case, final) == ([], [])
+    images, warnings = collect(case, final)
+    assert len(images) == 1 and not warnings
 
 
-def test_prior_work_files_still_rejected(case):
+def test_prior_work_files_are_accepted_when_referenced(case):
     (case.work / 'old.png').write_bytes(case.data)
     case.work_baseline = {'old.png': sha256(case.data).hexdigest()}
     final = '![图](/work/old.png)'
     native(case, final)
     images, warnings = collect(case, final)
-    assert not images and warnings
+    assert len(images) == 1 and not warnings
 
 
 @pytest.mark.parametrize('damage', ['missing', 'changed', 'bad_evidence'])
@@ -103,12 +105,12 @@ def test_claimed_generation_without_presentation_is_not_silent(case):
     assert not images and '未收到可验证' in warnings[0]
 
 
-def test_unproven_old_native_file_is_not_accepted(case):
+def test_old_native_image_need_not_have_been_publicly_delivered(case):
     final = f'![图]({PREFIX}exec-1.png)'
     native(case, final, displayed=False)
     case.baseline = {'exec-1.png': sha256(case.data).hexdigest()}
     images, warnings = collect(case, final)
-    assert not images and warnings
+    assert len(images) == 1 and not warnings
 
 
 def test_two_distinct_native_images_partial_storage_then_explicit_retry(case, monkeypatch):
@@ -151,6 +153,51 @@ def test_two_distinct_native_images_partial_storage_then_explicit_retry(case, mo
         *turn('turn-2', final=final)[-2:]], append=True)
     summary.final_text = final
     retry = execution.HANDLER.validate(job, case, summary)
-    assert len(retry['pictures']) == 1 and not retry['deliveryError']
-    assert retry['pictures'][0]['checksum'] == sha256(second).hexdigest()
-    assert store.calls == 3
+    assert len(retry['pictures']) == 2 and not retry['deliveryError']
+    assert [image['checksum'] for image in retry['pictures']] == [sha256(case.data).hexdigest(), sha256(second).hexdigest()]
+    assert store.calls == 4
+
+
+def test_unrelated_native_parse_error_does_not_block_explicit_work_images(case):
+    (case.work / 'answer.png').write_bytes(case.data)
+    log = native(case)
+    log.write_bytes(log.read_bytes()[:-20])
+    images, warnings = collect(case, '预览在这里：![图](/work/answer.png)')
+    assert [target for target, _ in images] == ['/work/answer.png'] and not warnings
+
+
+def test_explicit_same_session_native_survives_unrelated_bad_rollout(case):
+    final = f'[图片]({PREFIX}exec-1.png)'
+    log = native(case, final)
+    log.write_bytes(log.read_bytes()[:-20])
+    images, warnings = collect(case, final)
+    assert len(images) == 1 and images[0][1].data == case.data and not warnings
+
+
+def test_seventeen_process_generations_do_not_expand_eight_explicit_final_images(case):
+    final = '\n'.join(f'![图{i}](/work/result-{i}.jpg)' for i in range(8))
+    for i in range(8):
+        Image.new('RGB', (20, 20), (i, 0, 0)).save(case.work / f'result-{i}.jpg')
+    rows = json.loads(json.dumps(turn(final=final)).replace(
+        ENCODED, base64.b64encode(case.data).decode()))
+    for i in range(1, 17):
+        extra = json.loads(json.dumps(rows[1]))
+        extra['payload']['item'].update(id=f'exec-{i}', savedPath=PREFIX + f'process-{i}.png')
+        rows.insert(2, extra)
+    # Production's intermediate question uses the same final_answer phase.
+    from test_studio_native_images import event
+    rows.insert(1, event('item_completed', turn_id='turn-1', thread_id=SESSION,
+        item=dict(type='AgentMessage', phase='final_answer', id='call_question',
+                  content=[{'type': 'Text', 'text': '请确认'}], questions=[])))
+    write(case.home, rows)
+    images, warnings = collect(case, final)
+    assert [target for target, _ in images] == [f'/work/result-{i}.jpg' for i in range(8)]
+    assert not warnings
+
+
+def test_native_path_spelling_cannot_bypass_recorded_digest(case):
+    final = f'![图]({PREFIX}/exec-1.png)'
+    native(case, final)
+    Image.new('RGB', (30, 40), 'red').save(case.file)
+    images, warnings = collect(case, final)
+    assert not images and warnings

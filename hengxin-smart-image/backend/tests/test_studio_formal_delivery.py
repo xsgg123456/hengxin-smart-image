@@ -52,12 +52,12 @@ def test_only_linked_formal_image_accepted_among_drafts(space):
     assert delivered[0][1].width == 12
 
 
-def test_explicit_draft_links_in_final_are_not_formal_delivery(space):
+def test_all_explicit_images_in_final_are_delivered_regardless_of_wording(space):
     picture(space.work / 'draft.png')
     picture(space.work / 'final.png')
     text = '## 草稿\n![预览](/work/draft.png)\n## 正式交付\n![最终设计](/work/final.png)'
     outputs, warnings = collect(space, text)
-    assert [target for target, _ in outputs] == ['/work/final.png']
+    assert [target for target, _ in outputs] == ['/work/draft.png', '/work/final.png']
     assert warnings == []
 
 
@@ -70,9 +70,10 @@ def test_explicit_draft_links_in_final_are_not_formal_delivery(space):
     '这些是过程图。\n\n## 图片\n![预览](/work/a.png)',
     'Temporary working files.\n\n![Preview](/work/a.png)',
 ])
-def test_non_delivery_scope_covers_paragraphs_and_child_headings(space, text):
+def test_final_images_are_not_filtered_by_paragraphs_or_headings(space, text):
     picture(space.work / 'a.png')
-    assert collect(space, text) == ([], [])
+    outputs, warnings = collect(space, text)
+    assert [target for target, _ in outputs] == ['/work/a.png'] and not warnings
 
 
 @pytest.mark.parametrize('boundary', ['## 正式交付', '正式交付：'])
@@ -81,7 +82,7 @@ def test_explicit_formal_scope_after_draft_prose(space, boundary):
     picture(space.work / 'final.png')
     text = f'这是草稿，暂不交付。\n\n![预览](/work/a.png)\n\n{boundary}\n\n![图片](/work/final.png)'
     outputs, warnings = collect(space, text)
-    assert [target for target, _ in outputs] == ['/work/final.png']
+    assert [target for target, _ in outputs] == ['/work/a.png', '/work/final.png']
     assert warnings == []
 
 
@@ -95,10 +96,11 @@ def test_explicit_formal_scope_after_draft_prose(space, boundary):
     '文件在 /work/正式交付.png\n\n![预览](/work/a.png)',
     '文件名：正式交付.png\n\n![预览](/work/a.png)',
 ])
-def test_reference_metadata_cannot_clear_non_delivery_scope(space, reference):
+def test_final_link_labels_need_no_delivery_declaration(space, reference):
     for name in ('a.png', 'final.png', 'deliverable.png'):
         picture(space.work / name)
-    assert collect(space, '这是草稿，暂不交付。\n\n' + reference) == ([], [])
+    outputs, warnings = collect(space, '这是草稿，暂不交付。\n\n' + reference)
+    assert len(outputs) == 1 and not warnings
 
 
 @pytest.mark.parametrize('notice', [
@@ -120,7 +122,7 @@ def test_reference_metadata_cannot_clear_non_delivery_scope(space, reference):
     '图片尚未完成。', 'Test images.',
 ])
 @pytest.mark.parametrize('position', ['before', 'after', 'heading', 'alt', 'title'])
-def test_negated_delivery_is_not_a_positive_declaration(space, notice, position):
+def test_final_images_survive_all_legacy_prose_filters(space, notice, position):
     picture(space.work / 'final.png')
     image = '![图片](/work/final.png)'
     heading = notice.replace('\n', ' ')  # ATX headings end at the first newline.
@@ -128,7 +130,8 @@ def test_negated_delivery_is_not_a_positive_declaration(space, notice, position)
             'heading': '## ' + heading + '\n\n### 图片\n' + image,
             'alt': '![' + notice + '](/work/final.png)',
             'title': '![图片](/work/final.png "' + notice + '")'}[position]
-    assert collect(space, text) == ([], [])
+    outputs, warnings = collect(space, text)
+    assert len(outputs) == 1 and not warnings
 
 
 def test_independent_positive_delivery_after_preview_notice(space):
@@ -137,7 +140,7 @@ def test_independent_positive_delivery_after_preview_notice(space):
     text = ('以下仅供预览，并非最终交付。\n\n![图](/work/preview.png)\n\n'
             '## 正式交付\n无水印，保留全部细节。\n\n![图](/work/final.png)')
     outputs, warnings = collect(space, text)
-    assert [target for target, _ in outputs] == ['/work/final.png'] and warnings == []
+    assert [target for target, _ in outputs] == ['/work/preview.png', '/work/final.png'] and warnings == []
 
 
 def test_emphasized_positive_declaration_starts_formal_section(space):
@@ -172,9 +175,10 @@ def test_emphasized_positive_declaration_starts_formal_section(space):
     'These are n&#111;t final images.\n\n![Image](/work/final.png)',
     '![![Image](unused "n&#111;t final images")](/work/final.png)',
 ])
-def test_nested_alt_and_title_negations_are_not_delivery(space, reference):
+def test_final_nested_alt_and_title_are_not_eligibility_gates(space, reference):
     picture(space.work / 'final.png')
-    assert collect(space, reference) == ([], [])
+    outputs, warnings = collect(space, reference)
+    assert len(outputs) == 1 and not warnings
 
 
 @pytest.mark.parametrize('notice', ['Tests passed. Final images:', '测试通过，正式交付：'])
@@ -191,14 +195,15 @@ def test_final_local_references_without_fixed_numbering(space, target):
     assert len(outputs) == 1 and warnings == []
 
 
-def test_native_generation_output_must_be_explicit_and_new(space):
+def test_native_generation_output_may_be_historical_when_explicit(space):
     picture(space.home / '.codex/generated_images/session/old.png')
     picture(space.home / '.codex/generated_images/session/new.png')
-    space.baseline = {'old.png': 'old-hash'}
+    from hashlib import sha256
+    space.baseline = {'old.png': sha256((space.home / '.codex/generated_images/session/old.png').read_bytes()).hexdigest()}
     prefix = '/home/runner/.codex/generated_images/session/'
     outputs, warnings = collect(space, f'![新图]({prefix}new.png)\n![旧图]({prefix}old.png)')
-    assert [target for target, _ in outputs] == [prefix + 'new.png']
-    assert len(warnings) == 1
+    assert [target for target, _ in outputs] == [prefix + 'new.png', prefix + 'old.png']
+    assert not warnings
 
 
 def test_invalid_one_does_not_hide_valid_delivery(space):
@@ -235,3 +240,55 @@ def test_escaped_unicode_name(space):
     picture(space.work / '正式 交付.png')
     outputs, warnings = collect(space, '![设计](</work/正式 交付.png>)')
     assert len(outputs) == 1 and warnings == []
+
+
+def test_expected_references_survive_missing_files_and_deduplicate_aliases(space):
+    from app.overseas.studio.delivery import enumerate_delivery, collect_reference
+    from app.execution.output_collector import OutputCollectionError
+    picture(space.work / 'ok.png')
+    summary = SimpleNamespace(turn_completed=True, error=None, session_id='session',
+        final_text='![A](/work/ok.png) [下载](sandbox:/work/ok.png) '
+                   '[缺失](missing.png) ![缺失](/work/missing.png)')
+    links, proven, warnings = enumerate_delivery(space, summary)
+    assert links == [('/work/ok.png', '/work/ok.png'), ('/work/missing.png', '/work/missing.png')]
+    assert not warnings
+    assert collect_reference(space, summary, *links[0], proven).width == 12
+    with pytest.raises(OutputCollectionError):
+        collect_reference(space, summary, *links[1], proven)
+    assert len(links) == 2
+    outputs, warnings = collect_delivery(space, summary)
+    assert len(outputs) == len(warnings) == 1
+
+
+def test_historical_persistent_work_and_previously_delivered_images_are_accepted(space):
+    from hashlib import sha256
+    path = picture(space.work / 'old.png')
+    checksum = sha256(path.read_bytes()).hexdigest()
+    space.persistent = True
+    space.work_baseline = {'old.png': checksum}
+    space.delivered_images = {('/work/old.png', checksum)}
+    outputs, warnings = collect(space, '[再给一次](/work/old.png)')
+    assert len(outputs) == 1 and outputs[0][1].checksum == checksum and not warnings
+
+
+@pytest.mark.parametrize('target', ['/work/targets/a.png', '/work/original/a.png',
+    '/work/current/a.png', '/work/.codex/a.png', '/work/.agents/a.png',
+    'sandbox:/work/inputs/a.png', '/work/%2e%2e/a.png', '/work/a.png?file=other',
+    '/work/a.png#section', '//work/a.png'])
+def test_protected_inputs_and_path_escapes_stay_rejected(space, target):
+    outputs, warnings = collect(space, f'![图片]({target})')
+    assert not outputs and warnings
+
+
+def test_hardlinked_output_is_never_accepted(space):
+    import os
+    path = picture(space.work / 'a.png')
+    os.link(path, space.work / 'b.png')
+    outputs, warnings = collect(space, '![图片](/work/a.png)')
+    assert not outputs and warnings
+
+
+def test_rendered_sandbox_image_autolink_is_a_download_reference(space):
+    picture(space.work / 'final.png')
+    outputs, warnings = collect(space, '<sandbox:/work/final.png>')
+    assert len(outputs) == 1 and not warnings

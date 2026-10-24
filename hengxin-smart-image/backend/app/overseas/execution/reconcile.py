@@ -25,6 +25,19 @@ def reconcile_once(factory):
                     continue
             except (OSError, ValueError):
                 continue
+        if old.kind == 'studio':
+            # Do not release the workspace to later turns until a stopped,
+            # successful invocation has durably saved all its final images.
+            from app.overseas.tasks.cleanup_process import group_alive
+            if old.process_id:
+                try:
+                    if group_alive(old):
+                        continue
+                except (OSError, ValueError):
+                    continue
+            from app.overseas.studio.delivery_recovery import recover
+            if recover(factory, old):
+                continue
         with factory.begin() as session:
             job = claims.locked_job(session, old.id)
             if (not job or job.status != 'uncertain' or job.claim_token != old.claim_token

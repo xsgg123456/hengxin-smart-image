@@ -6,13 +6,14 @@ import pytest
 from sqlalchemy import select
 from app.overseas.execution import runner, claims
 from app.overseas.execution.models import Job
-from app.overseas.studio import execution, transcript
+from app.overseas.studio import delivery, transcript
 from app.overseas.studio.models import Turn, Transcript
 from test_overseas_studio import studio, send
 from test_overseas_studio_execution import fake_runtime
 from test_overseas_materials import materials
 from test_overseas_tasks import overseas, ROOT
 from test_overseas_assignment import change_roles
+from studio_delivery_helpers import DeliveryCase
 
 
 def read(client, task, after=0):
@@ -117,18 +118,33 @@ def test_failed_and_cancelled_runner_keep_final_public_text(studio, monkeypatch,
             'failure': 'failed', 'cancel': 'cancelled', 'crash': 'uncertain'}[mode]
 
 
-def test_collection_failure_keeps_raw_reply_and_transcript(studio, monkeypatch, tmp_path):
-    client, factory, _, task, _, _ = studio
-    fake_runtime(studio, monkeypatch, tmp_path, image_count=1)
-    def broken(*_):
-        raise OSError('storage unavailable')
-    monkeypatch.setattr(execution, 'collect_delivery', broken)
-    turn = send(client, task).json()['turns'][0]
-    runner.run(factory, turn['jobId'])
-    row = client.get(f"{ROOT}/tasks/{task['id']}/studio").json()['turns'][0]
-    assert row['status'] == 'succeeded' and row['pictures'] == []
-    assert row['deliveryError'] and row['reply'] == '![设计](/work/output0.png)\n'
-    assert read(client, task).json()['items'][0]['text'] == row['reply']
+@pytest.mark.parametrize('boundary', ['enumerate_delivery', 'collect_reference', 'put'])
+def test_collection_failure_keeps_raw_reply_and_transcript(studio, monkeypatch, tmp_path, boundary):
+    case = DeliveryCase(studio, monkeypatch, tmp_path, count=1)
+    calls = []
+
+    def broken(*_args, **_kwargs):
+        calls.append(True)
+        raise OSError('collection temporarily unavailable')
+
+    owner = case.store if boundary == 'put' else delivery
+    with monkeypatch.context() as patch:
+        patch.setattr(owner, boundary, broken)
+        case.run()
+    row = case.current()
+    assert calls and row['status'] == 'collecting' and row['pictures'] == []
+    assert row['deliveryStatus'] == dict(
+        state='capturing' if boundary == 'enumerate_delivery' else 'saving',
+        expected=None if boundary == 'enumerate_delivery' else 1, saved=0)
+    assert row['reply'] == '![设计](/work/output0.png)\n'
+    assert read(case.client, case.task).json()['items'][0]['text'] == row['reply']
+    assert case.job().completed_at is None
+    assert send(case.client, case.task, key='wait-for-images').status_code == 409
+    case.recover()
+    case.complete(expected=1)
+    assert case.current()['reply'] == row['reply']
+    assert read(case.client, case.task).json()['items'][0]['text'] == row['reply']
+    assert case.downloaded() == [(case.workspace.work / 'output0.png').read_bytes()]
 
 
 def test_transcript_pagination_does_not_skip_rows(studio, tmp_path):
