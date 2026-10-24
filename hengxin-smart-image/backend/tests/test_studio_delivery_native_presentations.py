@@ -146,12 +146,11 @@ def test_native_redisplay_does_not_collect_other_unshown_historical_images(tmp_p
     assert [item['path'] for item in result] == [PREFIX + 'exec-1.png']
 
 
-def test_unresolved_native_display_does_not_silently_become_zero_images(tmp_path):
+def test_unresolved_tool_display_does_not_invent_an_output(tmp_path):
     rows = turn()
     del rows[1]
     write(tmp_path, rows)
-    with pytest.raises(ValueError, match='not yet available'):
-        native.read_current(tmp_path, SESSION, {}, '完成')
+    assert native.read_current(tmp_path, SESSION, {}, '完成') == []
 
 
 def test_historical_final_batch_does_not_include_new_process_generation(tmp_path):

@@ -1,17 +1,16 @@
 """Historical repair uses original evidence and the normal durable collector."""
-from datetime import timedelta
 from hashlib import sha256
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
 from sqlalchemy import func, select
 
-from app.db.timestamps import utcnow
 from app.overseas.execution import reconcile, runner
 from app.overseas.execution.models import Job, JobOutbox
 from app.overseas.management.models import Audit
-from app.overseas.studio import delivery_recovery, delivery_repair
-from app.overseas.studio.models import Picture
+from app.overseas.studio import delivery_recovery, delivery_repair, recovery_files, recovery_listing
+from app.overseas.studio.models import Picture, Turn, Conversation
 from app.overseas.tasks import cleanup_process
 from app.overseas.tasks.models import ExecutionObject
 from test_studio_image_recovery import missed
@@ -91,7 +90,7 @@ def test_unapproved_event_or_image_hash_never_writes(historical, mismatch):
     assert not (case.events.parent / 'delivery-context.json').exists()
 
 
-def test_repair_storage_fault_resumes_via_regular_reconcile_without_model(historical, monkeypatch):
+def test_repair_storage_fault_ends_and_manual_receipt_preserves_original_without_model(historical, monkeypatch):
     case = historical
     before, put = facts(case), case.store.put
 
@@ -99,16 +98,23 @@ def test_repair_storage_fault_resumes_via_regular_reconcile_without_model(histor
         raise OSError('object store unavailable')
 
     monkeypatch.setattr(case.store, 'put', unavailable)
-    assert repair(case, apply=True)['status'] == 'saving'
-    assert final_turn(case)['status'] == 'collecting' and count(case, Picture) == 0
+    assert repair(case, apply=True)['status'] == 'partial'
+    assert final_turn(case)['status'] == 'succeeded' and count(case, Picture) == 0
     assert count(case, ExecutionObject) == count(case, Audit) == 1
     case.image.write_bytes(b'overwritten after original bytes were snapshotted')
-    with case.factory.begin() as session:
-        job = session.get(Job, UUID(case.turn['jobId']))
-        job.lease_until = utcnow() - timedelta(seconds=1)
-        job.result = {**job.result, 'deliveryRetryAt': job.lease_until.isoformat()}
     monkeypatch.setattr(case.store, 'put', put)
     reconcile.reconcile_once(case.factory)
+    assert count(case, Picture) == 0  # No background resubmission after a completed receipt pass.
+    with case.factory() as session:
+        turn = session.get(Turn, UUID(case.turn['id']))
+        channel = session.get(Conversation, turn.conversation_id)
+        choices = [SimpleNamespace(id=row.id, version=row.version)
+                   for row in recovery_listing.candidates(session, channel).values()
+                   if row.source == 'snapshot']
+        conversation_id = channel.id
+    result = recovery_files.recover(case.factory, case.actor, UUID(case.task['id']),
+                                    conversation_id, choices, case.store)
+    assert result['errors'] == [] and len(result['saved']) == 1
     view = final_turn(case)
     assert view['status'] == 'succeeded' and len(view['pictures']) == 1
     assert case.client.get(view['pictures'][0]['url']).content == case.data

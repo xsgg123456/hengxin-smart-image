@@ -1,4 +1,4 @@
-"""Storage and capture faults traverse API -> runner -> DB -> maintenance recovery."""
+"""One-pass automatic receipt, explicit retry, and stopped-worker recovery."""
 from hashlib import sha256
 import json
 
@@ -11,9 +11,10 @@ from app.overseas.studio import delivery_context, delivery_snapshot as snapshots
 from app.overseas.studio.models import Picture
 from app.overseas.tasks.models import ExecutionObject
 from studio_delivery_helpers import DeliveryCase, studio, materials, overseas, send, reply_only_process
+from studio_receipt_regression_helpers import WorkerInterrupted, interrupted, partial, take, recoverable
 
 
-def test_one_upload_failure_keeps_other_pictures_visible_and_blocks_next_turn(studio, monkeypatch, tmp_path):
+def test_one_upload_failure_settles_partial_and_manual_retry_is_idempotent(studio, monkeypatch, tmp_path):
     case = DeliveryCase(studio, monkeypatch, tmp_path)
     calls = []
 
@@ -25,20 +26,20 @@ def test_one_upload_failure_keeps_other_pictures_visible_and_blocks_next_turn(st
 
     monkeypatch.setattr(case.store, 'put', fail_second)
     case.run()
-    partial = case.current()
-    assert partial['status'] == 'collecting'
-    assert partial['deliveryStatus'] == dict(state='saving', expected=3, saved=2)
-    assert [row['sourcePath'] for row in partial['pictures']] == ['/work/output0.png', '/work/output2.png']
+    partial(case, 3, 2)
+    assert [row['sourcePath'] for row in case.current()['pictures']] == ['/work/output0.png', '/work/output2.png']
     assert len(case.downloaded()) == 2 and case.count() == 2
-    assert case.view()['activeTurnId'] == case.turn['id']
-    assert send(case.client, case.task, key='must-wait').status_code == 409
     assert case.count(ExecutionObject) == 3
     before = dict(case.store.data)
     token = case.job().claim_token
-    reconcile.reconcile_once(case.factory)  # Backoff must not retry immediately.
+    reconcile.reconcile_once(case.factory)  # A settled partial result never auto-retries.
     assert case.job().claim_token == token and case.store.data == before
     monkeypatch.setattr(case.store, 'put', case.put)
     case.recover()
+    partial(case, 3, 2)
+    selection = recoverable(case)
+    saved = take(case, selection)
+    assert take(case, selection) == saved
     case.complete()
     assert [p['sourcePath'] for p in case.current()['pictures']] == [f'/work/output{i}.png' for i in range(3)]
     assert len(case.puts) == 3 and len(set(case.puts)) == 3
@@ -48,6 +49,7 @@ def test_one_upload_failure_keeps_other_pictures_visible_and_blocks_next_turn(st
         case.run()
     case.complete()
     assert case.store.data == before and case.count() == case.count(ExecutionObject) == 3
+    assert send(case.client, case.task, key='next-after-partial').status_code == 200
 
 
 def test_unknown_upload_result_reads_existing_object_without_uploading_again(studio, monkeypatch, tmp_path):
@@ -59,10 +61,13 @@ def test_unknown_upload_result_reads_existing_object_without_uploading_again(stu
 
     monkeypatch.setattr(case.store, 'put', timeout_after_write)
     case.run()
-    assert case.current()['status'] == 'collecting' and case.count() == 0
+    partial(case, 1, 0)
+    assert case.count() == 0
     assert case.count(ExecutionObject) == 1 and len(case.puts) == 1
     before = dict(case.store.data)
-    case.recover()  # The still-failing put proves recovery only reads the existing bytes.
+    case.recover()
+    partial(case, 1, 0)
+    take(case)  # The still-failing put proves manual receipt reads the existing bytes.
     case.complete(expected=1)
     assert case.store.data == before and len(case.puts) == 1
 
@@ -71,20 +76,29 @@ def test_database_commit_failure_keeps_uploaded_object_for_recovery(studio, monk
     case = DeliveryCase(studio, monkeypatch, tmp_path, count=1)
     failed = []
 
+    def remember_picture_write(session, *_args):
+        if any(isinstance(row, Picture) for row in session.new):
+            session.info['picture_write'] = True
+
     def fail_picture_commit(session):
-        if not failed and any(isinstance(row, Picture) for row in session.new):
+        if not failed and session.info.get('picture_write'):
             failed.append(True)
             raise OSError('database commit unavailable')
 
+    event.listen(case.factory, 'before_flush', remember_picture_write)
     event.listen(case.factory, 'before_commit', fail_picture_commit)
     try:
         case.run()
     finally:
+        event.remove(case.factory, 'before_flush', remember_picture_write)
         event.remove(case.factory, 'before_commit', fail_picture_commit)
-    assert failed and case.current()['status'] == 'collecting'
+    assert failed
+    partial(case, 1, 0)
     assert case.count() == 0 and case.count(ExecutionObject) == 1
     before = dict(case.store.data)
     case.recover()
+    partial(case, 1, 0)
+    take(case)
     case.complete(expected=1)
     assert case.store.data == before and len(case.puts) == 1
 
@@ -104,6 +118,8 @@ def test_snapshot_bytes_survive_work_file_overwrite_before_recovery(studio, monk
     assert sha256(source.read_bytes()).digest() != sha256(original).digest()
     monkeypatch.setattr(case.store, 'put', case.put)
     case.recover()
+    partial(case, 1, 0)
+    take(case)
     case.complete(expected=1)
     assert case.downloaded() == [original]
 
@@ -135,36 +151,73 @@ def test_completion_persistence_failure_retains_success_for_reconciliation(studi
         patch.setattr(owner, name, write_failed)
         case.run()
     assert failed
-    assert case.current()['status'] in ('collecting', 'uncertain')
-    assert case.job().completed_at is None and case.count() == 0
-    assert send(case.client, case.task, key='wait-receipt').status_code == 409
+    partial(case, None, 0)
     case.recover()
-    case.complete(expected=1)
+    partial(case, None, 0)
+    take(case, source='work')
+    assert case.count() == 1 and len(case.downloaded()) == 1
+    assert send(case.client, case.task, key='next-after-persistence-fault').status_code == 200
 
 
 @pytest.mark.parametrize('boundary', ['before_capture', 'second_snapshot'])
-def test_interrupted_capture_keeps_invocation_recoverable(studio, monkeypatch, tmp_path, boundary):
+def test_capture_failure_settles_and_manual_receipt_reads_only_remaining_originals(studio, monkeypatch, tmp_path, boundary):
     case = DeliveryCase(studio, monkeypatch, tmp_path)
     name = 'begin' if boundary == 'before_capture' else 'capture'
-    original = getattr(snapshots, name)
-    calls = []
+    original, calls = getattr(snapshots, name), []
 
-    def interrupted(*args, **kwargs):
+    def unavailable(*args, **kwargs):
         calls.append(True)
         if len(calls) == (1 if boundary == 'before_capture' else 2):
-            raise OSError('snapshot interrupted')
+            raise OSError('snapshot unavailable')
         return original(*args, **kwargs)
 
     with monkeypatch.context() as patch:
-        patch.setattr(snapshots, name, interrupted)
+        patch.setattr(snapshots, name, unavailable)
         case.run()
-    partial = case.current()
-    assert partial['status'] == 'collecting' and case.job().completed_at is None
-    assert len(partial['pictures']) == (0 if boundary == 'before_capture' else 2)
-    assert send(case.client, case.task, key='wait-capture').status_code == 409
-    assert (case.workspace.control / 'delivery-exit.json').exists()
+    expected, saved = (None, 0) if boundary == 'before_capture' else (3, 2)
+    partial(case, expected, saved)
+    assert len(case.current()['pictures']) == saved
     case.recover()
-    case.complete()
+    partial(case, expected, saved)
+    take(case, source='work')
+    assert case.count() == 3 and len(case.downloaded()) == 3
+    assert len(case.commands) == 1
+    assert send(case.client, case.task, key='next-after-capture-fault').status_code == 200
+
+
+@pytest.mark.parametrize('boundary', ['before_capture', 'second_snapshot'])
+def test_worker_crash_recovery_uses_only_captured_bytes_and_never_recaptures(studio, monkeypatch, tmp_path, boundary):
+    case = DeliveryCase(studio, monkeypatch, tmp_path)
+    name = 'begin' if boundary == 'before_capture' else 'capture'
+    original, calls = getattr(snapshots, name), []
+
+    def crash(*args, **kwargs):
+        calls.append(True)
+        if len(calls) == (1 if boundary == 'before_capture' else 2):
+            interrupted()
+        return original(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(snapshots, name, crash)
+        with pytest.raises(WorkerInterrupted):
+            case.run()
+    assert case.current()['status'] == 'collecting' and case.job().completed_at is None
+    assert send(case.client, case.task, key='wait-crashed-worker').status_code == 409
+    original_bytes = (case.workspace.work / 'output0.png').read_bytes()
+    for source in case.workspace.work.glob('output*.png'):
+        source.unlink()
+    case.recover()
+    expected, saved = (None, 0) if boundary == 'before_capture' else (3, 1)
+    partial(case, expected, saved)
+    assert case.downloaded() == ([original_bytes] if saved else [])
+    assert recoverable(case, source='work') == []
+    before = dict(case.store.data)
+    for _ in range(2):
+        case.recover()
+        case.run()
+    partial(case, expected, saved)
+    assert case.store.data == before and len(case.commands) == 1
+    assert send(case.client, case.task, key='next-after-restart').status_code == 200
 
 
 def test_same_historical_file_is_delivered_in_both_turns_without_image_generation(studio, monkeypatch, tmp_path):
@@ -194,8 +247,10 @@ def test_same_historical_file_is_delivered_in_both_turns_without_image_generatio
 def test_recovery_releases_proven_failed_invocation_without_collecting_or_rerunning(studio, monkeypatch, tmp_path, receipt):
     case = DeliveryCase(studio, monkeypatch, tmp_path, count=1)
     with monkeypatch.context() as patch:
-        patch.setattr(snapshots, 'begin', lambda *a, **k: (_ for _ in ()).throw(OSError('interrupted')))
-        case.run()
+        patch.setattr(snapshots, 'begin', interrupted)
+        with pytest.raises(WorkerInterrupted):
+            case.run()
+    assert case.current()['status'] == 'collecting' and case.job().completed_at is None
     (case.workspace.control / 'delivery-exit.json').write_text(json.dumps(receipt))
     case.recover()
     assert case.current()['status'] == 'failed' and case.count() == 0

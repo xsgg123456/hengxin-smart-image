@@ -73,7 +73,7 @@ def test_revision_tree_has_only_overseas_revisions():
     script = ScriptDirectory.from_config(Config(str(BACKEND / 'alembic.overseas.ini')))
     assert script.get_heads() == [db.SCHEMA_REVISION]
     assert script.get_base() == 'overseas_0001'
-    assert len(list(script.walk_revisions())) == 21
+    assert len(list(script.walk_revisions())) == 22
 
 
 @pytest.mark.parametrize('context', ['domestic', 'invalid', ''])

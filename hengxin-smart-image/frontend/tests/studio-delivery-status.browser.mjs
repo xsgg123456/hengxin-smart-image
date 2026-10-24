@@ -48,10 +48,10 @@ try {
     return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
   })
   await page.goto(`${base}/#/overseas/tasks/t`)
-  await page.getByText('正在接收图片', { exact: true }).waitFor()
+  await page.getByText('回复已结束，正在接收文件', { exact: true }).waitFor()
   turn.deliveryStatus = { state: 'saving', expected: 8, saved: 1 }; turn.pictures = [picture]
   await page.getByRole('button', { name: '刷新', exact: true }).click()
-  await page.getByText('图片保存中 1/8，系统会自动补收', { exact: true }).waitFor()
+  await page.getByText('回复已结束，文件保存中 1/8', { exact: true }).waitFor()
   assert.equal(await page.locator('.studio-pictures .studio-picture').count(), 1)
   await checkVisible(page.locator('.studio-messages .el-alert__title'))
   await mkdir('../../output/playwright/studio-delivery-status', { recursive: true })
@@ -64,7 +64,7 @@ try {
   await page.screenshot({ path: '../../output/playwright/studio-delivery-status/mobile-saving.png', fullPage: true })
   turn.deliveryStatus = { state: 'waiting', expected: 8, saved: 1 }
   await page.getByRole('button', { name: '刷新', exact: true }).click()
-  await page.getByText('图片保存中 1/8，系统会自动补收', { exact: true }).waitFor()
+  await page.getByText('文件收取已结束，已保存 1/8 个。未保存的文件可通过“取回文件”重试。', { exact: true }).waitFor()
   turn.deliveryStatus = { state: 'complete', expected: 1, saved: 1 }; turn.status = row.status = 'succeeded'; row.activeTurnId = null
   await page.getByRole('button', { name: '刷新', exact: true }).click()
   await page.waitForFunction(() => !document.querySelector('.studio-messages .el-alert'))

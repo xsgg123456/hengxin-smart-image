@@ -1,5 +1,5 @@
 """Lease-fenced recovery of a stopped Studio invocation; never calls Codex."""
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 import logging
 from pathlib import Path
 from uuid import uuid4
@@ -28,9 +28,6 @@ def recover(factory, old):
                / owner['conversationId'] / 'control' / owner['turnId'])
     if not (control / 'delivery-context.json').exists():
         return False  # Legacy jobs keep their existing reconciliation behavior.
-    retry = (old.result or {}).get('deliveryRetryAt')
-    if retry and datetime.fromisoformat(retry).astimezone(timezone.utc) > utcnow():
-        return True
     try:
         workspace = context.restore(old)
         summary = context.success(workspace)
@@ -60,13 +57,13 @@ def recover(factory, old):
     from app.overseas.execution.runner import heartbeat
     try:
         with heartbeat(factory, current.id, token, get_settings()):
-            delivery_job.deliver(factory, current, token, workspace, summary, get_store())
+            delivery_job.deliver(factory, current, token, workspace, summary, get_store(), recovering=True)
     except delivery_job.OwnershipLost:
         pass
     except Exception:
         log.warning('Studio delivery recovery pending job=%s', old.id)
         try:
-            delivery_job.defer(factory, old.id, token)
+            delivery_job.finish_failed(factory, old.id, token, summary)
         except delivery_job.OwnershipLost:
             pass
     return True

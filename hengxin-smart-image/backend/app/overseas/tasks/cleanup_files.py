@@ -11,14 +11,14 @@ from app.core.config import get_settings
 from app.overseas.archives.models import ArchiveAsset
 from app.overseas.materials.models import Material
 from app.overseas.pictures.models import Picture, PictureVersion
-from app.overseas.studio.models import Upload, Picture as StudioPicture, Conversation
+from app.overseas.studio.models import Upload, Picture as StudioPicture, OutputFile, Conversation
 from app.overseas.execution.models import Job
 from .models import ExecutionObject
 
 
 def references(session, task_id):
     rows = []
-    for model in (Material, Upload, StudioPicture, ExecutionObject):
+    for model in (Material, Upload, StudioPicture, OutputFile, ExecutionObject):
         rows.extend(session.scalars(select(model).where(model.task_id == task_id)))
     rows.extend(session.scalars(select(PictureVersion).join(Picture,
         Picture.id == PictureVersion.picture_id).where(Picture.task_id == task_id)))
@@ -32,7 +32,7 @@ def inventory(session, task_id, store):
     # transaction failed. Shared directories and unproven historical keys are never scanned.
     protected = set(session.execute(select(ArchiveAsset.bucket, ArchiveAsset.object_key).where(
         ArchiveAsset.object_key.startswith(f'archives/{task_id}/'))))
-    prefixes = [f'studio/uploads/{task_id}/', f'studio/pictures/{task_id}/', f'archives/{task_id}/']
+    prefixes = [f'studio/uploads/{task_id}/', f'studio/pictures/{task_id}/', f'studio/outputs/{task_id}/', f'archives/{task_id}/']
     prefixes += [f'pictures/{identity}/' for identity in session.scalars(select(Job.id).where(Job.task_id == task_id))]
     buckets = {get_settings().minio_bucket, *(bucket for bucket, _ in objects), *(bucket for bucket, _ in protected)}
     for bucket in buckets:
@@ -47,7 +47,7 @@ def inventory(session, task_id, store):
         if (not path.parts or path.is_absolute() or '..' in path.parts or '\\' in key
                 or ':' in key or path.parts[0] not in ('materials', 'pictures', 'studio', 'archives')):
             raise ValueError('Unsafe storage ownership')
-        for model in (Material, Upload, StudioPicture, ExecutionObject):
+        for model in (Material, Upload, StudioPicture, OutputFile, ExecutionObject):
             if session.scalar(select(model.id).where(model.bucket == bucket, model.object_key == key,
                     model.task_id != task_id).limit(1)):
                 raise ValueError('Shared storage ownership')

@@ -58,6 +58,7 @@ class _Turn:
         self.candidates = []
         self.final = None
         self.image_count = 0
+        self.viewing = False
 
     def check_ids(self, payload):
         for name, expected in [('turn_id', self.id), ('thread_id', self.session)]:
@@ -69,6 +70,10 @@ class _Turn:
         item = payload.get('item')
         if not isinstance(item, dict):
             raise ValueError('Invalid native completed item')
+        if item.get('type') == 'ImageView':
+            # Reading a reference is not a public generated-image delivery.
+            self.viewing = True
+            self.displayed = {}
         if item.get('type') == 'Extension' and item.get('kind') == 'image_gen.generation':
             if item.get('status') != 'completed' or item.get('failure') is not None:
                 return  # A recovered tool failure cannot veto the final response.
@@ -95,6 +100,10 @@ class _Turn:
         blocks = payload.get('output')
         if not isinstance(blocks, list) or not any(
                 isinstance(block, dict) and block.get('type') == 'input_image' for block in blocks):
+            return
+        if self.viewing:
+            self.viewing = False
+            self.displayed = {}
             return
         self.displayed = {}
         for block in blocks:
@@ -255,9 +264,9 @@ def read_current(home: Path, session_id: str, cursor: dict, final_text: str,
         for item in result:
             if item['path'] is None:
                 item['path'] = historical.get(item['checksum'])
-                if item['path'] is None:
-                    raise ValueError('Displayed native image file is not yet available')
-    return result
+    # An unmatched tool image can be an input or a preview. It is not evidence
+    # of a missing deliverable and must never hold an otherwise completed turn.
+    return [item for item in result if item['path'] is not None]
 
 
 def read_history(home: Path, session_id: str, targets: set[str],

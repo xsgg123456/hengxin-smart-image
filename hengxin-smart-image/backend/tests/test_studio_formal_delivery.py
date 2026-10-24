@@ -206,19 +206,23 @@ def test_native_generation_output_may_be_historical_when_explicit(space):
     assert not warnings
 
 
-def test_invalid_one_does_not_hide_valid_delivery(space):
+def test_unpreviewable_image_keeps_original_bytes_as_an_ordinary_file(space):
     picture(space.work / 'final.png')
     (space.work / 'broken.png').write_bytes(b'not-an-image')
     outputs, warnings = collect(space, '![正式1](/work/final.png)\n![正式2](/work/broken.png)')
-    assert len(outputs) == len(warnings) == 1
+    assert not warnings and len(outputs) == 2
+    assert outputs[0][1].width == 12
+    assert outputs[1][1].data == b'not-an-image'
+    assert outputs[1][1].name == 'broken.png'
+    assert outputs[1][1].width is None and outputs[1][1].height is None
 
 
 @pytest.mark.parametrize('target', [
     '/work/inputs/original.png', '/work/skills/secret.png',
-    '/work/../outside.png', 'https://example.invalid/result.png',
+    '/work/../outside.png',
     '/home/runner/.codex/generated_images/another/result.png',
 ])
-def test_input_skills_escape_external_and_other_sessions_rejected(space, target):
+def test_input_skills_escape_and_other_sessions_rejected(space, target):
     picture(space.work / 'inputs/original.png')
     outputs, warnings = collect(space, f'![图片]({target})')
     assert outputs == [] and len(warnings) == 1
@@ -274,7 +278,7 @@ def test_historical_persistent_work_and_previously_delivered_images_are_accepted
 @pytest.mark.parametrize('target', ['/work/targets/a.png', '/work/original/a.png',
     '/work/current/a.png', '/work/.codex/a.png', '/work/.agents/a.png',
     'sandbox:/work/inputs/a.png', '/work/%2e%2e/a.png', '/work/a.png?file=other',
-    '/work/a.png#section', '//work/a.png'])
+    '/work/a.png#section'])
 def test_protected_inputs_and_path_escapes_stay_rejected(space, target):
     outputs, warnings = collect(space, f'![图片]({target})')
     assert not outputs and warnings

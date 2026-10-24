@@ -12,7 +12,7 @@ from app.modules.files.delivery import FileDelivery
 from app.overseas.attachment_delivery import deliver
 from app.overseas.tasks.service import lock_actor
 from app.overseas.materials.parsers import CONTENT_TYPES
-from .models import Upload
+from .models import Upload, OutputFile
 from . import queries, material_list
 
 from app.overseas.upload_limits import MAX_UPLOAD_BYTES
@@ -110,3 +110,13 @@ def content(session, store, actor, task_id, identity, is_picture=False, *, head=
     return Response(data, media_type=row.content_type, headers={
         'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
         'Content-Disposition': disposition + "; filename*=UTF-8''" + quote(row.name, safe='')})
+
+
+def output_content(session, store, actor, task_id, identity, *, head=False):
+    queries.access(session, actor, task_id)
+    row = session.get(OutputFile, identity)
+    if row is None or row.task_id != task_id:
+        raise HTTPException(404, '输出文件不存在或不属于当前任务')
+    captured = FileDelivery.capture(row)
+    session.close()
+    return deliver(store, captured, head=head)

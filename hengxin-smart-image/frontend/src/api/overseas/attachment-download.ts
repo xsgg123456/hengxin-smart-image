@@ -7,8 +7,8 @@ export function formatAttachmentSize(bytes: number) {
 }
 
 export async function downloadAttachment(url: string, name: string, signal: AbortSignal, fetcher: typeof fetch = fetch) {
-  // Only our two attachment routes are downloadable here; generated images have their own UI.
-  if (!/^\/api\/overseas\/v1\/(?:materials\/[a-zA-Z0-9-]+|tasks\/[a-zA-Z0-9-]+\/studio\/files\/[a-zA-Z0-9-]+)\/content$/.test(url)) throw Error('附件地址无效')
+  // Check the original content endpoint, independently of thumbnail decoding.
+  if (!/^\/api\/overseas\/v1\/(?:materials\/[a-zA-Z0-9-]+|tasks\/[a-zA-Z0-9-]+\/studio\/(?:files|outputs|pictures)\/[a-zA-Z0-9-]+)\/content$/.test(url)) throw Error('附件地址无效')
   const deadline = AbortSignal.timeout(10000), combined = AbortSignal.any([signal, deadline])
   let response: Response
   try {

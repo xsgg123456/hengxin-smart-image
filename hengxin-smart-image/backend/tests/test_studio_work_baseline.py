@@ -165,8 +165,9 @@ def test_bad_image_does_not_hide_valid_explicit_delivery(space):
     (space.work / 'broken.png').write_bytes(b'broken')
     picture(space.work / 'new.png')
     outputs, warnings = collect(space, '![坏](/work/broken.png)\n![好](/work/new.png)')
-    assert [target for target, _ in outputs] == ['/work/new.png']
-    assert len(warnings) == 1
+    assert [target for target, _ in outputs] == ['/work/broken.png', '/work/new.png']
+    assert outputs[0][1].data == b'broken' and outputs[0][1].width is None
+    assert outputs[1][1].width is not None and warnings == []
 
 
 @pytest.mark.parametrize('operation', ['digest', 'scan'])

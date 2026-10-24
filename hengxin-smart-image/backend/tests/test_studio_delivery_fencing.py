@@ -14,6 +14,7 @@ from app.overseas.tasks import cleanup
 from app.overseas.tasks.models import TaskDeletion
 from studio_delivery_helpers import DeliveryCase, studio, materials, overseas
 from studio_sessions_helpers import mutate
+from studio_receipt_regression_helpers import stop_before_upload
 from test_overseas_plans import post
 from test_overseas_task_deletion import request
 
@@ -21,12 +22,7 @@ from test_overseas_task_deletion import request
 def pending(studio, monkeypatch, tmp_path):
     case = DeliveryCase(studio, monkeypatch, tmp_path, count=1)
 
-    def unavailable(*_args):
-        raise OSError('storage unavailable')
-
-    monkeypatch.setattr(case.store, 'put', unavailable)
-    case.run()
-    assert case.current()['status'] == 'collecting' and case.count() == 0
+    stop_before_upload(case, monkeypatch)
     return case
 
 
@@ -46,12 +42,12 @@ def test_expired_lease_and_old_token_cannot_publish_after_takeover(studio, monke
     assert case.store.data == before and case.count() == 0
     original, checked = delivery_job.deliver, []
 
-    def new_owner(factory, job, token, workspace, summary, store):
+    def new_owner(factory, job, token, workspace, summary, store, **kwargs):
         assert claims.valid(case.job(), token) and token != old.claim_token
         with pytest.raises(delivery_job.OwnershipLost):
             original(factory, old, old.claim_token, workspace, summary, store)
         checked.append(True)
-        return original(factory, job, token, workspace, summary, store)
+        return original(factory, job, token, workspace, summary, store, **kwargs)
 
     monkeypatch.setattr(case.store, 'put', case.put)
     monkeypatch.setattr(delivery_job, 'deliver', new_owner)

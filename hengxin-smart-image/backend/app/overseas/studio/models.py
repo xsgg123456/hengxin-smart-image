@@ -85,6 +85,21 @@ class Picture(Timestamps, Base):
     source_path: Mapped[str | None] = mapped_column(Text)
 
 
+class OutputFile(Timestamps, Base):
+    """Non-picture outputs never become input materials or archive pictures."""
+    __tablename__ = 'overseas_studio_output_files'
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_tasks.id'), index=True)
+    turn_id: Mapped[UUID] = mapped_column(ForeignKey('overseas_studio_turns.id'), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    checksum: Mapped[str] = mapped_column(String(64))
+    bucket: Mapped[str] = mapped_column(String(200))
+    object_key: Mapped[str] = mapped_column(String(500), unique=True)
+    source_path: Mapped[str] = mapped_column(Text)
+
+
 class Transcript(Timestamps, Base):
     __tablename__ = 'overseas_studio_transcript'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

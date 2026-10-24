@@ -184,13 +184,12 @@ def run(factory, job_id):
                 handler.final_poll(factory, job, token, workspace)
             except Exception:
                 pass  # Preserve process fencing even when transcript storage is unavailable.
-        # Once normal CLI completion is established, collection failures retain
-        # the stopped invocation and its workspace for the maintenance worker.
+        # A confirmed normal exit remains successful even if file receipt fails.
         if job is not None and job.kind == 'studio' and completion_confirmed:
             try:
-                from app.overseas.studio.delivery_job import defer
+                from app.overseas.studio.delivery_job import finish_failed
                 _exit(factory, job_id, token)
-                defer(factory, job_id, token)
+                finish_failed(factory, job_id, token, summary)
             except Exception:
                 logging.getLogger(__name__).warning('Studio collection retained for reconciliation job=%s', job_id)
             return

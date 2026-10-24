@@ -9,7 +9,7 @@ export function sessionLabel(s: SessionView) {
   if (s.deletionStatus === 'deleting') return '删除中'
   if (s.deletionStatus === 'delete_failed') return '删除失败 · 可重试'
   if (s.status === 'queued') return '排队中'
-  if (s.activeTurnId) return '生成中'
+  if (s.activeTurnId) return '处理中'
   if (s.unread) return s.status === 'failed' ? '执行失败 · 未读' : '有新结果'
   return ({ empty: '待开始', succeeded: '已完成', failed: '执行失败', cancelled: '已停止' } as Record<string, string>)[s.status] || s.status
 }

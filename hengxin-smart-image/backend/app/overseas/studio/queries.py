@@ -9,7 +9,7 @@ from app.overseas.permissions import principal_for, require_task_access
 from app.overseas.materials.models import Material
 from app.overseas.management.skills import enabled_listing
 from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
-from .models import Turn, Upload, Picture, Conversation, Transcript, ConversationDeletion
+from .models import Turn, Upload, Picture, OutputFile, Conversation, Transcript, ConversationDeletion
 from .material_list import visible
 
 ROOT = '/api/overseas/v1'
@@ -70,6 +70,12 @@ def picture_dto(row):
                 sku=row.sku, archived=row.sku is not None, sourcePath=row.source_path)
 
 
+def output_dto(row):
+    return dict(id=str(row.id), name=row.name, contentType=row.content_type,
+        sizeBytes=row.size_bytes,
+        url=f'{ROOT}/tasks/{row.task_id}/studio/outputs/{row.id}/content')
+
+
 def current_conversation(session, task_id):
     return session.scalar(select(Conversation).where(Conversation.task_id == task_id)
         .order_by(Conversation.created_at.desc(), Conversation.id.desc()).limit(1))
@@ -113,6 +119,8 @@ def view(session, actor, task_id, conversation_id=None):
             referencePictures=[picture_dto(picture(session, task, UUID(value)))
                                for value in turn.reference_ids],
             pictures=[picture_dto(p) for p in pictures],
+            outputs=[output_dto(row) for row in session.scalars(select(OutputFile)
+                .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))],
             createdAt=turn.created_at))
     channels = conversations(session, task.id)
     record = available_archive(session, task.id)

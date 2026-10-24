@@ -16,7 +16,7 @@ from . import context_fs as fs, delivery_context as context
 from .delivery import enumerate_delivery, collect_reference
 from .delivery_job import deliver
 from .image_recovery import _locked
-from .models import Picture, ConversationDeletion
+from .models import Picture, OutputFile, ConversationDeletion
 from .recovery import require
 
 
@@ -54,7 +54,8 @@ def repair(factory, turn_id, actor_id, expected_sha256, expected_checksums, *, a
         require(not session.get(ConversationDeletion, channel.id), 'Conversation deletion exists')
         require(not job.process_id or not group_alive(job), 'Original process group still active')
         workspace, summary, checksums, receipt = evidence(turn, channel, job, expected_sha256, expected_checksums)
-        existing = list(session.scalars(select(Picture).where(Picture.turn_id == turn.id)))
+        existing = [row for model in (Picture, OutputFile)
+                    for row in session.scalars(select(model).where(model.turn_id == turn.id))]
         found = {row.source_path: row.checksum for row in existing}
         report = dict(jobId=str(job.id), turnId=str(turn.id), expected=len(checksums),
             saved=len(existing), checksums=checksums, eventSha256=expected_sha256,
@@ -83,5 +84,5 @@ def repair(factory, turn_id, actor_id, expected_sha256, expected_checksums, *, a
         audit = session.scalar(select(Audit).where(Audit.action == 'studio.delivery_repair',
             Audit.target == str(job.id)).order_by(Audit.created_at.desc()).limit(1))
         if audit:
-            audit.after = {**audit.after, 'status': 'succeeded' if completed else 'saving'}
-    return {**report, 'status': 'succeeded' if completed else 'saving'}
+            audit.after = {**audit.after, 'status': 'succeeded' if completed else 'partial'}
+    return {**report, 'status': 'succeeded' if completed else 'partial'}

@@ -2,16 +2,13 @@
 import hashlib
 import json
 import re
-from io import BytesIO
 from pathlib import Path, PurePosixPath
-from types import SimpleNamespace
 from uuid import NAMESPACE_URL, uuid5
 
-from fastapi import HTTPException
-
-from app.modules.files.validation import MAX_UPLOAD_BYTES, ValidatedImage, validate_image
+from app.overseas.upload_limits import MAX_UPLOAD_BYTES
 from . import context_fs as fs
 from .native_images import MAX_IMAGES
+from .output_files import validated
 
 MAX_MANIFEST_BYTES = 32 * 1024 * 1024
 IDENTITY_KEYS = {'jobId', 'taskId', 'turnId', 'conversationId', 'sessionId'}
@@ -56,17 +53,9 @@ def metadata(identity, target, image):
                 width=image.width, height=image.height)
 
 
-def validated(data, name, content_type=None):
-    try:
-        return validate_image(SimpleNamespace(file=BytesIO(data), filename=name,
-                                               content_type=content_type))
-    except HTTPException as exc:
-        raise ValueError('Invalid delivery snapshot image') from exc
-
-
 def check_image(image):
-    if not isinstance(image, ValidatedImage) or not isinstance(image.data, bytes):
-        raise ValueError('Invalid delivery image')
+    if not isinstance(image.data, bytes):
+        raise ValueError('Invalid delivery file')
     checked = validated(image.data, image.name, image.content_type)
     if checked != image:
         raise ValueError('Delivery image metadata mismatch')
@@ -100,11 +89,12 @@ def check_manifest(value):
                     or not isinstance(row.get('checksum'), str)
                     or not re.fullmatch('[0-9a-f]{64}', row['checksum'])
                     or type(row.get('sizeBytes')) is not int
-                    or not 0 < row['sizeBytes'] <= MAX_UPLOAD_BYTES
-                    or any(type(row.get(k)) is not int or row[k] <= 0 for k in ('width', 'height'))
+                    or not 0 <= row['sizeBytes'] <= MAX_UPLOAD_BYTES
+                    or not (all(row.get(k) is None for k in ('width', 'height')) or
+                        all(type(row.get(k)) is int and row[k] > 0 for k in ('width', 'height')))
                     or not isinstance(row.get('name'), str) or not row['name']
-                    or row.get('contentType') not in ('image/png', 'image/jpeg', 'image/webp')):
-                raise ValueError('Invalid delivery image metadata')
+                    or not isinstance(row.get('contentType'), str) or not row['contentType']):
+                raise ValueError('Invalid delivery file metadata')
         if set(row) != expected:
             raise ValueError('Invalid delivery item fields')
     if value['ready'] != all(row['status'] == 'captured' for row in items):

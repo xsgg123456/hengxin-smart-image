@@ -4,7 +4,7 @@ from pathlib import PurePosixPath
 
 from .native_images import read_current, read_history
 
-UNREADABLE = '原生图片交付记录校验失败，文字已保留；请联系管理员补收，无需重新生成。'
+UNREADABLE = '自动识别未找到可确认的输出，请通过“取回文件”选择尚存原件。'
 
 
 def evidence(workspace, summary, links):

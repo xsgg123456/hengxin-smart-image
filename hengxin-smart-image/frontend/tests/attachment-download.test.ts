@@ -5,7 +5,7 @@ import { IdentityError } from '../src/api/identity/request'
 
 const url = '/api/overseas/v1/materials/m-1/content'
 const signal = () => new AbortController().signal
-test('两种附件仅HEAD鉴权预检，原生下载保持长文件名、不读取响应体', async () => {
+test('输入输出附件和图片仅HEAD鉴权预检，原生下载保持长文件名、不读取响应体', async () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document')
   const clicks: string[] = [], removed: string[] = [], methods: string[] = []
   const name = '很长的文件名称'.repeat(30) + '.pdf'
@@ -19,17 +19,17 @@ test('两种附件仅HEAD鉴权预检，原生下载保持长文件名、不读�
       response.blob = async () => { throw Error('不得整份缓存') }
       return response
     }
-    for (const path of [url, '/api/overseas/v1/tasks/t-1/studio/files/f-1/content']) await downloadAttachment(path, name, signal(), fetcher)
-    assert.deepEqual(methods, ['HEAD', 'HEAD']); assert.equal(clicks.length, 2); assert.deepEqual(removed, clicks)
+    for (const path of [url, '/api/overseas/v1/tasks/t-1/studio/files/f-1/content', '/api/overseas/v1/tasks/t-1/studio/outputs/f-1/content', '/api/overseas/v1/tasks/t-1/studio/pictures/f-1/content']) await downloadAttachment(path, name, signal(), fetcher)
+    assert.deepEqual(methods, ['HEAD', 'HEAD', 'HEAD', 'HEAD']); assert.equal(clicks.length, 4); assert.deepEqual(removed, clicks)
   } finally { if (original) Object.defineProperty(globalThis, 'document', original); else Reflect.deleteProperty(globalThis, 'document') }
 })
-test('预检失败保留中文身份错误，不发GET；拒绝外域和图片路径', async () => {
+test('预检失败保留中文身份错误，不发GET；拒绝外域和非法路径', async () => {
   for (const status of [401, 403, 404, 500]) {
     let count = 0
     await assert.rejects(downloadAttachment(url, 'a', signal(), async (_url, options) => { count++; assert.equal(options?.method, 'HEAD'); return new Response(null, { status }) }), e => e instanceof IdentityError && e.status === status && /身份|权限|不存在|无法下载/.test(e.message))
     assert.equal(count, 1)
   }
-  for (const path of ['https://evil.test'+url, '//evil.test'+url, url+'?download=true', '/api/overseas/v1/tasks/t/studio/pictures/p/content', '/api/overseas/v1/materials/../content', '/api/overseas/v1/materials/%2f/content']) {
+  for (const path of ['https://evil.test'+url, '//evil.test'+url, url+'?download=true', '/api/overseas/v1/materials/../content', '/api/overseas/v1/materials/%2f/content']) {
     await assert.rejects(downloadAttachment(path, 'a', signal(), async () => { throw Error('不得请求') }), /地址无效/)
   }
   await assert.rejects(downloadAttachment(url, 'a', signal(), async () => { throw Error('offline') }), /连接失败/)

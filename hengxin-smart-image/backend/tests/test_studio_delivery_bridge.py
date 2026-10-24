@@ -99,10 +99,10 @@ def test_native_failure_is_visible_without_losing_text(case, damage):
     assert not images and warnings
 
 
-def test_claimed_generation_without_presentation_is_not_silent(case):
+def test_generation_without_final_presentation_is_not_a_delivery(case):
     native(case, displayed=False)
     images, warnings = collect(case)
-    assert not images and '未收到可验证' in warnings[0]
+    assert images == [] and warnings == []
 
 
 def test_old_native_image_need_not_have_been_publicly_delivered(case):

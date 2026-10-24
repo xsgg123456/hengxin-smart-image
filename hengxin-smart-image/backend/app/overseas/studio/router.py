@@ -9,9 +9,11 @@ from app.overseas.tasks.router import Database, Key
 from app.storage.minio_store import get_store
 from . import service, queries, files, material_list, conversations
 from .schemas import Send, Cancel, ArchiveRequest, Complete, NewConversation, RenameConversation, DeleteConversation
+from .recovery_router import router as recovery_router
 
 router = APIRouter(prefix='/api/overseas/v1/tasks/{task_id}/studio', tags=['overseas-studio'])
 WRITE = [Depends(browser_request)]
+router.include_router(recovery_router)
 
 
 @router.get('')
@@ -105,6 +107,18 @@ def preflight(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Datab
 @router.get('/pictures/{picture_id}/content')
 def picture(task_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
     return files.content(session, store, actor, task_id, picture_id, True)
+
+
+@router.get('/outputs/{file_id}/content')
+def output_content(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database,
+                   store=Depends(get_store)):
+    return files.output_content(session, store, actor, task_id, file_id)
+
+
+@router.head('/outputs/{file_id}/content')
+def output_preflight(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database,
+                     store=Depends(get_store)):
+    return files.output_content(session, store, actor, task_id, file_id, head=True)
 
 
 @router.head('/pictures/{picture_id}/content')

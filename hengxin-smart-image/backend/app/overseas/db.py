@@ -7,7 +7,7 @@ from app.db.session import get_engine, get_session, session_factory  # noqa: F40
 
 
 VERSION_TABLE = 'overseas_alembic_version'
-SCHEMA_REVISION = 'overseas_0021'
+SCHEMA_REVISION = 'overseas_0022'
 
 
 class Base(DeclarativeBase):

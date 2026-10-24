@@ -25,6 +25,7 @@ test('保存进度DTO兼容旧响应并接收真实数量，拒绝未知状态�
 })
 
 const turns = compile('views/overseas/studio/StudioTurns.vue', {
+  './StudioOutputs.vue': { default: simple('StudioOutputs') },
   './StudioProcess.vue': { default: defineComponent({ render: () => null }) },
   './StudioAttachments.vue': { default: defineComponent({ render: () => null }) },
   './StudioAssetImage.vue': { default: defineComponent({ props: ['asset'], setup: p => () => h('picture', { id: p.asset.id }) }) }
@@ -36,17 +37,17 @@ test('真实消息组件收图期间立即展示已存图片并更新进度，�
   const props = reactive({ turns: [{ ...turn(), deliveryStatus: { state: 'capturing', expected: null, saved: 0 } as StudioDeliveryStatus }], transcript: [], selected: [], disabled: false })
   const view = mount(turns, props)
   try {
-    assert.equal(progress(view.root)[0].props.title, '正在接收图片')
+    assert.equal(progress(view.root)[0].props.title, '回复已结束，正在接收文件')
     assert.equal(find(view.root, 'picture').props.id, 'p')
     props.turns[0].deliveryStatus = { state: 'saving', expected: 8, saved: 1 }
     await nextTick()
-    assert.equal(progress(view.root)[0].props.title, '图片保存中 1/8，系统会自动补收')
+    assert.equal(progress(view.root)[0].props.title, '回复已结束，文件保存中 1/8')
     props.turns[0].deliveryStatus = { state: 'waiting', expected: 8, saved: 4 }
     await nextTick()
-    assert.equal(progress(view.root)[0].props.title, '图片保存中 4/8，系统会自动补收')
+    assert.equal(progress(view.root)[0].props.title, '文件收取已结束，已保存 4/8 个。未保存的文件可通过“取回文件”重试。')
     props.turns[0].deliveryStatus = { state: 'saving', expected: null, saved: 4 }
     await nextTick()
-    assert.equal(progress(view.root)[0].props.title, '图片保存中 4 张，系统会自动补收')
+    assert.equal(progress(view.root)[0].props.title, '回复已结束，文件保存中 4 个')
     props.turns[0].deliveryStatus = { state: 'complete', expected: 8, saved: 8 }
     await nextTick()
     assert.equal(progress(view.root).length, 0)

@@ -8,7 +8,7 @@
       <ElTag v-if="completed" type="success" size="small">全部完成</ElTag>
     </div>
     <ElCard shadow="never" class="art-card studio-chat-card" :class="{ 'studio-expanded': expanded }" @keydown.esc="expanded = false">
-      <div class="studio-chat-heading"><div class="session-heading"><strong>与 Codex 协作</strong><span v-if="runningCount" role="status">{{ runningCount }} 个会话执行中</span><ElTag v-if="completed" type="success" size="small">任务已完成</ElTag></div><div class="studio-actions">
+      <div class="studio-chat-heading"><div class="session-heading"><strong>与 Codex 协作</strong><span v-if="runningCount" role="status">{{ runningCount }} 个会话处理中</span><ElTag v-if="completed" type="success" size="small">任务已完成</ElTag></div><div class="studio-actions">
         <ElButton size="small" @click="sessionsOpen = !sessionsOpen">会话 · {{ sessions.length }}/10</ElButton><ElButton size="small" @click="materialsOpen = !materialsOpen">任务素材 · {{ data?.materials.length || 0 }}</ElButton><ElButton size="small" :loading="loading" @click="refresh">刷新</ElButton>
         <ElButton size="small" :disabled="!data?.archiveId" @click="viewArchive">查看本任务成品</ElButton><ElButton v-if="completed" size="small" type="primary" :disabled="!canReopen" @click="reopenOpen = true">解冻工作台</ElButton><ElButton v-else size="small" :disabled="!canComplete" :title="runningCount ? '请等待或停止所有执行后完成任务' : '至少归档一张图片后可完成'" @click="completeOpen = true">完成任务</ElButton><ElButton size="small" @click="expanded = !expanded">{{ expanded ? '退出展开' : '展开工作台' }}</ElButton>
       </div></div>
@@ -19,7 +19,7 @@
       <ElAlert v-if="draftNotice && !skillError" :title="draftNotice" type="warning" :closable="false" />
       <ElAlert v-if="pending && !busy" title="上次操作的结果尚未确认。请使用相同请求重试，避免重复提交。" type="warning" :closable="false"><ElButton :loading="busy" :disabled="!task.capabilities.includes('task.design')" @click="retry">核实并重试上次操作</ElButton></ElAlert>
       <div class="studio-workspace"><StudioSessionList v-if="sessionsOpen" :sessions="sessions" :active-id="activeId" :disabled="!canManage" :can-create="canNewConversation" @select="s => selectSession(s.id)" @create="newConversation" @close="sessionsOpen = false" @action="sessionAction" /><section class="studio-conversation">
-        <div class="session-current"><div><strong>{{ currentSession?.name || (sessions.length ? '加载会话…' : '暂无会话') }}</strong><small>{{ completed ? '只读会话 · 历史记录与文件保留' : currentSession?.deletionStatus ? currentSession.deletionError || '正在清理会话文件，请稍候' : data?.activeTurnId ? '执行中 · 切换会话不中断执行' : '独立上下文 · 独立工作文件' }}</small></div><ElButton v-if="currentSession" text size="small" :disabled="!canManage || !!currentSession.deletionStatus" @click="sessionAction('rename', currentSession)">重命名</ElButton></div>
+        <div class="session-current"><div><strong>{{ currentSession?.name || (sessions.length ? '加载会话…' : '暂无会话') }}</strong><small>{{ completed ? '只读会话 · 历史记录与文件保留' : currentSession?.deletionStatus ? currentSession.deletionError || '正在清理会话文件，请稍候' : data?.activeTurnId ? activeTurn?.status === 'collecting' ? '回复已结束 · 正在保存文件' : '执行中 · 切换会话不中断执行' : '独立上下文 · 独立工作文件' }}</small></div><div class="studio-actions"><ElButton size="small" :disabled="!currentSession || !!currentSession.deletionStatus || data?.conversationId !== activeId" @click="recoveryOpen = true">取回文件</ElButton><ElButton v-if="currentSession" text size="small" :disabled="!canManage || !!currentSession.deletionStatus" @click="sessionAction('rename', currentSession)">重命名</ElButton></div></div>
         <StudioTurns v-if="data?.conversationId === activeId" :key="activeId" :scroll-position="scrollPosition" @scroll-position="(position, id) => saveScroll(position, id || undefined)" :turns="data?.turns || []" :transcript="transcript" :conversation-id="data?.conversationId" :selected="selected" :disabled="locked" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" />
         <div class="session-archive-bar"><span>{{ completed ? '成品已归入本任务，可通过右上角查看' : selected.length ? `已选当前会话 ${selected.length} 张图片` : '勾选当前会话图片，归档到本任务' }}</span><ElButton size="small" type="primary" :disabled="locked || !!data?.activeTurnId || !selected.length" @click="archiveOpen = true">归档所选图片（{{ selected.length }}）</ElButton></div>
         <div class="studio-composer" @dragover.prevent @drop.prevent="drop" @paste="paste">
@@ -39,6 +39,7 @@
         </div>
       </section><StudioMaterials v-if="materialsOpen" :key="activeId" :assets="data?.materials || []" :disabled="locked" :removing="removingMaterials" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @remove-selected="confirmRemoveMaterials" @failure="fail" /></div>
     </ElCard>
+    <StudioRecoveryDialog v-if="recoveryOpen && activeId && data?.conversationId === activeId" :key="`${task.id}:${activeId}`" :task-id="task.id" :conversation-id="activeId" :readonly="completed || !task.capabilities.includes('task.design') || !!currentSession?.deletionStatus" :busy="!!data?.activeTurnId || uploading" @close="recoveryOpen = false" @saved="refresh" @failure="fail" />
     <StudioAnnotationDialog v-if="editing && data" :key="editingKey" ref="annotationDialog" :picture="editing" :draft-key="editingKey" :submitting="uploading" :error="annotationError" @close="closeAnnotation" @confirm="applyAnnotation" @failure="fail" />
     <ElDialog v-model="archiveOpen" title="归档所选图片" width="min(600px,94vw)" append-to-body><p>归属任务：{{ task.name }} · 来源会话：{{ currentSession?.name }}。将当前会话所选 {{ selected.length }} 张图片归入指定 SKU，保留来源信息。</p><StudioArchiveFields :task="task" /><label for="studio-archive-sku">SKU</label><ElSelect id="studio-archive-sku" v-model="sku" style="width:100%;margin-top:8px" aria-label="归档所属 SKU" placeholder="选择所属 SKU"><ElOption v-for="item in task.skus" :key="item.code" :value="item.code" :label="item.code" /></ElSelect><template #footer><ElButton @click="archiveOpen = false">取消</ElButton><ElButton type="primary" :disabled="locked || !!data?.activeTurnId || !sku || !selected.length" :loading="busy" @click="doArchive">确认归档</ElButton></template></ElDialog>
     <ElDialog v-model="completeOpen" title="确认完成任务" width="min(480px,94vw)" append-to-body><p>完成后本任务所有会话将锁定，已归档成品和对话记录都会保留。</p><p>后续需要修改，可以解冻工作台，继续当前对话。</p><template #footer><ElButton @click="completeOpen = false">继续设计</ElButton><ElButton type="primary" :loading="busy" :disabled="!canComplete" @click="doComplete">确认完成</ElButton></template></ElDialog>
@@ -54,6 +55,7 @@ import { IdentityError } from '@/api/identity/request'
 import OverseasArchiveDetail from '../OverseasArchiveDetail.vue'
 import type { TaskDetail } from '@/api/overseas/tasks'
 import StudioTurns from './StudioTurns.vue'
+import StudioRecoveryDialog from './StudioRecoveryDialog.vue'
 import StudioArchiveFields from './StudioArchiveFields.vue'
 import { handleStudioSendKey } from './studio-send-key'
 import type { Asset, StudioPicture } from '@/api/overseas/studio'
@@ -101,7 +103,8 @@ async function applyAnnotation(value: PreparedAnnotation) {
   else annotationError.value = error.value || '标注未保存，请重试'
 }
 watch(data, value => { if (!value) closeAnnotation() })
-watch(activeId, () => { closeAnnotation(); archiveOpen.value = false; sku.value = '' })
+watch(activeId, () => { recoveryOpen.value = false; closeAnnotation(); archiveOpen.value = false; sku.value = '' })
+const recoveryOpen = ref(false)
 const sessionsOpen = ref(true), expanded = ref(false), materialsOpen = ref(true), dragging = ref(false), input = ref<HTMLInputElement>(), archiveOpen = ref(false), completeOpen = ref(false), reopenOpen = ref(false), sku = ref('')
 watch(() => data.value?.completed, value => { if (value) completeOpen.value = false; else if (value === false) reopenOpen.value = false })
 const workspace = ref<HTMLElement>(), workspaceHeight = ref('calc(100dvh - 230px)')

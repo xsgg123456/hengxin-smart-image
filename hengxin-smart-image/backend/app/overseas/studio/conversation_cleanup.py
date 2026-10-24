@@ -11,7 +11,7 @@ from app.overseas.execution.models import Job, JobOutbox, ExecutionEvent, TERMIN
 from app.overseas.archives.models import Archive, ArchiveAsset, ArchiveDeletion
 from app.overseas.archives.snapshot import protect
 from app.storage.minio_store import get_store
-from .models import Conversation, ConversationDeletion, Turn, Upload, Picture, Transcript, MaterialVisibility
+from .models import Conversation, ConversationDeletion, Turn, Upload, Picture, OutputFile, Transcript, MaterialVisibility
 
 
 def jobs_for(session, identity):
@@ -46,6 +46,7 @@ def inventory(session, row, store):
     protected = {(picture.bucket, picture.object_key) for picture in retained}
     erased = [picture for picture in pictures if picture not in retained]
     sources = list(session.scalars(select(Upload).where(Upload.conversation_id == row.id)))
+    sources += list(session.scalars(select(OutputFile).where(OutputFile.turn_id.in_(turns))))
     sources += erased
     sources += [item for item in session.scalars(select(ExecutionObject).where(ExecutionObject.job_id.in_(jobs)))
                 if (item.bucket, item.object_key) not in protected]
@@ -74,6 +75,7 @@ def inventory(session, row, store):
             (Upload, (Upload.conversation_id.is_(None) | (Upload.conversation_id != row.id))),
             (Picture, Picture.id.not_in([picture.id for picture in erased])),
             (ExecutionObject, ExecutionObject.job_id.not_in(jobs)),
+            (OutputFile, OutputFile.turn_id.not_in(turns)),
         ):
             if session.scalar(select(model.id).where(model.bucket == bucket,
                     model.object_key == key, condition).limit(1)):
@@ -97,7 +99,8 @@ def erase_records(session, identity, manifest):
     jobs = list(session.scalars(select(Turn.job_id).where(Turn.conversation_id == identity)))
     for model, condition in (
         (Transcript, Transcript.turn_id.in_(turns)), (Picture, Picture.id.in_([UUID(value) for value in manifest['picture_ids']])),
-        (Upload, Upload.conversation_id == identity), (Turn, Turn.id.in_(turns)),
+        (Upload, Upload.conversation_id == identity), (OutputFile, OutputFile.turn_id.in_(turns)),
+        (Turn, Turn.id.in_(turns)),
         (MaterialVisibility, MaterialVisibility.scope == str(identity)),
         (ExecutionObject, ExecutionObject.job_id.in_(jobs)),
         (ExecutionEvent, ExecutionEvent.job_id.in_(jobs)), (JobOutbox, JobOutbox.job_id.in_(jobs)),

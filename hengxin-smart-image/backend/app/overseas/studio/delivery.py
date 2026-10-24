@@ -1,9 +1,6 @@
-"""Collect images from the completed final reply, never by scanning output files."""
-from io import BytesIO
+"""Collect explicitly linked files, never by scanning the workspace automatically."""
 from pathlib import PurePosixPath
-import re
-from types import SimpleNamespace
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 from fastapi import HTTPException
 from markdown_it import MarkdownIt
@@ -12,15 +9,15 @@ from app.execution.delivery_markdown import _legacy_space_paths
 from app.execution.diagnostics import _safe_read
 from app.execution.final_delivery import _local_file, _PROTECTED
 from app.execution.output_collector import OutputCollectionError, _root
-from app.modules.files.validation import MAX_UPLOAD_BYTES, validate_image
+from app.overseas.upload_limits import MAX_UPLOAD_BYTES
 from .delivery_evidence import evidence
+from .output_files import validated
 
-EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
-INVALID_REFERENCE = '一张最终回复图片未通过文件或归属校验，文字回复已保留。'
+INVALID_REFERENCE = '一个输出文件无法读取，请通过“取回文件”选择尚存原件。'
 
 
 def references(text):
-    """Rendered images and image downloads need no heading or delivery wording."""
+    """All local file links are eligible; external links remain ordinary links."""
     parser = MarkdownIt('commonmark')
     parser.validateLink = lambda _url: True  # Validated locally, never fetched.
     for token in parser.parse(_legacy_space_paths(text)):
@@ -36,11 +33,9 @@ def references(text):
             except UnicodeError:
                 yield target, None
                 continue
-            logical = decoded.removeprefix('sandbox:')
-            if PurePosixPath(logical).suffix.lower() in EXTENSIONS:
-                yield decoded, logical
-            elif child.type == 'image':
-                yield decoded, None
+            if urlsplit(decoded).scheme not in ('', 'sandbox') or decoded.startswith(('#', '//')):
+                continue
+            yield decoded, decoded.removeprefix('sandbox:')
 
 
 def _canonical(logical, session_id):
@@ -98,11 +93,6 @@ def enumerate_delivery(workspace, summary):
         native, proven, evidence_warnings = evidence(workspace, summary, [])
         warnings.extend(evidence_warnings)
         selected = [(row['path'], row['path']) for row in native]
-    if not links and not selected and not warnings and re.search(
-            r'已(?:成功)?生成[^。\n]{0,50}(?:图|image)|'
-            r'(?:image|picture)s?\s+(?:has|have|was|were)\s+(?:been\s+)?generated',
-            summary.final_text, re.I):
-        warnings.append('本轮回复称已生成图片，但未收到可验证的图片交付；请联系管理员核查，无需重新生成。')
     return selected, proven, warnings
 
 
@@ -114,8 +104,7 @@ def collect_reference(workspace, summary, target, logical, proven):
     root = _root(workspace.home / '.codex', summary.session_id)
     path, _ = _local_file(canonical, workspace.work, workspace.home / '.codex', root, {})
     data = _safe_read(path, MAX_UPLOAD_BYTES, allow_windows_fallback=True)
-    image = validate_image(SimpleNamespace(file=BytesIO(data), filename=path.name,
-                                          content_type=None))
+    image = validated(data, path.name)
     if canonical in proven and image.checksum != proven[canonical]:
         raise OutputCollectionError('native_image_checksum_mismatch')
     return image

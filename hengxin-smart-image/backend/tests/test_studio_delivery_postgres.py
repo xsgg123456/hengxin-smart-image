@@ -1,4 +1,4 @@
-"""Real PostgreSQL takeover contention after a real runner's failed image upload."""
+"""Real PostgreSQL takeover contention after an interrupted runner's capture."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -11,7 +11,7 @@ from app.db.timestamps import utcnow
 from app.overseas.auth.models import Member
 from app.overseas.execution import claims, reconcile, runner
 from app.overseas.execution.models import Job
-from app.overseas.studio import delivery_context, delivery_recovery, service
+from app.overseas.studio import delivery_context, delivery_recovery, delivery_job, service
 from app.overseas.studio.models import Picture
 from app.overseas.studio.schemas import Send
 from app.overseas.tasks import cleanup_process
@@ -20,6 +20,7 @@ from test_overseas_deletion_postgres import ready
 from test_overseas_members_postgres import pg_factory
 from test_overseas_tasks import overseas
 from test_overseas_studio_execution import fake_runtime
+from studio_receipt_regression_helpers import WorkerInterrupted, interrupted
 
 
 @pytest.mark.parametrize('workers', [2, 4])
@@ -36,11 +37,11 @@ def test_competing_reconcilers_claim_one_collector_and_one_object(ready, monkeyp
     monkeypatch.setattr(delivery_recovery, 'get_store', lambda: store)
     original_put = store.put
 
-    def unavailable(*_args):
-        raise OSError('storage unavailable during initial collection')
-
-    monkeypatch.setattr(store, 'put', unavailable)
-    runner.run(factory, job_id)
+    # Simulate a killed worker after capture; ordinary upload failure is terminal partial.
+    with monkeypatch.context() as patch:
+        patch.setattr(delivery_job, 'upload', interrupted)
+        with pytest.raises(WorkerInterrupted):
+            runner.run(factory, job_id)
     with factory.begin() as session:
         row = session.get(Job, job_id)
         assert row.status == 'collecting' and row.execution_count == 1

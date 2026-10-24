@@ -64,7 +64,8 @@ test('归档产品字段来自真实task，不展示创建人作为归档人', (
 test('正式StudioTurns将正式图片置于折叠组之外并保留图片选择事件', () => {
   const image = defineComponent({ props: ['asset'], setup: p => () => h('picture', { id: p.asset.id }) })
   const turns = compile('views/overseas/studio/StudioTurns.vue', {
-    './StudioProcess.vue': { default: process },
+    './StudioOutputs.vue': { default: simple('StudioOutputs') },
+  './StudioProcess.vue': { default: process },
     './StudioAttachments.vue': { default: defineComponent({ render: () => null }) },
     './StudioAssetImage.vue': { default: image }
   })

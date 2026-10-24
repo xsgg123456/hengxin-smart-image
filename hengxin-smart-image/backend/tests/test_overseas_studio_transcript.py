@@ -14,6 +14,7 @@ from test_overseas_materials import materials
 from test_overseas_tasks import overseas, ROOT
 from test_overseas_assignment import change_roles
 from studio_delivery_helpers import DeliveryCase
+from studio_receipt_regression_helpers import take
 
 
 def read(client, task, after=0):
@@ -132,19 +133,21 @@ def test_collection_failure_keeps_raw_reply_and_transcript(studio, monkeypatch, 
         patch.setattr(owner, boundary, broken)
         case.run()
     row = case.current()
-    assert calls and row['status'] == 'collecting' and row['pictures'] == []
+    assert calls and row['status'] == 'succeeded' and row['pictures'] == []
     assert row['deliveryStatus'] == dict(
-        state='capturing' if boundary == 'enumerate_delivery' else 'saving',
+        state='partial',
         expected=None if boundary == 'enumerate_delivery' else 1, saved=0)
     assert row['reply'] == '![设计](/work/output0.png)\n'
     assert read(case.client, case.task).json()['items'][0]['text'] == row['reply']
-    assert case.job().completed_at is None
-    assert send(case.client, case.task, key='wait-for-images').status_code == 409
+    assert case.job().completed_at is not None and case.view()['activeTurnId'] is None
     case.recover()
-    case.complete(expected=1)
+    assert case.current()['pictures'] == []
+    take(case, source='snapshot' if boundary == 'put' else 'work')
+    assert len(case.current()['pictures']) == 1
     assert case.current()['reply'] == row['reply']
     assert read(case.client, case.task).json()['items'][0]['text'] == row['reply']
     assert case.downloaded() == [(case.workspace.work / 'output0.png').read_bytes()]
+    assert send(case.client, case.task, key='continue').status_code == 200
 
 
 def test_transcript_pagination_does_not_skip_rows(studio, tmp_path):

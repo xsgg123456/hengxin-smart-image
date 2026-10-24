@@ -145,7 +145,7 @@ def test_unsafe_recovery_never_writes(missed, mode):
                 events = [json.loads(line) for line in missed.events.read_text().splitlines()]
                 if mode == 'event_incomplete': events.pop()
                 else:
-                    turn.reply += '\n![bad](https://example.com/missing.png)'
+                    turn.reply += '\n![bad](/work/../private.png)'
                     events[-2]['item']['text'] = turn.reply
                     job.result = {**job.result, 'reply': turn.reply}
                 raw = '\n'.join(json.dumps(e) for e in events).encode()

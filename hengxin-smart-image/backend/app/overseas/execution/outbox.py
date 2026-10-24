@@ -26,6 +26,12 @@ def main():
             dispatch_once(factory)
         except Exception:
             logging.warning('Overseas execution maintenance unavailable; durable work retained')
+        # Independent of failed dispatch/cleanup; never requires API access to private disk.
+        try:
+            from app.overseas.studio.recovery_transport import consume_once
+            consume_once(session_factory())
+        except Exception:
+            logging.warning('Native file recovery unavailable; refresh to retry')
         stopped.wait(get_settings().outbox_poll_seconds)
 
 

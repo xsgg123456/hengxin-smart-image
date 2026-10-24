@@ -93,8 +93,7 @@ def test_displayed_hash_must_match_generation(tmp_path):
     rows = turn()
     rows[2]['payload']['output'][0]['image_url'] += 'AAAA'
     write(tmp_path, rows)
-    with pytest.raises(ValueError, match='not yet available'):
-        native.read_current(tmp_path, SESSION, {}, '完成')
+    assert native.read_current(tmp_path, SESSION, {}, '完成') == []
 
 
 @pytest.mark.parametrize('change', [
@@ -102,8 +101,6 @@ def test_displayed_hash_must_match_generation(tmp_path):
     lambda r: r[1]['payload']['item'].update(result=base64.b64encode(b'not png').decode()),
     lambda r: r[1]['payload'].update(thread_id='another-session'),
     lambda r: r[1]['payload'].update(turn_id='another-turn'),
-    lambda r: r[1]['payload']['item'].update(status='failed'),
-    lambda r: r[1]['payload']['item'].update(failure={'message': 'failed'}),
     lambda r: r[1]['payload']['item'].update(savedPath=PREFIX + '../bad.png'),
     lambda r: r[1]['payload']['item'].update(savedPath=PREFIX.replace(SESSION, 'other') + 'bad.png'),
     lambda r: r[2]['payload']['internal_chat_message_metadata_passthrough'].update(turn_id='bad'),
@@ -232,8 +229,11 @@ def test_history_ignores_failed_turns_before_success(tmp_path, failure):
     write(tmp_path, rows + turn('turn-2', 'exec-2.png'))
     assert native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png', PREFIX + 'exec-2.png'}) == {
         PREFIX + 'exec-2.png': hashlib.sha256(PNG).hexdigest()}
-    with pytest.raises(ValueError):
-        native.read_current(tmp_path, SESSION, {}, '完成')
+    if failure == 'generation':
+        assert native.read_current(tmp_path, SESSION, {}, '完成') == []
+    else:
+        with pytest.raises(ValueError):
+            native.read_current(tmp_path, SESSION, {}, '完成')
 
 
 @pytest.mark.parametrize('final', ['这是草稿', '仅供预览，不是最终交付', 'Draft image'])
@@ -241,3 +241,23 @@ def test_history_does_not_require_formal_delivery_wording(tmp_path, final):
     write(tmp_path, turn(final=final))
     assert native.read_history(tmp_path, SESSION, {PREFIX + 'exec-1.png'}) == {
         PREFIX + 'exec-1.png': hashlib.sha256(PNG).hexdigest()}
+
+
+@pytest.mark.parametrize('change', [dict(status='failed'), dict(failure={'message': 'failed'})])
+def test_recovered_image_tool_failure_is_not_a_missing_deliverable(tmp_path, change):
+    rows = turn()
+    rows[1]['payload']['item'].update(change)
+    write(tmp_path, rows)
+    assert native.read_current(tmp_path, SESSION, {}, '完成') == []
+
+
+@pytest.mark.parametrize('text_output_between', [False, True])
+def test_viewed_image_is_not_delivery_even_when_pixels_match_generated_file(tmp_path, text_output_between):
+    rows = turn()
+    rows.insert(2, event('item_completed', turn_id='turn-1', thread_id=SESSION,
+                        item={'type': 'ImageView', 'path': 'file:///work/reference.png'}))
+    if text_output_between:
+        rows.insert(3, {'type': 'response_item', 'payload': {
+            'type': 'custom_tool_call_output', 'call_id': 'other', 'output': 'checked'}})
+    write(tmp_path, rows)
+    assert native.read_current(tmp_path, SESSION, {}, '完成') == []
