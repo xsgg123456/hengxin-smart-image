@@ -5,15 +5,22 @@ from pathlib import Path
 def test_installed(work, data, test_python, runtime):
     r = runtime
     host = Path(data['host']) / 'daemon'
-    output = r.run('runuser', '-u', 'codex', '--', '/usr/bin/python3', '-B', '-m',
+    output = r.run('/usr/sbin/runuser', '-u', 'codex', '--', '/usr/bin/python3', '-B', '-m',
                    'app.account_management.service', '--help', cwd=host)
     r.require(all(x in output for x in ('--root', '--legacy-source', '--runtime', '--binary', '--bwrap', '--api-uid')),
               'Installed daemon CLI mismatch')
     r.require(test_python and Path(test_python).is_file(), 'An isolated pytest Python runtime is required')
-    output = r.run('runuser', '-u', 'codex', '--', str(test_python), '-B', '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
-                   str(Path(data['host'])/'tests'), cwd=host, timeout=180,
-                   env={'PATH':'/usr/local/bin:/usr/bin:/bin','PYTHONPATH':str(host),'PYTHONDONTWRITEBYTECODE':'1'})
+    uid_test = 'test_real_two_worker_uids_share_access_without_reading_master'
+    test_env = {'PATH':'/usr/local/bin:/usr/bin:/bin','PYTHONPATH':str(host),'PYTHONDONTWRITEBYTECODE':'1'}
+    output = r.run('/usr/sbin/runuser', '-u', 'codex', '--', str(test_python), '-B', '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
+                   str(Path(data['host'])/'tests'), '-k', 'not ' + uid_test, cwd=host, timeout=180, env=test_env)
     r.require('passed' in output and 'failed' not in output and 'skipped' not in output, 'Installed Linux account tests incomplete')
+    # This test must start as root to switch to real worker UIDs; it only uses temporary fixtures.
+    uid_output = r.run(str(test_python), '-B', '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
+                      str(Path(data['host'])/'tests/test_credential_broker.py') + '::' + uid_test,
+                      cwd=host, timeout=30, env=test_env)
+    r.require('1 passed' in uid_output and 'skipped' not in uid_output, 'Real UID isolation test incomplete')
+    output += '\nRoot-only UID isolation:\n' + uid_output
     r.private(work / 'installed-linux-tests.txt', output)
     # No production mounts, tokens, network or business DB in installation tests.
     for domain, saved in data['apis'].items():
