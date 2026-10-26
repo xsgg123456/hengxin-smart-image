@@ -4,5 +4,5 @@ export function managementComponent(page: string, mode: string | undefined, sear
     monitor: 'MonitorPreview', settings: 'SettingsPreview'
   }
   return mode === 'mock' && new URLSearchParams(search).get('managementPreview') === 'api' && previews[page]
-    ? `/hengxin/admin/preview/${previews[page]}` : `/hengxin/admin/${page}`
+    ? `/hengxin/admin/preview/${previews[page]}` : `/hengxin/admin/${page === 'codex-auth' ? 'codex-account' : page}`
 }
