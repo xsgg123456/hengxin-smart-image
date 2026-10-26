@@ -60,12 +60,14 @@ def prepare(work, source):
             target = context / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / 'api' / domain / name, target)
+        for path in context.rglob('*'):
+            path.chmod(0o755 if path.is_dir() else 0o644)
         tag = 'hengxin-smart-image-backend:' + manifest['release'] + '-' + domain
         r.require(not r.run('docker', 'images', '-q', tag + '-base'), 'Base tag already exists')
         r.run('docker', 'tag', live['Image'], tag + '-base')
         r.require(r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', tag + '-base') == live['Image'], 'Base tag drift')
         (context / 'Dockerfile').write_text('FROM ' + tag + '-base\n' + ''.join(
-            'COPY --chmod=0644 ' + name + ' /app/' + name + '\n' for name in sorted(files)))
+            'COPY ' + name + ' /app/' + name + '\n' for name in sorted(files)))
         r.require(not r.run('docker', 'images', '-q', tag), 'Image tag already exists')
         r.run('docker', 'build', '--network=none', '--pull=false', '-t', tag, str(context), timeout=180)
         image = r.run('docker', 'image', 'inspect', '--format', '{{.Id}}', tag)
