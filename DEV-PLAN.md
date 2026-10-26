@@ -1570,3 +1570,5 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 
 ## 2026-10-26 · Codex 账号管理
 按 docs/CODEX-ACCOUNT-MANAGEMENT-20261026.md 四步实施：源凭据兼容与独立管理服务；双业务权限接口和已确认前端；隔离/失败/真实恢复与 UI 验证；独立审查、中文提交、打包、排空发布及生产冒烟。无业务数据库迁移，不自动执行历史任务。
+
+2026-10-26 已完成正式交付：0.2.54，源码 ce4baf4；安装后 96+1 项 Linux 验证、两套 API 导入及生产真实连接/授权取消通过，原账号绑定、任务和会话保持。详细证据与恢复边界见 docs/CODEX-ACCOUNT-RELEASE-20261026.md。
