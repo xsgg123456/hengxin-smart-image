@@ -94,6 +94,7 @@ def prepare(work, source):
     # Keep public daemon code outside the root-only release evidence directory.
     host = Path('/opt/hengxin-account-releases') / manifest['release']
     host.parent.mkdir(mode=0o755, exist_ok=True)
+    host.parent.chmod(0o755)
     r.require(not host.exists(), 'Installed daemon target already exists')
     host.mkdir(mode=0o755)
     shutil.copytree(source / 'daemon', host / 'daemon')
