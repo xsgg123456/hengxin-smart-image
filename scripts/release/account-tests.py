@@ -19,6 +19,24 @@ p, f, d = load('account-package'), load('account-frontend'), load('account-deplo
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_command_uses_image_default_only_for_null_or_absent(self):
+        live = {'Config': {'Env': [], 'Cmd': ['uvicorn', 'app.main:app']}, 'Image': 'sha256:base', 'Mounts': []}
+        for extra in ({}, {'command': None}, {'command': ['uvicorn', 'app.main:app']}):
+            declared = {'image': 'base', **extra}
+            with patch.object(d.r, 'run', side_effect=['sha256:base', json.dumps(live['Config']['Cmd'])]) as run:
+                d.r.check_live_config(live, {'services': {'api': declared}})
+                self.assertEqual(run.call_count, 1 if extra.get('command') is not None else 2)
+        for command in ([], '', ['uvicorn', 'other:app']):
+            with patch.object(d.r, 'run', return_value='sha256:base'):
+                with self.assertRaisesRegex(RuntimeError, 'command drift'):
+                    d.r.check_live_config(live, {'services': {'api': {'image': 'base', 'command': command}}})
+        with patch.object(d.r, 'run', side_effect=['sha256:base', '["other"]']):
+            with self.assertRaisesRegex(RuntimeError, 'command drift'):
+                d.r.check_live_config(live, {'services': {'api': {'image': 'base', 'command': None}}})
+        with patch.object(d.r, 'run', return_value='sha256:base'):
+            with self.assertRaisesRegex(RuntimeError, 'entrypoint'):
+                d.r.check_live_config(live, {'services': {'api': {'image': 'base', 'entrypoint': ['other']}}})
+
     def test_patch_preserves_production_only_code(self):
         raw = {'app/main.py':b'production_only = 42\n', 'app/overseas/main.py':b'production_overseas = 43\n',
                'app/core/config.py':b"class Settings:\n    codex_auth_broker_socket: str = ''\n    sentinel = 99\n"}

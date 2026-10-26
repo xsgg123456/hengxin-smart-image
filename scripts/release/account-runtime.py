@@ -115,7 +115,11 @@ def check_live_config(live, config):
     env = dict(item.split('=', 1) for item in live['Config']['Env'])
     require(all(env.get(k) == str(v) for k,v in declared.get('environment', {}).items()), 'Live/Compose env drift')
     require(run('docker', 'image', 'inspect', '--format', '{{.Id}}', declared['image']) == live['Image'], 'Live image drift')
-    require(declared.get('command', live['Config']['Cmd']) == live['Config']['Cmd'], 'Live command drift')
+    command = declared.get('command')
+    if command is None:
+        require(declared.get('entrypoint') is None, 'Explicit entrypoint requires command verification')
+        command = json.loads(run('docker', 'image', 'inspect', '--format', '{{json .Config.Cmd}}', live['Image']))
+    require(command == live['Config']['Cmd'], 'Live command drift')
     mounts = {v['Destination']: v for v in live['Mounts']}
     require(len(mounts) == len(declared.get('volumes', [])), 'Live mount count drift')
     for v in declared.get('volumes', []):
