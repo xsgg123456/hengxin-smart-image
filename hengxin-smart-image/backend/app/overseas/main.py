@@ -43,3 +43,5 @@ app.include_router(management_router)
 
 from app.overseas.studio.router import router as studio_router
 app.include_router(studio_router)
+from app.account_management.router import router as codex_account_router
+app.include_router(codex_account_router, prefix='/api/overseas/v1')

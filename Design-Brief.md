@@ -220,3 +220,6 @@ Phase7：沿用模板编辑ElDialog、图片排序组件、ArtTable及Skill管�
 
 ## 2026-10-24 · 海外三项轻量优化
 沿用已确认preview-overseas-polish第二版：仅文案/下拉选项及发送旁展开编辑按钮。输入框固定原两行；不新增标题行、不autosize、不变左右列宽或工作台高度算法。弹窗960px上限/94vw、16px文字、1.8行高，关闭保留草稿。正式页不含示例数据和对照开关。
+
+## 2026-10-26 · Codex 账号管理
+正式采用 frontend/preview-codex-auth 的 AccountPage、AuthorizationDialog 和内容样式。复用真实管理中心 shell、卡片、字体与弹窗尺寸；删除模拟控件。仅在管理中心追加 Codex 账号入口。增加真实尚未检测状态，不改变其他布局。失败、加载、空态及窄屏内部滚动可达。

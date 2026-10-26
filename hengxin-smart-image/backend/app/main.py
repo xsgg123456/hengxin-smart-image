@@ -24,6 +24,7 @@ from app.modules.management.settings_router import router as settings_router
 from app.modules.management.retention_router import router as retention_router
 from app.modules.api_image_edits.router import router as api_image_router
 from app.modules.api_image_edits.conversation_router import router as conversation_router
+from app.account_management.router import router as codex_account_router
 
 
 @asynccontextmanager
@@ -51,3 +52,4 @@ app.include_router(settings_router, prefix="/api/v1")
 app.include_router(retention_router, prefix="/api/v1")
 app.include_router(api_image_router, prefix="/api/v1")
 app.include_router(conversation_router, prefix="/api/v1")
+app.include_router(codex_account_router, prefix="/api/v1")

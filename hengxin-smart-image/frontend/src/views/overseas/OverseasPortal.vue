@@ -1,10 +1,11 @@
 <template>
   <OverseasShell>
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
-    <div class="layout-content"><div class="hx-page">
-      <div v-if="!taskPage && !archivePage" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
+    <div class="layout-content"><div :class="managementPage === 'codex-auth' && managementAllowed ? undefined : 'hx-page'">
+      <div v-if="!taskPage && !archivePage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
       <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasArchivePage v-else-if="archivePage && member.capabilities?.includes('task.read')" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+      <AccountPage v-else-if="managementPage === 'codex-auth' && managementAllowed" :key="'codex-auth-' + member.id + refreshKey" side="overseas" :adapter="codexAdapter" @failure="managementFailure" />
       <OverseasLiveManagement v-else-if="managementPage && managementPage !== 'users' && managementAllowed" :key="managementPage + refreshKey" :page="managementPage" :api="managementAdapter" :all-members="member.roles?.some(role => ['super_admin', 'operator_manager', 'design_manager'].includes(role))" @failure="managementFailure" />
       <OverseasMembers v-else-if="managing && allowed" :key="refreshKey" :adapter="adapter" @failure="fail" />
       <ElCard v-else class="art-card"><h2>企业身份已连接</h2><p class="hx-gap">当前海外角色：{{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p><ElAlert v-if="managementPage" title="暂无此管理页面权限" type="warning" :closable="false" /><ElButton v-if="allowed" type="primary" class="hx-gap" @click="router.push('/overseas/admin/users')">用户与角色</ElButton></ElCard>
@@ -28,6 +29,8 @@ import OverseasTasksPage from './OverseasTasksPage.vue'
 import OverseasArchivePage from './OverseasArchivePage.vue'
 import { createMaterialsApi, type MaterialsApi } from '@/api/overseas/materials'
 import { createTasksApi, type TasksApi } from '@/api/overseas/tasks'
+import AccountPage from '../codex-auth/AccountPage.vue'
+import { createCodexAuthApi, type CodexAuthApi } from '@/api/codex-auth'
 const props = defineProps<{ member: Member }>()
 const emit = defineEmits<{ switch: []; logout: []; member: [member: Member]; failure: [reason: unknown] }>()
 const route = useRoute(), router = useRouter(), menus = useMenuStore(), tabs = useWorktabStore()
@@ -143,6 +146,18 @@ const managementAdapter: ManagementApi = {
   },
   settings: () => managementCall('settings.manage', () => managementApi.settings()),
   saveSettings: value => managementCall('settings.manage', () => managementApi.saveSettings(value), true)
+}
+const codexApi = createCodexAuthApi('overseas')
+const codexAdapter: CodexAuthApi = {
+  get: () => managementCall('settings.manage', codexApi.get),
+  check: () => managementCall('settings.manage', codexApi.check),
+  start: (intent, revision) => managementCall('settings.manage', () => codexApi.start(intent, revision)),
+  poll: id => managementCall('settings.manage', () => codexApi.poll(id)),
+  retry: id => managementCall('settings.manage', () => codexApi.retry(id)),
+  activate: (id, acknowledged) => managementCall('settings.manage', () => codexApi.activate(id, acknowledged)),
+  // Cleanup must still reach the server when this portal is being unmounted.
+  cancel: id => codexApi.cancel(id),
+  remove: revision => managementCall('settings.manage', () => codexApi.remove(revision))
 }
 watch(() => useSettingStore().refresh, () => { refreshKey.value++ })
 onUnmounted(() => { active = false; menus.setMenuList([]); tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = [] })

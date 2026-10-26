@@ -1,9 +1,9 @@
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export const stages = { analysis: '整套分析', generation: '按 SKU 生图', revision: '单图返工' }
 export type Stage = keyof typeof stages
-export const managementPages = { usage: '调用统计', monitor: '执行监控', users: '用户与角色', skills: 'Skill 管理', settings: '系统配置' }
+export const managementPages = { usage: '调用统计', monitor: '执行监控', users: '用户与角色', skills: 'Skill 管理', settings: '系统配置', 'codex-auth': 'Codex 账号' }
 export type ManagementPage = keyof typeof managementPages
-export const managementCapability = (page: ManagementPage) => page === 'usage' || page === 'monitor' ? 'stats.read' : page === 'users' ? 'members.manage' : page + '.manage'
+export const managementCapability = (page: ManagementPage) => page === 'usage' || page === 'monitor' ? 'stats.read' : page === 'users' ? 'members.manage' : page === 'codex-auth' ? 'settings.manage' : page + '.manage'
 export interface ManagementQuery { memberId?: string; from: string; to: string; taskId: string; kind: string; status: string; page: number; pageSize: number }
 export interface Usage { jobs: number; queued: number; running: number; uncertain: number; succeeded: number; failed: number; cancelled: number; generationImages: number; revisionImages: number }
 export interface Job { id: string; taskId: string; taskName: string; kind: string; status: string; executionCount: number; imageCount: number; operatorId: string | null; operatorName: string | null; createdAt: string; startedAt: string | null; completedAt: string | null; error: string | null }

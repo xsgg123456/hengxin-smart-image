@@ -27,13 +27,14 @@ def peer_uid(connection):
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         try:
-            if peer_uid(self.request) not in self.server.allowed_uids:
+            uid = peer_uid(self.request)
+            if uid not in self.server.allowed_uids:
                 raise CredentialsError()
             value = receive(self.request, MAX_REQUEST, time.monotonic() + 5)
             if set(value) != {'timeout_seconds'}:
                 raise ValueError('unsupported credential request')
             timeout = timeout_value(value['timeout_seconds'])
-            result = {'auth': access_credentials(self.server.source, timeout)}
+            result = {'auth': self.server.credentials(uid, timeout)}
         except CredentialsError as error:
             result = {'error': error.code}
         except Exception:
@@ -48,6 +49,9 @@ class BrokerServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
     block_on_close = True
     request_queue_size = 16
+
+    def credentials(self, uid, timeout):
+        return access_credentials(self.source, timeout)
 
     def __init__(self, path, source, allowed_uids=DEFAULT_UIDS, max_clients=16):
         self.source = Path(source)
