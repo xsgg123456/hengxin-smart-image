@@ -3,16 +3,19 @@ from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 import re
-from urllib.parse import quote
 from uuid import uuid4
-from fastapi import HTTPException, Response
+from fastapi import HTTPException
+from sqlalchemy import select
 from app.core.config import get_settings
 from app.modules.files.validation import safe_name
 from app.modules.files.delivery import FileDelivery
 from app.overseas.attachment_delivery import deliver
+from app.overseas.image_delivery import IMAGE_TYPES
 from app.overseas.tasks.service import lock_actor
+from app.overseas.tasks.models import TaskDeletion
+from app.overseas.execution.models import Job
 from app.overseas.materials.parsers import CONTENT_TYPES
-from .models import Upload, OutputFile
+from .models import Upload, OutputFile, Picture, Turn, ConversationDeletion
 from . import queries, material_list
 
 from app.overseas.upload_limits import MAX_UPLOAD_BYTES
@@ -95,21 +98,46 @@ def upload(session, store, actor, task_id, data, filename, conversation_id=None)
     return result
 
 
-def content(session, store, actor, task_id, identity, is_picture=False, *, head=False, preview=False):
+def retained_picture(session, task_id, row, channel_id):
+    outside = select(Turn, Job).join(Job, Turn.job_id == Job.id).outerjoin(
+        ConversationDeletion, ConversationDeletion.conversation_id == Turn.conversation_id).where(
+            Turn.task_id == task_id, ConversationDeletion.conversation_id.is_(None))
+    if channel_id is not None:
+        outside = outside.where(Turn.conversation_id != channel_id)
+    for consumer, job in session.execute(outside):
+        if str(row.id) in consumer.reference_ids or any(
+            item.get('bucket') == row.bucket and item.get('object_key') == row.object_key
+            for item in job.payload.get('inputs', [])):
+            return True
+    return False
+
+
+def require_available(session, task_id, row):
+    if row.content_type not in IMAGE_TYPES:
+        return
+    if session.get(TaskDeletion, task_id):
+        raise HTTPException(404, '文件所属任务已删除或正在删除')
+    turn = session.get(Turn, row.turn_id) if getattr(row, 'turn_id', None) else None
+    channel_id = turn.conversation_id if turn else getattr(row, 'conversation_id', None)
+    detached = isinstance(row, Picture) and row.turn_id is None and row.origin_turn_id is not None
+    if not detached and (channel_id is None or session.get(ConversationDeletion, channel_id) is None):
+        return
+    # Cleanup deliberately preserves images referenced/frozen by other sessions.
+    if isinstance(row, Picture) and retained_picture(session, task_id, row, channel_id):
+        return
+    raise HTTPException(404, '文件所属会话已删除或正在删除')
+
+
+def content(session, store, actor, task_id, identity, is_picture=False, *, head=False, preview=False,
+            thumbnail=False, if_none_match=None):
     task = queries.access(session, actor, task_id)
     row = (queries.picture(session, task, identity) if is_picture else
            queries.attachment(session, task, 'upload:' + str(identity))[0])
+    require_available(session, task.id, row)
     row = FileDelivery.capture(row)
     session.close()
-    if not is_picture:
-        return deliver(store, row, head=head, preview=preview)
-    if head:
-        return deliver(store, row, head=True, preview=True)
-    data = read(store, row)
-    disposition = 'inline' if row.content_type.startswith('image/') or row.content_type == 'application/pdf' else 'attachment'
-    return Response(data, media_type=row.content_type, headers={
-        'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
-        'Content-Disposition': disposition + "; filename*=UTF-8''" + quote(row.name, safe='')})
+    return deliver(store, row, head=head, preview=preview or is_picture,
+                   thumbnail=thumbnail, if_none_match=if_none_match)
 
 
 def output_content(session, store, actor, task_id, identity, *, head=False):

@@ -1,11 +1,14 @@
 from hashlib import sha256
+from pathlib import Path
 from uuid import uuid4
 from fastapi import HTTPException
 from app.core.config import get_settings
 from app.db.timestamps import utcnow
 from app.modules.files.delivery import FileDelivery
 from app.overseas.attachment_delivery import deliver
+from app.overseas.image_delivery import IMAGE_TYPES
 from app.overseas.tasks.service import lock_actor
+from app.overseas.tasks.models import TaskDeletion
 from .models import Material
 from . import parsers, service
 
@@ -16,6 +19,9 @@ MAX_BYTES = MAX_UPLOAD_BYTES
 
 def save_upload(session, store, actor, data, filename, kind):
     name, content_type = parsers.validate_document(data, filename, kind)
+    if Path(name).suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'):
+        from app.overseas.studio.files import validate
+        name, content_type = validate(data, filename)
     actor = lock_actor(session, actor, 'task.create')
     identifier = uuid4()
     record = Material(id=identifier, owner_id=actor.id, kind=kind, name=name,
@@ -57,7 +63,10 @@ def delete(session, store, actor, material_id):
         raise HTTPException(503, '资料已隐藏，原件清理失败，请再次删除重试') from None
 
 
-def content(session, store, actor, material_id, *, head=False, preview=False):
-    record = FileDelivery.capture(service.readable(session, material_id, actor))
+def content(session, store, actor, material_id, *, head=False, preview=False, thumbnail=False, if_none_match=None):
+    row = service.readable(session, material_id, actor)
+    if row.content_type in IMAGE_TYPES and row.task_id and session.get(TaskDeletion, row.task_id):
+        raise HTTPException(404, '文件所属任务已删除或正在删除')
+    record = FileDelivery.capture(row)
     session.close()
-    return deliver(store, record, head=head, preview=preview)
+    return deliver(store, record, head=head, preview=preview, thumbnail=thumbnail, if_none_match=if_none_match)

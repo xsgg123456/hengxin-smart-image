@@ -1,8 +1,9 @@
 from tempfile import SpooledTemporaryFile
-from urllib.parse import quote
 from starlette.responses import StreamingResponse
 from zipfile import ZipFile, ZIP_STORED
-from fastapi import HTTPException, Response
+from fastapi import HTTPException
+from app.modules.files.delivery import FileDelivery
+from app.overseas.attachment_delivery import deliver
 from sqlalchemy import select, func, or_
 from app.overseas.tasks.models import Task
 from app.overseas.tasks.queries import detail
@@ -82,7 +83,7 @@ def listing(session, actor, product='', brand='', sku='', search='', page=1, pag
     return {'items': [{**dto(row, cover, latest), **deletion.fields(session, row)} for row, cover, latest in rows], 'total': total, 'page': page, 'pageSize': page_size}
 
 
-def access(session, actor, archive_id, store, metadata_only=False):
+def access(session, actor, archive_id, store, metadata_only=False, protect_originals=True):
     task, record, receipt = deletion.locked(session, archive_id)
     if record is None:
         raise HTTPException(404, '归档不存在')
@@ -92,8 +93,10 @@ def access(session, actor, archive_id, store, metadata_only=False):
     if receipt:
         if not metadata_only:
             deletion.available(session, record.id)
-    else:
+    elif protect_originals:
         protect(session, store, record, task)
+    else:
+        deletion.available(session, record.id)
     return record
 
 
@@ -108,17 +111,17 @@ def view(session, store, actor, archive_id):
     return result
 
 
-def content(session, store, actor, archive_id, picture_id):
-    record = access(session, actor, archive_id, store)
+def content(session, store, actor, archive_id, picture_id, *, head=False, thumbnail=False, if_none_match=None):
+    # Listing/detail performs legacy snapshot protection. Delivery must check the
+    # requested existing asset, without repairing a deleted row or reading every original.
+    record = access(session, actor, archive_id, store, protect_originals=False)
     row = session.get(ArchiveAsset, picture_id)
     if not row or row.archive_id != record.id:
         raise HTTPException(404, '归档图片不存在')
-    data = read(store, row)
-    response = Response(data, media_type=row.content_type, headers={
-        'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
-        'Content-Disposition': "inline; filename*=UTF-8''" + quote(row.name, safe='')})
+    captured = FileDelivery.capture(row)
     session.commit()
-    return response
+    session.close()
+    return deliver(store, captured, head=head, preview=True, thumbnail=thumbnail, if_none_match=if_none_match)
 
 
 def download(session, store, actor, archive_id):

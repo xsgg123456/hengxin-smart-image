@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from app.core.browser_auth import browser_request
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.tasks.router import Database, Key
@@ -36,8 +36,11 @@ def detail(archive_id: UUID, actor: CurrentMember, session: Database, store=Depe
 
 
 @router.get('/archives/{archive_id}/pictures/{picture_id}/content')
-def content(archive_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
-    return service.content(session, store, actor, archive_id, picture_id)
+@router.head('/archives/{archive_id}/pictures/{picture_id}/content')
+def content(request: Request, archive_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database,
+            store=Depends(get_store), thumbnail: bool = False):
+    return service.content(session, store, actor, archive_id, picture_id, head=request.method == 'HEAD',
+                           thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))
 
 
 @router.delete('/archives/{archive_id}', dependencies=[Depends(browser_request)])

@@ -2,9 +2,13 @@
 from urllib.parse import quote
 from fastapi import HTTPException, Response
 from app.modules.files.streaming import OwnedStreamResponse
+from app.overseas import image_delivery
 
 
-def deliver(store, record, *, head=False, preview=False):
+def deliver(store, record, *, head=False, preview=False, thumbnail=False, if_none_match=None):
+    if record.content_type in image_delivery.IMAGE_TYPES or thumbnail:
+        return image_delivery.deliver(store, record, head=head, preview=preview,
+                                      thumbnail=thumbnail, if_none_match=if_none_match)
     if preview and record.content_type not in ('image/jpeg', 'image/png', 'image/webp'):
         raise HTTPException(422, '仅支持图片预览')
     disposition = 'inline' if preview else 'attachment'

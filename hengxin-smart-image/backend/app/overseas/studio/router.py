@@ -93,20 +93,24 @@ async def upload(request: Request, task_id: UUID, actor: CurrentMember, session:
 
 
 @router.get('/files/{file_id}/content')
-def content(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database,
-            store=Depends(get_store), preview: bool = False):
-    return files.content(session, store, actor, task_id, file_id, preview=preview)
+def content(request: Request, task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database,
+            store=Depends(get_store), preview: bool = False, thumbnail: bool = False):
+    return files.content(session, store, actor, task_id, file_id, preview=preview,
+                         thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))
 
 
 @router.head('/files/{file_id}/content')
-def preflight(task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database,
-              store=Depends(get_store), preview: bool = False):
-    return files.content(session, store, actor, task_id, file_id, head=True, preview=preview)
+def preflight(request: Request, task_id: UUID, file_id: UUID, actor: CurrentMember, session: Database,
+              store=Depends(get_store), preview: bool = False, thumbnail: bool = False):
+    return files.content(session, store, actor, task_id, file_id, head=True, preview=preview,
+                         thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))
 
 
 @router.get('/pictures/{picture_id}/content')
-def picture(task_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database, store=Depends(get_store)):
-    return files.content(session, store, actor, task_id, picture_id, True)
+def picture(request: Request, task_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database,
+            store=Depends(get_store), thumbnail: bool = False):
+    return files.content(session, store, actor, task_id, picture_id, True,
+                         thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))
 
 
 @router.get('/outputs/{file_id}/content')
@@ -122,6 +126,7 @@ def output_preflight(task_id: UUID, file_id: UUID, actor: CurrentMember, session
 
 
 @router.head('/pictures/{picture_id}/content')
-def picture_preflight(task_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database,
-                      store=Depends(get_store)):
-    return files.content(session, store, actor, task_id, picture_id, True, head=True)
+def picture_preflight(request: Request, task_id: UUID, picture_id: UUID, actor: CurrentMember, session: Database,
+                      store=Depends(get_store), thumbnail: bool = False):
+    return files.content(session, store, actor, task_id, picture_id, True, head=True,
+                         thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))

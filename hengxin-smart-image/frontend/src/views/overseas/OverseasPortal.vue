@@ -31,7 +31,9 @@ import { createMaterialsApi, type MaterialsApi } from '@/api/overseas/materials'
 import { createTasksApi, type TasksApi } from '@/api/overseas/tasks'
 import AccountPage from '../codex-auth/AccountPage.vue'
 import { createCodexAuthApi, type CodexAuthApi } from '@/api/codex-auth'
+import { overseasImageCache } from '@/api/overseas/image-cache'
 const props = defineProps<{ member: Member }>()
+watch(() => `${props.member.id}:${props.member.identitySessionId}`, value => overseasImageCache.setIdentity(value), { immediate: true, flush: 'sync' })
 const emit = defineEmits<{ switch: []; logout: []; member: [member: Member]; failure: [reason: unknown] }>()
 const route = useRoute(), router = useRouter(), menus = useMenuStore(), tabs = useWorktabStore()
 const allowed = computed(() => props.member.capabilities?.includes('members.manage') === true)
@@ -160,5 +162,5 @@ const codexAdapter: CodexAuthApi = {
   remove: revision => managementCall('settings.manage', () => codexApi.remove(revision))
 }
 watch(() => useSettingStore().refresh, () => { refreshKey.value++ })
-onUnmounted(() => { active = false; menus.setMenuList([]); tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = [] })
+onUnmounted(() => { overseasImageCache.setIdentity(''); active = false; menus.setMenuList([]); tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = [] })
 </script>

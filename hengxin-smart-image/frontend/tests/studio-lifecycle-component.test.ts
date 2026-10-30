@@ -6,6 +6,7 @@ import { IdentityError } from '../src/api/identity/request'
 import { archiveError } from '../src/api/overseas/archives'
 import type { Studio } from '../src/api/overseas/studio'
 import { handleStudioSendKey } from '../src/views/overseas/studio/studio-send-key'
+import { useImagePrefetch } from '../src/views/overseas/studio/use-image-prefetch'
 
 const node = (tag: string, value = ''): Node & { querySelector: () => null } => ({ tag, text: value, props: {}, children: [], parent: null, querySelector: () => null })
 const renderer = Vue.createRenderer<Node, Node>({
@@ -39,6 +40,7 @@ const detail = compile('views/overseas/OverseasArchiveDetail.vue', {
 })
 const unused = () => undefined
 const component = compile('views/overseas/studio/OverseasStudio.vue', {
+  './use-image-prefetch': { useImagePrefetch },
   'vue-router': { useRoute: () => route, useRouter: () => router },
   '@/api/overseas/archives': { createArchivesApi: () => archiveApi }, '@/api/identity/request': { IdentityError }, '../OverseasArchiveDetail.vue': { default: detail },
   './studio.css': {}, './studio-sessions.css': {}, './studio-send-key': { handleStudioSendKey },

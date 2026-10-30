@@ -1,5 +1,6 @@
 """Image-only inline delivery keeps authentication, bounded streaming and download defaults."""
 from io import BytesIO
+from hashlib import sha256
 from uuid import UUID
 
 import pytest
@@ -50,6 +51,7 @@ def test_image_preview_get_head_and_download(studio, monkeypatch, source, extens
         with factory.begin() as session:
             row = session.get(Material, UUID(material['id']))
             row.content_type, row.name, row.size_bytes = content_type, '图片.' + extension, len(data)
+            row.checksum = sha256(data).hexdigest()
             store.put(row, data)
         url = ROOT + '/materials/' + material['id'] + '/content'
     opened = []
@@ -66,7 +68,10 @@ def test_image_preview_get_head_and_download(studio, monkeypatch, source, extens
     assert image.headers['content-type'] == content_type
     assert image.headers['content-disposition'] == head.headers['content-disposition']
     assert image.headers['x-content-type-options'] == 'nosniff'
-    assert 'no-store' in image.headers['cache-control']
+    assert image.headers['cache-control'] == 'private, no-cache'
+    assert image.headers['etag'] == '"' + sha256(data).hexdigest() + '"'
+    assert image.headers['etag'] == head.headers['etag']
+    assert set(image.headers['vary'].lower().replace(' ', '').split(',')) == {'cookie', 'authorization'}
     assert client.get(url).headers['content-disposition'].startswith('attachment')
     assert client.head(url).headers['content-disposition'].startswith('attachment')
     change_roles(factory, actor, ('designer',))

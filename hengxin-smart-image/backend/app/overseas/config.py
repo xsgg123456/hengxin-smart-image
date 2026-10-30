@@ -21,6 +21,8 @@ class OverseasSettings(Settings):
     skill_install_root: str = Field(min_length=1)
     local_skill_root: str = Field(min_length=1)
     generation_concurrency: int = Field(default=5, ge=1, le=5)
+    codex_timeout_seconds: int = Field(default=7200, ge=10, le=7200)
+    queue_visibility_seconds: int = Field(default=7800, ge=60, le=86400)
     db_application_name: str = Field(default='hx-overseas', pattern=r'^[a-z][a-z0-9-]{0,39}$')
     worker_node_name: str = 'overseas-worker-1'
     bootstrap_admin_corp_id: str = ''

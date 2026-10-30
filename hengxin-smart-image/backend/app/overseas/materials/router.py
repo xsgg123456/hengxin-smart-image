@@ -38,15 +38,17 @@ def delete(material_id: UUID, actor: CurrentMember, session: Database, store=Dep
 
 
 @router.get('/materials/{material_id}/content')
-def content(material_id: UUID, actor: CurrentMember, session: Database,
-            store=Depends(get_store), preview: bool = False):
-    return files.content(session, store, actor, material_id, preview=preview)
+def content(request: Request, material_id: UUID, actor: CurrentMember, session: Database,
+            store=Depends(get_store), preview: bool = False, thumbnail: bool = False):
+    return files.content(session, store, actor, material_id, preview=preview,
+                         thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))
 
 
 @router.head('/materials/{material_id}/content')
-def preflight(material_id: UUID, actor: CurrentMember, session: Database,
-              store=Depends(get_store), preview: bool = False):
-    return files.content(session, store, actor, material_id, head=True, preview=preview)
+def preflight(request: Request, material_id: UUID, actor: CurrentMember, session: Database,
+              store=Depends(get_store), preview: bool = False, thumbnail: bool = False):
+    return files.content(session, store, actor, material_id, head=True, preview=preview,
+                         thumbnail=thumbnail, if_none_match=request.headers.get('if-none-match'))
 
 
 @router.get('/tasks/{task_id}/materials')

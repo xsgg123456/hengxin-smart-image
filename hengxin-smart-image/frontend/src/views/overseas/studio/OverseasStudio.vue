@@ -69,6 +69,7 @@ import StudioMaterials from './StudioMaterials.vue'
 import StudioSkillSelect from './StudioSkillSelect.vue'
 import StudioTextEditor from './StudioTextEditor.vue'
 import { useStudioSessions } from './use-studio-sessions'
+import { useImagePrefetch } from './use-image-prefetch'
 import StudioSessionList from './StudioSessionList.vue'
 import type { SessionView } from './studio-session-state'
 import './studio-sessions.css'
@@ -77,6 +78,7 @@ const props = defineProps<{ actorId: string; task: TaskDetail }>()
 const emit = defineEmits<{ failure: [reason: unknown]; changed: [] }>()
 const { data, text, skill, attachments, references, revisions, revisionError, skillError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, removeMaterials, removingMaterials, materialNotice, draftNotice, sessions, activeId, currentSession, runningCount, canManage, sessionBusy, sessionError, sessionPending, retrySession, preferenceNotice, selectSession, renameConversation, deleteConversation, saveScroll, scrollPosition } = useStudioSessions(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
 const completed = computed(() => data.value?.completed ?? props.task.status === 'completed')
+useImagePrefetch(() => `${props.actorId}:${props.task.id}:${activeId.value}`, () => data.value?.conversationId === activeId.value ? data.value : undefined, () => [...attachments.value, ...references.value])
 watch(materialNotice, value => { if (value) ElMessage.info(value) })
 async function confirmRemoveMaterial(asset: Asset) {
   if (locked.value) return
