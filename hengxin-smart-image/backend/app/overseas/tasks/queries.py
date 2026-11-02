@@ -31,7 +31,7 @@ def summary(session, task, principal):
     deletion = session.get(TaskDeletion, task.id)
     skus = session.scalars(select(TaskSku).where(TaskSku.task_id == task.id).order_by(TaskSku.position))
     result = {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
-            'brand': task.brand, 'platform': task.platform, 'market': task.market,
+            'brand': task.brand, 'platform': task.platform, 'language': task.language, 'market': task.market,
             'remarks': task.remarks, 'skus': [{'code': item.code} for item in skus],
             'workflow': task.workflow, 'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
             'updatedAt': task.updated_at, 'createdBy': {'id': str(creator.id), 'name': creator.name},

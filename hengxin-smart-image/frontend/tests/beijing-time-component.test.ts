@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import * as Languages from '../src/views/overseas/languages'
 import * as Tasks from '../src/api/overseas/tasks'
 import { compile, mount, table, text } from './membership-test-harness'
 
@@ -22,7 +23,7 @@ test('实际海外列表 SFC 将原始 UTC 列渲染为北京时间', () => {
 })
 
 test('实际任务信息 SFC 的提交、审核、事件时间均转换且不泄漏 ISO', () => {
-  const view = mount(compile('views/overseas/OverseasTaskInfo.vue', {}), { task })
+  const view = mount(compile('views/overseas/OverseasTaskInfo.vue', { './languages': Languages }), { task })
   try {
     assert.equal(text(view.root).match(/2026-10-14 08:59:59/g)?.length, 3)
     assert.ok(!text(view.root).includes(timestamp))

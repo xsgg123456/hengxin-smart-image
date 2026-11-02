@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { parse, compileScript } from '@vue/compiler-sfc'
 import ts from 'typescript'
 import * as Vue from 'vue'
+import * as Languages from '../src/views/overseas/languages'
 import * as Tasks from '../src/api/overseas/tasks'
 import * as Archives from '../src/api/overseas/archives'
 import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
@@ -34,6 +35,7 @@ function component(name: string): Vue.Component {
     if (path === '../platforms') return { OVERSEAS_PLATFORMS }
     if (path.endsWith('OverseasSkillPlatformsDialog.vue')) return { default: stub('PlatformDialog'), __esModule: true }
     if (path === 'vue') return Vue
+    if (path === './languages') return Languages
     if (path === 'element-plus') return { ElImageViewer: stub('ElImageViewer') }
     if (path.endsWith('/use-archive-image')) return { useArchiveImage }
     if (path === '@/utils/beijing-time') return BeijingTime

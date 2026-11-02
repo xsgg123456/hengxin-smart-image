@@ -71,7 +71,7 @@ def test_concurrent_resubmit_preserves_one_submission(pending_pg):
     with factory() as session:
         task = session.get(Task, task_id)
         body = ResubmitTask(name=task.name, productName=task.product_name, brand=task.brand,
-            platform=task.platform, market=task.market, remarks='修订', skus=[{'code': 'NEW'}],
+            platform=task.platform, language=task.language, market=task.market, remarks='修订', skus=[{'code': 'NEW'}],
             designerId=designer, materialIds=[material], version=3)
     barrier = Barrier(2)
     def act(index):

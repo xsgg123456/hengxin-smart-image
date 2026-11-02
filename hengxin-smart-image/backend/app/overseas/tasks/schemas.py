@@ -20,6 +20,7 @@ class CreateTask(StrictBody):
     brand: Text60
     platform: Literal['Amazon', 'Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot',
                       'TikTok Shop', 'Shopee', 'Lazada', '其他']
+    language: Literal['en', 'de', 'fr', 'es']
     market: str = Field(default='', max_length=60)
     remarks: str = Field(default='', max_length=1000)
     skus: list[Sku] = Field(min_length=1, max_length=100)

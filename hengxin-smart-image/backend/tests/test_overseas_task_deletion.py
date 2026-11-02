@@ -102,6 +102,9 @@ def test_delete_cleans_task_and_exact_archived_versions_survive(deletion, count)
         view = client.get(ROOT + '/archives/' + archive['id']).json()
         assert view['sourceDeleted'] and view['taskId'] is None and view['pictureCount'] == count
         assert view['skus'] == [{'code': 'A'}, {'code': 'B'}]
+        assert view['taskName'] == task['name'] and view['language'] == task['language']
+        assert view['platform'] == task['platform'] and view['brand'] == task['brand']
+        assert view['productName'] == task['productName']
         assert [sha256(client.get(row['url']).content).hexdigest() for row in view['pictures']] == before
         zipped = client.get(ROOT + '/archives/' + archive['id'] + '/download')
         with ZipFile(BytesIO(zipped.content)) as bundle:

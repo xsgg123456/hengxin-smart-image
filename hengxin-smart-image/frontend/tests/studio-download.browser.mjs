@@ -97,7 +97,7 @@ try {
   await page.getByRole('heading', { name: '提交图需', exact: true }).waitFor()
   const field = label => page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: label }) })
   assert.equal(await field('任务名称').locator('input').getAttribute('placeholder'), null)
-  assert.ok((await field('目标平台').textContent()).includes('亚马逊/Amazon'))
+  assert.ok((await field('目标平台').textContent()).includes('请选择目标平台'))
   await field('目标平台').locator('.el-select').click()
   await page.locator('.el-select-dropdown__item:visible').first().waitFor()
   assert.deepEqual(await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').allTextContents(), ['亚马逊/Amazon','威费尔/Wayfair','美客多/Mercado Libre','沃尔玛/Walmart','家得宝/The Home Depot','虾皮/Shopee'])

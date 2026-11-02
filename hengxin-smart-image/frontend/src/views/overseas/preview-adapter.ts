@@ -55,14 +55,17 @@ export const emptyDraft = (): Draft => ({
   name: "",
   productName: "",
   brand: "HENGXIN",
-  platform: "Amazon",
-  market: "美国站 · 英语",
+  platform: "",
+  language: "",
+  market: "",
   skus: [{ code: "" }],
   remarks: "",
   files: [],
 });
 export const exampleDraft = (): Draft => ({
   ...emptyDraft(),
+  platform: "Amazon",
+  language: "en",
   name: "透明磁吸保护壳 · Amazon 美国站",
   productName: "透明磁吸保护壳",
   skus: [

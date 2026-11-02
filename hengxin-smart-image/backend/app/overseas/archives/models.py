@@ -10,6 +10,8 @@ class Archive(Timestamps, Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID | None] = mapped_column(ForeignKey('overseas_tasks.id'), unique=True)
     versions: Mapped[list] = mapped_column(JSON)
+    task_name: Mapped[str | None] = mapped_column(String(80))
+    language: Mapped[str | None] = mapped_column(String(2))
     product_name: Mapped[str | None] = mapped_column(String(80))
     brand: Mapped[str | None] = mapped_column(String(60))
     platform: Mapped[str | None] = mapped_column(String(40))

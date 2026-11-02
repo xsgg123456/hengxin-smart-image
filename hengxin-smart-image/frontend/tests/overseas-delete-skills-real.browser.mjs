@@ -84,7 +84,7 @@ try {
   } else { assert.equal(await page.getByRole('option').count(), 0); await page.keyboard.press('Escape') }
   checks.push('真实Skill状态只读、工作台仅列出开启项且可选择，390px描述与刷新完整可见')
   const designers = await call(context, 'get', '/task-designers'), name = `浏览器删除隔离任务-${Date.now()}`
-  const task = await call(context, 'post', '/tasks', { name, productName: '隔离产品', brand: 'UI-TEST', platform: 'Amazon', market: '美国', remarks: '只做删除验收，不生成图片', skus: [{code:'DELETE-ONLY'}], designerId: designers.items[0].id })
+  const task = await call(context, 'post', '/tasks', { name, productName: '隔离产品', brand: 'UI-TEST', platform: 'Amazon', language: 'en', market: '美国', remarks: '只做删除验收，不生成图片', skus: [{code:'DELETE-ONLY'}], designerId: designers.items[0].id })
   await page.goto(`${base}/#/overseas/tasks`); await page.getByRole('textbox', { name: '搜索任务', exact: true }).fill(name)
   const row = page.getByRole('row').filter({ hasText: name }); await button('删除', row).click()
   const deletion = page.getByRole('dialog', { name: '永久删除任务', exact: true }); await deletion.getByText(/已归档成品保留/).waitFor()

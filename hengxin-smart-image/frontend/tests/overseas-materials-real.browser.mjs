@@ -20,7 +20,7 @@ try {
     sessions[role] = { context, page, member: await (await api(context, 'get', '/auth/me')).json() }
   }
   const { page, context } = sessions.operator
-  const draft = { name: `资料补充-${Date.now()}`, productName: '手机壳', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'P20-A' }], designerId: sessions.designer.member.id }
+  const draft = { name: `资料补充-${Date.now()}`, productName: '手机壳', brand: 'HX', platform: 'Amazon', language: 'en', market: '美国', remarks: '', skus: [{ code: 'P20-A' }], designerId: sessions.designer.member.id }
   const metadata = await api(context, 'post', '/tasks', draft, crypto.randomUUID()); assert.equal(metadata.status(), 201); const task = await metadata.json(); assert.equal(task.status, 'created')
   await page.goto(`${base}/#/overseas/tasks/${task.id}`); await button(page, '提交补充资料').waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), true)
   await upload(page, '旧资料.pptx', 'original', 'requirement'); await page.getByText('旧资料.pptx', { exact: true }).waitFor(); assert.equal(await button(page, '提交补充资料').isDisabled(), false)

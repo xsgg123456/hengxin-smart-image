@@ -4,6 +4,7 @@ import { prepareStudioDownload } from '../src/api/overseas/studio-download'
 import { createImageCache } from '../src/api/overseas/image-cache'
 import { compile, mount, click, all, simple, flush } from './membership-test-harness'
 import { emptyTaskDraft } from '../src/api/overseas/tasks'
+import * as Languages from '../src/views/overseas/languages'
 import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
 import * as types from '../src/views/overseas/types'
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=', 'base64')
@@ -64,9 +65,9 @@ test('下载按钮空选禁用，忙碌防重复，失败可重试，卸载不�
   click(retried.root, '下载所选图片（2）'); await flush(); assert.equal(saves, 1); retried.close()
 })
 test('图需表单保持默认及历史值，平台顺序与品牌下拉按要求', () => {
-  const component = compile('views/overseas/OverseasCreate.vue', { './platforms': { OVERSEAS_PLATFORMS }, './types': types })
+  const component = compile('views/overseas/OverseasCreate.vue', { './languages': Languages, './platforms': { OVERSEAS_PLATFORMS }, './types': types })
   Object.assign(component, { components: { ElStep: simple('ElStep'), ElSteps: simple('ElSteps') } })
-  const draft = emptyTaskDraft(); assert.equal(draft.brand, ''); assert.equal(draft.platform, 'Amazon')
+  const draft = emptyTaskDraft(); assert.equal(draft.brand, ''); assert.equal(draft.platform, '')
   for (const legacy of [false, true]) {
     const modelValue = legacy ? { ...draft, platform: '旧平台', brand: '旧品牌' } : draft
     const view = mount(component, { modelValue, allowed: true })

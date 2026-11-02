@@ -76,12 +76,14 @@ def test_reject_resubmit_replace_and_preserve_evidence(materials):
     assert post(client, task, '/analysis', {'version': 2}).status_code == 409
     newer = upload(client, b'name,value\nnew,99\n').json()
     body = {**payload(designer), 'name': '修订商品', 'skus': [{'code': 'NEW'}],
-            'version': 2, 'materialIds': [newer['id']]}
+            'version': 2, 'materialIds': [newer['id']], 'language': 'de'}
     response = post(client, task, '/resubmit', body, 'resubmit')
     assert response.status_code == 200, response.text
     resubmitted = response.json()
     assert resubmitted['status'] == 'pending_review' and resubmitted['version'] == 3
     assert resubmitted['skus'] == [{'code': 'NEW'}]
+    assert resubmitted['language'] == 'de'
+    assert resubmitted['requirementsReviews'][0]['submission']['language'] == 'en'
     assert resubmitted['requirementsReviews'][0]['materialIds'] == [original['id']]
     assert resubmitted['requirementsReviews'][0]['submission']['skus'] == [{'code': 'A'}, {'code': 'B'}]
     assert post(client, task, '/resubmit', body, 'resubmit').json() == resubmitted

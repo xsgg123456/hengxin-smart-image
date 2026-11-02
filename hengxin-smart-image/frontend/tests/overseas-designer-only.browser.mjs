@@ -14,11 +14,11 @@ page.on('pageerror', e => errors.push(e.message))
 let role = 'designer', canReview = false, failCreate = true, failResubmit = true
 const memberCaps = () => ['task.read', 'task.create', 'task.design', ...(role === 'super_admin' ? ['members.manage'] : [])]
 const taskCaps = () => ['task.read', 'task.requirements.resubmit', ...(canReview ? ['task.requirements.review'] : [])]
-const task = { id: 't', name: '审核流程验收', productName: '落地灯', brand: 'OUTON', platform: 'Amazon', market: '历史站点', remarks: '历史补充说明不展示也不回传', skus: [{ code: 'A' }], workflow: 'studio', status: 'pending_review', version: 1, createdAt: '2026-11-02', updatedAt: '2026-11-02', createdBy: { id: 'd', name: '提交设计' }, designer: { id: 'other', name: '负责设计', status: 'active', eligible: true }, capabilities: taskCaps(), events: [], requirementsReviews: [] }
+const task = { id: 't', name: '审核流程验收', productName: '落地灯', brand: 'OUTON', platform: 'Amazon', language: 'en', market: '历史站点', remarks: '历史补充说明不展示也不回传', skus: [{ code: 'A' }], workflow: 'studio', status: 'pending_review', version: 1, createdAt: '2026-11-02', updatedAt: '2026-11-02', createdBy: { id: 'd', name: '提交设计' }, designer: { id: 'other', name: '负责设计', status: 'active', eligible: true }, capabilities: taskCaps(), events: [], requirementsReviews: [] }
 const material = { id: 'm', kind: 'competitor', name: '图需.csv', sizeBytes: 12, contentType: 'text/csv', taskId: null, createdAt: '2026-11-02', status: 'ready' }
 const button = name => page.getByRole('button', { name, exact: true })
 const field = label => page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').getByText(label, { exact: true }) })
-const labels = ['SKU 1', '目标平台', '品牌', '任务名称', '品名', '负责设计']
+const labels = ['SKU 1', '目标平台', '品牌', '任务名称', '品名', '语言', '负责设计']
 async function checkForm() {
   await page.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).waitFor()
   assert.deepEqual(await page.locator('.hx-create-grid .el-form-item__label').allTextContents(), labels)
@@ -81,6 +81,8 @@ try {
   await button('添加 SKU').click(); await page.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('B')
   await page.locator('.sku-row').nth(1).getByRole('button', { name: '移除', exact: true }).click(); await checkForm()
   await button('添加 SKU').click(); await page.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('B')
+  await field('目标平台').locator('.el-select').click(); await page.getByRole('option', { name: '亚马逊/Amazon', exact: true }).click()
+  await field('语言').locator('.el-select').click(); await page.getByRole('option', { name: '英语', exact: true }).click()
   await field('品牌').locator('.el-select').click(); await page.getByRole('option', { name: 'OUTON', exact: true }).click()
   await field('任务名称').locator('input').fill('设计人员提交验收'); await field('品名').locator('input').fill('落地灯')
   await field('负责设计').locator('.el-select').click(); await page.getByRole('option', { name: '负责设计', exact: true }).click()

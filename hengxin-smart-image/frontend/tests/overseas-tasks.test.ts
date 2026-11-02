@@ -24,7 +24,7 @@ test('失败请求相同内容重试使用同key，改内容新key，成功清�
   assert.equal(keys.for({ a: 1 }), '1'); keys.clear(); assert.equal(keys.for({ a: 1 }), '3')
 })
 test('必选设计、多SKU、空白与重复校验，不接受假详情', () => {
-  const draft = { ...emptyTaskDraft(), remarks: '', name: '任务', productName: '品名', brand: '品牌', market: '美国', designerId: 'd', skus: [{ code: 'A' }, { code: 'B' }] }
+  const draft = { ...emptyTaskDraft(), remarks: '', name: '任务', productName: '品名', platform: 'Amazon', language: 'en', brand: '品牌', market: '美国', designerId: 'd', skus: [{ code: 'A' }, { code: 'B' }] }
   assert.doesNotThrow(() => validateDraft(draft))
   assert.throws(() => validateDraft({ ...draft, designerId: '' }), /指定设计/)
   assert.throws(() => validateDraft({ ...draft, skus: [{ code: 'A' }, { code: ' a ' }] }), /重复/)
@@ -33,7 +33,7 @@ test('必选设计、多SKU、空白与重复校验，不接受假详情', () =>
   for (const value of [{ ...task, version: 0 }, { ...task, capabilities: null }, { ...task, events: [{}] }, { ...task, designer: { ...task.designer, eligible: undefined } }]) assert.equal(isTaskDetail(value), false)
 })
 test('新建无需站点，目标平台仍必填，修改请求保留历史站点', async () => {
-  const draft = { ...emptyTaskDraft(), remarks: '', name: '任务', productName: '品名', brand: 'OUTON', designerId: 'd', skus: [{ code: 'A' }] }
+  const draft = { ...emptyTaskDraft(), remarks: '', name: '任务', productName: '品名', platform: 'Amazon', language: 'en', brand: 'OUTON', designerId: 'd', skus: [{ code: 'A' }] }
   assert.doesNotThrow(() => validateDraft(draft))
   assert.throws(() => validateDraft({ ...draft, platform: '' }), /必填/)
   const bodies: Record<string, unknown>[] = []
@@ -56,4 +56,20 @@ test('新建与重提请求不发送历史补充说明，响应仍保留历史�
   assert.equal((await api.create(draft, 'new')).remarks, '旧资料')
   assert.equal((await api.resubmit('task/1', draft, 1, 'edit')).remarks, '旧资料')
   assert.ok(bodies.every(body => !Object.hasOwn(body, 'remarks')))
+})
+
+test('语言四值写入与历史读取兼容；缺省、空和非法写入不可提交', async () => {
+  const draft = { ...emptyTaskDraft(), name: '任务', productName: '品名', platform: 'Amazon', brand: 'OUTON', designerId: 'd', skus: [{ code: 'A' }] }
+  assert.equal(emptyTaskDraft().language, ''); assert.equal(emptyTaskDraft().platform, '')
+  const bodies: Record<string, unknown>[] = []
+  const api = createTasksApi(async (_url, options) => { bodies.push(JSON.parse(String(options?.body))); return json(task) })
+  for (const language of ['en', 'de', 'fr', 'es']) {
+    assert.doesNotThrow(() => validateDraft({ ...draft, language }))
+    await api.create({ ...draft, language }, language)
+    await api.resubmit(task.id, { ...draft, language }, 1, language)
+  }
+  assert.deepEqual(bodies.map(body => body.language), ['en','en','de','de','fr','fr','es','es'])
+  for (const language of ['', 'zh', 'EN', ' en ', null, undefined]) assert.throws(() => validateDraft({ ...draft, language } as typeof draft), /请选择语言/)
+  for (const language of [null, undefined, 'en']) assert.equal(isTaskDetail({ ...task, language }), true)
+  for (const language of [3, {}, []]) assert.equal(isTaskDetail({ ...task, language }), false)
 })

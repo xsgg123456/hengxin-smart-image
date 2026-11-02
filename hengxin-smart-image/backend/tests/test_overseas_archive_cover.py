@@ -2,6 +2,7 @@
 from uuid import UUID
 from sqlalchemy import delete, select
 from app.overseas.archives.models import ArchiveAsset
+from app.overseas.tasks.models import Task
 from app.overseas.tasks.cleanup import cleanup_once
 from test_overseas_task_deletion import deletion, generated, archived, request
 from test_overseas_studio import studio
@@ -53,3 +54,21 @@ def test_cover_content_cannot_be_read_under_another_archive(deletion):
     archive = archived(deletion, generated(deletion))
     url = archive['cover']['url'].replace(archive['id'], '00000000-0000-0000-0000-000000000000')
     assert client.get(url).status_code == 404
+
+
+def test_archive_metadata_is_captured_once_including_unknown_language(deletion):
+    client, factory, _, task, _, store = deletion
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).language = None
+    archive = archived(deletion, generated(deletion))
+    assert archive['taskName'] == task['name'] and archive['language'] is None
+    with factory.begin() as session:
+        source = session.get(Task, UUID(task['id']))
+        source.name, source.language = '修改后的任务名称', 'fr'
+    view = client.get(ROOT + '/archives/' + archive['id']).json()
+    assert view['taskName'] == task['name'] and view['language'] is None
+    assert request(client, task).status_code == 200
+    assert cleanup_once(factory, store) == 1
+    detached = client.get(ROOT + '/archives/' + archive['id']).json()
+    assert detached['sourceDeleted'] and detached['taskName'] == task['name']
+    assert detached['language'] is None

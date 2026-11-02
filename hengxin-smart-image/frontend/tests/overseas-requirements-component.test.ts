@@ -8,6 +8,7 @@ import * as Tasks from '../src/api/overseas/tasks'
 import * as Requirements from '../src/views/overseas/requirements'
 import * as Types from '../src/views/overseas/types'
 import * as Platforms from '../src/views/overseas/platforms'
+import * as Languages from '../src/views/overseas/languages'
 import { IdentityError } from '../src/api/identity/request'
 interface Node { tag: string; children: Node[]; parent: Node | null; props: Record<string, unknown>; text: string }
 const node = (text = '', tag = ''): Node => ({ tag, children: [], parent: null, props: {}, text })
@@ -34,6 +35,7 @@ function mount(name: string, props: Record<string, unknown>, confirm: () => Prom
     if (path.endsWith('/request')) return { IdentityError }
     if (path === './types') return Types
     if (path === './platforms') return Platforms
+    if (path === './languages') return Languages
     if (path === './requirements') return Requirements
     if (path.endsWith('.vue')) return { default: stub(path), __esModule: true }
     throw Error(path)
@@ -44,7 +46,7 @@ function mount(name: string, props: Record<string, unknown>, confirm: () => Prom
   const root = node(); app.mount(root)
   return { app, root, find: (tag: string) => flatten(root).find(n => n.tag === tag)!, click: async (label: string) => { const button = flatten(root).find(n => n.tag === 'ElButton' && textOf(n) === label); assert.ok(button, label); assert.ok(!button.props.disabled); (button.props.onClick as () => void)(); await flush() } }
 }
-const task = (status: Tasks.TaskDetail['status'] = 'pending_review'): Tasks.TaskDetail => ({ ...Tasks.emptyTaskDraft(), remarks: '', name: '任务', productName: '壳', brand: 'HX', market: '美国', skus: [{code:'A'}], id:'t', version:3,status,createdAt:'2026-10-13',updatedAt:'2026-10-13',createdBy:{id:'o',name:'运营'},designer:{id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.requirements.review','task.requirements.resubmit'],events:[], requirementsReviews:[], remarks:'历史补充说明不得展示或覆盖' })
+const task = (status: Tasks.TaskDetail['status'] = 'pending_review'): Tasks.TaskDetail => ({ ...Tasks.emptyTaskDraft(), remarks: '', name: '任务', productName: '壳', brand: 'HX', platform: 'Amazon', language: 'de', market: '美国', skus: [{code:'A'}], id:'t', version:3,status,createdAt:'2026-10-13',updatedAt:'2026-10-13',createdBy:{id:'o',name:'运营'},designer:{id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.requirements.review','task.requirements.resubmit'],events:[], requirementsReviews:[], remarks:'历史补充说明不得展示或覆盖' })
 const parsed = {version:1,status:'ready',parserVersion:'test',text:'资料',error:null,createdAt:'2026-10-13'}
 const material = {...parsed,id:'m',kind:'requirement',name:'图需.pdf',sizeBytes:12,contentType:'application/pdf',taskId:'t',versions:[parsed]}
 test('实际审核SFC：退回必填、确认取消、409/网络失败保留意见和幂等、通过成功', async () => {
@@ -70,10 +72,10 @@ test('实际重提SFC：绑定资料保留、字段SKU回填、失败/409保留�
   let mode='network',refresh=0,changed=0; const bodies:Tasks.TaskDraft[]=[], keys:string[]=[]
   const api={async resubmit(_id:string,draft:Tasks.TaskDraft,_version:number,key:string){bodies.push(draft);keys.push(key);if(mode==='network')throw Error('网络失败');if(mode==='conflict')throw new IdentityError(409,'冲突');return task()}}
   const view=mount('OverseasRequirementsResubmit',{task:task('returned'),materials:[material],api,materialsApi:{},onRefresh:()=>refresh++,onChanged:()=>changed++})
-  const form=view.find('./OverseasCreate.vue'); const draft=form.props.modelValue as Tasks.TaskDraft; assert.equal(draft.designerId,'d');assert.equal(draft.skus[0].code,'A');draft.name='修改后的任务';draft.skus.push({code:'B'})
+  const form=view.find('./OverseasCreate.vue'); const draft=form.props.modelValue as Tasks.TaskDraft; assert.equal(draft.language,'de');assert.equal(draft.platform,'Amazon');assert.equal(draft.designerId,'d');assert.equal(draft.skus[0].code,'A');draft.name='修改后的任务';draft.skus.push({code:'B'})
   assert.equal(flatten(view.root).some(n=>n.tag==='./DesignerPicker.vue'),false)
   await view.click('重新提交设计审核');assert.equal(bodies[0].name,'修改后的任务');assert.deepEqual(bodies[0].materialIds,['m']);assert.equal(bodies[0].skus.length,2)
-  assert.equal(bodies[0].market, '美国')
+  assert.equal(bodies[0].market, '美国'); assert.equal(bodies[0].language, 'de')
   assert.equal(Object.hasOwn(bodies[0], 'remarks'), false)
   await view.click('重新提交设计审核');assert.equal(keys[0],keys[1]);assert.equal((view.find('./OverseasCreate.vue').props.modelValue as Tasks.TaskDraft).name,'修改后的任务')
   mode='conflict';await view.click('重新提交设计审核');assert.equal(refresh,1);assert.equal((view.find('./OverseasCreate.vue').props.modelValue as Tasks.TaskDraft).skus.length,2)
@@ -84,7 +86,7 @@ test('提交及修改共用表单移除站点，保留目标平台和历史值',
     const draft = { ...Tasks.emptyTaskDraft(), remarks: '', market: editing ? '美国' : '' }
     const view = mount('OverseasCreate', { modelValue: draft, allowed: true, editing })
     const labels = flatten(view.root).filter(n => n.tag === 'ElFormItem').map(n => n.props.label)
-    assert.deepEqual(labels, ['SKU 1', '目标平台', '品牌', '任务名称', '品名'])
+    assert.deepEqual(labels, ['SKU 1', '目标平台', '品牌', '任务名称', '品名', '语言'])
     assert.ok(!textOf(view.root).includes('补充说明'))
     assert.ok(!labels.some(label => String(label).includes('站点')))
     assert.equal(draft.market, editing ? '美国' : '')
@@ -101,4 +103,42 @@ test('实际重提SFC：无站点任务仍可提交', async () => {
   assert.equal(received?.market, '')
   assert.equal(received?.platform, 'Amazon')
   view.app.unmount()
+})
+
+test('共用真实SFC：平台和语言默认留空、语言必填且按四选项更新草稿', async () => {
+  const draft = Tasks.emptyTaskDraft()
+  const view = mount('OverseasCreate', { modelValue: draft, allowed: true })
+  try {
+    const fields = flatten(view.root).filter(n => n.tag === 'ElFormItem')
+    const platform = fields.find(n => n.props.label === '目标平台')!
+    const language = fields.find(n => n.props.label === '语言')!
+    assert.ok(Object.hasOwn(platform.props, 'required')); assert.ok(Object.hasOwn(language.props, 'required'))
+    const select = flatten(language).find(n => n.tag === 'ElSelect')!
+    assert.equal(draft.platform, ''); assert.equal(select.props.modelValue, '')
+    assert.equal(select.props.placeholder, '请选择语言')
+    assert.equal(flatten(platform).find(n => n.tag === 'ElSelect')?.props.placeholder, '请选择目标平台')
+    assert.deepEqual(flatten(language).filter(n => n.tag === 'ElOption').map(n => [n.props.value, n.props.label]), [['en','英语'],['de','德语'],['fr','法语'],['es','西班牙语']])
+    for (const code of ['en','de','fr','es']) {
+      ;(select.props['onUpdate:modelValue'] as (value: string) => void)(code); await flush()
+      assert.equal(draft.language, code)
+    }
+  } finally { view.app.unmount() }
+})
+
+test('实际重提SFC：历史缺语言拒绝提交，补选后保留历史平台成功', async () => {
+  for (const language of [null, undefined]) {
+    let received: Tasks.TaskDraft | undefined
+    const view = mount('OverseasRequirementsResubmit', {
+      task: { ...task('returned'), platform: 'TikTok Shop', language }, materials: [material], materialsApi: {},
+      api: { async resubmit(_id: string, draft: Tasks.TaskDraft) { received = draft; return task() } }
+    })
+    try {
+      const draft = view.find('./OverseasCreate.vue').props.modelValue as Tasks.TaskDraft
+      assert.equal(draft.platform, 'TikTok Shop'); assert.equal(draft.language, '')
+      await view.click('重新提交设计审核'); assert.equal(received, undefined)
+      assert.ok(flatten(view.root).some(n => n.props.title === '请选择语言（英语、德语、法语或西班牙语）'))
+      draft.language = 'es'; await view.click('重新提交设计审核')
+      assert.equal(received?.language, 'es'); assert.equal(received?.platform, 'TikTok Shop')
+    } finally { view.app.unmount() }
+  }
 })

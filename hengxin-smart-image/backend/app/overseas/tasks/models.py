@@ -15,6 +15,7 @@ class Task(Timestamps, Base):
     product_name: Mapped[str] = mapped_column(String(80))
     brand: Mapped[str] = mapped_column(String(60))
     platform: Mapped[str] = mapped_column(String(40))
+    language: Mapped[str | None] = mapped_column(String(2))
     market: Mapped[str] = mapped_column(String(60))
     remarks: Mapped[str] = mapped_column(Text, default='')
     created_by: Mapped[UUID] = mapped_column(ForeignKey('overseas_members.id'), index=True)

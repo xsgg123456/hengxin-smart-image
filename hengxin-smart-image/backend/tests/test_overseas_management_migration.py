@@ -46,7 +46,7 @@ def test_0008_upgrade_removes_usage_and_domestic_unchanged(disposable_databases)
         if name == 'overseas_jobs':
             assert after[1][name] == rows
         elif name == 'overseas_tasks':
-            assert after[1][name] == [(*row, False, None, 'legacy') for row in rows]
+            assert after[1][name] == [(*row, False, None, 'legacy', None) for row in rows]
         elif name == 'overseas_members':
             assert after[1][name] == [(*row, 'enrolled') for row in rows]
         elif name != 'overseas_alembic_version':

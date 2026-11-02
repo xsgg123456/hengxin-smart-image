@@ -55,7 +55,10 @@ try {
   await page.getByText('2026-10-14 08:59:59', { exact: true }).first().waitFor()
   await button('返回任务列表').click(); await button('提交图需').click()
   const input = label => page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: label }) }).locator('input')
-  await input('任务名称').fill('PPT图需'); await input('品名').fill('手机壳'); await input('品牌').fill('HX')
+  await input('任务名称').fill('PPT图需'); await input('品名').fill('手机壳');
+  for (const [label, value] of [['品牌','OUTON'],['目标平台','亚马逊/Amazon'],['语言','英语']]) {
+    await page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').getByText(label, { exact: true }) }).locator('.el-select').click(); await page.getByRole('option', { name: value, exact: true }).click()
+  }
   await page.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('A')
   assert.equal(await page.getByRole('textbox', { name: '搜索负责设计' }).count(), 0)
   await choose('设计一')

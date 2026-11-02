@@ -20,7 +20,7 @@ def add_member(factory, roles=('designer',), status='active', name='候选设计
 
 
 def payload(designer):
-    return dict(name=' 图需 ', productName='手机', brand='品牌', platform='Amazon', market='美国',
+    return dict(name=' 图需 ', productName='手机', brand='品牌', platform='Amazon', language='en', market='美国',
                 remarks='说明', skus=[{'code': ' A '}, {'code': 'B'}], designerId=str(designer))
 
 

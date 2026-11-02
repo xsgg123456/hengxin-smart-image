@@ -36,7 +36,7 @@ def test_upgrade_0004_preserves_existing_tasks(disposable_databases):
             after = snapshot(overseas_url)[1]
             for table, rows in before.items():
                 if table == 'overseas_tasks':
-                    assert after[table] == [(*row, False, None, 'legacy') for row in rows]
+                    assert after[table] == [(*row, False, None, 'legacy', None) for row in rows]
                 elif table == 'overseas_members':
                     assert after[table] == [(*row, 'enrolled') for row in rows]
                 elif table == 'overseas_task_requests':

@@ -1,5 +1,6 @@
 import type { AnnotationMark } from "../hengxin/components/annotation/annotation-model";
 import type { Draft, Material, Role, Task } from "./types";
+import { validateLanguage } from './languages';
 export function requireRole(role: Role, expected: Role) {
   const allowed = expected === "designer"
     ? ["designer", "design_manager", "super_admin"].includes(role)
@@ -25,6 +26,7 @@ export function validateDraft(d: Draft) {
     )
   )
     throw new Error("请填写任务名称、品名、品牌和平台");
+  validateLanguage(d.language);
   if (!d.skus.length || d.skus.some((s) => !s.code.trim()))
     throw new Error("请为每个 SKU 填写编码");
   if (

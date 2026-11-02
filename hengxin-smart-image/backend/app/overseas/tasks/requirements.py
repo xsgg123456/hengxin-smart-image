@@ -60,7 +60,7 @@ def review(session, actor, task_id, body, key, store=None):
     session.add(RequirementsReview(task_id=task.id, actor_id=actor.id, actor_name=actor.name,
         decision=body.decision, comment=body.comment, version=task.version,
         submission={'name': task.name, 'productName': task.product_name, 'brand': task.brand,
-            'platform': task.platform, 'market': task.market, 'remarks': task.remarks,
+            'platform': task.platform, 'language': task.language, 'market': task.market, 'remarks': task.remarks,
             'skus': [{'code': sku.code} for sku in skus], 'designerId': str(task.designer_id),
             'materialIds': list(task.material_ids or [])}))
     task.requirements_approved = body.decision == 'approve'
@@ -90,6 +90,7 @@ def resubmit(session, actor, task_id, body, key):
     bind(session, actor, task, body.materialIds, resubmit=True)
     task.name, task.product_name, task.brand = body.name, body.productName, body.brand
     task.platform = body.platform
+    task.language = body.language
     for field in ('market', 'remarks'):
         if field in body.model_fields_set:
             setattr(task, field, getattr(body, field))

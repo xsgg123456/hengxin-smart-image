@@ -19,7 +19,7 @@
           </div>
         </template>
       </OverseasRequirementsReview>
-      <div v-if="detail && !deleting && studio" class="hx-filter studio-task-meta"><span>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · {{ detail.market }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
+      <div v-if="detail && !deleting && studio" class="hx-filter studio-task-meta"><span>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · 语言：{{ languageLabel(detail.language) }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
       <OverseasStudio :actor-id="actorId" v-if="detail && !deleting && studio" :key="detail.id" :task="detail" @failure="failure" @changed="refreshDetail" />
       <OverseasTaskInfo v-if="detail && !deleting && !preReview && !studio" :task="detail" class="hx-gap">
         <template #assignment>
@@ -51,6 +51,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'
 import { cleanDraft, createRequestKeys, emptyTaskDraft, taskError, taskStatuses, taskDeletionActive, type TaskDeletion, validateDraft, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import { languageLabel } from './languages'
 import OverseasRequirementsReview from './OverseasRequirementsReview.vue'
 import OverseasRequirementsResubmit from './OverseasRequirementsResubmit.vue'
 import OverseasTaskDelete from './OverseasTaskDelete.vue'

@@ -14,7 +14,7 @@
         <p class="hx-footnote">提交人：{{ task.createdBy.name }}<br />负责设计：{{ task.designer.name }}</p>
         <ElAlert v-if="!task.designer.eligible || task.designer.status !== 'active'" title="当前负责设计已停用或不再具备设计资格，请联系主管改派。" type="warning" :closable="false" />
       </template>
-      <p class="hx-footnote">平台：{{ task.platform }}<br />站点 / 语言：{{ task.market }}</p>
+      <p class="hx-footnote">目标平台：{{ task.platform || '未设置' }}<br />语言：{{ languageLabel(task.language) }}</p>
       <slot name="assignment" />
       <slot name="materials" /></ElCard
     ><ElCard class="art-card" shadow="never"
@@ -28,6 +28,7 @@
 </template>
 <script setup lang="ts">
 import { formatBeijingTime } from '@/utils/beijing-time'
+import { languageLabel } from './languages'
 
 import type { Task } from "./types";
 import type { TaskDetail } from '@/api/overseas/tasks'

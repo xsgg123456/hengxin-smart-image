@@ -1600,3 +1600,6 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 
 
 2026-11-02 生产预检补充：首次prepare因API与native历史源码基线不同安全阻止，未变更线上。依消息元信息合同补充章节，分别固定真实运行基线；native最小补齐现有Skill平台筛选的models/skills依赖，19个API路径/18个native路径，其余源码和配置保持。真实native布局隔离测试、独立审查后重新提交发布。
+
+## 2026-11-02 · 图需语言及归档六字段
+按 docs/REQUIREMENT-LANGUAGE-20261102.md 四步实施：后端契约/持久化/迁移；前端必填选择与六字段展示；全回归及独立快照审查；中文提交、备份迁移、0.2.59生产发布与正式页面验收。各步骤以合同验收标准为准。状态：实施中。

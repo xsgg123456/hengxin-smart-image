@@ -5,6 +5,7 @@ import { compileScript, parse } from '@vue/compiler-sfc'
 import ts from 'typescript'
 import * as Vue from 'vue'
 import * as BeijingTime from '../src/utils/beijing-time'
+import * as Languages from '../src/views/overseas/languages'
 import * as Archives from '../src/api/overseas/archives'
 import { IdentityError } from '../src/api/identity/request'
 interface Node { tag: string; text: string; props: Record<string, unknown>; children: Node[]; parent: Node | null }
@@ -19,13 +20,13 @@ const renderer = Vue.createRenderer<Node, Node>({
 })
 const picture = { id: 'p', name: '真实图片.png', sku: 'SKU-A', width: 10, height: 10, contentType: 'image/png', sizeBytes: 12, url: Archives.archivePictureUrl('a', 'p') }
 const event = { id: 'e', actorId: 'actual', actorName: '实际确认者', at: '2026-10-19T01:02:03Z', pictures: [{ id: 'p', name: picture.name, sku: picture.sku }] }
-const fixture: Archives.ArchiveDetail = { id: 'a', taskId: 'task', sourceDeleted: false, productName: '真实品名', brand: '真实品牌', platform: 'Amazon', skus: [{ code: 'SKU-A' }], pictureCount: 1, createdAt: '2026-01-01T00:00:00Z', pictures: [picture], cover: picture, latestArchive: event, archiveHistory: [event], historyIncomplete: false }
+const fixture: Archives.ArchiveDetail = { id: 'a', taskId: 'task', sourceDeleted: false, taskName: '真实任务名称', language: 'fr', productName: '真实品名', brand: '真实品牌', platform: 'Amazon', skus: [{ code: 'SKU-A' }], pictureCount: 1, createdAt: '2026-01-01T00:00:00Z', pictures: [picture], cover: picture, latestArchive: event, archiveHistory: [event], historyIncomplete: false }
 let result = structuredClone(fixture), rejected = false, listEmpty = false
 const requestedPages: number[] = []
 const api = { get: async () => { if (rejected) throw new IdentityError(403, '暂无权限'); return structuredClone(result) }, list: async (query: { page: number }) => { requestedPages.push(query.page); return { items: listEmpty ? [] : [structuredClone(result)], total: listEmpty ? 0 : 21, page: query.page, pageSize: 20 } } }
 const simple = (name: string) => Vue.defineComponent({ name, setup(_p, { attrs, slots }) { return () => Vue.h(name, attrs, slots.default?.()) } })
 const deps: Record<string, unknown> = {
-  vue: Vue, 'vue-router': { useRouter: () => ({ push: () => undefined }) },
+  vue: Vue, './languages': Languages, 'vue-router': { useRouter: () => ({ push: () => undefined }) },
   '@/utils/beijing-time': BeijingTime, '@/api/identity/request': { IdentityError },
   '@/api/overseas/archives': { ...Archives, createArchivesApi: () => api }, '@/api/overseas/pictures': { saveBlob: () => undefined },
   './OverseasArchiveDelete.vue': { default: simple('Delete') }, './OverseasArchivePicture.vue': { default: simple('Picture') }, './OverseasArchiveViewer.vue': { default: simple('Viewer') }, './OverseasArchiveCover.vue': { default: simple('Cover') }
@@ -71,7 +72,7 @@ test('正式详情可展开实际操作历史、图片SKU及北京时区，未�
     const view = mount(detail, { id: 'a', api })
     try {
       await flush()
-      assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '平台', 'SKU', '归档人', '归档时间'])
+      assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['SKU', '目标平台', '品牌', '任务名称', '品名', '语言', '归档人', '归档时间']); assert.match(text(view.root), /任务名称真实任务名称/); assert.match(text(view.root), /语言法语/)
       assert.ok(all(view.root).some(n => n.tag === 'details'))
       if (known) { assert.match(text(view.root), /实际确认者.*2026-10-19 09:02:03/); assert.match(text(view.root), /真实图片.png · SKU：SKU-A/) }
       else { assert.match(text(view.root), /历史记录未记录/); assert.doesNotMatch(text(view.root), /实际确认者/) }
@@ -89,6 +90,21 @@ test('详情权限失效不残留归档人与图片历史', async () => {
     await (refresh.props.onClick as () => Promise<void>)(); await flush()
     assert.doesNotMatch(text(view.root), /实际确认者|真实图片.png/)
   } finally { view.close(); rejected = false }
+})
+
+test('归档六字段不从品名或旧站点猜任务名称和语言，删除来源仍独立显示', async () => {
+  for (const language of [null, undefined, 'unknown']) {
+    result = { ...fixture, taskId: null, sourceDeleted: true, taskName: null, language }
+    const view = mount(detail, { id: 'a', api })
+    try {
+      await flush()
+      const values = all(view.root).filter(n => n.tag === 'dd').map(text)
+      assert.deepEqual(values.slice(0, 6), ['SKU-A', 'Amazon', '真实品牌', '未设置', '真实品名', '未设置'])
+      assert.match(text(view.root), /原任务已删除/)
+    } finally { view.close() }
+  }
+  for (const language of [null, undefined, 'fr']) assert.equal(Archives.isArchive({ ...fixture, language, taskName: null }), true)
+  for (const extra of [{ language: 3 }, { taskName: {} }]) assert.equal(Archives.isArchive({ ...fixture, ...extra }), false)
 })
 
 

@@ -25,6 +25,7 @@ export interface Draft {
   productName: string;
   brand: string;
   platform: string;
+  language: string;
   market: string;
   skus: Sku[];
   remarks: string;

@@ -12,6 +12,7 @@ from .models import ArchiveAsset
 def metadata(session, record, task):
     # Initialize once; task reassignment transfers designer access in its transaction.
     if record.created_by is None:
+        record.task_name, record.language = task.name, task.language
         record.product_name, record.brand, record.platform = task.product_name, task.brand, task.platform
         record.created_by, record.designer_id = task.created_by, task.designer_id
         record.skus = [{'code': code} for code in session.scalars(select(TaskSku.code)

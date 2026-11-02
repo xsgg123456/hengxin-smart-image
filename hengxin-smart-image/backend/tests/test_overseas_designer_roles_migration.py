@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import MetaData, create_engine, select, text
 from sqlalchemy.exc import IntegrityError
 
-from test_overseas_database import BACKEND, disposable_databases, migration_environment, migrate, snapshot
+from test_overseas_database import BACKEND, disposable_databases, migration_environment, snapshot
 
 
 @pytest.mark.integration
@@ -55,7 +55,8 @@ def test_legacy_roles_convert_once_preserving_identity_status_tasks_and_history(
                 select(md.tables['overseas_member_roles'])).mappings()}
         original = snapshot(url)
         domestic_before = snapshot(domestic)
-        result = migrate(env)
+        result = subprocess.run([sys.executable, '-m', 'alembic', '-c', 'alembic.overseas.ini',
+            'upgrade', 'overseas_0024'], cwd=BACKEND, env=env, text=True, capture_output=True, timeout=90)
         assert result.returncode == 0, result.stderr
         after = snapshot(url)
         # Every other table, including audits, review snapshots, tasks and ownership, is identical.

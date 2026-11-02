@@ -41,10 +41,11 @@
             >
           </div>
           <div class="form-grid">
-            <ElFormItem label="目标平台" required><ElSelect v-model="draft.platform"><ElOption v-for="p in platformOptions" :key="p.value" :value="p.value" :label="p.label" /></ElSelect></ElFormItem>
+            <ElFormItem label="目标平台" required><ElSelect v-model="draft.platform" placeholder="请选择目标平台"><ElOption v-for="p in platformOptions" :key="p.value" :value="p.value" :label="p.label" /></ElSelect></ElFormItem>
             <ElFormItem label="品牌" required><ElSelect v-model="draft.brand" placeholder="请选择品牌"><ElOption v-for="brand in brandOptions" :key="brand" :value="brand" :label="brand" /></ElSelect></ElFormItem>
             <ElFormItem label="任务名称" required><ElInput v-model="draft.name" maxlength="80" /></ElFormItem>
             <ElFormItem label="品名" required><ElInput v-model="draft.productName" maxlength="80" /></ElFormItem>
+            <ElFormItem label="语言" required><ElSelect v-model="draft.language" placeholder="请选择语言"><ElOption v-for="language in OVERSEAS_LANGUAGES" :key="language.value" :value="language.value" :label="language.label" /></ElSelect></ElFormItem>
           </div>
           <slot name="designer" />
         </ElForm>
@@ -71,8 +72,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { OVERSEAS_PLATFORMS } from './platforms'
+import { OVERSEAS_LANGUAGES } from './languages'
 import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
-interface Fields { name: string; productName: string; brand: string; platform: string; market: string; skus: { code: string }[] }
+interface Fields { name: string; productName: string; brand: string; platform: string; language: string; market: string; skus: { code: string }[] }
 const draft = defineModel<Fields>({ required: true })
 const brands = ['OUTON', 'OUTONLIFE', 'BELEEV']
 const brandOptions = computed(() => !draft.value.brand || brands.includes(draft.value.brand) ? brands : [...brands, draft.value.brand])

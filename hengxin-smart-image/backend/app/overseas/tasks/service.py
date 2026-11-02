@@ -55,7 +55,7 @@ def create_task(session, actor, body, key):
         return result, False
     require_designer(session, body.designerId)
     task = Task(name=body.name, product_name=body.productName, brand=body.brand,
-                platform=body.platform, market=body.market, remarks=body.remarks,
+                platform=body.platform, language=body.language, market=body.market, remarks=body.remarks,
                 created_by=actor.id, designer_id=body.designerId, status='created', version=1, workflow='studio')
     session.add(task)
     session.flush()
