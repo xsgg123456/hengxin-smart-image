@@ -8,9 +8,11 @@ from fastapi import HTTPException
 from redis.exceptions import ConnectionError
 
 from app.core.config import get_settings
+from app.overseas.auth.models import Member
 from app.overseas.execution.models import Job
 from app.overseas.studio import recovery_listing, recovery_transport as transport
 from app.overseas.studio.models import OutputFile
+from app.overseas.tasks.models import Task
 from test_overseas_assignment import change_roles
 from test_overseas_studio_file_recovery import missed, studio, materials, overseas, listed, take, count
 
@@ -123,18 +125,40 @@ def test_native_reads_separate_disk_and_metadata_never_contains_original(remote)
     assert set(remote.redis.ttls.values()) == {transport.TTL}
 
 
+def revoke_access(remote, change):
+    if change in ('assignment', 'unrelated'):
+        with remote.factory.begin() as session:
+            task = session.get(Task, UUID(remote.task['id']))
+            task.designer_id = UUID(remote.task['designer']['id'])
+            if change == 'unrelated':
+                task.created_by = task.designer_id
+    elif change == 'disabled':
+        with remote.factory.begin() as session:
+            session.get(Member, remote.actor).status = 'disabled'
+    else:
+        assert change == 'no_role'
+        change_roles(remote.factory, remote.actor, ())
+
+
 @pytest.mark.parametrize('operation', ['available', 'receive'])
-def test_native_reauthorizes_after_api_releases_transaction(remote, operation):
+@pytest.mark.parametrize('change', ['assignment', 'unrelated', 'no_role', 'disabled'])
+def test_native_reauthorizes_after_api_releases_transaction(remote, operation, change):
     (remote.work / 'output.txt').write_bytes(b'original')
     choices = listed(remote)['items']
+    consumed = []
     def changed_permissions():
         # A separate transaction can write while the API waits.
-        change_roles(remote.factory, remote.actor, ('operator',))
-        transport.consume_once(remote.factory)
+        assert remote.redis.pending
+        revoke_access(remote, change)
+        consumed.append(transport.consume_once(remote.factory))
     remote.redis.poll = changed_permissions
     response = (remote.client.get(remote.url + '/recoverable-files') if operation == 'available'
                 else take(remote, choices))
-    assert response.status_code == 403
+    expected = 200 if change == 'assignment' and operation == 'available' else 403
+    assert response.status_code == expected, response.text
+    assert consumed == [True]
+    if expected == 200:
+        assert response.json()['items'] == choices  # Creator can still list, but cannot receive.
     assert count(remote, OutputFile) == 0
 
 
@@ -189,10 +213,18 @@ def test_api_closes_transaction_before_native_hop(remote, monkeypatch):
     assert listed(remote) == {'items': [], 'busy': False}
 
 
-def test_api_permission_failure_does_not_enqueue(remote):
-    change_roles(remote.factory, remote.actor, ('operator',))
-    assert remote.client.get(remote.url + '/recoverable-files').status_code == 403
+@pytest.mark.parametrize('operation,change', [
+    (operation, change)
+    for operation in ('available', 'receive')
+    for change in ('unrelated', 'no_role', 'disabled')
+] + [('receive', 'assignment')])
+def test_api_permission_failure_does_not_enqueue(remote, operation, change):
+    revoke_access(remote, change)
+    response = (remote.client.get(remote.url + '/recoverable-files') if operation == 'available'
+                else take(remote, [{'id': 'unread-original', 'version': 'v1'}]))
+    assert response.status_code == 403, response.text
     assert not remote.redis.writes
+    assert count(remote, OutputFile) == 0
 
 
 @pytest.mark.parametrize('failure', ['connection', 'timeout', 'full'])

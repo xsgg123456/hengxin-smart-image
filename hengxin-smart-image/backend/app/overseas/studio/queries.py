@@ -11,6 +11,7 @@ from app.overseas.management.skills import enabled_listing
 from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
 from .models import Turn, Upload, Picture, OutputFile, Conversation, Transcript, ConversationDeletion
 from .material_list import visible
+from . import message_metadata
 
 ROOT = '/api/overseas/v1'
 
@@ -101,8 +102,11 @@ def view(session, actor, task_id, conversation_id=None):
     query = select(Turn).where(Turn.task_id == task.id)
     if channel is not None:
         query = query.where(Turn.conversation_id == channel.id)
-    for turn in session.scalars(query.order_by(Turn.created_at, Turn.id)):
+    rows = list(session.scalars(query.order_by(Turn.created_at, Turn.id)))
+    actor_names, reply_messages = message_metadata.load(session, rows)
+    for turn in rows:
         job = session.get(Job, turn.job_id)
+        reply_at, reply_source = message_metadata.reply_time(turn, job, reply_messages.get(turn.id))
         if job.status not in TERMINAL:
             active = str(turn.id)
         attachments = [asset(*attachment(session, task, identity)) for identity in turn.attachment_ids]
@@ -121,7 +125,9 @@ def view(session, actor, task_id, conversation_id=None):
             pictures=[picture_dto(p) for p in pictures],
             outputs=[output_dto(row) for row in session.scalars(select(OutputFile)
                 .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))],
-            createdAt=turn.created_at))
+            actor=dict(id=str(turn.actor_id), name=actor_names.get(turn.actor_id)),
+            createdAt=message_metadata.as_utc(turn.created_at),
+            replyAt=reply_at, replyTimeSource=reply_source))
     channels = conversations(session, task.id)
     record = available_archive(session, task.id)
     reopened = session.scalar(select(TaskEvent.id).where(TaskEvent.task_id == task.id,

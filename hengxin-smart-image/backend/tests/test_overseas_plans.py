@@ -97,7 +97,7 @@ def test_reanalysis_feedback_history_stale_and_failed_retry(materials, monkeypat
     assert len(plans(client, task)) == 3
 
 
-@pytest.mark.parametrize('roles', [('operator',), ('designer',)])
+@pytest.mark.parametrize('roles', [('designer',)])
 def test_business_roles_not_admin_and_not_unassigned_designer(materials, monkeypatch, roles):
     client, factory, actor, task = prepared(materials, monkeypatch)
     plan = plans(client, task)[0]

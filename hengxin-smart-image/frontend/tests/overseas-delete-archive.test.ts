@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createTasksApi, emptyTaskDraft, isTask, isTaskDeletion, type TaskSummary } from '../src/api/overseas/tasks'
 import { archivePictureUrl, createArchivesApi, isArchiveDetail, type ArchiveDetail } from '../src/api/overseas/archives'
 import { IdentityError } from '../src/api/identity/request'
-const task: TaskSummary = { ...emptyTaskDraft(), id: 't/a', version: 3, name: '完整任务名称', status: 'deleting', deletionStatus: 'deleting', deletionError: null, createdAt: '', updatedAt: '', createdBy: {id:'a',name:'管理员'}, designer: {id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.read','task.delete'] }
+const task: TaskSummary = { ...emptyTaskDraft(), remarks: '', id: 't/a', version: 3, name: '完整任务名称', status: 'deleting', deletionStatus: 'deleting', deletionError: null, createdAt: '', updatedAt: '', createdBy: {id:'a',name:'管理员'}, designer: {id:'d',name:'设计',status:'active',eligible:true},capabilities:['task.read','task.delete'] }
 export const archive: ArchiveDetail = { id:'a/1', taskId:null, sourceDeleted:true, productName:'商品',brand:'品牌',platform:'Amazon',skus:[{code:'SKU-A'}],pictureCount:1,createdAt:'2026-10-13',pictures:[{id:'p1',name:'主图.png',sku:'SKU-A',width:16,height:16,contentType:'image/png',sizeBytes:3,url:archivePictureUrl('a/1','p1')}] }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {status})
 test('删除状态契约、确认正文、路径编码与权限失败不隐瞒', async () => {

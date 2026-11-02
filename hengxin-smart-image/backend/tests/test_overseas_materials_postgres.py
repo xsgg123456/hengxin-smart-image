@@ -33,7 +33,7 @@ def ready(factory, actor):
 def test_binding_serializes_with_mutation(pg_factory, other):
     with pg_factory.begin() as session:
         session.add(ExecutionGate(id=1))
-    actor, designer = member(pg_factory, 'operator'), member(pg_factory, 'designer')
+    actor, designer = member(pg_factory, 'designer'), member(pg_factory, 'designer')
     first = create(pg_factory, actor, designer, 'one')[1]
     second = create(pg_factory, actor, designer, 'two')[1]
     material_id, store = ready(pg_factory, actor)

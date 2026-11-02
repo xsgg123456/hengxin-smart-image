@@ -7,7 +7,7 @@ from test_overseas_task_deletion import deletion, generated, archived, request
 from test_overseas_studio import studio
 from test_overseas_materials import materials
 from test_overseas_tasks import overseas, ROOT
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 
 
 def test_summary_cover_matches_first_picture_and_never_reads_bytes(deletion, monkeypatch):
@@ -31,7 +31,7 @@ def test_cover_survives_source_deletion_and_enforces_archive_permissions(deletio
     item = client.get(ROOT + '/archives').json()['items'][0]
     assert item['sourceDeleted'] and item['cover'] == archive['cover']
     assert client.get(item['cover']['url']).content == original
-    change_roles(factory, actor, ('designer',))
+    use_unrelated_designer(factory)
     assert client.get(ROOT + '/archives').json()['items'] == []
     assert client.get(item['cover']['url']).status_code == 403
 

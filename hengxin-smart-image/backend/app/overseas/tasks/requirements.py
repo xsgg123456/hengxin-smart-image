@@ -1,9 +1,9 @@
-"""Human requirements gate and versioned operator resubmissions."""
+"""Human requirements gate and versioned creator resubmissions."""
 from fastapi import HTTPException
 from sqlalchemy import delete, select
 from app.core.idempotency import fingerprint_payload, lookup_request
 from app.db.timestamps import utcnow
-from app.overseas.permissions import principal_for, require_task_access
+from app.overseas.permissions import can_submit_requirements, principal_for, require_task_access
 from .models import RequirementsReview, TaskRequest, TaskSku
 from .queries import detail, get_task
 from .service import lock_actor, record_change, request_record, require_designer
@@ -11,14 +11,20 @@ from .service import lock_actor, record_change, request_record, require_designer
 
 def mutation(session, actor, task_id, body, key, operation, permission):
     actor = lock_actor(session, actor, permission)
-    digest = fingerprint_payload(body.model_dump(mode='json'))
+    payload = body.model_dump(mode='json')
+    # Omitted compatibility fields preserve history; explicit empty values clear it.
+    if operation == 'requirements_resubmit':
+        for field in ('market', 'remarks'):
+            if field not in body.model_fields_set:
+                payload.pop(field)
+    digest = fingerprint_payload(payload)
     previous = lookup_request(session, TaskRequest, actor.id, operation, str(task_id), key, digest)
     task = get_task(session, task_id, lock=True)
     principal = principal_for(session, actor)
     if permission == 'task.design':
         require_task_access(principal, task.created_by, task.designer_id, permission)
-    elif task.created_by != actor.id and not principal.roles & {'operator_manager', 'super_admin'}:
-        raise HTTPException(403, '只能修改本人创建的图需')
+    elif not can_submit_requirements(principal, task.created_by, task.designer_id):
+        raise HTTPException(403, '没有该任务的图需修改权限')
     if not previous and task.version != body.version:
         raise HTTPException(409, '任务已被修改，请刷新后重试')
     return actor, task, digest, previous
@@ -74,7 +80,7 @@ def resubmit(session, actor, task_id, body, key):
     if previous:
         return replay(session, task, actor)
     if task.status != 'returned':
-        raise HTTPException(409, '只有退回运营的图需可以修改重提')
+        raise HTTPException(409, '只有退回提交人的图需可以修改重提')
     require_designer(session, body.designerId)
     before_designer = task.designer_id if body.designerId != task.designer_id else None
     # Reassignment remains governed by its existing dedicated permission.
@@ -83,7 +89,10 @@ def resubmit(session, actor, task_id, body, key):
     from app.overseas.materials.service import bind
     bind(session, actor, task, body.materialIds, resubmit=True)
     task.name, task.product_name, task.brand = body.name, body.productName, body.brand
-    task.platform, task.market, task.remarks = body.platform, body.market, body.remarks
+    task.platform = body.platform
+    for field in ('market', 'remarks'):
+        if field in body.model_fields_set:
+            setattr(task, field, getattr(body, field))
     task.designer_id = body.designerId
     session.execute(delete(TaskSku).where(TaskSku.task_id == task.id))
     session.add_all([TaskSku(task_id=task.id, code=sku.code, code_key=sku.code.casefold(), position=i)

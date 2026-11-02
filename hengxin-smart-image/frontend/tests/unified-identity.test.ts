@@ -45,3 +45,13 @@ test('海外成员响应必须含真实非空角色且启用', async () => {
   const api = createIdentityApi(async url => String(url).endsWith('/tickets') ? json({ ticket: 'ticket' }) : json({ id: '1', name: '成员', status: 'active', roles: [] }))
   assert.equal((await api.access('overseas')).state, 'error')
 })
+
+
+test('海外仅三角色身份，国内运营角色仍有效', async () => {
+  for (const role of ['designer', 'design_manager', 'super_admin', 'operator', 'operator_manager']) {
+    const api = createIdentityApi(async url => String(url).endsWith('/tickets') ? json({ ticket: 't' }) : json({ id: 'u', name: '成员', identitySessionId: 's', status: 'active', role, roles: [role], capabilities: ['task.read'] }))
+    if (['operator', 'operator_manager'].includes(role)) await assert.rejects(api.session('overseas'))
+    else assert.deepEqual((await api.session('overseas')).roles, [role])
+    if (role === 'operator') assert.equal((await api.session('domestic')).role, 'operator')
+  }
+})

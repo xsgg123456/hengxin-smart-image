@@ -60,7 +60,7 @@ const managementMenu: AppRouteRecord = {
   })),
 };
 watch(() => [previewSession.overseasRole, previewSession.overseas], () => {
-  useMenuStore().setMenuList(previewSession.overseas && previewSession.overseasRole === 'admin'
+  useMenuStore().setMenuList(previewSession.overseas && previewSession.overseasRole === 'super_admin'
     ? [...menus, managementMenu] : menus);
 }, { immediate: true, flush: 'sync' });
 for (const [key, title] of managementEntries) router.addRoute({

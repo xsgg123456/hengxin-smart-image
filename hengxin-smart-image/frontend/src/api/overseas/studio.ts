@@ -6,7 +6,7 @@ export interface Asset { id: string; name: string; contentType: string; sizeByte
 export interface UploadedAsset extends Asset { materialState?: 'added' | 'existing' | 'restored' }
 export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean; sourcePath?: string | null }
 export interface StudioDeliveryStatus { state: 'capturing' | 'saving' | 'complete' | 'waiting' | 'partial'; expected: number | null; saved: number }
-export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; outputs?: StudioOutput[]; createdAt: string; conversationId?: string; deliveryError?: string | null; deliveryStatus?: StudioDeliveryStatus | null }
+export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; outputs?: StudioOutput[]; createdAt: string; actor?: { id: string; name: string | null }; replyAt?: string | null; replyTimeSource?: 'message' | 'completed' | null; conversationId?: string; deliveryError?: string | null; deliveryStatus?: StudioDeliveryStatus | null }
 export interface StudioConversation { id: string; name: string; version: number; createdAt: string; updatedAt: string; activeTurnId: string | null; status: string; turnCount: number; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
 export interface Studio { conversations?: StudioConversation[]; activeConversationCount?: number; maxConversations?: number; taskId: string; taskVersion: number; archiveId: string | null; reopened: boolean; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null; conversationId?: string | null }
 export interface StudioEvent { id: number; turnId: string; kind: string; text: string; createdAt: string }
@@ -44,6 +44,9 @@ export function isStudio(v: unknown, taskId: string): v is Studio {
     && Array.isArray(v.skills) && v.skills.every(isSkill)
     && Array.isArray(v.turns) && v.turns.every(t => record(t) && ['id','text','status','jobId','createdAt'].every(k => string(t[k])) && (t.reply === null || string(t.reply))
       && (t.skillName === null || string(t.skillName)) && (t.error === null || string(t.error)) && integer(t.jobVersion)
+      && (t.actor === undefined || (record(t.actor) && string(t.actor.id) && (t.actor.name === null || string(t.actor.name))))
+      && (t.replyAt === undefined || t.replyAt === null || string(t.replyAt))
+      && (t.replyTimeSource === undefined || t.replyTimeSource === null || t.replyTimeSource === 'message' || t.replyTimeSource === 'completed')
       && (t.conversationId === undefined || string(t.conversationId)) && (t.deliveryError === undefined || t.deliveryError === null || string(t.deliveryError))
       && (t.deliveryStatus == null || isDeliveryStatus(t.deliveryStatus))
       && (t.outputs === undefined || (Array.isArray(t.outputs) && t.outputs.every(output => isStudioOutput(output, taskId))))

@@ -27,7 +27,7 @@ def run(h):
                 client = stack.enter_context(h.login(code))
                 h.exchange(client, 'overseas')
                 clients.append(client)
-            operator, designer, stranger, admin, manager, operator_manager = clients
+            operator, designer, stranger, admin, manager, creator_manager = clients
 
             def config():
                 return h.expect(admin.get(root + '/settings'), 200).json()
@@ -39,7 +39,7 @@ def run(h):
                 return h.expect(admin.patch(root + '/settings', json=body), 200).json()
 
             initial = config()
-            for client in (operator, designer, manager, operator_manager):
+            for client in (operator, designer, manager, creator_manager):
                 h.expect(client.get(root + '/settings'), 403)
                 h.expect(client.get(root + '/skills'), 403)
                 h.expect(client.get(root + '/usage'), 200)

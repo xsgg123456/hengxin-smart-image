@@ -1,5 +1,5 @@
-<template><OverseasCreate v-model="draft" :allowed="role === 'operator'" preview @back="$emit('back')">
-<template #example><ElButton text type="primary" :disabled="role !== 'operator'" @click="draft = exampleDraft()">填入示例</ElButton></template>
+<template><OverseasCreate v-model="draft" :allowed="true" preview @back="$emit('back')">
+<template #example><ElButton text type="primary"  @click="draft = exampleDraft()">填入示例</ElButton></template>
 <template #after>      <ElCard class="art-card hx-section" shadow="never">
         <div class="hx-section-title">
           <h2><span class="hx-number">02</span>上传图需资料</h2>
@@ -12,7 +12,7 @@
               drag
               :auto-upload="false"
               :show-file-list="false"
-              :disabled="role !== 'operator'"
+
               :accept="kind.accept"
               :on-change="(file) => pick(file, kind.key)"
               ><strong>点击选择或拖入文件</strong>
@@ -27,7 +27,7 @@
               }}<ElButton
                 text
                 type="danger"
-                :disabled="role !== 'operator'"
+
                 @click="draft.files = draft.files.filter((f) => f !== file)"
                 >移除</ElButton
               >
@@ -35,7 +35,7 @@
             <ElButton
               text
               type="primary"
-              :disabled="role !== 'operator'"
+
               @click="sample(kind.key)"
               >使用示例资料</ElButton
             >
@@ -59,10 +59,10 @@
           class="hx-gap"
         />
         <div class="actions hx-gap">
-          <ElCheckbox v-model="fail" :disabled="role !== 'operator'"
+          <ElCheckbox v-model="fail"
             >演示分析失败</ElCheckbox
           ><ElButton
-            :disabled="role !== 'operator'"
+
             @click="
               draft = emptyDraft();
               error = '';
@@ -70,7 +70,7 @@
             >清空</ElButton
           ><ElButton
             type="primary"
-            :disabled="role !== 'operator'"
+
             @click="submit"
             >确认并提交，开始分析</ElButton
           >
@@ -91,7 +91,6 @@ const kinds: { key: Material["kind"]; label: string; accept: string }[] = [
   { key: "competitor", label: "竞品分析表格", accept: ".xlsx,.xls,.csv" },
 ];
 function setFile(file: Material) {
-  if (props.role !== "operator") return;
   validateMaterial(file);
   draft.value.files = [
     ...draft.value.files.filter((f) => f.kind !== file.kind),

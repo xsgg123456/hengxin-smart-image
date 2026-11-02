@@ -14,9 +14,9 @@
       @archived="navigate('archive')"
     />
     <OverseasArchive v-else-if="page === 'archive'" :role="role" @open="open" />
-    <OverseasWorkspace v-else v-model:query="query" v-model:scope="scope" v-model:status="status" :tasks="filtered" :allowed="role === 'operator'" :total="filtered.length" preview @create="navigate('create')" @open="open(overseasTasks.find(t => t.id === $event)!)">
+    <OverseasWorkspace v-else v-model:query="query" v-model:scope="scope" v-model:status="status" :tasks="filtered" :allowed="true" :total="filtered.length" preview @create="navigate('create')" @open="open(overseasTasks.find(t => t.id === $event)!)">
       <template #stats><div class="hx-stats"><ElCard v-for="item in stats" :key="item.label" class="art-card" shadow="never"><span>{{ item.label }}</span><strong>{{ item.count }}</strong></ElCard></div></template>
-      <template #action="{ row }"><ElButton v-if="role === 'operator'" text type="danger" @click="remove(overseasTasks.find(t => t.id === row.id)!)">删除</ElButton></template>
+      <template #action="{ row }"><ElButton v-if="role === 'super_admin'" text type="danger" @click="remove(overseasTasks.find(t => t.id === row.id)!)">删除</ElButton></template>
     </OverseasWorkspace>
   </div>
 </template>
@@ -62,7 +62,7 @@ const filtered = computed(() =>
     (t) =>
       (!status.value || t.status === status.value) &&
       (scope.value === "all" ||
-        (props.role === "designer" &&
+        (
           ["plan", "review", "analysisFailed", "generationFailed"].includes(
             t.status,
           ))) &&

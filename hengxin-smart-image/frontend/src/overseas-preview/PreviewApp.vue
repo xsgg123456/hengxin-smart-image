@@ -16,8 +16,8 @@
               size="small"
               aria-label="体验角色"
               @change="changeRole"
-              ><ElRadioButton value="admin">管理员</ElRadioButton
-              ><ElRadioButton value="operator">运营</ElRadioButton
+              ><ElRadioButton value="super_admin">超级管理员</ElRadioButton
+              ><ElRadioButton value="design_manager">设计主管</ElRadioButton
               ><ElRadioButton value="designer"
                 >设计</ElRadioButton
               ></ElRadioGroup
@@ -63,11 +63,11 @@ async function logout() {
   window.location.replace(`${window.location.pathname}#/auth/login`);
 }
 function changeRole(role: string | number | boolean | undefined) {
-  if (role === "operator" || role === "designer" || role === "admin")
+  if (role === "designer" || role === "design_manager" || role === "super_admin")
     {
       previewSession.overseasRole = role;
       clearTabs();
-      if (role !== "admin" && route.path.startsWith("/overseas/management/"))
+      if (role !== "super_admin" && route.path.startsWith("/overseas/management/"))
         void router.replace("/overseas/tasks");
     }
 }

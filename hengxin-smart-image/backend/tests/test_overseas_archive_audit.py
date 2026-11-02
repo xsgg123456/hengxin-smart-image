@@ -12,7 +12,7 @@ from test_overseas_task_deletion import deletion, generated, archived, request
 from test_overseas_studio import studio
 from test_overseas_materials import materials
 from test_overseas_tasks import overseas, ROOT, add_member
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_plans import post
 
 
@@ -46,6 +46,8 @@ def test_actor_snapshot_multiple_confirmations_and_replay(deletion):
     after = client.get(ROOT + '/archives/' + archive['id']).json()
     assert after['sourceDeleted'] and after['archiveHistory'] == view['archiveHistory']
     change_roles(factory, creator, ('designer',))
+    assert client.get(ROOT + '/archives/' + archive['id']).status_code == 200
+    use_unrelated_designer(factory)
     assert client.get(ROOT + '/archives').json()['items'] == []
     assert client.get(ROOT + '/archives/' + archive['id']).status_code == 403
 
@@ -95,7 +97,7 @@ def test_invalid_or_unauthorized_confirmation_never_writes_audit(deletion):
     body = dict(pictureIds=[rows[0]['id']], sku='not-a-task-sku')
     assert post(client, task, '/studio/archive', body, 'invalid').status_code == 422
     assert post(client, task, '/studio/archive', {**body, 'sku': 'A', 'actorName': '伪造'}, 'spoof').status_code == 422
-    change_roles(factory, actor, ('operator',))
+    change_roles(factory, actor, ('designer',))
     assert post(client, task, '/studio/archive', {**body, 'sku': 'A'}, 'denied').status_code == 403
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(ArchiveEvent)) == 0

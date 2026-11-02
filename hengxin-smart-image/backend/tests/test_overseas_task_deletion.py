@@ -16,7 +16,7 @@ from app.overseas.studio.models import Conversation, Turn, Picture
 from test_overseas_tasks import overseas, create, payload, ROOT, HEADERS
 from test_overseas_materials import materials
 from test_overseas_studio import studio, send, finish, output
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_plans import post
 
 
@@ -52,7 +52,7 @@ def archived(fixture, rows):
     return client.get(ROOT + '/archives').json()['items'][0]
 
 
-@pytest.mark.parametrize('role', ['operator', 'operator_manager', 'designer', 'design_manager'])
+@pytest.mark.parametrize('role', ['designer', 'design_manager'])
 def test_non_admin_cannot_delete_own_or_assigned_task(deletion, role):
     client, factory, actor, task, _, _ = deletion
     with factory.begin() as session:
@@ -109,6 +109,8 @@ def test_delete_cleans_task_and_exact_archived_versions_survive(deletion, count)
         assert client.get(ROOT + '/archives?sku=A&search=手机').json()['total'] == 1
         assert client.get(ROOT + '/archives?sku=code').json()['total'] == 0
         change_roles(factory, actor, ('designer',))
+        assert client.get(ROOT + '/archives').json()['total'] == 1
+        use_unrelated_designer(factory)
         assert client.get(ROOT + '/archives').json()['total'] == 0
         assert client.get(view['pictures'][0]['url']).status_code == 403
         assert client.get(ROOT + '/archives/' + archive['id'] + '/download').status_code == 403

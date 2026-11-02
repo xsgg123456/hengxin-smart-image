@@ -1584,3 +1584,16 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 
 ## 2026-11-02 · Skill平台分组及工作台交互
 依 docs/SKILL-PLATFORMS-IMPLEMENTATION-20261102.md 按序完成：后端 management/studio 平台关联与海外迁移/测试；前端 management/admin/studio API接线及两项组件优化/测试；安装包和真实数据库迁移及浏览器回归；独立两阶段审查、中文提交、增量海外API与静态前端发布及线上验证。源Skill目录与执行器保持不变。状态：已完成，源码提交 `16aa009`，生产版本0.2.57。前端435项、服务器安装回归172项通过；生产三项交互已验收，详见 docs/VALIDATION-SKILL-PLATFORMS-20261102.md。
+# 2026-11-02 · 海外设计人员流程收敛与合并发布
+
+最新执行边界：仅继续实现、测试、独立审查；用户要求先不Git提交、不部署、不安装Skill，待补充新需求。
+
+依据docs/DESIGNER-ONLY-IMPLEMENTATION-20261102.md：源文档与生产基线→后端角色/权限/迁移与前端表单/文案并行→单测/构建/浏览器/实际Linux及PG验证→固定快照独立审查→中文提交、备份恢复、生产迁移/发布/Skill安装与正式验收。每步按合同完成标准交付；当前继续实现与审查，提交部署暂停，等待用户后续指示。此前待部署目标站点删除及OUTON包合并本轮。
+
+2026-11-02 本地实现与测试审查已完成：前端441项、隔离Linux/PG海外729项、发布工具55项通过；类型检查、生产构建、3套浏览器通过。独立审查Stage1/Stage2均PASS，快照6b6370ceece63161162de3d6fc5b8bc7fce0e7d943dddf9f3d06f06bea30cac7。证据见docs/DESIGNER-ONLY-VALIDATION-20261102.md。未Git提交、未部署、未安装Skill，等待用户追加需求。
+
+2026-11-02 权限追加：按docs/WORKFLOW-COLLABORATORS-20261102.md依次核实五人身份、集中后端授权及拒绝测试、前端按capabilities只读验证、隔离回归与新快照审查。更新本地待发布配置与白名单，不生产应用、不提交。此前审查凭据会因本轮改动失效，必须重新审查。
+
+五人权限追加已完成本地交付：前端441项、Linux/PG海外751项、发布工具65项通过；类型/生产构建/浏览器只读与撤权验证通过。新快照b79034980d927ef5a919ac073b3ae96c9e4fe1c99a264b2001c1f639f85ff554独立两阶段PASS。详见docs/WORKFLOW-COLLABORATORS-VALIDATION-20261102.md。仍未提交/部署/应用五人生产配置；消息实际发送人与时间显示目前仅讨论。
+
+2026-11-02 消息署名时间与最终发布：依docs/STUDIO-MESSAGE-METADATA-20261102.md，先DTO和消息头→全测试/构建/浏览器→独立快照审查→中文提交→已审打包安装测试→生产排空备份恢复迁移/原生与API前端配置/Skill安装→线上验收。最新用户已恢复提交部署授权，五人权限配置必须与本次一起生效。

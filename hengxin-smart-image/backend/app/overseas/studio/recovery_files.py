@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.overseas.auth.models import Member
 from app.overseas.tasks.models import TaskDeletion
+from app.overseas.tasks.queries import get_task
 from . import queries, recovery_listing as listing, output_store
 from .models import ConversationDeletion, Picture, OutputFile, Turn
 
@@ -16,7 +17,8 @@ def guard(session, actor_id, task_id, conversation_id, *, write=True, idle=True)
     if actor is None:
         raise HTTPException(403, '当前成员无权操作')
     # Task locks serialize reads/publication with new turns, completion and deletion.
-    task = queries.access(session, actor, task_id, write=True)
+    get_task(session, task_id, lock=True)
+    task = queries.access(session, actor, task_id, write=write)
     channel = queries.conversation(session, task.id, conversation_id, writable=True)
     if session.get(TaskDeletion, task.id) or session.get(ConversationDeletion, channel.id):
         raise HTTPException(409, '任务或会话正在删除，不能取回文件')

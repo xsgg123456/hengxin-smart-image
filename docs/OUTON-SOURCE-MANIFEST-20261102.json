@@ -1,0 +1,499 @@
+{
+  "name": "amazon-outon-image-brief-to-prompts",
+  "checksum": "75f7a2ccf0bf5a54d659266c941235ebbc3e62c273ad8675d2bed7f1d6234d68",
+  "entries": {
+    "agents/": {
+      "directory": true
+    },
+    "assets/": {
+      "directory": true
+    },
+    "references/": {
+      "directory": true
+    },
+    "scripts/": {
+      "directory": true
+    },
+    "SKILL.md": {
+      "sha256": "09d95dd2c41eabc5ab488afae0b806080a4cdfba69c42db8db50bd410f23f10b",
+      "size": 11951
+    },
+    "vendor/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse.sha256.json": {
+      "sha256": "d8149e7e5bdb4420dfc82e5254d019a8a82e13f57d5d317601d18c125d91f83e",
+      "size": 1424
+    },
+    "vendor/image-prompt-reverse/.gitignore": {
+      "sha256": "64b199e637ca055abfdfe73cccd62a5bc62822bd6102b5b17886a9c822f3c7be",
+      "size": 401
+    },
+    "vendor/image-prompt-reverse/assets/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/LICENSE": {
+      "sha256": "c6f576af31382e16439b1727a6bb901c2b6db1a680180056b1bc38227d697d81",
+      "size": 1063
+    },
+    "vendor/image-prompt-reverse/README.md": {
+      "sha256": "8378bf53efffbe9ed660454467864c234a3b6c4d022ca9bbe066958a75eeb28b",
+      "size": 4701
+    },
+    "vendor/image-prompt-reverse/README_en.md": {
+      "sha256": "538d680723b64bc83be9f140f1b0dc5f65f700c83f968fd620d761a8c4d4d005",
+      "size": 4972
+    },
+    "vendor/image-prompt-reverse/references/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/RELEASE_NOTES.md": {
+      "sha256": "044b5b2d6811fbb6dcabf87ba3363e0673da86a0d41e21ebff460ea301ac9477",
+      "size": 8666
+    },
+    "vendor/image-prompt-reverse/SKILL.md": {
+      "sha256": "83094006587fcba9a2bc10821b7ddb5d2ffa77e12b80c86133beb212cfe0e3f3",
+      "size": 10735
+    },
+    "vendor/image-prompt-reverse/tests/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/tests/assets/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/tests/case-01-crt-sand-sky.md": {
+      "sha256": "6606940130951f56903cca4a5daef04cbeda87a26360427c37fcdea65d190115",
+      "size": 5606
+    },
+    "vendor/image-prompt-reverse/tests/NOTICE-assets.md": {
+      "sha256": "aa39d397e59cd41039bdcacd417cd3c982be590d46e31f627dbdf7f50bf3a843",
+      "size": 988
+    },
+    "vendor/image-prompt-reverse/tests/README.md": {
+      "sha256": "2b7629a9dbcfd94b9c5d478f4ca8107c363a9de4f23c2cdfff1494fa49a93e6a",
+      "size": 4459
+    },
+    "vendor/image-prompt-reverse/tests/assets/case-01-input.jpg": {
+      "sha256": "b3f1d7fe4b9103ed610389a6b2848f77c2b828b90d8cd803df8565926ae2203e",
+      "size": 81140
+    },
+    "vendor/image-prompt-reverse/references/enhancement-vocab.md": {
+      "sha256": "6bd45e64beddae88f17ea1dc2b4678f66dd857329d8c9315ba7ea7db5c2a07c8",
+      "size": 5522
+    },
+    "vendor/image-prompt-reverse/references/platform-guides.md": {
+      "sha256": "721b449a6c05f9e021bb382bc7b64ba5db552f3604d1019d5ee27110a96f79dd",
+      "size": 3042
+    },
+    "vendor/image-prompt-reverse/references/reverse-dimensions.md": {
+      "sha256": "7880a0b6efbafdc799c4b9b35f0839dd2f72c0850520c188834c3ba314883d21",
+      "size": 12354
+    },
+    "vendor/image-prompt-reverse/references/templates.md": {
+      "sha256": "74ee06bce30bbcaf5c8cf29f342e8bab8126b1a594c4cf3e9bfb173a7e0f7a29",
+      "size": 2757
+    },
+    "vendor/image-prompt-reverse/assets/analysis-form.md": {
+      "sha256": "4afcae7292e660adc973641a2d37128458a4f823e2a09809d09396c5f5687153",
+      "size": 965
+    },
+    "scripts/extract_pptx.py": {
+      "sha256": "eadeaef700798cc0fe191013079693641ffc87d9359ac0300ad91a2547867c90",
+      "size": 8892
+    },
+    "scripts/package_task.py": {
+      "sha256": "60d2dc5666418b0d9223e470effb97231779afea350c11b07e8a0575776c847d",
+      "size": 8466
+    },
+    "scripts/render_font_reference.py": {
+      "sha256": "3cd51442f9ea16e53892444780f29ab13e83a8fc88c9242fef94e4e83d4771df",
+      "size": 3248
+    },
+    "references/brand-and-assets.md": {
+      "sha256": "7856595e0bb6df0f7dbc929a42531eb25511da63a0440859bd0b0813fbbe0de0",
+      "size": 8221
+    },
+    "references/fixed-placement.md": {
+      "sha256": "d36b903276fd8896eded7501f51c1c5156ca2b0db89babb5a50b0623675729ad",
+      "size": 1933
+    },
+    "references/output-and-packaging.md": {
+      "sha256": "44e4ad2408241af87b91ca8e10a72a08b9ad34a84c6c47165aad6b6e79ffd0ca",
+      "size": 7748
+    },
+    "references/page-image-matching.md": {
+      "sha256": "0464a5d829220e6d493a2359a32f5b9de7d6caf2c244c5c19497ccf8146f4199",
+      "size": 6293
+    },
+    "references/product-and-inputs.md": {
+      "sha256": "a71e47ec5a67ef3ecdeadeb05179410ccc43f8185818a0dbecd3da1e5d9c9a1e",
+      "size": 6217
+    },
+    "references/reverse-and-fusion.md": {
+      "sha256": "ffbf87fd28e7b5d640f54a8fcdf7edc931cea606c3208f7de4e813a09b08bbfc",
+      "size": 6797
+    },
+    "references/scene-placement.md": {
+      "sha256": "9f11452a44ab969b79d9e735e720c1cfa320a217583eddfc3b8fb91d11074254",
+      "size": 5535
+    },
+    "assets/brand/": {
+      "directory": true
+    },
+    "assets/brand/font-reference.json": {
+      "sha256": "bbb9ac9bd4fc9f4b1d844e64af637059f6493b7b7ae6040df45f4a312d88b030",
+      "size": 893
+    },
+    "assets/brand/font-reference.png": {
+      "sha256": "0d4654c10b1aa489d32bba890e7a2358456345781d7b5874ebba34a3d0623dc4",
+      "size": 139654
+    },
+    "assets/brand/fonts/": {
+      "directory": true
+    },
+    "assets/brand/logos/": {
+      "directory": true
+    },
+    "assets/brand/manifest.json": {
+      "sha256": "50a9ec1b0e149d14a81bd81faa607ede8bc8a41a6af3c21b8dd0bec3b891ba0d",
+      "size": 6721
+    },
+    "assets/brand/logos/OUTON.png": {
+      "sha256": "7f9e5a61227fe1c40e0975344e58a91cd17d29a67ee343b975bf11e92fcf55c6",
+      "size": 8333
+    },
+    "assets/brand/fonts/HYQiHeiX1-35W-15.otf": {
+      "sha256": "03a345b5292c27675fc5548ed02bd5f3750ed0198a8a18b433e1de0d54c53bd1",
+      "size": 2441256
+    },
+    "assets/brand/fonts/HYQiHeiX1-45W-16.otf": {
+      "sha256": "6724b06347315ee35d0fc6aa66cfcafde6698e435a6bb8a1b4d8bdc50f70b4fd",
+      "size": 2416524
+    },
+    "assets/brand/fonts/HYQiHeiX1-55W-17.otf": {
+      "sha256": "d9de913d34d729ece2370c12634abe9fbac7b73966044ae0dbe65f14f8f2aeda",
+      "size": 2390384
+    },
+    "assets/brand/fonts/HYQiHeiX1-65W-18.otf": {
+      "sha256": "f7fb75a50b030aee01a73b60f9b9719deeb89d86b75d18ff4ffd372e3dcfbf48",
+      "size": 2359872
+    },
+    "assets/brand/fonts/HYQiHeiX1-75W-19.otf": {
+      "sha256": "7a694377dac5d1fe0391cf5b5e8433d405a101add572f2ee5e123f63f1403e24",
+      "size": 2348728
+    },
+    "assets/brand/fonts/HYQiHeiX1-85W-20.otf": {
+      "sha256": "784f1b03168d16e508ff8c2e15f21d9e8d26eca9be32488b90ea4f402f37d5c7",
+      "size": 2371528
+    },
+    "assets/brand/fonts/HYQiHeiX1-95W-21.otf": {
+      "sha256": "4f994291b798296a9c3a4ea178bbee717f734acc0c3332860c03ad4fd5fa4e55",
+      "size": 2395648
+    },
+    "assets/brand/fonts/segoeui.ttf": {
+      "sha256": "ba32a222b23d727267cf1aba4e5296fe84ce99b9d910915103fc085d7931bc88",
+      "size": 955804
+    },
+    "assets/brand/fonts/segoeuib.ttf": {
+      "sha256": "1b242874a2f57529060e770ba313e027a99d40b3c36e1c7e8b2dece16ad6ed88",
+      "size": 951724
+    },
+    "assets/brand/fonts/segoeuii.ttf": {
+      "sha256": "9adf7d619c593ee38c96af06bb15b4bd893e4087bcc1a0b7becee8f4ae15bb1c",
+      "size": 529712
+    },
+    "assets/brand/fonts/segoeuil.ttf": {
+      "sha256": "1a2231bbd4fad4a3ac8c0b8a93af0bce58324a8b3605df16038a9e660a0c072a",
+      "size": 913712
+    },
+    "assets/brand/fonts/segoeuisl.ttf": {
+      "sha256": "38a85c09ee4fc558e7739ebdd1a15a06e2846ebb787cf73b1b6476a3a5b22000",
+      "size": 854140
+    },
+    "assets/brand/fonts/segoeuiz.ttf": {
+      "sha256": "45e7504e9bbd70ead482ebbddbeec04b2bea9f490b994658a95146cdf0733449",
+      "size": 541468
+    },
+    "assets/brand/fonts/seguibl.ttf": {
+      "sha256": "e17738f092c8b02f4443867a7dfcdde66fb4cd6f6b10de8e40b2f3192f8a5835",
+      "size": 324260
+    },
+    "assets/brand/fonts/seguibli.ttf": {
+      "sha256": "33212faa85fad61785cd6917172378b798bc9f5d4c47c121437354f47980aa6f",
+      "size": 356008
+    },
+    "assets/brand/fonts/seguili.ttf": {
+      "sha256": "7726b24daa0c1f47e528d8df78b98717bdb4425bcf37e50330945e32c6d17d7c",
+      "size": 459940
+    },
+    "assets/brand/fonts/seguisb.ttf": {
+      "sha256": "9853283466bd43993b9813215281fb9c7090cbd8e9b5453f6d0d040622e117e2",
+      "size": 971080
+    },
+    "assets/brand/fonts/seguisbi.ttf": {
+      "sha256": "9959977d9fcf8ebc5fe48f6ee418f05378132b47d21bd5dcc798ad7cff274006",
+      "size": 457892
+    },
+    "assets/brand/fonts/seguisli.ttf": {
+      "sha256": "9f84a0a9193fe1d6335967f46606997a208adde053d006b21c03f9375ec5d416",
+      "size": 467180
+    },
+    "agents/openai.yaml": {
+      "sha256": "af6abcc08ab3395edcfd71b51439e9911e7554218fb0c0488af701b227fdcafd",
+      "size": 596
+    }
+  },
+  "originalChecksum": "7d05f9c586503996c0a5346f84ce549ee5a3442f243d6c873b01546c8ebb9b81",
+  "originalEntries": {
+    "agents/": {
+      "directory": true
+    },
+    "assets/": {
+      "directory": true
+    },
+    "references/": {
+      "directory": true
+    },
+    "scripts/": {
+      "directory": true
+    },
+    "SKILL.md": {
+      "sha256": "09d95dd2c41eabc5ab488afae0b806080a4cdfba69c42db8db50bd410f23f10b",
+      "size": 11951
+    },
+    "vendor/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse.sha256.json": {
+      "sha256": "d8149e7e5bdb4420dfc82e5254d019a8a82e13f57d5d317601d18c125d91f83e",
+      "size": 1424
+    },
+    "vendor/image-prompt-reverse/.gitignore": {
+      "sha256": "64b199e637ca055abfdfe73cccd62a5bc62822bd6102b5b17886a9c822f3c7be",
+      "size": 401
+    },
+    "vendor/image-prompt-reverse/assets/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/LICENSE": {
+      "sha256": "c6f576af31382e16439b1727a6bb901c2b6db1a680180056b1bc38227d697d81",
+      "size": 1063
+    },
+    "vendor/image-prompt-reverse/README.md": {
+      "sha256": "8378bf53efffbe9ed660454467864c234a3b6c4d022ca9bbe066958a75eeb28b",
+      "size": 4701
+    },
+    "vendor/image-prompt-reverse/README_en.md": {
+      "sha256": "538d680723b64bc83be9f140f1b0dc5f65f700c83f968fd620d761a8c4d4d005",
+      "size": 4972
+    },
+    "vendor/image-prompt-reverse/references/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/RELEASE_NOTES.md": {
+      "sha256": "044b5b2d6811fbb6dcabf87ba3363e0673da86a0d41e21ebff460ea301ac9477",
+      "size": 8666
+    },
+    "vendor/image-prompt-reverse/SKILL.md": {
+      "sha256": "83094006587fcba9a2bc10821b7ddb5d2ffa77e12b80c86133beb212cfe0e3f3",
+      "size": 10735
+    },
+    "vendor/image-prompt-reverse/tests/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/tests/assets/": {
+      "directory": true
+    },
+    "vendor/image-prompt-reverse/tests/case-01-crt-sand-sky.md": {
+      "sha256": "6606940130951f56903cca4a5daef04cbeda87a26360427c37fcdea65d190115",
+      "size": 5606
+    },
+    "vendor/image-prompt-reverse/tests/NOTICE-assets.md": {
+      "sha256": "aa39d397e59cd41039bdcacd417cd3c982be590d46e31f627dbdf7f50bf3a843",
+      "size": 988
+    },
+    "vendor/image-prompt-reverse/tests/README.md": {
+      "sha256": "2b7629a9dbcfd94b9c5d478f4ca8107c363a9de4f23c2cdfff1494fa49a93e6a",
+      "size": 4459
+    },
+    "vendor/image-prompt-reverse/tests/assets/case-01-input.jpg": {
+      "sha256": "b3f1d7fe4b9103ed610389a6b2848f77c2b828b90d8cd803df8565926ae2203e",
+      "size": 81140
+    },
+    "vendor/image-prompt-reverse/references/enhancement-vocab.md": {
+      "sha256": "6bd45e64beddae88f17ea1dc2b4678f66dd857329d8c9315ba7ea7db5c2a07c8",
+      "size": 5522
+    },
+    "vendor/image-prompt-reverse/references/platform-guides.md": {
+      "sha256": "721b449a6c05f9e021bb382bc7b64ba5db552f3604d1019d5ee27110a96f79dd",
+      "size": 3042
+    },
+    "vendor/image-prompt-reverse/references/reverse-dimensions.md": {
+      "sha256": "7880a0b6efbafdc799c4b9b35f0839dd2f72c0850520c188834c3ba314883d21",
+      "size": 12354
+    },
+    "vendor/image-prompt-reverse/references/templates.md": {
+      "sha256": "74ee06bce30bbcaf5c8cf29f342e8bab8126b1a594c4cf3e9bfb173a7e0f7a29",
+      "size": 2757
+    },
+    "vendor/image-prompt-reverse/assets/analysis-form.md": {
+      "sha256": "4afcae7292e660adc973641a2d37128458a4f823e2a09809d09396c5f5687153",
+      "size": 965
+    },
+    "scripts/extract_pptx.py": {
+      "sha256": "eadeaef700798cc0fe191013079693641ffc87d9359ac0300ad91a2547867c90",
+      "size": 8892
+    },
+    "scripts/package_task.py": {
+      "sha256": "60d2dc5666418b0d9223e470effb97231779afea350c11b07e8a0575776c847d",
+      "size": 8466
+    },
+    "scripts/render_font_reference.py": {
+      "sha256": "3cd51442f9ea16e53892444780f29ab13e83a8fc88c9242fef94e4e83d4771df",
+      "size": 3248
+    },
+    "references/brand-and-assets.md": {
+      "sha256": "7856595e0bb6df0f7dbc929a42531eb25511da63a0440859bd0b0813fbbe0de0",
+      "size": 8221
+    },
+    "references/fixed-placement.md": {
+      "sha256": "d36b903276fd8896eded7501f51c1c5156ca2b0db89babb5a50b0623675729ad",
+      "size": 1933
+    },
+    "references/output-and-packaging.md": {
+      "sha256": "44e4ad2408241af87b91ca8e10a72a08b9ad34a84c6c47165aad6b6e79ffd0ca",
+      "size": 7748
+    },
+    "references/page-image-matching.md": {
+      "sha256": "0464a5d829220e6d493a2359a32f5b9de7d6caf2c244c5c19497ccf8146f4199",
+      "size": 6293
+    },
+    "references/product-and-inputs.md": {
+      "sha256": "a71e47ec5a67ef3ecdeadeb05179410ccc43f8185818a0dbecd3da1e5d9c9a1e",
+      "size": 6217
+    },
+    "references/reverse-and-fusion.md": {
+      "sha256": "ffbf87fd28e7b5d640f54a8fcdf7edc931cea606c3208f7de4e813a09b08bbfc",
+      "size": 6797
+    },
+    "references/scene-placement.md": {
+      "sha256": "9f11452a44ab969b79d9e735e720c1cfa320a217583eddfc3b8fb91d11074254",
+      "size": 5535
+    },
+    "assets/brand/": {
+      "directory": true
+    },
+    "assets/brand/font-reference.json": {
+      "sha256": "5a226b9449dd94e97b763baa695fa3d5d600ffb3126a17d10d33e4f1817a240f",
+      "size": 1210
+    },
+    "assets/brand/font-reference.png": {
+      "sha256": "0d4654c10b1aa489d32bba890e7a2358456345781d7b5874ebba34a3d0623dc4",
+      "size": 139654
+    },
+    "assets/brand/fonts/": {
+      "directory": true
+    },
+    "assets/brand/logos/": {
+      "directory": true
+    },
+    "assets/brand/manifest.json": {
+      "sha256": "ce0529f774722142e04a998faa6ad9a23cb9ec3ac4b358b791de72a96fc1b946",
+      "size": 9127
+    },
+    "assets/brand/logos/OUTON.png": {
+      "sha256": "7f9e5a61227fe1c40e0975344e58a91cd17d29a67ee343b975bf11e92fcf55c6",
+      "size": 8333
+    },
+    "assets/brand/fonts/HYQiHeiX1-35W-15.otf": {
+      "sha256": "03a345b5292c27675fc5548ed02bd5f3750ed0198a8a18b433e1de0d54c53bd1",
+      "size": 2441256
+    },
+    "assets/brand/fonts/HYQiHeiX1-45W-16.otf": {
+      "sha256": "6724b06347315ee35d0fc6aa66cfcafde6698e435a6bb8a1b4d8bdc50f70b4fd",
+      "size": 2416524
+    },
+    "assets/brand/fonts/HYQiHeiX1-55W-17.otf": {
+      "sha256": "d9de913d34d729ece2370c12634abe9fbac7b73966044ae0dbe65f14f8f2aeda",
+      "size": 2390384
+    },
+    "assets/brand/fonts/HYQiHeiX1-65W-18.otf": {
+      "sha256": "f7fb75a50b030aee01a73b60f9b9719deeb89d86b75d18ff4ffd372e3dcfbf48",
+      "size": 2359872
+    },
+    "assets/brand/fonts/HYQiHeiX1-75W-19.otf": {
+      "sha256": "7a694377dac5d1fe0391cf5b5e8433d405a101add572f2ee5e123f63f1403e24",
+      "size": 2348728
+    },
+    "assets/brand/fonts/HYQiHeiX1-85W-20.otf": {
+      "sha256": "784f1b03168d16e508ff8c2e15f21d9e8d26eca9be32488b90ea4f402f37d5c7",
+      "size": 2371528
+    },
+    "assets/brand/fonts/HYQiHeiX1-95W-21.otf": {
+      "sha256": "4f994291b798296a9c3a4ea178bbee717f734acc0c3332860c03ad4fd5fa4e55",
+      "size": 2395648
+    },
+    "assets/brand/fonts/segoeui.ttf": {
+      "sha256": "ba32a222b23d727267cf1aba4e5296fe84ce99b9d910915103fc085d7931bc88",
+      "size": 955804
+    },
+    "assets/brand/fonts/segoeuib.ttf": {
+      "sha256": "1b242874a2f57529060e770ba313e027a99d40b3c36e1c7e8b2dece16ad6ed88",
+      "size": 951724
+    },
+    "assets/brand/fonts/segoeuii.ttf": {
+      "sha256": "9adf7d619c593ee38c96af06bb15b4bd893e4087bcc1a0b7becee8f4ae15bb1c",
+      "size": 529712
+    },
+    "assets/brand/fonts/segoeuil.ttf": {
+      "sha256": "1a2231bbd4fad4a3ac8c0b8a93af0bce58324a8b3605df16038a9e660a0c072a",
+      "size": 913712
+    },
+    "assets/brand/fonts/segoeuisl.ttf": {
+      "sha256": "38a85c09ee4fc558e7739ebdd1a15a06e2846ebb787cf73b1b6476a3a5b22000",
+      "size": 854140
+    },
+    "assets/brand/fonts/segoeuiz.ttf": {
+      "sha256": "45e7504e9bbd70ead482ebbddbeec04b2bea9f490b994658a95146cdf0733449",
+      "size": 541468
+    },
+    "assets/brand/fonts/seguibl.ttf": {
+      "sha256": "e17738f092c8b02f4443867a7dfcdde66fb4cd6f6b10de8e40b2f3192f8a5835",
+      "size": 324260
+    },
+    "assets/brand/fonts/seguibli.ttf": {
+      "sha256": "33212faa85fad61785cd6917172378b798bc9f5d4c47c121437354f47980aa6f",
+      "size": 356008
+    },
+    "assets/brand/fonts/seguili.ttf": {
+      "sha256": "7726b24daa0c1f47e528d8df78b98717bdb4425bcf37e50330945e32c6d17d7c",
+      "size": 459940
+    },
+    "assets/brand/fonts/seguisb.ttf": {
+      "sha256": "9853283466bd43993b9813215281fb9c7090cbd8e9b5453f6d0d040622e117e2",
+      "size": 971080
+    },
+    "assets/brand/fonts/seguisbi.ttf": {
+      "sha256": "9959977d9fcf8ebc5fe48f6ee418f05378132b47d21bd5dcc798ad7cff274006",
+      "size": 457892
+    },
+    "assets/brand/fonts/seguisli.ttf": {
+      "sha256": "9f84a0a9193fe1d6335967f46606997a208adde053d006b21c03f9375ec5d416",
+      "size": 467180
+    },
+    "agents/openai.yaml": {
+      "sha256": "af6abcc08ab3395edcfd71b51439e9911e7554218fb0c0488af701b227fdcafd",
+      "size": 596
+    }
+  },
+  "adaptedFiles": [
+    "assets/brand/font-reference.json",
+    "assets/brand/manifest.json"
+  ]
+}

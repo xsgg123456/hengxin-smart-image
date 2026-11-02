@@ -20,28 +20,6 @@
           <slot name="example" />
         </div>
         <ElForm label-position="top" :disabled="!allowed || busy">
-          <ElFormItem label="任务名称" required
-            ><ElInput
-              v-model="draft.name"
-              maxlength="80"
-          /></ElFormItem>
-          <div class="form-grid">
-            <ElFormItem label="品名" required
-              ><ElInput
-                v-model="draft.productName"
-                maxlength="80" /></ElFormItem
-            ><ElFormItem label="目标平台" required
-              ><ElSelect v-model="draft.platform"
-                ><ElOption
-                  v-for="p in platformOptions"
-                  :key="p.value"
-                  :value="p.value" :label="p.label" /></ElSelect></ElFormItem
-            ><ElFormItem label="品牌" required
-              ><ElSelect v-model="draft.brand" placeholder="请选择品牌"><ElOption v-for="brand in brandOptions" :key="brand" :value="brand" :label="brand" /></ElSelect></ElFormItem
-            ><ElFormItem label="目标站点" required
-              ><ElInput v-model="draft.market" maxlength="60"
-            /></ElFormItem>
-          </div>
           <div class="hx-section-title">
             <h2>商品 SKU</h2>
             <ElButton :disabled="draft.skus.length >= 100" @click="draft.skus.push({ code: '' })"
@@ -62,13 +40,12 @@
               >移除</ElButton
             >
           </div>
-          <ElFormItem label="补充说明"
-            ><ElInput
-              v-model="draft.remarks"
-              type="textarea"
-              :rows="3"
-              maxlength="1000"
-          /></ElFormItem>
+          <div class="form-grid">
+            <ElFormItem label="目标平台" required><ElSelect v-model="draft.platform"><ElOption v-for="p in platformOptions" :key="p.value" :value="p.value" :label="p.label" /></ElSelect></ElFormItem>
+            <ElFormItem label="品牌" required><ElSelect v-model="draft.brand" placeholder="请选择品牌"><ElOption v-for="brand in brandOptions" :key="brand" :value="brand" :label="brand" /></ElSelect></ElFormItem>
+            <ElFormItem label="任务名称" required><ElInput v-model="draft.name" maxlength="80" /></ElFormItem>
+            <ElFormItem label="品名" required><ElInput v-model="draft.productName" maxlength="80" /></ElFormItem>
+          </div>
           <slot name="designer" />
         </ElForm>
       </ElCard>
@@ -83,7 +60,7 @@
           :title="step"
           :description="
             studio ? STUDIO_DESCRIPTIONS[i] : i === 0
-              ? '运营核对品名、品牌与 SKU'
+              ? '提交人核对品名、品牌与 SKU'
               : i === stages.length - 1
                 ? '全部 SKU 通过后整套归档'
                 : i === 1 ? '核对需求是否清晰、资料是否完整' : preview ? '设计跟进 · AI 模拟执行' : '审核通过后继续处理'
@@ -95,7 +72,7 @@
 import { computed } from 'vue'
 import { OVERSEAS_PLATFORMS } from './platforms'
 import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
-interface Fields { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[] }
+interface Fields { name: string; productName: string; brand: string; platform: string; market: string; skus: { code: string }[] }
 const draft = defineModel<Fields>({ required: true })
 const brands = ['OUTON', 'OUTONLIFE', 'BELEEV']
 const brandOptions = computed(() => !draft.value.brand || brands.includes(draft.value.brand) ? brands : [...brands, draft.value.brand])

@@ -77,10 +77,11 @@ try {
   assert.equal(await dialog.getByRole('textbox', { name: '成员姓名' }).getAttribute('readonly'), '')
   await dialog.getByRole('combobox', { name: '海外业务角色', exact: true }).press('Enter')
   const roleList = await dialog.getByRole('combobox', { name: '海外业务角色', exact: true }).getAttribute('aria-controls')
-  await page.locator(`#${roleList}`).getByRole('option', { name: '运营主管', exact: true }).click()
+  assert.deepEqual(await page.locator(`#${roleList}`).getByRole('option').allTextContents(), ['设计', '设计主管', '超级管理员'])
+  await page.locator(`#${roleList}`).getByRole('option', { name: '设计主管', exact: true }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '保存成员', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' }); assert.deepEqual(member.roles, ['operator_manager'])
+  await dialog.waitFor({ state: 'hidden' }); assert.deepEqual(member.roles, ['design_manager'])
   mode = 'conflict'
   await page.getByRole('button', { name: '编辑', exact: true }).click()
   await page.getByRole('button', { name: '保存成员', exact: true }).click()

@@ -79,13 +79,14 @@ def test_upload_revalidates_permission_after_staging(materials, monkeypatch):
     original = store.put
     def revoked(record, data):
         original(record, data)
-        change_roles(factory, actor, ('designer',))
+        change_roles(factory, actor, ())
     monkeypatch.setattr(store, 'put', revoked)
     assert upload(client).status_code == 403
     with factory() as session:
         record = session.scalar(select(Material))
         assert record.status == 'staging' and record.version == 0
         assert record.object_key in store.data
+    change_roles(factory, actor, ('designer',))
     assert client.get(ROOT + '/materials/' + str(record.id)).status_code == 404
 
 
@@ -109,12 +110,12 @@ def test_content_storage_failure_and_size_mismatch(materials, monkeypatch):
 def test_manager_supplement_own_files_and_regular_operator_refused(materials):
     client, factory, actor, designer, _ = materials
     task = create(client, payload(designer)).json()
-    stranger = add_member(factory, ('operator',))
+    stranger = add_member(factory, ('designer',))
     with factory.begin() as session:
         session.get(Task, UUID(task['id'])).created_by = stranger
     data = upload(client).json()
     assert submit(client, task['id'], [data['id']]).status_code == 403
-    change_roles(factory, actor, ('operator_manager',))
+    change_roles(factory, actor, ('design_manager',))
     assert submit(client, task['id'], [data['id']]).status_code == 200
 
 

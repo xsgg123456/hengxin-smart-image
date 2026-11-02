@@ -43,7 +43,7 @@
         ><template #extra
           ><ElButton
             type="primary"
-            :disabled="role !== 'designer'"
+            :disabled="!['designer', 'design_manager', 'super_admin'].includes(role)"
             @click="
               act(() => {
                 retry(task, role);
@@ -119,16 +119,16 @@
             :rows="3"
             maxlength="1000"
             placeholder="不通过时请填写方案修改意见"
-            :disabled="role !== 'designer'"
+            :disabled="!['designer', 'design_manager', 'super_admin'].includes(role)"
           />
           <div class="actions hx-gap">
-            <ElCheckbox v-model="fail" :disabled="role !== 'designer'"
+            <ElCheckbox v-model="fail" :disabled="!['designer', 'design_manager', 'super_admin'].includes(role)"
               >演示下一次 AI 处理失败</ElCheckbox
-            ><ElButton :disabled="role !== 'designer'" @click="plan(false)"
+            ><ElButton :disabled="!['designer', 'design_manager', 'super_admin'].includes(role)" @click="plan(false)"
               >不通过，重新分析</ElButton
             ><ElButton
               type="primary"
-              :disabled="role !== 'designer'"
+              :disabled="!['designer', 'design_manager', 'super_admin'].includes(role)"
               @click="plan(true)"
               >确认方案，开始生图</ElButton
             >
@@ -156,8 +156,8 @@
         type="error"
         :closable="false"
       />
-      <p v-if="role !== 'designer'" class="hx-footnote">
-        当前为运营视角；方案确认、图片审核与归档由海外设计负责。
+      <p v-if="!['designer', 'design_manager', 'super_admin'].includes(role)" class="hx-footnote">
+        当前为提交人视角；方案确认、图片审核与归档由海外设计负责。
       </p>
     </ElCard>
     <OverseasTaskInfo :task="task"><template #materials><ElDivider /><h3>原始图需资料</h3><p v-for="f in task.files" :key="f.kind" class="hx-footnote">{{ f.name }} · {{ f.sample ? '示例资料' : '仅记录文件名' }}</p></template></OverseasTaskInfo>

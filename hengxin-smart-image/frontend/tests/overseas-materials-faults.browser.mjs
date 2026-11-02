@@ -21,7 +21,7 @@ try {
     else if (path === '/api/identity/v1/me') body = { name: '测试运营', sessionId: 'identity-test' }
     else if (path.endsWith('/tickets')) body = { ticket: 'test' }
     else if (path === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
-    else if (path.includes('/auth/')) { body = { id: 'actor', name: '测试运营', identitySessionId: 'identity-test', status: 'active', roles: ['operator'], capabilities: caps }; if (path.endsWith('/access')) body = { state: 'allowed', member: body } }
+    else if (path.includes('/auth/')) { body = { id: 'actor', name: '测试运营', identitySessionId: 'identity-test', status: 'active', roles: ['designer'], capabilities: caps }; if (path.endsWith('/access')) body = { state: 'allowed', member: body } }
     else if (path.endsWith('/task-designers')) body = { items: [{ id: 'd1', name: '设计一', department: '海外' }], total: 1, page: 1, pageSize: 20 }
     else if (path.endsWith('/materials') && req.method() === 'POST') {
       uploadCount++; assert.equal(req.headers()['x-hx-request'], '1'); assert.match(req.headers()['content-type'], /multipart\/form-data/)

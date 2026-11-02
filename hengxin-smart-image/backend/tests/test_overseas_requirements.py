@@ -55,7 +55,7 @@ def test_pending_blocks_ai_and_approve_opens_studio_without_job(materials):
         assert session.scalar(select(func.count()).select_from(RequirementsReview)) == 1
 
 
-@pytest.mark.parametrize('roles', [('operator',), ('designer',)])
+@pytest.mark.parametrize('roles', [('designer',)])
 def test_review_requires_design_scope(materials, roles):
     client, factory, actor, _, _ = materials
     task, _ = pending(materials)
@@ -99,6 +99,9 @@ def test_reject_resubmit_replace_and_preserve_evidence(materials):
         assert session.scalar(select(Job)) is None
         assert session.get(Task, UUID(task['id'])).material_ids == [newer['id']]
     change_roles(factory, actor, ('designer',))
+    assert client.get(path + '/content').status_code == 200
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).created_by = designer
     assert client.get(path + '/content').status_code == 403
 
 
@@ -108,16 +111,12 @@ def test_resubmit_authority_and_retained_materials(materials):
     change_roles(factory, actor, ('super_admin',))
     returned = review(client, task, 'reject', '补充').json()
     body = {**payload(designer), 'version': returned['version'], 'materialIds': [original['id']]}
-    for roles in (('designer',),):
-        change_roles(factory, actor, roles)
-        assert post(client, task, '/resubmit', body).status_code == 403
-    other = add_member(factory, ('operator',))
+    other = add_member(factory, ('designer',))
     with factory.begin() as session:
         session.get(Task, UUID(task['id'])).created_by = other
-    change_roles(factory, actor, ('operator',))
+    change_roles(factory, actor, ('designer',))
     assert post(client, task, '/resubmit', body).status_code == 403
-    change_roles(factory, actor, ('operator_manager',))
-    assert post(client, task, '/resubmit', {**body, 'designerId': str(actor)}).status_code == 422
+    change_roles(factory, actor, ('design_manager',))
     assert post(client, task, '/resubmit', body).status_code == 200
 
 
@@ -169,7 +168,7 @@ def test_resubmit_keep_one_replace_other_and_assignment_permission(materials, mo
     replacement = upload(client).json()
     another_designer = add_member(factory)
     body = {**payload(designer), 'version': 2, 'materialIds': [requirement['id'], replacement['id']]}
-    change_roles(factory, actor, ('operator',))
+    change_roles(factory, actor, ('designer',))
     assert post(client, task, '/resubmit', {**body, 'designerId': str(another_designer)}).status_code == 403
     change_roles(factory, actor, ('super_admin',))
     response = post(client, task, '/resubmit', {**body, 'designerId': str(another_designer)})

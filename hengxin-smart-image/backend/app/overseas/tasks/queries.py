@@ -3,7 +3,8 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from app.overseas.auth.models import Member, MemberRole
 from app.overseas.members.service import roles_for
-from app.overseas.permissions import can_access_task, principal_for, require_task_access, scopes, task_filter
+from app.overseas.permissions import (can_access_task, can_submit_requirements, principal_for,
+                                     require_task_access, scopes, task_filter)
 from .models import Task, TaskEvent, TaskSku, RequirementsReview, TaskDeletion
 
 DESIGN_ROLES = ('designer', 'design_manager', 'super_admin')
@@ -41,14 +42,12 @@ def summary(session, task, principal):
             'capabilities': [permission for permission in ('task.read', 'task.design', 'task.reassign', 'task.delete')
                              if can_access_task(principal, task.created_by, task.designer_id, permission)]
                             + (['task.materials.submit'] if task.status == 'created'
-                               and scopes(principal.roles, 'task.create')
-                               and (task.created_by == principal.id or bool(principal.roles & {'operator_manager', 'super_admin'}))
+                               and can_submit_requirements(principal, task.created_by, task.designer_id)
                                else [])
                             + (['task.requirements.review'] if task.status == 'pending_review'
                                and can_access_task(principal, task.created_by, task.designer_id, 'task.design') else [])
                             + (['task.requirements.resubmit'] if task.status == 'returned'
-                               and scopes(principal.roles, 'task.create')
-                               and (task.created_by == principal.id or bool(principal.roles & {'operator_manager', 'super_admin'})) else [])}
+                               and can_submit_requirements(principal, task.created_by, task.designer_id) else [])}
     if deletion:
         result['status'] = deletion.status
         result['capabilities'] = [cap for cap in result['capabilities'] if cap in ('task.read', 'task.delete')]

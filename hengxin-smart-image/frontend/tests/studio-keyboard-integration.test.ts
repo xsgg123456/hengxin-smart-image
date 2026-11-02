@@ -8,7 +8,7 @@ import { emptyTaskDraft, type TaskDetail } from '../src/api/overseas/tasks'
 import type { Studio, StudioApi, TurnInput } from '../src/api/overseas/studio'
 import { IdentityError } from '../src/api/identity/request'
 
-const task: TaskDetail = { ...emptyTaskDraft(), id: 'keyboard-task', status: 'studio', workflow: 'studio', version: 1, createdAt: '', updatedAt: '', createdBy: { id: 'u', name: '用户' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.design'], events: [] }
+const task: TaskDetail = { ...emptyTaskDraft(), remarks: '', id: 'keyboard-task', status: 'studio', workflow: 'studio', version: 1, createdAt: '', updatedAt: '', createdBy: { id: 'u', name: '用户' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.design'], events: [] }
 const snapshot = (): Studio => ({ taskId: task.id, taskVersion: 1, archiveId: null, reopened: false, completed: false, turns: [], materials: [], skills: [{ id: "skill-id", name: "test", displayName: "测试 Skill", description: "" }], activeTurnId: null })
 const enter = () => ({ key: 'Enter', keyCode: 13, preventDefault() {} }) as KeyboardEvent
 

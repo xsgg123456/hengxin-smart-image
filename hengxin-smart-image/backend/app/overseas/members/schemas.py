@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.overseas.auth.models import ROLES
 
-Role = Literal['operator', 'operator_manager', 'designer', 'design_manager', 'super_admin']
+Role = Literal['designer', 'design_manager', 'super_admin']
 Status = Literal['active', 'pending', 'disabled']
 
 

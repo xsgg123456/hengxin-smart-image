@@ -8,7 +8,7 @@ export type ManagementPage =
   | "users"
   | "skills"
   | "settings";
-export const roles = { operator: "运营", designer: "设计", admin: "管理员" };
+export const roles = { designer: "设计", design_manager: "设计主管", super_admin: "超级管理员" };
 export interface Member {
   id: string;
   name: string;

@@ -52,8 +52,8 @@ const query = reactive({ search: '', status: '', role: '', page: 1, pageSize: 20
 const rows = ref<OverseasMember[]>([]), total = ref(0), loading = ref(false), saving = ref(false)
 const open = ref(false), error = ref(''), formError = ref(''), conflict = ref(false)
 const statuses = { active: '启用', pending: '待授权', disabled: '禁用' }
-const roleOptions = computed(() => props.adapter.preview ? { operator: '运营', designer: '设计', super_admin: '管理员' } : memberRoles)
-const blank = (): OverseasMember => ({ id: '', name: '', department: '', roles: ['operator'], status: 'active', version: 1, createdAt: '', updatedAt: '' })
+const roleOptions = computed(() => memberRoles)
+const blank = (): OverseasMember => ({ id: '', name: '', department: '', roles: ['designer'], status: 'active', version: 1, createdAt: '', updatedAt: '' })
 const form = reactive(blank())
 const selectedRole = computed<MemberRole | ''>({ get: () => form.roles[0] ?? '', set: role => { form.roles = role ? [role] : [] } })
 let generation = 0, active = true, confirmingDisable = false, originalStatus: MemberStatus = 'active'

@@ -43,7 +43,7 @@ def assign(factory, actor_id, task, designer, key, barrier=None):
 
 @pytest.mark.parametrize('different', [False, True])
 def test_concurrent_same_key_create(pg_factory, different):
-    actor, designer = member(pg_factory, 'operator'), member(pg_factory, 'designer')
+    actor, designer = member(pg_factory, 'designer'), member(pg_factory, 'designer')
     barrier = Barrier(2)
     with ThreadPoolExecutor(2) as pool:
         futures = [pool.submit(create, pg_factory, actor, designer, 'same', barrier,
@@ -53,7 +53,7 @@ def test_concurrent_same_key_create(pg_factory, different):
 
 
 def test_same_key_is_independent_per_actor(pg_factory):
-    a, b = member(pg_factory, 'operator'), member(pg_factory, 'operator')
+    a, b = member(pg_factory, 'designer'), member(pg_factory, 'designer')
     designer = member(pg_factory, 'designer')
     barrier = Barrier(2)
     with ThreadPoolExecutor(2) as pool:
@@ -63,7 +63,7 @@ def test_same_key_is_independent_per_actor(pg_factory):
 
 
 def test_concurrent_assignment_same_version(pg_factory):
-    creator = member(pg_factory, 'operator')
+    creator = member(pg_factory, 'designer')
     manager = member(pg_factory, 'design_manager')
     first, second, third = [member(pg_factory, 'designer') for _ in range(3)]
     _, task = create(pg_factory, creator, first)
@@ -79,7 +79,7 @@ def test_concurrent_assignment_same_version(pg_factory):
 @pytest.mark.parametrize('target', ['actor', 'candidate'])
 @pytest.mark.parametrize('disabled', [False, True])
 def test_waiting_permission_changes_revalidated(pg_factory, monkeypatch, operation, target, disabled):
-    creator = member(pg_factory, 'operator')
+    creator = member(pg_factory, 'designer')
     actor = creator if operation == 'create' else member(pg_factory, 'design_manager')
     candidate = member(pg_factory, 'designer')
     task = create(pg_factory, creator, member(pg_factory, 'designer'), 'initial')[1] if operation == 'assignment' else None
@@ -108,7 +108,8 @@ def test_waiting_permission_changes_revalidated(pg_factory, monkeypatch, operati
                 first.get(Member, victim).status = 'disabled'
             else:
                 first.execute(delete(MemberRole).where(MemberRole.user_id == victim))
-                first.add(MemberRole(user_id=victim, role='operator' if operation == 'assignment' or target == 'candidate' else 'designer'))
+                if operation == 'assignment' and target == 'actor':
+                    first.add(MemberRole(user_id=victim, role='designer'))
             first.commit()
             assert future.result(timeout=15)[0] == (403 if target == 'actor' else 422)
     assert counts(pg_factory) == ([1, 2, 1, 1, 1] if task else [0] * 5)

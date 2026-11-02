@@ -60,7 +60,7 @@
           >
         </div>
         <ElDivider /><ElButton
-          v-if="role === 'designer'"
+          v-if="['designer', 'design_manager', 'super_admin'].includes(role)"
           text
           type="danger"
           @click="remove(row.task)"

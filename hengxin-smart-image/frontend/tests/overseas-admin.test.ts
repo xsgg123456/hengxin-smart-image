@@ -20,7 +20,7 @@ test("海外成员独立新增编辑禁用删除与重复校验", () => {
       id: "",
       name: " ",
       department: "海外",
-      role: "operator",
+      role: "designer",
       enabled: true,
     }),
   );
@@ -28,13 +28,13 @@ test("海外成员独立新增编辑禁用删除与重复校验", () => {
     id: "",
     name: "成员",
     department: "海外",
-    role: "operator",
+    role: "designer",
     enabled: true,
   });
   assert.equal(members.length, 1);
   assert.throws(() => saveMember({ ...members[0], id: "" }), /同名/);
-  saveMember({ ...members[0], role: "admin", enabled: false });
-  assert.equal(members[0].role, "admin");
+  saveMember({ ...members[0], role: "super_admin", enabled: false });
+  assert.equal(members[0].role, "super_admin");
   assert.equal(members[0].enabled, false);
   removeRecord(members, members[0].id);
   assert.equal(members.length, 0);
@@ -57,7 +57,7 @@ test("系统配置阻止无效数字，保存与退出重置独立内存", () =>
 });
 test("任务统计仅基于当前任务，排版占位图不计产出，返工与失败单独计数", () => {
   assert.equal(taskSummary([]).tasks, 0);
-  const task = createTask(exampleDraft(), "operator", "admin-stat-task");
+  const task = createTask(exampleDraft(), "designer", "admin-stat-task");
   task.pictures = [
     {
       id: "p",

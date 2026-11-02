@@ -7,7 +7,7 @@ export const previewSession = reactive<BusinessIdentity>({
   authenticated: false,
   domestic: false,
   overseas: false,
-  overseasRole: "operator",
+  overseasRole: "designer",
 });
 export function authorizePreview(scenario: AccessScenario, role: OverseasRole) {
   Object.assign(previewSession, previewIdentity(scenario, role));

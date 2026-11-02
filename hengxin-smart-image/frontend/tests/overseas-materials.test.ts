@@ -34,7 +34,7 @@ test('资料 API 使用海外路径、写保护、会话及受保护原件，无
 test('创建携带资料且补充提交携带版本与稳定幂等key', async () => {
   const calls: { url: string; options?: RequestInit }[] = []
   const api = createTasksApi(async (url, options) => { calls.push({ url: String(url), options }); return new Response('{}') })
-  await assert.rejects(api.create({ ...emptyTaskDraft(), materialIds: ['m1'] }, 'create'))
+  await assert.rejects(api.create({ ...emptyTaskDraft(), remarks: '', materialIds: ['m1'] }, 'create'))
   await assert.rejects(api.submitMaterials('t/1', ['m1'], 3, 'stable'))
   assert.deepEqual(JSON.parse(String(calls[0].options?.body)).materialIds, ['m1'])
   assert.equal(calls[1].url, '/api/overseas/v1/tasks/t%2F1/materials')

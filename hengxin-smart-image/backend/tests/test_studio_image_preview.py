@@ -8,7 +8,7 @@ from PIL import Image
 from app.overseas.materials.models import Material
 from test_overseas_tasks import overseas, ROOT, HEADERS
 from test_overseas_materials import materials, upload
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_studio import studio, send, finish, output
 
 
@@ -25,10 +25,14 @@ def test_generated_picture_head_preflights_without_reading_and_enforces_access(s
     assert response.status_code == 200 and response.content == b''
     for name in ('content-type', 'content-length', 'content-disposition', 'cache-control'):
         assert response.headers[name] == downloaded.headers[name]
+    change_roles(factory, actor, ('designer',))
+    assert client.head(url).status_code == 200  # The creator retains read access.
+    assert send(client, task, key='creator-write').status_code == 403
     store.data.clear()
     assert client.head(url).status_code == 503
-    change_roles(factory, actor, ('designer',))
+    use_unrelated_designer(factory)
     assert client.head(url).status_code == 403
+    assert client.get(url).status_code == 403
     client.cookies.clear()
     assert client.head(url).status_code == 401
 
@@ -75,8 +79,14 @@ def test_image_preview_get_head_and_download(studio, monkeypatch, source, extens
     assert client.get(url).headers['content-disposition'].startswith('attachment')
     assert client.head(url).headers['content-disposition'].startswith('attachment')
     change_roles(factory, actor, ('designer',))
+    assert client.get(url + '?preview=true').content == data
+    assert client.head(url + '?preview=true').status_code == 200
+    assert send(client, task, key='creator-write').status_code == 403
+    use_unrelated_designer(factory)
+    opened.clear()
     assert client.get(url + '?preview=true').status_code == 403
     assert client.head(url + '?preview=true').status_code == 403
+    assert not opened
     client.cookies.clear()
     assert client.get(url + '?preview=true').status_code == 401
 

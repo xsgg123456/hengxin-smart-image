@@ -41,7 +41,7 @@ def test_installed_freeze_and_settings_audit(overseas):
     assert new['runtime'] == {'timeoutSeconds': 120}
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(Audit)) == 1
-    change_roles(factory, actor, ('operator',))
+    change_roles(factory, actor, ('designer',))
     assert client.get(MANAGE + '/skills').status_code == 403
     assert client.patch(MANAGE + '/settings', json=body, headers=HEADERS).status_code == 403
 
@@ -71,7 +71,7 @@ def test_settings_bounds_binding_csrf_and_secret_rejection(overseas):
 def test_scoped_stats_filters_pagination_without_usage(overseas):
     client, factory, actor, designer = setup(overseas)
     task = create(client, payload(designer)).json()
-    other = add_member(factory, ('operator',))
+    other = add_member(factory, ('designer',))
     with factory.begin() as session:
         from app.overseas.tasks.models import Task
         hidden = Task(name='secret', product_name='p', brand='b', platform='Amazon', market='US',
@@ -95,6 +95,9 @@ def test_scoped_stats_filters_pagination_without_usage(overseas):
     assert client.get(MANAGE + '/jobs?kind=revision').json()['total'] == 0
     assert client.get(MANAGE + '/jobs?from=2026-01-02&to=2026-01-01').status_code == 422
     change_roles(factory, actor, ('designer',))
+    assert client.get(MANAGE + '/jobs').json()['total'] == 3
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).created_by = other
     assert client.get(MANAGE + '/jobs').json()['total'] == 0
     change_roles(factory, actor, ('design_manager',))
     assert client.get(MANAGE + '/jobs').json()['total'] == 4

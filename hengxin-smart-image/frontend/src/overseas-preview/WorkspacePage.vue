@@ -1,7 +1,7 @@
 <template>
   <OverseasWorkspace
     :page="page"
-    :role="previewSession.overseasRole === 'admin' ? 'operator' : previewSession.overseasRole"
+    :role="previewSession.overseasRole"
     @navigate="navigate"
   />
 </template>

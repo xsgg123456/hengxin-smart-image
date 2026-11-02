@@ -56,7 +56,7 @@ def patch(factory, actor_id, target_id, barrier=None, roles=None, version=1):
             barrier.wait(timeout=8)
         try:
             service.patch_member(session, actor, target_id, MemberPatch(
-                roles=roles or ['operator'], status='active', version=version))
+                roles=roles or ['designer'], status='active', version=version))
             return 200
         except HTTPException as exc:
             return exc.status_code
@@ -110,7 +110,7 @@ def test_waiting_actor_reauthorized_after_lock(pg_factory, monkeypatch, disabled
                 sleep(0.01)
             # The waiting thread has already loaded b as active and admin.
             service.patch_member(first, first.get(Member, a), b, MemberPatch(
-                roles=['operator'], status='disabled' if disabled else 'active', version=1))
+                roles=['designer'], status='disabled' if disabled else 'active', version=1))
             assert future.result(timeout=15) == 403
     with pg_factory() as session:
         assert session.get(Member, target).version == 1

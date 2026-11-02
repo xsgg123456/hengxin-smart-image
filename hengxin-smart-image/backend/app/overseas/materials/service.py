@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from app.core.idempotency import fingerprint_payload, lookup_request
 from app.db.timestamps import utcnow
-from app.overseas.permissions import principal_for, require_task_access
+from app.overseas.permissions import can_submit_requirements, principal_for, require_task_access
 from app.overseas.tasks.models import TaskRequest
 from app.overseas.tasks.queries import detail, get_task
 from app.overseas.tasks.service import lock_actor, record_change, request_record
@@ -78,8 +78,8 @@ def submit(session, actor, task_id, body, key):
     previous = lookup_request(session, TaskRequest, actor.id, 'materials', str(task_id), key, body_hash)
     task = get_task(session, task_id, lock=True)
     principal = principal_for(session, actor)
-    if task.created_by != actor.id and not principal.roles & {'operator_manager', 'super_admin'}:
-        raise HTTPException(403, '只能为本人创建的任务提交资料')
+    if not can_submit_requirements(principal, task.created_by, task.designer_id):
+        raise HTTPException(403, '没有该任务的资料提交权限')
     if previous:
         result = detail(session, task.id, actor)
         session.commit()

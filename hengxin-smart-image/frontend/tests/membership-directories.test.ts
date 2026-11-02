@@ -47,3 +47,16 @@ test('真实国内目录SFC：成员/历史独立query与总数，普通编辑�
     assert.equal(find(view.root, 'ElDialog').props.modelValue, false); assert.deepEqual(find(view.root, 'ArtTable').props.data, []); assert.ok(text(view.root).includes('共 0 位成员'))
   } finally { view.close() }
 })
+
+
+test('海外正式及预览角色选项统一三项，新成员默认设计', async () => {
+  assert.deepEqual(Object.keys(memberRoles), ['designer', 'design_manager', 'super_admin'])
+  const adapter: MembersAdapter = { preview: true, async list() { return { items: [], total: 0, page: 1, pageSize: 20 } }, async get() { return member }, async save(value) { return value } }
+  const view = mount(foreign, { adapter })
+  try {
+    await flush(); click(view.root, '新增成员'); await flush()
+    const select = all(view.root).find(n => n.tag === 'ElSelect' && n.props['aria-label'] === '海外业务角色')!
+    assert.equal(select.props.modelValue, 'designer')
+    assert.deepEqual(all(select).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['designer', 'design_manager', 'super_admin'])
+  } finally { view.close() }
+})

@@ -72,7 +72,7 @@ def seed():
                         "VALUES (:id,'test-corp',:member,:member,'test','active',now(),now())"),
                         {'id': uid, 'member': member})
                     connection.execute(text("INSERT INTO overseas_member_roles (id,user_id,role,created_at,updated_at) "
-                        "VALUES (:id,:uid,'operator',now(),now())"), {'id': str(uuid4()), 'uid': uid})
+                        "VALUES (:id,:uid,'designer',now(),now())"), {'id': str(uuid4()), 'uid': uid})
 
 def start(kind, module, port, env):
     PROCESSES[kind] = subprocess.Popen([PYTHON, '-m', 'uvicorn', module, '--host', '0.0.0.0',

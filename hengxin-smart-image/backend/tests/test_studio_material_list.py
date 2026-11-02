@@ -3,6 +3,8 @@ from copy import deepcopy
 from uuid import UUID
 import pytest
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
+from app.overseas.auth.models import MemberRole
 from app.overseas.materials.models import Material
 from app.overseas.studio.models import MaterialVisibility, Upload, Turn
 from app.overseas.studio import context_workspace
@@ -11,7 +13,7 @@ from app.overseas.tasks.models import Task
 from test_overseas_tasks import overseas, create, payload, ROOT, HEADERS
 from test_overseas_materials import materials, upload
 from test_overseas_studio import studio, send, finish
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_plans import post
 from test_studio_context_assets import workspace, original_path
 
@@ -109,8 +111,12 @@ def test_task_boundary_and_shared_visibility(studio):
     assert remove(client, task, other_file['id']).status_code == 404
     assert remove(client, task, 'task:' + material['id']).json()['materials'] == []
     assert [a['id'] for a in client.get(path(other)).json()['materials']] == [other_file['id']]
-    change_roles(factory, actor, ('operator',))
-    assert client.get(path(task)).json()['materials'] == []
+    change_roles(factory, actor, ('designer',))
+    readable = client.get(path(task))
+    assert readable.status_code == 200 and readable.json()['materials'] == []
+    assert remove(client, task, 'task:' + material['id']).status_code == 403
+    use_unrelated_designer(factory)
+    assert client.get(path(task)).status_code == 403
     assert remove(client, task, 'task:' + material['id']).status_code == 403
 
 
@@ -137,15 +143,32 @@ def test_hidden_image_keeps_preview_and_failed_upload_does_not_restore(studio, m
     assert image['id'] in [a['id'] for a in client.get(path(task)).json()['materials']]
 
 
-@pytest.mark.parametrize('role,assigned,allowed', [('designer', True, True), ('designer', False, False),
-    ('operator', True, False), ('design_manager', False, True), ('super_admin', False, True)])
-def test_remove_requires_task_design_permission(studio, role, assigned, allowed):
+@pytest.mark.parametrize('roles,assigned,allowed', [
+    (('designer',), True, True), (('designer',), False, False),
+    ((), True, False),
+    (('design_manager',), False, True), (('super_admin',), False, True)])
+def test_remove_requires_task_design_permission(studio, roles, assigned, allowed):
     client, factory, actor, task, material, _ = studio
     if assigned:
         with factory.begin() as session:
             session.get(Task, UUID(task['id'])).designer_id = actor
-    change_roles(factory, actor, (role,))
+    change_roles(factory, actor, roles)
     assert remove(client, task, 'task:' + material['id']).status_code == (200 if allowed else 403)
+    with factory() as session:
+        assert session.scalar(select(func.count()).select_from(MaterialVisibility)) == int(allowed)
+
+
+def test_multiple_roles_cannot_escalate_creator_material_permissions(studio):
+    client, factory, actor, task, material, _ = studio
+    change_roles(factory, actor, ('designer',))
+    with pytest.raises(IntegrityError):
+        change_roles(factory, actor, ('designer', 'design_manager'))
+    with factory() as session:
+        assert list(session.scalars(select(MemberRole.role).where(MemberRole.user_id == actor))) == ['designer']
+    assert client.get(path(task)).status_code == 200
+    assert remove(client, task, 'task:' + material['id']).status_code == 403
+    with factory() as session:
+        assert session.scalar(select(func.count()).select_from(MaterialVisibility)) == 0
 
 
 def test_remove_validation_browser_and_completed_guards(studio):

@@ -16,9 +16,9 @@
       </template>
       <p class="hx-footnote">平台：{{ task.platform }}<br />站点 / 语言：{{ task.market }}</p>
       <slot name="assignment" />
-      <slot name="materials" /><p class="hx-footnote">{{ task.remarks || "暂无补充说明" }}</p></ElCard
+      <slot name="materials" /></ElCard
     ><ElCard class="art-card" shadow="never"
-      ><template v-if="'requirementsReviews' in task && task.requirementsReviews?.length"><h2>图需审核记录</h2><div v-for="review in task.requirementsReviews" :key="review.id" class="hx-log"><strong>{{ review.decision === 'approve' ? '审核通过' : '退回运营' }}</strong> · {{ review.actorName }} · 提交版本 {{ review.version }}<p>{{ review.comment || '无补充意见' }}</p><small class="hx-muted">{{ formatBeijingTime(review.createdAt) }}</small></div></template><h2>流转记录</h2>
+      ><template v-if="'requirementsReviews' in task && task.requirementsReviews?.length"><h2>图需审核记录</h2><div v-for="review in task.requirementsReviews" :key="review.id" class="hx-log"><strong>{{ review.decision === 'approve' ? '审核通过' : '退回提交人' }}</strong> · {{ review.actorName }} · 提交版本 {{ review.version }}<p>{{ review.comment || '无补充意见' }}</p><small class="hx-muted">{{ formatBeijingTime(review.createdAt) }}</small></div></template><h2>流转记录</h2>
       <div v-for="(event, i) in task.events" :key="i" class="hx-log">
         {{ event.title }}<template v-if="'actorName' in event"> · {{ event.actorName }} · 第 {{ event.version }} 版<span v-if="event.beforeDesignerId" class="hx-footnote">{{ event.beforeDesignerId }} → {{ event.afterDesignerId }}</span></template><br /><small class="hx-muted">{{ formatBeijingTime(event.at) }}</small>
       </div></ElCard

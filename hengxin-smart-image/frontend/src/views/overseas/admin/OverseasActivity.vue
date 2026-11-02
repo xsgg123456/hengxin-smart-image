@@ -56,7 +56,7 @@
         :columns="columns"
         :show-table-header="false"
         :show-pagination="false"
-        empty-text="暂无匹配的海外任务，请先由运营提交图需"
+        empty-text="暂无匹配的海外任务，请先提交图需"
       >
         <template #status="{ row }"
           ><ElTag

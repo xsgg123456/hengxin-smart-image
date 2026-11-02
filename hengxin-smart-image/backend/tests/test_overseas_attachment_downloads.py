@@ -8,7 +8,7 @@ from app.overseas.materials.models import Material, ParseVersion
 from app.overseas.tasks.models import Task
 from test_overseas_tasks import overseas, create, payload, ROOT, HEADERS
 from test_overseas_materials import materials, upload
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_studio import studio, send, finish, output
 from test_overseas_plans import post
 
@@ -48,7 +48,7 @@ def test_head_does_not_open_and_get_streams_bounded_chunks(studio, monkeypatch, 
     response = client.get(url)
     assert response.content == data and response.headers['content-disposition'] == head.headers['content-disposition']
     assert opened[0].closed and opened[0].released
-    change_roles(factory, actor, ('designer',))
+    use_unrelated_designer(factory)
     assert client.head(url).status_code == 403
     assert client.get(url).status_code == 403
     client.cookies.clear()

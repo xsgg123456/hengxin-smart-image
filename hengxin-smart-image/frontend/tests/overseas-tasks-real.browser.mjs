@@ -24,7 +24,7 @@ try {
   }
   const { page: creator, context: operator } = sessions.operator, name = `浏览器真实图需-${Date.now()}`
   const input = label => creator.locator('.el-form-item').filter({ has: creator.locator('.el-form-item__label', { hasText: label }) }).locator('input')
-  await input('任务名称').fill(name); await input('品名').fill('手机壳'); await input('品牌').fill('HX'); await input('目标站点').fill('美国')
+  await input('任务名称').fill(name); await input('品名').fill('手机壳'); await input('品牌').fill('HX')
   await creator.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('BROWSER-A'); await button(creator, '添加 SKU').click(); await creator.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('BROWSER-B')
   await choose(creator, '测试成员-p18-designer')
   assert.equal(await button(creator, '提交图需').isDisabled(), true)

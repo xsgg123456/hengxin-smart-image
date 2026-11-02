@@ -38,7 +38,7 @@ function fixture() {
   return { api, calls, sends, get current() { return current } }
 }
 function mount(api: StudioApi, actor = 'designer', taskId = 't', capabilities = ['task.design']) {
-  const task = { ...emptyTaskDraft(), id: taskId, version: 1, capabilities } as TaskDetail
+  const task = { ...emptyTaskDraft(), remarks: '', id: taskId, version: 1, capabilities } as TaskDetail
   let state!: ReturnType<typeof useStudio>
   const failures: unknown[] = []
   const app = renderer.createApp(defineComponent({ setup() {

@@ -22,7 +22,7 @@ def studio_job(session, task_id, actor, key):
     return job
 
 
-@pytest.mark.parametrize('manager', ['super_admin', 'operator_manager', 'design_manager'])
+@pytest.mark.parametrize('manager', ['super_admin', 'design_manager'])
 def test_actual_operator_filters_intersect_scope_and_keep_unknown_visible(overseas, manager):
     client, factory, actor, designer = setup(overseas)
     task_id = UUID(create(client, payload(designer)).json()['id'])
@@ -52,11 +52,12 @@ def test_actual_operator_filters_intersect_scope_and_keep_unknown_visible(overse
         assert filtered['items'][0]['imageCount'] == summary['generationImages']
     assert client.get(MANAGE + '/usage?memberId=' + str(uuid4())).json()['jobs'] == 0
     assert client.get(MANAGE + '/jobs?memberId=invalid').status_code == 422
-    change_roles(factory, actor, ('operator',))
+    change_roles(factory, actor, ('designer',))
     assert client.get(MANAGE + '/usage').json()['jobs'] == 2
     assert client.get(MANAGE + '/usage?memberId=' + str(other)).json()['jobs'] == 0
     assert client.get(MANAGE + '/jobs?memberId=' + str(other)).json()['total'] == 0
     assert client.get(MANAGE + '/operators').json()['items'] == [{'id': str(designer), 'name': '候选设计'}]
-    change_roles(factory, actor, ('designer',))
+    with factory.begin() as session:
+        session.get(Task, task_id).created_by = other
     assert client.get(MANAGE + '/usage?memberId=' + str(designer)).json()['jobs'] == 0
     assert client.get(MANAGE + '/operators').json()['items'] == []

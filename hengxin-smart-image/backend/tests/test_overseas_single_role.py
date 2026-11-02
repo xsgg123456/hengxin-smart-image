@@ -19,16 +19,16 @@ def test_database_rejects_second_role(overseas):
     _, factory, _ = overseas
     member = seed(factory)
     with pytest.raises(IntegrityError), factory.begin() as session:
-        session.add(MemberRole(user_id=member, role='operator'))
+        session.add(MemberRole(user_id=member, role='design_manager'))
 
 
 def test_bootstrap_cannot_promote_existing_enrolled_member_without_application(overseas):
     _, factory, _ = overseas
-    member = seed(factory, roles=('operator',))
+    member = seed(factory, roles=('designer',))
     with factory() as session:
         with pytest.raises(ValueError, match='加入申请'):
             bootstrap_admins(session, 'corp', 'member-1')
-        assert list(session.scalars(select(MemberRole.role).where(MemberRole.user_id == member))) == ['operator']
+        assert list(session.scalars(select(MemberRole.role).where(MemberRole.user_id == member))) == ['designer']
 
 
 def legacy_database():
@@ -97,7 +97,7 @@ def test_admin_can_reject_and_resubmit_unowned_unassigned_task(materials, monkey
     from app.overseas.tasks.models import Task
     client, factory, actor, designer, _ = materials
     task, original = pending(materials)
-    stranger = add_member(factory, ('operator',))
+    stranger = add_member(factory, ('designer',))
     with factory.begin() as session:
         session.get(Task, UUID(task['id'])).created_by = stranger
     change_roles(factory, actor, ('super_admin',))

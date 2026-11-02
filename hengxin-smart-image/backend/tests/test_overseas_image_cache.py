@@ -11,7 +11,7 @@ from app.overseas.studio.models import Turn
 from app.overseas.execution.models import Job
 from test_overseas_tasks import overseas, ROOT, HEADERS
 from test_overseas_materials import materials, upload
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_studio import studio, send, finish, output
 from test_overseas_plans import post
 from studio_sessions_helpers import base, channel, mutate, selected
@@ -95,7 +95,7 @@ def test_matching_validators_cannot_bypass_access_or_existence(studio, source, f
     original = client.get(url)
     thumbnail = client.get(url, params={'thumbnail': 'true'})
     if failure == 'revoke':
-        change_roles(factory, actor, ('designer',))
+        use_unrelated_designer(factory)
         expected = 403
     elif failure == 'logout':
         client.cookies.clear()

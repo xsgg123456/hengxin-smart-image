@@ -30,6 +30,7 @@ class OverseasSettings(Settings):
     skill_toggle_owner_id: UUID | None = None
     # Explicit account grants, independent of the member's stored/displayed role.
     full_access_member_ids: frozenset[UUID] = Field(default_factory=frozenset, repr=False)
+    workflow_collaborator_member_ids: frozenset[UUID] = Field(default_factory=frozenset, repr=False)
     bootstrap_admin_user_ids: str = Field(default='', repr=False)
 
     @field_validator('skill_toggle_owner_id', mode='before')

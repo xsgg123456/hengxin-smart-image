@@ -5,10 +5,8 @@ from sqlalchemy import text
 from phase18_fixtures import ROLES
 
 EXPECTED = {
-    'operator': {'task.read', 'stats.read', 'task.create'},
-    'operator_manager': {'task.read', 'stats.read', 'task.create'},
-    'designer': {'task.read', 'stats.read', 'task.design'},
-    'design_manager': {'task.read', 'stats.read', 'task.design', 'task.reassign'},
+    'designer': {'task.read', 'stats.read', 'task.design', 'task.create'},
+    'design_manager': {'task.read', 'stats.read', 'task.design', 'task.reassign', 'task.create'},
     'super_admin': {'task.read', 'stats.read', 'task.reassign', 'members.manage',
                     'skills.manage', 'settings.manage', 'task.create', 'task.design', 'task.delete'},
 }
@@ -28,7 +26,7 @@ def run(h, ids):
                     h.expect(client.get(url), 403)
                 h.expect(client.patch(target, json={
                     'roles': ['super_admin'], 'status': 'active', 'version': 1}), 403)
-    print('PASS five role capabilities and four non-admin API guards', flush=True)
+    print('PASS three role capabilities and non-admin API guards', flush=True)
     with h.login('p18-admin') as admin:
         h.exchange(admin, 'overseas')
         def detail(url=target):
@@ -60,26 +58,28 @@ def run(h, ids):
         h.expect(admin.get(base + '/00000000-0000-0000-0000-000000000000'), 404)
         before = detail()
         audit_before = len(h.expect(admin.get(target + '/audit'), 200).json()['items'])
-        patch(before, ['operator', 'designer', 'operator'], expected=422)
+        patch(before, ['designer', 'design_manager'], expected=422)
+        patch(before, ['operator'], expected=422)
+        patch(before, ['operator_manager'], expected=422)
         updated = patch(before, ['designer']).json()
         assert updated['roles'] == ['designer'] and updated['version'] == before['version'] + 1
         patch(before, ['super_admin'], expected=409)
         assert detail() == updated
         for body in ({'roles': [], 'status': 'active', 'version': updated['version']},
                      {'roles': ['unknown'], 'status': 'active', 'version': updated['version']},
-                     {'roles': ['operator'], 'status': 'active', 'version': updated['version'], 'name': 'tamper'}):
+                     {'roles': ['designer'], 'status': 'active', 'version': updated['version'], 'name': 'tamper'}):
             h.expect(admin.patch(target, json=body), 422)
-        h.expect(admin.patch(target, json={'roles': ['operator'], 'status': 'active',
+        h.expect(admin.patch(target, json={'roles': ['designer'], 'status': 'active',
             'version': updated['version']}, headers={'Origin': 'https://evil.invalid'}), 403)
         with h.login('p18-target') as member:
             h.exchange(member, 'overseas')
             assert set(h.me(member, 'overseas').json()['capabilities']) == EXPECTED['designer']
             patch(detail(), ['super_admin'])
             h.expect(member.get(base), 200)
-            patch(detail(), ['operator'])
+            patch(detail(), ['designer'])
             h.expect(member.get(base), 403)
-            assert set(h.me(member, 'overseas').json()['capabilities']) == EXPECTED['operator']
-            patch(detail(), ['operator'], 'disabled')
+            assert set(h.me(member, 'overseas').json()['capabilities']) == EXPECTED['designer']
+            patch(detail(), ['designer'], 'disabled')
             h.me(member, 'overseas', 401)
         audit = h.expect(admin.get(target + '/audit'), 200).json()['items']
         assert len(audit) == audit_before + 4, audit
@@ -95,9 +95,9 @@ def run(h, ids):
             assert h.expect(fresh.get(target + '/audit'), 200).json()['items'] == audit
         print('PASS pagination filters single-role stale409 immediate revocation disable audit persistence', flush=True)
         admin2_url = base + '/' + ids['p18-admin2']
-        patch(detail(admin2_url), ['operator'])
+        patch(detail(admin2_url), ['designer'])
         own = detail(base + '/' + ids['p18-admin'])
-        patch(own, ['operator'], expected=409)
+        patch(own, ['designer'], expected=409)
         patch(own, ['super_admin'], 'disabled', 409)
         patch(detail(admin2_url), ['super_admin'])
         with h.login('p18-dual') as dual:
@@ -116,6 +116,6 @@ def run(h, ids):
             patch(detail(dual_url), ['designer'], 'disabled')
             h.me(dual, 'overseas', 401)
             assert h.me(dual, 'domestic').json() == domestic
-            patch(detail(dual_url), ['operator'])
+            patch(detail(dual_url), ['designer'])
         print('PASS last-admin409 domestic admin cookie isolation and domestic session unchanged', flush=True)
     print('READY Phase18 codes: p18-admin p18-admin2 p18-pending p18-dual and p18-<role>', flush=True)

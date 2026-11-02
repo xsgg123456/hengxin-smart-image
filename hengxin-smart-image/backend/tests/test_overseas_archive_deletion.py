@@ -120,7 +120,7 @@ def test_failure_partial_retry_and_task_wait(deletion, monkeypatch):
     assert cleanup_tasks(factory, store) == 1
 
 
-@pytest.mark.parametrize('role', ['operator', 'operator_manager', 'designer', 'design_manager'])
+@pytest.mark.parametrize('role', ['designer', 'design_manager'])
 def test_non_admin_cannot_delete_or_poll(deletion, role):
     client, factory, actor, _, _, store = deletion
     archive = archived(deletion, generated(deletion))

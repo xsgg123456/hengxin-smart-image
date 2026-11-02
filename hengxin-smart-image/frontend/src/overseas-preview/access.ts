@@ -1,5 +1,5 @@
 export type Business = "domestic" | "overseas";
-export type OverseasRole = "operator" | "designer" | "admin";
+export type OverseasRole = "designer" | "design_manager" | "super_admin";
 export type AccessScenario = "both" | "domestic" | "overseas" | "none";
 export interface BusinessIdentity {
   authenticated: boolean;
@@ -33,7 +33,7 @@ export function permittedPath(
     return "/business";
   if (path === "/domestic" && !mayEnter(identity, "domestic"))
     return "/business";
-  if (path.startsWith("/overseas/management/") && identity.overseasRole !== "admin")
+  if (path.startsWith("/overseas/management/") && identity.overseasRole !== "super_admin")
     return "/overseas/tasks";
   return path;
 }

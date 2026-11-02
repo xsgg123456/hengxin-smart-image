@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createOverseasRevalidator } from '../src/api/identity/revalidate'
 import { IdentityError, type Member } from '../src/api/identity/auth'
-const member: Member = { id: 'one', name: '成员', status: 'active', identitySessionId: 'identity-1', roles: ['operator'], capabilities: ['task.create'] }
+const member: Member = { id: 'one', name: '成员', status: 'active', identitySessionId: 'identity-1', roles: ['designer'], capabilities: ['task.create'] }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
 
 test('focus和visible并发只核验一次；核验前不替换成员及页面状态', async () => {

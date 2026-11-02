@@ -60,7 +60,7 @@ function mount(name: string, props: Record<string, unknown>) {
   const button = (label: string) => flatten(root).find(n => n.tag === 'ElButton' && textOf(n) === label)
   return { app, root, find, button, async click(label: string) { const target = button(label); assert.ok(target, label); assert.ok(!target.props.disabled, label); (target.props.onClick as () => void)(); await flush() }, async type(value: string) { (find('ElInput').props['onUpdate:modelValue'] as (value: string) => void)(value); await flush() } }
 }
-const task = (capabilities = ['task.read', 'task.delete']): Tasks.TaskDetail => ({ ...Tasks.emptyTaskDraft(), id: 'task', name: '完整任务名称', version: 2, status: 'studio', createdAt: '', updatedAt: '', createdBy: { id: 'a', name: '管理员' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities, events: [] })
+const task = (capabilities = ['task.read', 'task.delete']): Tasks.TaskDetail => ({ ...Tasks.emptyTaskDraft(), remarks: '', id: 'task', name: '完整任务名称', version: 2, status: 'studio', createdAt: '', updatedAt: '', createdBy: { id: 'a', name: '管理员' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities, events: [] })
 test('真实删除 SFC：无权限隐藏，仅二次确认，进行中不伪报删除、轮询失败及版本化重试', async () => {
   const denied = mount('OverseasTaskDelete', { task: task(['task.read']), api: {} }); assert.equal(denied.button('删除'), undefined); denied.app.unmount()
   const changes: Tasks.TaskDeletion[] = [], writes: unknown[] = []

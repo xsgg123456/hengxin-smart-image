@@ -14,7 +14,7 @@ from app.overseas.pictures.models import PictureVersion
 from test_overseas_plans import prepared, plans, publish, post
 from test_overseas_materials import materials
 from test_overseas_tasks import overseas, ROOT, HEADERS
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 
 
 def png(size=(1024, 1024), color='red'):
@@ -121,6 +121,9 @@ def test_partial_retry_revision_history_review_archive(materials, monkeypatch, t
     materials[-1].data.pop(object_key)
     assert client.get(ROOT + '/archives/' + archives['items'][0]['id'] + '/download').status_code == 503
     change_roles(factory, actor, ('designer',))
+    assert client.get(b['url']).status_code == 200
+    assert client.get(ROOT + '/archives').json()['total'] == 1
+    use_unrelated_designer(factory)
     assert client.get(b['url']).status_code == 403
     assert client.get(ROOT + '/archives/' + archives['items'][0]['id'] + '/download').status_code == 403
     assert client.get(ROOT + '/archives').json()['total'] == 0

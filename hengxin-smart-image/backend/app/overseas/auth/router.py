@@ -26,8 +26,13 @@ class OverseasUser(BaseModel):
 
 def describe(session, member, identity_session_id=None):
     roles = member_roles(session, member)
+    principal = principal_for(session, member)
+    granted = capabilities(principal.roles)
+    # Scope-change signal for clients; deliberately not an authorizable permission.
+    if principal.workflow_collaborator and principal.roles == {'designer'}:
+        granted.append('task.workflow.collaborate')
     return OverseasUser(id=str(member.id), name=member.name, status=member.status,
-                        roles=roles, capabilities=capabilities(principal_for(session, member).roles),
+                        roles=roles, capabilities=granted,
                         identitySessionId=identity_session_id)
 
 

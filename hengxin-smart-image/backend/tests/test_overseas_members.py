@@ -62,7 +62,7 @@ def test_ordinary_or_roleless_cannot_manage(overseas, roles):
                         json=payload(roles=['super_admin'])).status_code in (401, 403)
 
 
-@pytest.mark.parametrize('body', [payload(roles=[]), payload(roles=['unknown']), payload(roles=['operator', 'designer']), payload(roles=['designer', 'designer']),
+@pytest.mark.parametrize('body', [payload(roles=[]), payload(roles=['unknown']), payload(roles=['designer', 'designer']), payload(roles=['designer', 'designer']),
     payload(version=0), payload(version=True), payload(version='1'),
     payload(status='pending'), {**payload(), 'name': '伪造姓名'}])
 def test_strict_input(overseas, body):

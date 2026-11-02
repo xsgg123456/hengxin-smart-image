@@ -15,7 +15,7 @@ import {
 import { exampleDraft, overseasTasks, resetOverseasPreview, selectedOverseasTaskId, simulate } from "../src/views/overseas/preview-adapter";
 import type { Task } from "../src/views/overseas/types";
 function fixture(): Task {
-  const t = createTask(exampleDraft(), "operator", "OS-test");
+  const t = createTask(exampleDraft(), "designer", "OS-test");
   t.status = "review";
   t.pictures = t.skus.map((s) => ({
     id: s.code,
@@ -31,8 +31,10 @@ function fixture(): Task {
 }
 test("提交校验资料、重复及空 SKU、角色，提交即分析且复制数据", () => {
   const d = exampleDraft();
-  assert.equal(createTask(d, "operator", "a").status, "analyzing");
-  assert.throws(() => createTask(d, "designer", "a"), /运营权限/);
+  assert.doesNotThrow(() => validateDraft({ ...d, market: '' }));
+  assert.throws(() => validateDraft({ ...d, platform: '' }), /平台/);
+  assert.equal(createTask(d, "designer", "a").status, "analyzing");
+  for (const role of ["designer", "design_manager", "super_admin"] as const) assert.equal(createTask(d, role, "a").status, "analyzing");
   assert.throws(() => validateDraft({ ...d, files: [] }), /至少提供一份/);
   assert.throws(
     () =>
@@ -51,7 +53,7 @@ test("提交校验资料、重复及空 SKU、角色，提交即分析且复制�
   );
   assert.throws(() => validateDraft({ ...d, skus: [] }), /填写编码/);
   assert.deepEqual(
-    createTask({ ...d, skus: [{ code: " X " }] }, "operator", "sku-only").skus,
+    createTask({ ...d, skus: [{ code: " X " }] }, "designer", "sku-only").skus,
     [{ code: "X" }],
   );
   assert.throws(
@@ -64,14 +66,14 @@ test("提交校验资料、重复及空 SKU、角色，提交即分析且复制�
       }),
     /有效资料/,
   );
-  const t = createTask(d, "operator", "b");
+  const t = createTask(d, "designer", "b");
   d.skus[0].code = "changed";
   assert.notEqual(t.skus[0].code, "changed");
 });
 test("方案仅设计可处理，重分析必填意见且版本递增，失败可重试", () => {
   const t = fixture();
   t.status = "plan";
-  assert.throws(() => reviewPlan(t, "operator", true, ""), /设计权限/);
+  assert.throws(() => reviewPlan(t, "operator" as never, true, ""), /设计权限/);
   assert.throws(() => reviewPlan(t, "designer", false, "  "), /修改意见/);
   reviewPlan(t, "designer", false, "减少文案");
   assert.equal(t.status, "analyzing");
@@ -90,7 +92,7 @@ test("单图返工只影响当前图片，旧版本及无意见拒绝，归档�
   });
   const untouched = structuredClone(t.pictures[1]);
   assert.throws(
-    () => startRevision(t, "operator", t.pictures[0].id, 1, "修改", []),
+    () => startRevision(t, "operator" as never, t.pictures[0].id, 1, "修改", []),
     /设计权限/,
   );
   assert.throws(
@@ -114,17 +116,17 @@ test("单图返工只影响当前图片，旧版本及无意见拒绝，归档�
   approvePicture(t, "designer", t.pictures[0].id);
   archive(t, "designer");
   assert.equal(t.status, "archived");
-  assert.throws(() => canDelete(t, "operator"), /移除/);
-  assert.throws(() => removeArchive(t, "operator"), /设计权限/);
+  assert.throws(() => canDelete(t, "super_admin"), /移除/);
+  assert.throws(() => canDelete(t, "designer"), /超级管理员权限/);
   removeArchive(t, "designer");
   assert.equal(t.status, "review");
   assert.ok(t.pictures.every((p) => p.approved));
-  canDelete(t, "operator");
+  canDelete(t, "super_admin");
 });
 
 test("模拟适配器完成分析、保留失败任务并可重试；重置会清空独立状态", async () => {
   resetOverseasPreview()
-  overseasTasks.push(createTask(exampleDraft(), 'operator', 'OS-adapter'))
+  overseasTasks.push(createTask(exampleDraft(), 'designer', 'OS-adapter'))
   const task = overseasTasks[0]
   selectedOverseasTaskId.value = task.id
   simulate(task, true)

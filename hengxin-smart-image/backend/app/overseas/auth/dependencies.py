@@ -12,9 +12,10 @@ from app.overseas.auth.sessions import SESSION_COOKIE, resolve_session
 
 def member_roles(session: Session, member: Member) -> list[str]:
     roles = list(session.scalars(select(MemberRole.role).where(
-        MemberRole.user_id == member.id, MemberRole.role.in_(ROLES),
+        MemberRole.user_id == member.id,
     ).order_by(MemberRole.role)))
-    if member.directory_state != 'enrolled' or member.status != 'active' or len(roles) != 1:
+    if (member.directory_state != 'enrolled' or member.status != 'active'
+            or len(roles) != 1 or not set(roles) <= set(ROLES)):
         raise HTTPException(403, '海外账号未授权或已停用')
     return roles
 

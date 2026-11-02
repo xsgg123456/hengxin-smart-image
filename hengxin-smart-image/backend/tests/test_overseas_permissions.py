@@ -11,18 +11,16 @@ from app.overseas.permissions import (
 
 
 @pytest.mark.parametrize('role,expected', [
-    ('operator', {'task.read', 'task.create', 'stats.read'}),
-    ('operator_manager', {'task.read', 'task.create', 'stats.read'}),
-    ('designer', {'task.read', 'task.design', 'stats.read'}),
-    ('design_manager', {'task.read', 'task.design', 'task.reassign', 'stats.read'}),
+    ('designer', {'task.read', 'task.create', 'task.design', 'stats.read'}),
+    ('design_manager', {'task.read', 'task.create', 'task.design', 'task.reassign', 'stats.read'}),
     ('super_admin', {'task.create', 'task.design', 'task.read', 'task.reassign', 'task.delete', 'stats.read', 'members.manage',
                      'skills.manage', 'settings.manage'}),
 ])
-def test_five_role_capabilities(role, expected):
+def test_three_role_capabilities(role, expected):
     assert set(capabilities([role])) == expected
 
 
-@pytest.mark.parametrize('roles', [(), ('administrator',), ('super_admin', 'domestic_admin')])
+@pytest.mark.parametrize('roles', [(), ('operator',), ('operator_manager',), ('administrator',), ('super_admin', 'domestic_admin')])
 def test_empty_unknown_and_domestic_roles_do_not_grant_access(roles):
     assert capabilities(roles) == []
     principal = Principal(uuid4(), frozenset(roles))
@@ -62,9 +60,8 @@ def test_sql_list_detail_and_actions_share_real_ownership_scope(roles):
             for action in ('task.read', 'stats.read', 'task.design', 'task.reassign'):
                 if action in ('task.read', 'stats.read'):
                     expected = ({1, 2, 3, 4} if any(r in roles for r in (
-                        'operator_manager', 'design_manager', 'super_admin')) else
-                        ({1, 4} if 'operator' in roles else set()) |
-                        ({2, 4} if 'designer' in roles else set()))
+                        'design_manager', 'super_admin')) else
+                        ({1, 2, 4} if 'designer' in roles else set()))
                 elif action == 'task.design':
                     expected = {1, 2, 3, 4} if any(r in roles for r in ('design_manager', 'super_admin')) else (
                         {2, 4} if 'designer' in roles else set())

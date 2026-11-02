@@ -83,17 +83,20 @@ def test_lifecycle_requires_strict_positive_version(studio, operation, body):
     assert view(client, task)['taskVersion'] == 2
 
 
-@pytest.mark.parametrize('role,assigned,expected', [
-    ('operator', True, 403), ('operator_manager', True, 403), ('designer', False, 403),
-    ('designer', True, 200), ('design_manager', False, 200)])
-def test_reopen_obeys_role_and_current_assignment(studio, role, assigned, expected):
+@pytest.mark.parametrize('roles,assigned,expected', [
+    ((), True, 403),
+    (('designer',), False, 403), (('designer',), True, 200),
+    (('design_manager',), False, 200), (('super_admin',), False, 200)])
+def test_reopen_obeys_role_and_current_assignment(studio, roles, assigned, expected):
     client, factory, actor, task, _, _ = studio
     save_archive(studio)
     assert transition(client, task, 'complete', 2).status_code == 200
     if assigned:
         with factory.begin() as session:
             session.get(Task, UUID(task['id'])).designer_id = actor
-    change_roles(factory, actor, (role,))
+    change_roles(factory, actor, roles)
+    assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').status_code == (
+        200 if len(roles) == 1 else 403)
     response = transition(client, task, 'reopen', 3)
     assert response.status_code == expected, response.text
     with factory() as session:

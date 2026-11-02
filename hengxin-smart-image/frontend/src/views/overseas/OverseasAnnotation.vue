@@ -16,7 +16,7 @@
           :image-url="picture.url"
           :width="dimensions.width"
           :height="dimensions.height"
-          :disabled="confirming || role !== 'designer'"
+          :disabled="confirming || !['designer', 'design_manager', 'super_admin'].includes(role)"
         /><ElAlert v-else-if="loadError" :title="loadError" type="error"
           ><ElButton @click="load">重试加载图片</ElButton></ElAlert
         >
@@ -37,7 +37,7 @@
               v-model="mark.note"
               type="textarea"
               :rows="2"
-              :disabled="confirming || role !== 'designer'"
+              :disabled="confirming || !['designer', 'design_manager', 'super_admin'].includes(role)"
               maxlength="1000" /></ElFormItem
           ><ElFormItem label="整体补充要求"
             ><ElInput
@@ -47,7 +47,7 @@
               :rows="3"
               maxlength="1000"
               :disabled="
-                confirming || role !== 'designer'
+                confirming || !['designer', 'design_manager', 'super_admin'].includes(role)
               " /></ElFormItem></ElForm
         ><ElAlert
           title="只修改这张图片"
@@ -70,7 +70,7 @@
       }}</ElButton
       ><ElButton
         type="primary"
-        :disabled="!dimensions || role !== 'designer'"
+        :disabled="!dimensions || !['designer', 'design_manager', 'super_admin'].includes(role)"
         @click="submit"
         >{{ confirming ? "确认提交修改" : "预览并提交修改" }}</ElButton
       ></template

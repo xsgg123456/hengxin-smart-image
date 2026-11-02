@@ -19,7 +19,7 @@ class RecoverFiles(BaseModel):
 def native_request(session, actor, task_id, conversation_id, operation, files=()):
     actor_id = actor.id
     try:
-        task = queries.access(session, actor, task_id, write=True)
+        task = queries.access(session, actor, task_id, write=operation != 'available')
         queries.conversation(session, task.id, conversation_id, writable=True)
     finally:
         # Native recovery locks this task again. Release API/auth locks before waiting.

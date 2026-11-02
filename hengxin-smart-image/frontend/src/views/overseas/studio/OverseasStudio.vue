@@ -1,8 +1,8 @@
 <template>
   <section ref="workspace" class="studio-page" :style="{ '--studio-height': workspaceHeight }">
     <div class="studio-steps" aria-label="工作流进度">
-      <span :class="completed ? 'finished' : 'done'">{{ completed ? '✓' : '①' }} 运营提交图需</span><i></i>
-      <span :class="completed ? 'finished' : 'done'">{{ completed ? '✓' : '②' }} 设计人工审核</span><i></i>
+      <span :class="completed ? 'finished' : 'done'">{{ completed ? '✓' : '①' }} 提交图需</span><i></i>
+      <span :class="completed ? 'finished' : 'done'">{{ completed ? '✓' : '②' }} 图需审核</span><i></i>
       <span :class="completed ? 'finished' : 'active'">{{ completed ? '✓' : '③' }} AI 设计工作台<small v-if="data?.reopened && !completed">继续设计</small></span><i></i>
       <span :class="{ finished: completed || data?.archiveId }">{{ completed ? '✓' : '④' }} 归档成品库<small v-if="data?.archiveId && !completed">已有归档</small></span>
       <ElTag v-if="completed" type="success" size="small">全部完成</ElTag>
@@ -14,7 +14,7 @@
       </div></div>
       <div v-if="completed" class="session-completed-notice" role="status"><strong>任务已完成 · 所有会话只读</strong><span>可切换查看历史及归档成品。需要继续设计，请点击“解冻工作台”。</span></div>
       <ElAlert v-if="sessionError || preferenceNotice" :title="sessionError || preferenceNotice" type="warning" :closable="false" />
-      <ElAlert v-if="sessionPending && !sessionBusy" title="会话操作结果尚未确认，请核实原请求。" type="warning" :closable="false"><ElButton :loading="sessionBusy" @click="retrySession">核实会话操作</ElButton></ElAlert>
+      <ElAlert v-if="sessionPending && !sessionBusy" title="会话操作结果尚未确认，请核实原请求。" type="warning" :closable="false"><ElButton :loading="sessionBusy" :disabled="!task.capabilities.includes('task.design')" @click="retrySession">核实会话操作</ElButton></ElAlert>
       <ElAlert v-if="error || limitError" :title="limitError || error" type="error" :closable="false" />
       <ElAlert v-if="draftNotice && !skillError" :title="draftNotice" type="warning" :closable="false" />
       <ElAlert v-if="pending && !busy" title="上次操作的结果尚未确认。请使用相同请求重试，避免重复提交。" type="warning" :closable="false"><ElButton :loading="busy" :disabled="!task.capabilities.includes('task.design')" @click="retry">核实并重试上次操作</ElButton></ElAlert>

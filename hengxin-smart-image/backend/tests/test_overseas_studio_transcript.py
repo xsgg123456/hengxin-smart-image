@@ -12,7 +12,7 @@ from test_overseas_studio import studio, send
 from test_overseas_studio_execution import fake_runtime
 from test_overseas_materials import materials
 from test_overseas_tasks import overseas, ROOT
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from studio_delivery_helpers import DeliveryCase
 from studio_receipt_regression_helpers import take
 
@@ -76,6 +76,8 @@ def test_full_ordered_updates_partial_utf8_reconnect_and_safe_tools(studio, tmp_
     transcript.poll(factory, job, token, workspace, final=True)
     assert read(client, task, last['cursor']).json()['items'] == []
     change_roles(factory, actor, ('designer',))
+    assert read(client, task).status_code == 200
+    use_unrelated_designer(factory)
     assert read(client, task).status_code == 403
 
 

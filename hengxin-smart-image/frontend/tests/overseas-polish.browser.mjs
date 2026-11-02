@@ -74,15 +74,15 @@ try {
   await page.goto(`${base}/#/overseas/create`)
   const platform = page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: '目标平台' }) })
   await platform.locator('.el-select').click()
-  const labels = ['亚马逊/Amazon', '美客多/Mercado Libre', '沃尔玛/Walmart', '家得宝/The Home Depot', '虾皮/Shopee', '威费尔/Wayfair']
+  const labels = ['亚马逊/Amazon', '威费尔/Wayfair', '美客多/Mercado Libre', '沃尔玛/Walmart', '家得宝/The Home Depot', '虾皮/Shopee']
   assert.deepEqual(await page.getByRole('option').allTextContents(), labels)
   await page.getByRole('option', { name: labels[3], exact: true }).click()
   assert.ok((await platform.innerText()).includes(labels[3]))
-  assert.equal(await page.locator('.el-form-item__label').getByText('目标站点', { exact: true }).count(), 1)
+  assert.equal(await page.locator('.el-form-item__label').getByText('目标站点', { exact: true }).count(), 0)
   assert.equal(await page.getByText('目标站点 / 语言', { exact: true }).count(), 0)
   await page.screenshot({ animations: 'disabled', path: '../../output/playwright/overseas-polish/create.png', fullPage: true })
   assert.deepEqual(errors, []); assert.deepEqual(unexpected, [])
-  console.log('PASS: fixed two rows; long draft; 1920/1366 clipping; 16px/Enter/Escape/done; session drafts; completed disabled; six platforms/site label')
+  console.log('PASS: fixed two rows; long draft; 1920/1366 clipping; 16px/Enter/Escape/done; session drafts; completed disabled; six platforms/no site input')
 } catch (error) {
   await page.screenshot({ animations: 'disabled', path: '../../output/playwright/overseas-polish/failure.png', fullPage: true })
   console.error(JSON.stringify({ errors, unexpected, text: await page.locator('body').innerText() })); throw error

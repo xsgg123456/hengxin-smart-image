@@ -14,7 +14,7 @@ from test_overseas_materials import materials
 from test_overseas_studio import studio, send, finish
 from test_overseas_task_deletion import deletion, generated, archived
 from test_overseas_plans import post
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from studio_sessions_helpers import base, channel, selected, upload_private, mutate
 
 
@@ -149,6 +149,9 @@ def test_session_ownership_permissions_running_delete_and_completed_readonly(stu
     assert mutate(client, task, a, 'PATCH', dict(name='冻结', version=1)).status_code == 409
     assert mutate(client, task, a, 'DELETE', dict(version=1)).status_code == 409
     change_roles(factory, actor, ('designer',))
+    assert client.get(base(task), params={'conversationId': a}).status_code == 200
+    assert mutate(client, task, a, 'PATCH', dict(name='只读', version=1)).status_code == 403
+    use_unrelated_designer(factory)
     assert client.get(base(task), params={'conversationId': a}).status_code == 403
 
 

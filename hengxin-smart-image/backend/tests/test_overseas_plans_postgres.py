@@ -25,7 +25,7 @@ from test_overseas_materials_postgres import ready
 @pytest.fixture
 def plan_pg(pg_factory):
     factory = pg_factory
-    operator, designer = member(factory, 'operator'), member(factory, 'designer')
+    operator, designer = member(factory, 'designer'), member(factory, 'designer')
     with factory.begin() as session:
         session.add(ExecutionGate(id=1))
     task = create(factory, operator, designer, 'new')[1]

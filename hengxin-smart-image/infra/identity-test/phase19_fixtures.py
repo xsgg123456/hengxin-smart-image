@@ -22,7 +22,7 @@ def prepare(h, ids):
                 json={'ticket': h.ticket(client, 'overseas', 'application')}), 200).json()
     with h.login('p18-admin') as admin:
         h.exchange(admin, 'overseas')
-        for code, role in zip(CODES, ('operator', 'designer')):
+        for code, role in zip(CODES, ('designer', 'designer')):
             application = applications[code]
             h.expect(admin.post(h.BUSINESS['overseas'][0] + '/api/overseas/v1/members/applications/'
                 + application['id'] + '/decision', json={

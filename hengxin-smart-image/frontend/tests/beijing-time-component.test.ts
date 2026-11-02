@@ -4,7 +4,7 @@ import * as Tasks from '../src/api/overseas/tasks'
 import { compile, mount, table, text } from './membership-test-harness'
 
 const timestamp = '2026-10-14T00:59:59.091561+00:00'
-const task = { ...Tasks.emptyTaskDraft(), id: 't', name: '时间回归任务', status: 'pending_review', version: 1,
+const task = { ...Tasks.emptyTaskDraft(), remarks: '', id: 't', name: '时间回归任务', status: 'pending_review', version: 1,
   createdAt: timestamp, updatedAt: timestamp, events: [{ title: '提交任务', at: timestamp }],
   createdBy: { id: 'o', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true },
   requirementsReviews: [{ id: 'r', decision: 'approve', actorName: '设计', version: 1, createdAt: timestamp }] }

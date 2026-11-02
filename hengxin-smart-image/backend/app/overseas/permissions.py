@@ -13,13 +13,14 @@ from app.overseas.auth.models import Member, ROLES
 
 CAPABILITIES = ('task.read', 'task.create', 'task.design', 'task.reassign', 'task.delete',
                 'stats.read', 'members.manage', 'skills.manage', 'settings.manage')
-MANAGERS = frozenset(('operator_manager', 'design_manager', 'super_admin'))
+MANAGERS = frozenset(('design_manager', 'super_admin'))
 
 
 @dataclass(frozen=True)
 class Principal:
     id: UUID
     roles: frozenset[str]
+    workflow_collaborator: bool = False
 
 
 def scopes(roles, permission):
@@ -32,13 +33,12 @@ def scopes(roles, permission):
     if permission in ('task.read', 'stats.read'):
         if roles & MANAGERS:
             return frozenset(('all',))
-        return frozenset(scope for role, scope in (('operator', 'created'), ('designer', 'assigned'))
-                         if role in roles)
+        return frozenset(('created', 'assigned')) if 'designer' in roles else frozenset()
     if permission == 'task.design':
         return frozenset(('all',)) if 'design_manager' in roles else (
             frozenset(('assigned',)) if 'designer' in roles else frozenset())
     allowed = {
-        'task.create': {'operator', 'operator_manager'},
+        'task.create': {'designer', 'design_manager'},
         'task.reassign': {'design_manager', 'super_admin'},
         'members.manage': {'super_admin'},
         'skills.manage': {'super_admin'},
@@ -61,7 +61,28 @@ def principal_for(session: Session, member: Member) -> Principal:
     # Validate membership and the real single role before applying an account grant.
     roles = member_roles(session, member)
     policy_roles = ('super_admin',) if has_full_access_grant(member) else roles
-    return Principal(member.id, frozenset(policy_roles))
+    collaborator = (roles == ['designer'] and member.id in getattr(
+        get_settings(), 'workflow_collaborator_member_ids', frozenset()))
+    return Principal(member.id, frozenset(policy_roles), collaborator)
+
+
+def task_scopes(principal: Principal, permission: str):
+    """Account grants expand workflow scope only, never role or statistics scope."""
+    scope = scopes(principal.roles, permission)
+    if principal.workflow_collaborator and principal.roles == {'designer'}:
+        if permission == 'task.read':
+            return frozenset(('all',))
+        if permission == 'task.design':
+            return frozenset(('created', 'assigned'))
+    return scope
+
+
+def can_submit_requirements(principal: Principal, created_by, designer_id) -> bool:
+    if not scopes(principal.roles, 'task.create'):
+        return False
+    return (created_by == principal.id or bool(principal.roles & MANAGERS)
+            or (principal.workflow_collaborator and principal.roles == {'designer'}
+                and can_access_task(principal, created_by, designer_id, 'task.design')))
 
 
 def authorize_member(session: Session, member: Member, permission: str):
@@ -78,7 +99,7 @@ def require_permission(permission: str):
 
 def task_filter(principal: Principal, created_by, designer_id, permission='task.read'):
     """Apply to task queries before pagination/counting; caller supplies overseas columns."""
-    scope = scopes(principal.roles, permission)
+    scope = task_scopes(principal, permission)
     if 'all' in scope:
         return true()
     conditions = []
@@ -90,7 +111,7 @@ def task_filter(principal: Principal, created_by, designer_id, permission='task.
 
 
 def can_access_task(principal: Principal, created_by, designer_id, permission='task.read') -> bool:
-    scope = scopes(principal.roles, permission)
+    scope = task_scopes(principal, permission)
     return ('all' in scope or ('created' in scope and created_by == principal.id)
             or ('assigned' in scope and designer_id == principal.id))
 

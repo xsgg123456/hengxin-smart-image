@@ -12,7 +12,7 @@ from app.overseas.studio.models import Turn, Picture, Conversation
 from app.overseas.studio.execution import HANDLER
 from test_overseas_tasks import overseas, create, payload, ROOT, HEADERS
 from test_overseas_materials import materials, upload
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_plans import post
 
 
@@ -88,6 +88,9 @@ def test_scope_cross_task_attachments_and_cancel(studio):
     cancelled = post(client, task, '/studio/turns/' + turn['id'] + '/cancel', {'version': 1})
     assert cancelled.json()['turns'][0]['status'] == 'cancelled'
     change_roles(factory, actor, ('designer',))
+    assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').status_code == 200
+    assert send(client, task, key='creator-denied').status_code == 403
+    use_unrelated_designer(factory)
     assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').status_code == 403
     assert send(client, task, key='forbidden').status_code == 403
 
@@ -108,7 +111,7 @@ def test_upload_original_content_formats_and_permissions(studio, monkeypatch):
                                ('huge.txt', b'x' * (20 * 1024 * 1024 + 1), 413)]:
         result = client.post(path, files={'file': (name, data)}, headers=HEADERS)
         assert result.status_code == status, result.text
-    change_roles(factory, actor, ('designer',))
+    use_unrelated_designer(factory)
     assert client.get(asset['url']).status_code == 403
 
 

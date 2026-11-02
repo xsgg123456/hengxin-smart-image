@@ -38,7 +38,7 @@
           empty-height="300px"
           :show-pagination="false"
           row-key="id"
-          :empty-text="allowed ? '暂无匹配任务，请提交图需或清空筛选' : '暂无匹配任务，请清空筛选或联系运营'"
+          :empty-text="allowed ? '暂无匹配任务，请提交图需或清空筛选' : '暂无匹配任务，请清空筛选或联系提交人'"
         >
           <template #name="{ row }"
             ><div class="hx-table-name">
@@ -59,7 +59,7 @@
         </ArtTable>
         <slot name="pagination" />
         <p class="hx-footnote">
-          共 {{ total }} 个任务 · 运营提交，设计审核图需、协作生图与归档
+          共 {{ total }} 个任务 · 提交人提交，设计审核图需、协作生图与归档
         </p>
       </ElCard>
 </div></template>

@@ -113,7 +113,7 @@ def test_delegate_can_resubmit_unowned_task_without_role_change(materials, monke
     monkeypatch.setattr(parsers, 'parse_document', lambda *_: '完整资料')
     client, factory, actor, designer, _ = materials
     task, original = pending(materials)
-    stranger = add_member(factory, ('operator',))
+    stranger = add_member(factory, ('designer',))
     with factory.begin() as session:
         session.get(Task, UUID(task['id'])).created_by = stranger
     change_roles(factory, actor, ('design_manager',))

@@ -152,7 +152,7 @@ def check_legacy(h, kind):
         h.exchange(applicant, kind, status=403)
         application = operation(h, applicant, kind, 'application', 'application')
         h.expect(admin.post(management + '/applications/' + application['id'] + '/decision',
-            json={'decision': 'approve', 'role': 'operator', 'version': application['version']}), 200)
+            json={'decision': 'approve', 'role': 'designer' if kind == 'overseas' else 'operator', 'version': application['version']}), 200)
         assert h.exchange(applicant, kind).json()['id'] == legacy_id
         assert h.expect(admin.get(management), 200).json()['total'] == members['total'] + 1
         assert legacy_id not in {row['id'] for row in h.expect(admin.get(management,

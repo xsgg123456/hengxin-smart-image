@@ -23,12 +23,12 @@
         <ElButton
           text
           type="primary"
-          :disabled="role !== 'designer' || picture.reworking"
+          :disabled="!['designer', 'design_manager', 'super_admin'].includes(role) || picture.reworking"
           @click="$emit('approve', picture.id)"
           >{{ picture.approved ? "撤回通过" : "审核通过" }}</ElButton
         ><ElButton
           text
-          :disabled="role !== 'designer' || picture.reworking"
+          :disabled="!['designer', 'design_manager', 'super_admin'].includes(role) || picture.reworking"
           @click="$emit('edit', picture)"
           >标注修改</ElButton
         >
@@ -46,7 +46,7 @@
     <ElButton
       type="primary"
       :disabled="
-        role !== 'designer' ||
+        !['designer', 'design_manager', 'super_admin'].includes(role) ||
         approved !== task.pictures.length ||
         task.pictures.some((p) => p.reworking)
       "

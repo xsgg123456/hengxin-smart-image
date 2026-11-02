@@ -161,7 +161,7 @@ def test_ownership_revocation_and_unrecognized_ids(materials):
     assert create(client, {**payload(designer), 'materialIds': [data['id']]}).status_code == 403
     assert client.get(ROOT + '/materials/' + str(uuid4())).status_code == 404
     assert create(client, {**payload(designer), 'materialIds': [str(uuid4())]}).status_code == 404
-    change_roles(factory, actor, ('designer',))
+    change_roles(factory, actor, ())
     assert upload(client).status_code == 403
 
 
@@ -169,7 +169,7 @@ def test_reassignment_revokes_previous_designer(materials):
     client, factory, actor, designer, _ = materials
     data = upload(client).json()
     task = create(client, {**payload(designer), 'materialIds': [data['id']]}).json()
-    stranger = add_member(factory, ('operator',))
+    stranger = add_member(factory, ('designer',))
     with factory.begin() as session:
         record = session.get(Task, UUID(task['id']))
         record.created_by, record.designer_id = stranger, actor

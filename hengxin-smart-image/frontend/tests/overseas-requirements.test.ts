@@ -4,7 +4,7 @@ import { createTasksApi, isTaskDetail, emptyTaskDraft, type TaskDetail } from '.
 import { resubmitMaterialIds, taskToDraft } from '../src/views/overseas/requirements'
 import { STAGES, STATUS_STEP } from '../src/views/overseas/types'
 import type { Material } from '../src/api/overseas/materials'
-const task: TaskDetail = { ...emptyTaskDraft(), name: '审核任务', productName: '手机壳', brand: '品牌', market: '美国', skus: [{ code: 'A' }], id: 'task/1', version: 3, status: 'pending_review', createdAt: '2026-10-13', updatedAt: '2026-10-13', createdBy: { id: 'o', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.requirements.review'], events: [], requirementsReviews: [] }
+const task: TaskDetail = { ...emptyTaskDraft(), remarks: '', name: '审核任务', productName: '手机壳', brand: '品牌', market: '美国', skus: [{ code: 'A' }], id: 'task/1', version: 3, status: 'pending_review', createdAt: '2026-10-13', updatedAt: '2026-10-13', createdBy: { id: 'o', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.requirements.review'], events: [], requirementsReviews: [] }
 const material: Material = { status: 'ready', createdAt: '2026-10-12', id: 'm', kind: 'requirement', name: '图需.pdf', sizeBytes: 30, contentType: 'application/pdf', taskId: task.id }
 test('审核与重提使用真实契约、版本和幂等键', async () => {
   const calls: {url: string; options?: RequestInit}[] = []
@@ -24,7 +24,7 @@ test('审核记录严格验证，历史未带记录兼容，七节点索引一�
   assert.ok(isTaskDetail({ ...task, status: 'returned' }))
   assert.ok(isTaskDetail({ ...task, requirementsReviews: undefined }))
   for (const r of [{ ...review, decision: 'other' }, { ...review, version: 0 }, { ...review, materialIds: [3] }]) assert.equal(isTaskDetail({ ...task, requirementsReviews: [r] }), false)
-  assert.equal(STAGES.length, 7); assert.equal(STAGES[STATUS_STEP.pending_review], '设计人工审核'); assert.equal(STAGES[STATUS_STEP.analyzing], 'AI 排版分析'); assert.equal(STAGES[STATUS_STEP.archived], '归档成品库')
+  assert.equal(STAGES.length, 7); assert.equal(STAGES[STATUS_STEP.pending_review], '图需审核'); assert.equal(STAGES[STATUS_STEP.analyzing], 'AI 排版分析'); assert.equal(STAGES[STATUS_STEP.archived], '归档成品库')
 })
 test('重提回填独立草稿，可保留绑定资料和新资料，拒绝跨任务及重复/失败资料', () => {
   const draft = taskToDraft(task); draft.skus[0].code = 'B'; assert.equal(task.skus[0].code, 'A')

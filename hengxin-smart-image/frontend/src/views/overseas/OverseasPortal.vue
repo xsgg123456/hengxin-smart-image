@@ -6,7 +6,7 @@
       <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasArchivePage v-else-if="archivePage && member.capabilities?.includes('task.read')" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <AccountPage v-else-if="managementPage === 'codex-auth' && managementAllowed" :key="'codex-auth-' + member.id + refreshKey" side="overseas" :adapter="codexAdapter" @failure="managementFailure" />
-      <OverseasLiveManagement v-else-if="managementPage && managementPage !== 'users' && managementAllowed" :key="managementPage + refreshKey" :page="managementPage" :api="managementAdapter" :all-members="member.roles?.some(role => ['super_admin', 'operator_manager', 'design_manager'].includes(role))" @failure="managementFailure" />
+      <OverseasLiveManagement v-else-if="managementPage && managementPage !== 'users' && managementAllowed" :key="managementPage + refreshKey" :page="managementPage" :api="managementAdapter" :all-members="member.roles?.some(role => ['super_admin', 'design_manager'].includes(role))" @failure="managementFailure" />
       <OverseasMembers v-else-if="managing && allowed" :key="refreshKey" :adapter="adapter" @failure="fail" />
       <ElCard v-else class="art-card"><h2>企业身份已连接</h2><p class="hx-gap">当前海外角色：{{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p><ElAlert v-if="managementPage" title="暂无此管理页面权限" type="warning" :closable="false" /><ElButton v-if="allowed" type="primary" class="hx-gap" @click="router.push('/overseas/admin/users')">用户与角色</ElButton></ElCard>
     </div></div>

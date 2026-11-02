@@ -64,8 +64,8 @@ const router = useRouter();
 const params = new URLSearchParams(window.location.search);
 const scenario: AccessScenario = ['domestic', 'overseas', 'none'].includes(params.get('access') || '')
   ? params.get('access') as AccessScenario : 'both';
-const role: OverseasRole = params.get('role') === 'designer' ? 'designer'
-  : params.get('role') === 'operator' ? 'operator' : 'admin';
+const role: OverseasRole = params.get('role') === 'super_admin' ? 'super_admin'
+  : params.get('role') === 'design_manager' ? 'design_manager' : 'designer';
 const result = params.get('authResult') || 'success';
 const busy = ref(false), error = ref('');
 async function authorize() {

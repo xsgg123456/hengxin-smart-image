@@ -4,8 +4,11 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
-ROLES = ('operator', 'operator_manager', 'designer', 'design_manager')
-CODES = tuple('p18-' + role for role in ROLES) + (
+ROLES = ('designer', 'design_manager')
+# Historical login codes stay stable for browser harnesses; these are identities, not roles.
+ROLE_BY_CODE = {'p18-designer': 'designer', 'p18-design_manager': 'design_manager',
+                'p18-operator': 'designer', 'p18-operator_manager': 'design_manager'}
+CODES = tuple(ROLE_BY_CODE) + (
     'p18-admin', 'p18-admin2', 'p18-pending', 'p18-dual', 'p18-target')
 
 
@@ -35,9 +38,9 @@ def prepare(h):
     base = h.BUSINESS['overseas'][0] + '/api/overseas/v1/members/'
     with h.login('p18-admin') as admin:
         h.exchange(admin, 'overseas')
-        for code in (*('p18-' + role for role in ROLES), 'p18-dual', 'p18-target'):
+        for code in (*ROLE_BY_CODE, 'p18-dual', 'p18-target'):
             application = applications[code]
-            role = code.removeprefix('p18-') if code.removeprefix('p18-') in ROLES else 'operator'
+            role = ROLE_BY_CODE.get(code, 'designer')
             h.expect(admin.post(base + 'applications/' + application['id'] + '/decision', json={
                 'decision': 'approve', 'role': role, 'version': application['version']}), 200)
     with h.ENGINES['overseas'].connect() as connection:

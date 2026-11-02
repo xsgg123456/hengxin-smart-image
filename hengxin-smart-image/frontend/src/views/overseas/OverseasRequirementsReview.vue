@@ -8,7 +8,6 @@
           <div v-for="item in facts" :key="item[0]"><small>{{ item[0] }}</small><span>{{ item[1] }}</span></div>
         </div>
         <div class="sku-info"><small>商品 SKU</small><ElTag v-for="sku in task.skus" :key="sku.code" type="info">{{ sku.code }}</ElTag></div>
-        <div class="remarks"><small>运营补充说明</small><p>{{ task.remarks || '暂无补充说明' }}</p></div>
         <ElAlert v-if="!task.designer.eligible || task.designer.status !== 'active'" title="当前负责设计已停用或失去设计资格，请联系主管改派。" type="warning" :closable="false" />
         <slot name="assignment" />
       </ElCard>
@@ -19,18 +18,18 @@
           <p class="review-meta">确认需求清楚、资料完整后通过。退回时请说明需要补充的内容。</p>
           <ElForm label-position="top"><ElFormItem label="审核意见（通过可不填，退回必填）"><ElInput v-model="comment" aria-label="图需审核意见" type="textarea" :rows="3" maxlength="2000" :disabled="saving" placeholder="请说明需要补充或调整的内容" /></ElFormItem></ElForm>
           <ElAlert v-if="error" :title="error" type="error" :closable="false" />
-          <div class="decision-footer"><small>审核通过前，不启动 AI 分析或生图</small><div><ElButton type="danger" plain :disabled="saving" @click="decide('reject')">退回运营修改</ElButton><ElButton type="primary" :loading="saving" @click="decide('approve')">{{ task.workflow === 'studio' ? '审核通过，进入工作台' : '审核通过，进入 AI 分析' }}</ElButton></div></div>
+          <div class="decision-footer"><small>审核通过前，不启动 AI 分析或生图</small><div><ElButton type="danger" plain :disabled="saving" @click="decide('reject')">退回提交人修改</ElButton><ElButton type="primary" :loading="saving" @click="decide('approve')">{{ task.workflow === 'studio' ? '审核通过，进入工作台' : '审核通过，进入 AI 分析' }}</ElButton></div></div>
         </template>
-        <p v-else class="review-meta">{{ task.status === 'returned' ? '已退回运营，修改完成后需重新提交设计审核。' : '等待有权处理此任务的设计审核。' }}</p>
+        <p v-else class="review-meta">{{ task.status === 'returned' ? '已退回提交人，修改完成后需重新提交设计审核。' : '等待有权处理此任务的设计审核。' }}</p>
         <ElButton v-if="task.capabilities.includes('task.requirements.resubmit')" type="primary" @click="$emit('edit')">修改图需并重新提交</ElButton>
       </ElCard>
       <ElCard class="art-card review-panel" shadow="never"><h2>审核与流转记录</h2>
-        <div v-for="review in task.requirementsReviews || []" :key="review.id" class="history"><strong>{{ review.decision === 'approve' ? '审核通过' : '退回运营修改' }}</strong><small>{{ review.actorName }} · {{ formatTaskTime(review.createdAt) }} · 提交版本 {{ review.version }}</small><p>{{ review.comment || '无补充意见' }}</p></div>
+        <div v-for="review in task.requirementsReviews || []" :key="review.id" class="history"><strong>{{ review.decision === 'approve' ? '审核通过' : '退回提交人修改' }}</strong><small>{{ review.actorName }} · {{ formatTaskTime(review.createdAt) }} · 提交版本 {{ review.version }}</small><p>{{ review.comment || '无补充意见' }}</p></div>
         <p v-if="!task.requirementsReviews?.length" class="review-meta">暂无审核记录</p>
         <div v-for="event in task.events" :key="event.id" class="history"><span>{{ event.title }}</span><small>{{ event.actorName }} · {{ formatTaskTime(event.at) }}</small></div>
       </ElCard>
     </div>
-    <ElCard class="art-card review-panel review-side" shadow="never"><h2>工作流进度</h2><ElSteps direction="vertical" :active="task.status === 'returned' ? 0 : 1" :space="96" finish-status="success"><ElStep v-for="(stage, i) in stages" :key="stage" :title="stage" :description="descriptions[i]" /></ElSteps><p class="side-note">通过 → {{ task.workflow === 'studio' ? 'AI 设计工作台' : 'AI 排版分析' }}<br />退回 → 运营修改并重新提交<br />重新提交 → 回到设计审核</p></ElCard>
+    <ElCard class="art-card review-panel review-side" shadow="never"><h2>工作流进度</h2><ElSteps direction="vertical" :active="task.status === 'returned' ? 0 : 1" :space="96" finish-status="success"><ElStep v-for="(stage, i) in stages" :key="stage" :title="stage" :description="descriptions[i]" /></ElSteps><p class="side-note">通过 → {{ task.workflow === 'studio' ? 'AI 设计工作台' : 'AI 排版分析' }}<br />退回 → 提交人修改并重新提交<br />重新提交 → 回到设计审核</p></ElCard>
   </div>
 </template>
 <script setup lang="ts">
@@ -54,10 +53,10 @@ async function decide(decision: 'approve' | 'reject') {
   if (saving.value || !canReview.value) return
   const task = props.task, note = comment.value.trim()
   error.value = ''
-  if (decision === 'reject' && !note) { error.value = '请填写退回原因，便于运营修改。'; return }
+  if (decision === 'reject' && !note) { error.value = '请填写退回原因，便于提交人修改。'; return }
   saving.value = true
   try {
-    await ElMessageBox.confirm(decision === 'approve' ? (task.workflow === 'studio' ? '通过后进入 AI 设计工作台，等待设计师发送要求后才开始执行。' : '通过后将进入 AI 排版分析；后续仍需确认方案才会生图。') : '运营将看到退回原因，修改后需重新提交设计审核。', decision === 'approve' ? '确认通过图需审核？' : '退回运营修改？', { confirmButtonText: '确认', cancelButtonText: '取消', type: decision === 'reject' ? 'warning' : 'info' })
+    await ElMessageBox.confirm(decision === 'approve' ? (task.workflow === 'studio' ? '通过后进入 AI 设计工作台，等待设计师发送要求后才开始执行。' : '通过后将进入 AI 排版分析；后续仍需确认方案才会生图。') : '提交人将看到退回原因，修改后需重新提交设计审核。', decision === 'approve' ? '确认通过图需审核？' : '退回提交人修改？', { confirmButtonText: '确认', cancelButtonText: '取消', type: decision === 'reject' ? 'warning' : 'info' })
     if (!active || props.task.id !== task.id || props.task.version !== task.version || !canReview.value) return
     const body = { id: task.id, decision, comment: note, version: task.version }
     const result = await props.api.reviewRequirements(task.id, decision, note, task.version, keys.for(body))
@@ -82,10 +81,10 @@ h2 { font-size: 16px; font-weight: 600; }
 .review-meta { font-size: 12px; color: var(--el-text-color-secondary); margin: 10px 0 24px; }
 .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 24px; }
 small { color: var(--el-text-color-secondary); font-size: 12px; }
-.facts small, .remarks small, .history small { display: block; margin-bottom: 7px; }
+.facts small, .history small { display: block; margin-bottom: 7px; }
 .sku-info { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--el-border-color-lighter); }
-.remarks, .decision-footer { margin-top: 18px; }
-.remarks p, .history p { white-space: pre-wrap; line-height: 1.8; }
+.decision-footer { margin-top: 18px; }
+.history p { white-space: pre-wrap; line-height: 1.8; }
 .review-main, .review-side { overflow-wrap: anywhere; }
 .decision-footer > div { display: flex; flex-wrap: wrap; gap: 10px; }
 .decision-footer .el-button { margin: 0; }

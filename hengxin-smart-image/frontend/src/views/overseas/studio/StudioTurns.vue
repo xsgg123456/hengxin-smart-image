@@ -3,8 +3,8 @@
     <div v-if="!turns.length" class="studio-empty"><h2>从你的设计需求开始</h2><p>按需选择 Skill，引用任务素材，直接告诉 Codex 你想怎么做。</p></div>
     <template v-for="(turn, index) in turns" :key="turn.id">
       <div v-if="index === 0 || turn.conversationId !== turns[index - 1].conversationId" class="studio-conversation-divider">{{ turn.conversationId && turn.conversationId === conversationId ? '当前对话' : '历史对话' }}</div>
-      <article class="studio-message user"><div class="studio-message-name">设计师</div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><StudioAttachments :assets="[...turn.attachments, ...turn.referencePictures]" title="本条消息" @failure="$emit('failure', $event)" /></div></article>
-      <article class="studio-message assistant"><div class="studio-message-name">Codex <small>{{ labels[turn.status] || turn.status }}</small></div><div class="studio-bubble">
+      <article class="studio-message user"><div class="studio-message-name">{{ turn.actor?.name?.trim() || '未知操作人' }}<small title="北京时间">{{ formatBeijingTime(turn.createdAt, '时间未记录') }}</small></div><div class="studio-bubble"><ElTag v-if="turn.skillName">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><StudioAttachments :assets="[...turn.attachments, ...turn.referencePictures]" title="本条消息" @failure="$emit('failure', $event)" /></div></article>
+      <article class="studio-message assistant"><div class="studio-message-name">Codex <small>{{ labels[turn.status] || turn.status }}</small><small v-if="replyTime(turn)" title="北京时间">{{ replyTime(turn) }}</small></div><div class="studio-bubble">
         <StudioProcess :turn="turn" :entries="byTurn.get(turn.id) || []" />
         <ElAlert v-if="turn.error" :title="turn.error" type="error" :closable="false" />
         <ElAlert v-if="turn.deliveryError" :title="turn.deliveryError" type="warning" :closable="false" />
@@ -23,6 +23,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUpdate, onUpdated, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { StudioTranscript as Transcript, StudioPicture, StudioTurn } from '@/api/overseas/studio'
+import { formatBeijingTime } from '@/utils/beijing-time'
 import StudioAttachments from './StudioAttachments.vue'
 import StudioAssetImage from './StudioAssetImage.vue'
 import StudioProcess from './StudioProcess.vue'
@@ -42,6 +43,12 @@ const byTurn = computed(() => {
   for (const entry of props.transcript) { const items = result.get(entry.turnId) || []; items.push(entry); result.set(entry.turnId, items) }
   return result
 })
+function replyTime(turn: StudioTurn) {
+  const reply = turn.reply || byTurn.value.get(turn.id)?.findLast(entry => entry.kind === 'message')?.text
+  if (!reply?.trim()) return ''
+  const time = formatBeijingTime(turn.replyTimeSource ? turn.replyAt : null, '时间未记录')
+  return turn.replyTimeSource === 'completed' && time !== '时间未记录' ? `完成于 ${time}` : time
+}
 const scroller = ref<HTMLElement>()
 let nearBottom = true
 function trackScroll() { const node = scroller.value; if (node) { nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 64; emit('scroll-position', node.scrollTop, props.conversationId) } }

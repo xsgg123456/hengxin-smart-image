@@ -56,7 +56,7 @@ try {
   mode = 'normal'; await button('刷新设计人选').click(); await page.getByRole('combobox', { name: '负责设计', exact: true }).waitFor()
   await page.locator('.el-pager').getByText('2', { exact: true }).click(); await choose('设计二'); assert.equal(queries.at(-1).page, '2')
   const input = label => page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: label }) }).locator('input')
-  await input('任务名称').fill('真实多SKU任务'); await input('品名').fill('手机壳'); await input('品牌').fill('HX'); await input('目标站点').fill('美国')
+  await input('任务名称').fill('真实多SKU任务'); await input('品名').fill('手机壳'); await input('品牌').fill('HX')
   await page.getByRole('textbox', { name: 'SKU 1 编码', exact: true }).fill('A'); await button('添加 SKU').click(); await page.getByRole('textbox', { name: 'SKU 2 编码', exact: true }).fill('B')
   assert.equal(await button('提交图需').isDisabled(), true)
   await page.locator('[data-material-kind="competitor"] input[type=file]').setInputFiles({ name: '竞品.csv', mimeType: 'text/csv', buffer: Buffer.from('product,feature') }); await page.getByText(/竞品.csv/).waitFor()

@@ -1,12 +1,10 @@
 import type { AnnotationMark } from "../hengxin/components/annotation/annotation-model";
 import type { Draft, Material, Role, Task } from "./types";
 export function requireRole(role: Role, expected: Role) {
-  if (role !== expected)
-    throw new Error(
-      expected === "designer"
-        ? "此操作需要海外设计权限"
-        : "此操作需要海外运营权限",
-    );
+  const allowed = expected === "designer"
+    ? ["designer", "design_manager", "super_admin"].includes(role)
+    : role === expected;
+  if (!allowed) throw new Error(expected === "super_admin" ? "此操作需要海外超级管理员权限" : "此操作需要海外设计权限");
 }
 export function validateMaterial(file: Material) {
   const extension =
@@ -22,11 +20,11 @@ export function validateMaterial(file: Material) {
 }
 export function validateDraft(d: Draft) {
   if (
-    ![d.name, d.productName, d.brand, d.platform, d.market].every((s) =>
+    ![d.name, d.productName, d.brand, d.platform].every((s) =>
       s.trim(),
     )
   )
-    throw new Error("请填写任务名称、品名、品牌、平台和目标站点");
+    throw new Error("请填写任务名称、品名、品牌和平台");
   if (!d.skus.length || d.skus.some((s) => !s.code.trim()))
     throw new Error("请为每个 SKU 填写编码");
   if (
@@ -42,7 +40,7 @@ export function log(task: Task, title: string) {
   task.events.unshift({ title, at: new Date().toISOString() });
 }
 export function createTask(draft: Draft, role: Role, id: string): Task {
-  requireRole(role, "operator");
+  requireRole(role, "designer");
   validateDraft(draft);
   const task: Task = {
     ...draft,
@@ -61,7 +59,7 @@ export function createTask(draft: Draft, role: Role, id: string): Task {
     pictures: [],
     events: [],
   };
-  log(task, "运营提交资料，开始模拟 AI 分析");
+  log(task, "提交人提交资料，开始模拟 AI 分析");
   return task;
 }
 export function reviewPlan(
@@ -151,7 +149,7 @@ export function removeArchive(task: Task, role: Role) {
   log(task, "移除整套归档，保留图片与审核状态");
 }
 export function canDelete(task: Task, role: Role) {
-  requireRole(role, "operator");
+  requireRole(role, "super_admin");
   if (task.status === "archived")
     throw new Error("请先由设计从成品库移除整套归档");
 }

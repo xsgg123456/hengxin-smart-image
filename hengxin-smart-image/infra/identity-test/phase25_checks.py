@@ -21,7 +21,7 @@ def run(h):
             client = stack.enter_context(h.login(code))
             h.exchange(client, 'overseas')
             clients.append(client)
-        operator, old, new, admin, design_manager, operator_manager = clients
+        operator, old, new, admin, design_manager, creator_manager = clients
 
         def get(client, suffix, **params):
             return h.expect(client.get(base + suffix, params=params), 200).json()
@@ -107,7 +107,7 @@ def run(h):
                 hidden = get(old, suffix, **params)
                 assert hidden['items'] == [] and hidden['total'] == 0
             assert get(old, '/management/usage', taskId=task['id'])['jobs'] == 0
-            for client in (new, operator, admin, design_manager, operator_manager):
+            for client in (new, operator, admin, design_manager, creator_manager):
                 visible(client)
             member_status('disabled')
             revoked(new)
@@ -125,5 +125,5 @@ def run(h):
         assert domestic_snapshot(h) == before
         assert sorted((x.object_name, x.etag) for x in domestic.list_objects('domestic-test', recursive=True)) == objects_before
         print('PASS Phase25 current-assignment HTTP: task/material/plan/picture history/jobs/events/archive '
-              'and scoped management; five roles; disable/reactivate revokes old session; no job restart; '
+              'and scoped management; three roles; disable/reactivate revokes old session; no job restart; '
               'original assignment restored; domestic DB/objects unchanged', flush=True)

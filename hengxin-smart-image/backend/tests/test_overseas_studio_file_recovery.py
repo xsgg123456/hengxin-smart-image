@@ -14,7 +14,7 @@ from app.overseas.studio import delivery_context, delivery_snapshot, recovery_fi
 from app.overseas.studio.models import Turn, ConversationDeletion, Picture, OutputFile
 from app.overseas.studio.output_files import validated
 from app.overseas.tasks.models import Task, TaskDeletion, ExecutionObject
-from test_overseas_assignment import change_roles
+from test_overseas_assignment import change_roles, use_unrelated_designer
 from test_overseas_materials import materials
 from test_overseas_studio import studio, send, finish
 from test_overseas_tasks import overseas, ROOT, HEADERS
@@ -280,7 +280,7 @@ def test_selection_is_reauthorized_and_removed_files_fail_individually(missed, c
     path.write_bytes(b'useful output')
     choices = listed(missed)['items']
     if change == 'permission':
-        change_roles(missed.factory, missed.actor, ('operator',))
+        use_unrelated_designer(missed.factory)
         assert take(missed, choices).status_code == 403
     else:
         path.unlink()
