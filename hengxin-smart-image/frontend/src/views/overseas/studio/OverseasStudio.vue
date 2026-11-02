@@ -21,7 +21,7 @@
       <div class="studio-workspace"><StudioSessionList v-if="sessionsOpen" :sessions="sessions" :active-id="activeId" :disabled="!canManage" :can-create="canNewConversation" @select="s => selectSession(s.id)" @create="newConversation" @close="sessionsOpen = false" @action="sessionAction" /><section class="studio-conversation">
         <div class="session-current"><div><strong>{{ currentSession?.name || (sessions.length ? '加载会话…' : '暂无会话') }}</strong><small>{{ completed ? '只读会话 · 历史记录与文件保留' : currentSession?.deletionStatus ? currentSession.deletionError || '正在清理会话文件，请稍候' : data?.activeTurnId ? activeTurn?.status === 'collecting' ? '回复已结束 · 正在保存文件' : '执行中 · 切换会话不中断执行' : '独立上下文 · 独立工作文件' }}</small></div><div class="studio-actions"><ElButton size="small" :disabled="!currentSession || !!currentSession.deletionStatus || data?.conversationId !== activeId" @click="recoveryOpen = true">取回文件</ElButton><ElButton v-if="currentSession" text size="small" :disabled="!canManage || !!currentSession.deletionStatus" @click="sessionAction('rename', currentSession)">重命名</ElButton></div></div>
         <StudioTurns v-if="data?.conversationId === activeId" :key="activeId" :scroll-position="scrollPosition" @scroll-position="(position, id) => saveScroll(position, id || undefined)" :turns="data?.turns || []" :transcript="transcript" :conversation-id="data?.conversationId" :selected="selected" :disabled="locked" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" />
-        <div class="session-archive-bar"><span>{{ completed ? '成品已归入本任务，可通过右上角查看' : selected.length ? `已选当前会话 ${selected.length} 张图片` : '勾选当前会话图片，归档到本任务' }}</span><ElButton size="small" type="primary" :disabled="locked || !!data?.activeTurnId || !selected.length" @click="archiveOpen = true">归档所选图片（{{ selected.length }}）</ElButton></div>
+        <div class="session-archive-bar"><span>{{ completed ? '成品已归入本任务，可通过右上角查看' : selected.length ? `已选当前会话 ${selected.length} 张图片` : '勾选当前会话图片，可下载或归档到本任务' }}</span><div class="studio-actions"><StudioDownload :key="`${actorId}:${task.id}:${activeId}`" :pictures="selectedPictures" @failure="fail" /><ElButton size="small" type="primary" :disabled="locked || !!data?.activeTurnId || !selected.length" @click="archiveOpen = true">归档所选图片（{{ selected.length }}）</ElButton></div></div>
         <div class="studio-composer" @dragover.prevent @drop.prevent="drop" @paste="paste">
           <p v-if="completed" class="studio-completion-note">任务已完成。需要继续修改时，点击右上方“解冻工作台”。</p>
           <p v-if="data && !data.archiveId" class="studio-completion-note">暂无可用归档成品，可能尚未归档或已删除；完成任务前请先归档图片。</p>
@@ -55,6 +55,7 @@ import { IdentityError } from '@/api/identity/request'
 import OverseasArchiveDetail from '../OverseasArchiveDetail.vue'
 import type { TaskDetail } from '@/api/overseas/tasks'
 import StudioTurns from './StudioTurns.vue'
+import StudioDownload from './StudioDownload.vue'
 import StudioRecoveryDialog from './StudioRecoveryDialog.vue'
 import StudioArchiveFields from './StudioArchiveFields.vue'
 import { handleStudioSendKey } from './studio-send-key'
@@ -77,6 +78,7 @@ import './studio.css'
 const props = defineProps<{ actorId: string; task: TaskDetail }>()
 const emit = defineEmits<{ failure: [reason: unknown]; changed: [] }>()
 const { data, text, skill, attachments, references, revisions, revisionError, skillError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, removeMaterials, removingMaterials, materialNotice, draftNotice, sessions, activeId, currentSession, runningCount, canManage, sessionBusy, sessionError, sessionPending, retrySession, preferenceNotice, selectSession, renameConversation, deleteConversation, saveScroll, scrollPosition } = useStudioSessions(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
+const selectedPictures = computed(() => data.value?.conversationId === activeId.value ? data.value.turns.flatMap(turn => turn.pictures).filter(picture => selected.value.includes(picture.id)) : [])
 const completed = computed(() => data.value?.completed ?? props.task.status === 'completed')
 useImagePrefetch(() => `${props.actorId}:${props.task.id}:${activeId.value}`, () => data.value?.conversationId === activeId.value ? data.value : undefined, () => [...attachments.value, ...references.value])
 watch(materialNotice, value => { if (value) ElMessage.info(value) })

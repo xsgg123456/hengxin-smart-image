@@ -24,7 +24,6 @@
             ><ElInput
               v-model="draft.name"
               maxlength="80"
-              placeholder="例如：透明磁吸保护壳 · Amazon 美国站"
           /></ElFormItem>
           <div class="form-grid">
             <ElFormItem label="品名" required
@@ -38,7 +37,7 @@
                   :key="p.value"
                   :value="p.value" :label="p.label" /></ElSelect></ElFormItem
             ><ElFormItem label="品牌" required
-              ><ElInput v-model="draft.brand" maxlength="60" /></ElFormItem
+              ><ElSelect v-model="draft.brand" placeholder="请选择品牌"><ElOption v-for="brand in brandOptions" :key="brand" :value="brand" :label="brand" /></ElSelect></ElFormItem
             ><ElFormItem label="目标站点" required
               ><ElInput v-model="draft.market" maxlength="60"
             /></ElFormItem>
@@ -98,6 +97,8 @@ import { OVERSEAS_PLATFORMS } from './platforms'
 import { STAGES, STUDIO_STAGES, STUDIO_DESCRIPTIONS } from './types'
 interface Fields { name: string; productName: string; brand: string; platform: string; market: string; remarks: string; skus: { code: string }[] }
 const draft = defineModel<Fields>({ required: true })
+const brands = ['OUTON', 'OUTONLIFE', 'BELEEV']
+const brandOptions = computed(() => !draft.value.brand || brands.includes(draft.value.brand) ? brands : [...brands, draft.value.brand])
 const platformOptions = computed(() => OVERSEAS_PLATFORMS.some(p => p.value === draft.value.platform) || !draft.value.platform ? OVERSEAS_PLATFORMS : [...OVERSEAS_PLATFORMS, { value: draft.value.platform, label: draft.value.platform }])
 const props = defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean; editing?: boolean; workflow?: 'studio' | 'legacy' }>()
 const studio = computed(() => !props.preview && props.workflow !== 'legacy')
