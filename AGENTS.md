@@ -147,7 +147,7 @@
     按需横切触发，不属于流水线：
     Bug 修复：报 bug 或 code-review 失败 → bug-fixer → 修完建议 code-review
     代码审查：功能完成自动进 review→fix，或主动审查 → spawn code-reviewer → Stage 1 失败回 dev-builder，Stage 2 质量重构回 dev-builder、缺陷安全回 bug-fixer，重派从 Stage 1 起
-    内容修订：按改动量级判断，轻改直接 dev-builder，涉及需求或结构才回 product-spec-builder 和 dev-planner 迭代
+    内容修订：先按交付对象匹配 Skill；独立技能或素材调整不套用产品开发流程。项目代码轻改用 dev-builder，涉及产品需求或结构才回 product-spec-builder 和 dev-planner 迭代
     本地运行：用户说"跑起来" → 检测类型、装依赖、启动，给地址和用法
 
 [开发测试规则]
