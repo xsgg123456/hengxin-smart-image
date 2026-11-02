@@ -26,3 +26,25 @@
 显式回退命令：`python3 <source>/scripts/release/frontend-studio.py rollback <source> /opt/hengxin-smart-image /opt/hengxin-backups/<release>`。回退先确认当前发布清单一致，恢复旧入口及元数据，保留两代哈希资源；不恢复数据库、不重启后端。
 
 上线后核对生产版本、入口/核心静态文件公网哈希和健康接口；主 Agent 在真实已登录 Chrome 中实际验证四项功能及页面截图。
+
+## 生产静态部署结果
+
+2026-11-02 已发布 0.2.56，源码提交 `7c6c795`，发布 ID `frontend-studio-20261102-7c6c795`。
+
+- 制品 653 文件、4,895,969 字节；SHA256 `f963b6fe62a2d276a1256063d496b33ac90501d45dcbc20f2aa2a36113c65255`。提交和审查门禁、隐私审计、上传后全包哈希、解包逐文件哈希通过。
+- 实际制品在服务器隔离安装目录完成安装逐文件校验和显式回退，恢复 0.2.55 成功，再安装生产。
+- 源码制品目录 `/opt/hengxin-releases/frontend-studio-20261102-7c6c795/source`；生产备份 `/opt/hengxin-backups/frontend-studio-20261102-7c6c795`。旧哈希静态资源保留。
+- 公网 index.html、入口 JS、OverseasCreate JS/CSS、OverseasStudio JS/CSS 共 6 项与制品 SHA256 一致。
+- 国内、海外 `/health/ready` 均 HTTP 200。所有生产容器 ID 与发布前一致；海外 worker/outbox PID 保持 1167034/1167032 且 active，执行服务未重启。
+- 发布证据：`output/release/frontend-studio-20261102-7c6c795/package-audit.json`、`deployment.json`、`production-verification.json`；前态 `output/studio-production-baseline.json`。
+
+真实已登录浏览器四项功能验收由主 Agent 继续完成，此处静态和健康核验不能代替交互验收。
+
+## 正式浏览器四项验收
+2026-11-02 使用现有已登录Chrome从正式入口刷新后验证，任务“1030-拉通测试-张帅”，会话“OUTON_H-ZGD0008_Aplus_主图”。
+- 任务名称placeholder为null，视觉为空白。
+- 平台实际下拉顺序Amazon、Wayfair、Mercado Libre、Walmart、The Home Depot、Shopee；成功选择Wayfair。
+- 品牌初始“请选择品牌”，下拉OUTON/OUTONLIFE/BELEEV，成功选择BELEEV；未提交测试任务。
+- 空选下载禁用，选一张按钮计数1，全选计数8；实际下载两个ZIP分别含1/8张。Python zipfile CRC校验均通过，Pillow读取全部8张均PNG 1600×1600，单张与全选首张SHA256一致。
+- 浏览器download事件捕获超时，但本机Downloads实际文件已生成，以上结论来自文件校验，不以事件超时判产品失败。页面console error/warn为空。
+- 已目视核对正式表单和工作台，下载按钮位于归档旁。证据 output/studio-production.png、output/studio-production-downloads.json。未生成图片、归档、提交或改动已有任务数据。
