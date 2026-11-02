@@ -21,7 +21,7 @@
 
 - 定向Linux10模块163 passed、2 skipped（123.86秒），`output/message-ci/run_repair.stdout`。跳过原因明确为Windows junction（已本机1 passed）和缺少可选 `STUDIO_INCIDENT_FIXTURE` 私有历史事故样本；本轮消息PG、权限及四修正模块无跳过。repair制品SHA256 `ae0a54e600875c190fd3f9d8c4b99de13ee196171c8e937c9807a8987ce92191`。
 
-待追加最终镜像安装/生产只读验收实际结果。未执行项不算通过。
+最终镜像实际安装测试 498 passed、0 skipped；生产只读验收与页面核验已完成，完整证据见 [0.2.58 生产验收](OVERSEAS-0.2.58-PRODUCTION-20261102.md)。下文保留发布前各轮测试的真实结果。
 
 ## 生产预检后独立运行基线修正
 
