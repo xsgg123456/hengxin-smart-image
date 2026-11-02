@@ -902,3 +902,6 @@ API 换套图全站最多同时执行5个任务，按任务而非账号计数，
 
 ## 2026-10-30 · 海外原图缓存及执行时限
 用户确认正式实施并授权生产发布。验收合同：docs/OVERSEAS-IMAGE-CACHE-IMPLEMENTATION-20261030.md。保持原图品质，减少重复传输，海外新轮次默认7200秒，既有轮次不改写。
+
+## 2026-11-02
+- 批准Skill平台分组、Skill下拉仅名、取回文件搜索正式实施及部署，详见 docs/SKILL-PLATFORMS-IMPLEMENTATION-20261102.md。

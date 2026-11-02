@@ -32,17 +32,17 @@ def test_owner_persistent_state_survives_refresh_install_update_and_disable(over
     get_settings().skill_toggle_owner_id = actor
     item = install_sample()
     assert client.get(MANAGE + '/skills').json() == {
-        'items': [{**item, 'enabled': False, 'version': 1}], 'canToggle': True}
+        'items': [{**item, 'enabled': False, 'version': 1, 'platforms': []}], 'canToggle': True, 'canManagePlatforms': True}
     enabled = toggle(client, item, headers=HEADERS)
     assert enabled.status_code == 200, enabled.text
-    assert enabled.json()['items'] == [{**item, 'enabled': True, 'version': 2}]
+    assert enabled.json()['items'] == [{**item, 'enabled': True, 'version': 2, 'platforms': []}]
     assert client.get(MANAGE + '/skills').json() == enabled.json()
     install_sample(content='upgraded')
     extra = install_sample('new-installation')
     refreshed = client.get(MANAGE + '/skills').json()
     by_name = {entry['name']: entry for entry in refreshed['items']}
-    assert by_name[item['name']] == {**item, 'enabled': True, 'version': 2}
-    assert by_name[extra['name']] == {**extra, 'enabled': False, 'version': 1}
+    assert by_name[item['name']] == {**item, 'enabled': True, 'version': 2, 'platforms': []}
+    assert by_name[extra['name']] == {**extra, 'enabled': False, 'version': 1, 'platforms': []}
     assert toggle(client, item, False, 2, headers=HEADERS).status_code == 200
     install_sample(content='upgraded again')
     by_name = {entry['name']: entry for entry in client.get(MANAGE + '/skills').json()['items']}
@@ -140,6 +140,8 @@ def test_disabled_skill_filters_studio_and_blocks_new_keys_but_preserves_frozen_
     path = ROOT + '/tasks/' + task['id'] + '/studio'
     assert client.get(path).json()['skills'] == []
     assert send(client, task, skillId=item['id']).status_code == 422
+    with factory.begin() as session:
+        session.add(InstalledSkillAvailability(id=item['name'], platforms=['Amazon']))
     assert toggle(client, item, headers=HEADERS).status_code == 200
     assert client.get(path).json()['skills'] == [item]
     assert len(client.get(MANAGE + '/skills').json()['items']) == 2

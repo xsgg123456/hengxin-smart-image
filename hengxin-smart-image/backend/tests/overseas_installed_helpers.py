@@ -6,11 +6,12 @@ from app.overseas.management.skill_install import bundle, install
 from app.overseas.management.installed_catalog import catalog, identity, root_config
 
 
-def enable_sample(factory, name='sample'):
+def enable_sample(factory, name='sample', platforms=None):
     """Explicit prerequisite for tests exercising an already enabled installation."""
     from app.overseas.management.models import InstalledSkillAvailability
     with factory.begin() as session:
-        session.add(InstalledSkillAvailability(id=name, enabled=True, version=1))
+        session.add(InstalledSkillAvailability(id=name, enabled=True, version=1,
+            platforms=['Amazon'] if platforms is None else platforms))
 
 
 def install_sample(name='sample', content='first', files=None, display_name='示例技能'):

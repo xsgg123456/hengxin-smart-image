@@ -18,7 +18,8 @@ class CreateTask(StrictBody):
     name: Text80
     productName: Text80
     brand: Text60
-    platform: Literal['Amazon', 'TikTok Shop', 'Shopee', 'Lazada', '其他']
+    platform: Literal['Amazon', 'Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot',
+                      'TikTok Shop', 'Shopee', 'Lazada', '其他']
     market: Text60
     remarks: str = Field(default='', max_length=1000)
     skus: list[Sku] = Field(min_length=1, max_length=100)

@@ -5,7 +5,7 @@ import { IdentityError } from '../src/api/identity/request'
 import { formatAttachmentSize } from '../src/api/overseas/attachment-download'
 import type { createStudioOutputsApi, RecoverableFiles, RecoveryResult } from '../src/api/overseas/studio-outputs'
 import { useStudioRecovery } from '../src/views/overseas/studio/use-studio-recovery'
-import { all, click, compile, flush, mount, simple, text } from './membership-test-harness'
+import { all, click, compile, find, flush, mount, simple, text, update } from './membership-test-harness'
 
 const files = ['a', 'b'].map(id => ({ id, version: 'v1', name: `${id}.zip`, path: `${id}.zip`, source: 'work' as const, sizeBytes: id === 'a' ? 0 : 500_000_000 }))
 type Api = ReturnType<typeof createStudioOutputsApi>
@@ -86,5 +86,29 @@ test('服务端忙碌禁用取回，刷新解锁后最多选择100项', async ()
     for (let index = 0; index < many.length; index++) view.select(index)
     await flush(); assert.equal(view.checks()[100].props.disabled, true)
     click(view.root, '取回所选文件'); await flush(); assert.equal(count, 100)
+  } finally { view.close() }
+})
+
+
+test('取回文件即时搜索名称与路径忽略大小写，清空恢复；跨搜索隐藏已选仍提交', async () => {
+  const entries = [
+    { ...files[0], name: 'Result.ZIP', path: 'work/export/Result.ZIP' },
+    { ...files[1], name: 'chair.png', path: 'work/Images/chair.png' }
+  ]
+  const requests: { id: string; version: string }[][] = []
+  const view = setup({ list: async () => ({ items: entries, busy: false }), recover: async (_task, _conversation, selected) => { requests.push(selected); return { saved: [], errors: selected.map(file => ({ ...file, name: file.id, message: '测试重试' })) } } })
+  try {
+    await flush(); view.select(0); update(find(view.root, 'ElInput', '搜索取回文件'), 'IMAGES'); await flush()
+    assert.equal(view.checks().length, 1); assert.equal(view.checks()[0].props['aria-label'], '选择 chair.png')
+    assert.match(text(view.root), /显示 1 \/ 2 个文件/); assert.match(text(view.root), /另有 1 个已选文件被搜索隐藏/)
+    view.select(0); update(find(view.root, 'ElInput', '搜索取回文件'), 'missing'); await flush()
+    assert.equal(view.checks().length, 0); assert.equal(find(view.root, 'ElEmpty').props.description, '没有匹配的文件，请调整搜索')
+    assert.match(text(view.root), /已选 2\/100/)
+    click(view.root, '取回所选文件'); await flush(); assert.deepEqual(requests[0], [{ id: 'a', version: 'v1' }, { id: 'b', version: 'v1' }])
+    update(find(view.root, 'ElInput', '搜索取回文件'), 'result.zip'); await flush(); assert.equal(view.checks().length, 1)
+    update(find(view.root, 'ElInput', '搜索取回文件'), ''); await flush(); assert.equal(view.checks().length, 2)
+    assert.ok(view.checks().every(check => check.props['model-value'] === true))
+    update(find(view.root, 'ElInput', '搜索取回文件'), 'Images'); view.props.conversationId = 'two'; await flush()
+    assert.equal(find(view.root, 'ElInput', '搜索取回文件').props.modelValue, ''); assert.ok(view.checks().every(check => check.props['model-value'] === false))
   } finally { view.close() }
 })

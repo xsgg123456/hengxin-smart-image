@@ -151,7 +151,7 @@ test('同会话最新目录关闭所选Skill立即禁发，草稿附件保留，
     assert.equal(view.state.canSend.value, true)
     f.current.skills = []; await view.state.refresh()
     assert.equal(view.state.skill.value, 's'); assert.equal(view.state.canSend.value, false)
-    assert.match(view.state.skillError.value, /已关闭或不可用/); assert.match(view.state.draftNotice.value, /Skill 已不可用/)
+    assert.match(view.state.skillError.value, /不适用于当前任务平台或不可用/); assert.match(view.state.draftNotice.value, /Skill 已不可用/)
     await view.state.send(); assert.equal(f.sends.length, 0)
     assert.equal(view.state.text.value, '关闭后仍保留'); assert.deepEqual(view.state.attachments.value.map(a => a.id), ['upload:a'])
     f.current.skills = original; await view.state.refresh()

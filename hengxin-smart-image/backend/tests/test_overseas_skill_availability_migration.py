@@ -14,14 +14,14 @@ def test_seed_and_repeat_preserve_decision_and_domestic(disposable_databases):
     engine = create_engine(url)
     try:
         with engine.begin() as connection:
-            rows = connection.execute(text('SELECT id, enabled, version FROM overseas_installed_skill_availability')).all()
+            rows = connection.execute(text("SELECT id, enabled, version FROM overseas_installed_skill_availability WHERE id IN ('amazon-new-product-image-set', 'amazon-new-product-aplus')")).all()
             assert set(rows) == {('amazon-new-product-image-set', True, 1), ('amazon-new-product-aplus', True, 1)}
             connection.execute(text("UPDATE overseas_installed_skill_availability SET enabled=false, version=2 WHERE id='amazon-new-product-aplus'"))
             with Operations.context(MigrationContext.configure(connection)):
                 upgrade = runpy.run_path(str(BACKEND / 'migrations/overseas/versions/0020_skill_availability.py'))['upgrade']
                 upgrade()
                 upgrade()
-            rows = connection.execute(text('SELECT id, enabled, version FROM overseas_installed_skill_availability')).all()
+            rows = connection.execute(text("SELECT id, enabled, version FROM overseas_installed_skill_availability WHERE id IN ('amazon-new-product-image-set', 'amazon-new-product-aplus')")).all()
             assert set(rows) == {('amazon-new-product-image-set', True, 1), ('amazon-new-product-aplus', False, 2)}
         assert snapshot(domestic) == before
     finally:

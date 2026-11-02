@@ -1581,3 +1581,6 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 4. 0.2.55中文提交、制品隐私审计和真实安装测试；生产保留现有Compose/原生配置，海外worker先停接纳并排空、增量发布海外API及静态前端；生产健康/配置/原图缓存及视觉验收，保留回退证据。
 
 2026-10-30 已完成：源码提交 `0aa5912`，生产版本0.2.55。前端424项、真实浏览器18项、实际Linux安装84项通过；两阶段独立审查通过。线上原图尺寸和下载哈希保持，重复预览只做HEAD 304校验，刷新后原件GET 304；海外API及实际worker/outbox均为7200/7800。完整测试边界与回退记录见 [生产交付记录](docs/OVERSEAS-IMAGE-CACHE-RELEASE-20261030.md)。
+
+## 2026-11-02 · Skill平台分组及工作台交互
+依 docs/SKILL-PLATFORMS-IMPLEMENTATION-20261102.md 按序完成：后端 management/studio/execution 平台关联与海外迁移/测试；前端 management/admin/studio API接线及两项组件优化/测试；安装包和真实数据库迁移及浏览器回归；独立两阶段审查、中文提交、增量海外API与静态前端发布及线上验证。源Skill目录与执行器保持不变。状态：实施中。

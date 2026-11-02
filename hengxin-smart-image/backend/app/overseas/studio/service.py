@@ -83,7 +83,7 @@ def send(session, actor, task_id, body, key, conversation_hint=None):
     edits = freeze_edits(body, attachments, references)
     channel.updated_at = utcnow()
     channel.version += 1
-    frozen = freeze_selected(session, body.skillId)
+    frozen = freeze_selected(session, body.skillId, task.platform)
     turn_id = uuid4()
     inputs = [dict(id=str(row.id), name=row.name, bucket=row.bucket, object_key=row.object_key,
                    content_type=row.content_type, size_bytes=row.size_bytes, checksum=row.checksum)

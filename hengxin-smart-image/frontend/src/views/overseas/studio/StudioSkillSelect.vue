@@ -2,7 +2,6 @@
   <ElSelect :model-value="selected ? value : ''" clearable filterable fit-input-width :disabled="disabled" :placeholder="value && !selected ? '所选 Skill 已不可用' : '选择 Skill（可选）'" aria-label="选择 Skill" popper-class="studio-skill-options" @update:model-value="value = $event">
     <ElOption v-for="item in skills" :key="item.id" :value="item.id" :label="item.displayName">
       <strong>{{ item.displayName }}</strong>
-      <p>{{ item.description || '暂无描述' }}</p>
     </ElOption>
   </ElSelect>
   <ElButton v-if="value && !selected" text size="small" :disabled="disabled" @click="value = ''">清空 Skill 选择</ElButton>

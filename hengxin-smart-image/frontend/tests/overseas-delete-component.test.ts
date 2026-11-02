@@ -7,6 +7,7 @@ import ts from 'typescript'
 import * as Vue from 'vue'
 import * as Tasks from '../src/api/overseas/tasks'
 import * as Archives from '../src/api/overseas/archives'
+import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
 import * as Management from '../src/api/overseas/management'
 import { IdentityError } from '../src/api/identity/request'
 import { useArchiveImage } from '../src/views/overseas/use-archive-image'
@@ -30,6 +31,8 @@ function component(name: string): Vue.Component {
   const code = ts.transpileModule(compiled.content, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   const module = { exports: {} as { default: Vue.Component } }
   const require = (path: string): unknown => {
+    if (path === '../platforms') return { OVERSEAS_PLATFORMS }
+    if (path.endsWith('OverseasSkillPlatformsDialog.vue')) return { default: stub('PlatformDialog'), __esModule: true }
     if (path === 'vue') return Vue
     if (path === 'element-plus') return { ElImageViewer: stub('ElImageViewer') }
     if (path.endsWith('/use-archive-image')) return { useArchiveImage }
@@ -90,9 +93,9 @@ test('真实删除 SFC：取消不写入，409保留确认并更新版本，网�
 test('实际 Skill SFC：状态只读、名称描述搜索、空/失败区分、刷新恢复与权限拒绝', async () => {
   let mode = 'data'; const failures: unknown[] = []
   const skills = [{id:'old',name:'walmart-old',displayName:'沃尔玛新品主图 · 原版',description:'完整描述\n参考图说明'}, {id:'new',name:'walmart-new',displayName:'沃尔玛新品主图 · 新版（9.27）',description:'新版差异'}]
-  const view = mount('admin/OverseasLiveSkills', { api: { skills: async () => { if (mode === 'error') throw Error('目录不可用'); if (mode === 'denied') throw new IdentityError(403, '暂无权限'); return {items: mode === 'empty' ? [] : skills.map(skill => ({...skill,enabled:true,version:1})),canToggle:false} } }, onFailure: (reason: unknown) => failures.push(reason) })
+  const view = mount('admin/OverseasLiveSkills', { api: { skills: async () => { if (mode === 'error') throw Error('目录不可用'); if (mode === 'denied') throw new IdentityError(403, '暂无权限'); return {items: mode === 'empty' ? [] : skills.map(skill => ({...skill,enabled:true,version:1,platforms:[]})),canToggle:false,canManagePlatforms:false} } }, onFailure: (reason: unknown) => failures.push(reason) })
   await flush(); const table = view.find('ArtTable'); assert.equal((table.props.data as unknown[]).length, 2)
-  assert.deepEqual((table.props.columns as {label:string}[]).map(c => c.label), ['名称','描述','状态'])
+  assert.deepEqual((table.props.columns as {label:string}[]).map(c => c.label), ['名称','描述','适用平台','状态'])
   assert.equal(view.button('添加 Skill'), undefined); assert.equal(view.find('ElDialog'), undefined)
   await view.type('参考图'); assert.equal((view.find('ArtTable').props.data as unknown[]).length, 1)
   await view.type('不存在'); assert.match(String(view.find('ArtTable').props['empty-text']), /暂无匹配/)

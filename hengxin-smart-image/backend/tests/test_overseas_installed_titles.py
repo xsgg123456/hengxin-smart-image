@@ -52,7 +52,8 @@ def test_real_install_title_shared_by_management_studio_and_freeze(studio, monke
         called.append(args[1]['name'])
         return verify(*args, **kwargs)
     monkeypatch.setattr(catalog, 'verify_package', counted)
-    assert client.get(ROOT + '/management/skills').json()['items'] == [{**expected, 'enabled': True, 'version': 1}]
+    assert client.get(ROOT + '/management/skills').json()['items'] == [
+        {**expected, 'enabled': True, 'version': 1, 'platforms': ['Amazon']}]
     assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').json()['skills'] == [expected]
     with factory.begin() as session:
         frozen = freeze_selected(session, item['id'])['skill']

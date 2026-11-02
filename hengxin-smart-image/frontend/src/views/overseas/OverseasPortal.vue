@@ -146,6 +146,7 @@ const managementAdapter: ManagementApi = {
       throw reason
     }
   },
+  setSkillPlatforms: items => managementCall('skills.manage', () => managementApi.setSkillPlatforms(items), true),
   settings: () => managementCall('settings.manage', () => managementApi.settings()),
   saveSettings: value => managementCall('settings.manage', () => managementApi.saveSettings(value), true)
 }

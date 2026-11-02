@@ -10,16 +10,17 @@ export interface Job { id: string; taskId: string; taskName: string; kind: strin
 export interface Operator { id: string; name: string }
 export interface Jobs { items: Job[]; total: number; page: number; pageSize: number }
 export interface Skill { id: string; name: string; displayName: string; description: string }
-export interface ManagedSkill extends Skill { enabled: boolean; version: number }
-export interface SkillCatalog { items: ManagedSkill[]; canToggle: boolean }
+export interface ManagedSkill extends Skill { enabled: boolean; version: number; platforms: string[] }
+export interface SkillCatalog { items: ManagedSkill[]; canToggle: boolean; canManagePlatforms: boolean }
+export interface SkillPlatformUpdate { id: string; version: number; platforms: string[] }
 export interface Settings { version: number; paused: boolean; concurrency: number; timeoutSeconds: number; defaults: Record<Stage,string | null>; autoCleanup: false }
 const count = (v: unknown) => Number.isInteger(v) && Number(v) >= 0
 const positive = (v: unknown) => count(v) && Number(v) > 0
 export function isUsage(v: unknown): v is Usage { return record(v) && ['jobs','queued','running','uncertain','succeeded','failed','cancelled','generationImages','revisionImages'].every(k => count(v[k])) }
 export function isJobs(v: unknown): v is Jobs { return record(v) && count(v.total) && positive(v.page) && positive(v.pageSize) && Array.isArray(v.items) && v.items.every(j => record(j) && ['id','taskId','taskName','kind','status','createdAt'].every(k => typeof j[k] === 'string') && ['startedAt','completedAt','error','operatorId','operatorName'].every(k => j[k] === null || typeof j[k] === 'string') && count(j.executionCount) && count(j.imageCount)) }
 export function isSkill(v: unknown): v is Skill { return record(v) && ['id', 'name', 'displayName', 'description'].every(k => typeof v[k] === 'string') && String(v.id).length > 0 && String(v.name).trim().length > 0 && String(v.displayName).trim().length > 0 }
-export function isManagedSkill(v: unknown): v is ManagedSkill { return record(v) && isSkill(v) && typeof v.enabled === 'boolean' && positive(v.version) }
-export function isSkillCatalog(v: unknown): v is SkillCatalog { return record(v) && typeof v.canToggle === 'boolean' && Array.isArray(v.items) && v.items.every(isManagedSkill) }
+export function isManagedSkill(v: unknown): v is ManagedSkill { return record(v) && isSkill(v) && typeof v.enabled === 'boolean' && positive(v.version) && Array.isArray(v.platforms) && v.platforms.every(p => typeof p === 'string') }
+export function isSkillCatalog(v: unknown): v is SkillCatalog { return record(v) && typeof v.canToggle === 'boolean' && typeof v.canManagePlatforms === 'boolean' && Array.isArray(v.items) && v.items.every(isManagedSkill) }
 export function isSettings(v: unknown): v is Settings { return record(v) && positive(v.version) && typeof v.paused === 'boolean' && positive(v.concurrency) && Number(v.concurrency) <= 5 && count(v.timeoutSeconds) && Number(v.timeoutSeconds) >= 10 && Number(v.timeoutSeconds) <= 7200 && v.autoCleanup === false && record(v.defaults) && Object.keys(stages).every(k => record(v.defaults) && (v.defaults[k] === null || typeof v.defaults[k] === 'string')) }
 export function createManagementApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest(fetcher), base = '/api/overseas/v1/management'
@@ -29,6 +30,7 @@ export function createManagementApi(fetcher: typeof fetch = fetch) {
     jobs: (query: ManagementQuery) => request(base + '/jobs', isJobs, undefined, { params: { ...query } }),
     skills: () => request(base + '/skills', isSkillCatalog),
     setSkillAvailability: (id: string, enabled: boolean, version: number) => request(base + '/skills/' + encodeURIComponent(id) + '/availability', isSkillCatalog, { enabled, version }, { method: 'PATCH' }),
+    setSkillPlatforms: (items: SkillPlatformUpdate[]) => request(base + '/skills/platforms', isSkillCatalog, { items: items.map(({ id, version, platforms }) => ({ id, version, platforms: [...platforms] })) }, { method: 'PATCH' }),
     settings: () => request(base + '/settings', isSettings),
     saveSettings: (v: Settings) => request(base + '/settings', isSettings, { version: v.version, paused: v.paused, concurrency: v.concurrency, timeoutSeconds: v.timeoutSeconds, defaults: { ...v.defaults } }, { method: 'PATCH' })
   }

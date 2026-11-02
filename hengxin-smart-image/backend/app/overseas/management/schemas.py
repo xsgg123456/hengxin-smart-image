@@ -60,6 +60,30 @@ class SkillPatch(Strict):
     enabled: bool = Field(strict=True)
 
 
+class SkillPlatformsItem(Strict):
+    id: UUID
+    version: int = Field(ge=1, strict=True)
+    platforms: list[Literal['Amazon', 'Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot', 'Shopee']] = Field(max_length=6)
+
+    @field_validator('platforms')
+    @classmethod
+    def unique_platforms(cls, values):
+        if len(set(values)) != len(values):
+            raise ValueError('平台不能重复')
+        return values
+
+
+class SkillPlatformsPatch(Strict):
+    items: list[SkillPlatformsItem] = Field(min_length=1, max_length=1000)
+
+    @field_validator('items')
+    @classmethod
+    def unique_skills(cls, values):
+        if len({item.id for item in values}) != len(values):
+            raise ValueError('Skill 不能重复')
+        return values
+
+
 class Defaults(Strict):
     analysis: UUID | None
     generation: UUID | None

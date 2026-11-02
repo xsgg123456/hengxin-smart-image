@@ -22,11 +22,11 @@ def values(session):
         'defaults': {stage: config.get('defaults', {}).get(stage) for stage in STAGES}, 'autoCleanup': False}
 
 
-def selected(session, identity, stage=None):
+def selected(session, identity, stage=None, platform=None):
     # Old configured UUIDs are resolved by name, but only when truly installed.
     legacy = session.get(Skill, UUID(str(identity)))
     frozen = freeze_installed(identity, legacy.name if legacy else None)
-    require_enabled(session, frozen['name'])
+    require_enabled(session, frozen['name'], platform)
     return frozen
 
 
@@ -66,9 +66,9 @@ def freeze(session, stage, builtin):
     return {'skill': skill, 'runtime': {'timeoutSeconds': config['timeoutSeconds']}}
 
 
-def freeze_selected(session, identity):
+def freeze_selected(session, identity, platform=None):
     """Freeze an immutable complete installation, preserving old queued payloads."""
     lock_gate(session)
     config = values(session)
-    skill = selected(session, identity) if identity else None
+    skill = selected(session, identity, platform=platform) if identity else None
     return {'skill': skill, 'runtime': {'timeoutSeconds': config['timeoutSeconds']}}

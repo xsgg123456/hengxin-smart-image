@@ -27,7 +27,7 @@ def test_catalog_and_studio_share_real_install_and_complete_frozen_round(studio,
     enable_sample(factory)
     listing = client.get(ROOT + '/management/skills').json()['items']
     view = client.get(ROOT + '/tasks/' + task['id'] + '/studio').json()
-    assert listing == [{**item, 'enabled': True, 'version': 1}]
+    assert listing == [{**item, 'enabled': True, 'version': 1, 'platforms': ['Amazon']}]
     assert view['skills'] == [item]
     assert set(item) == {'id', 'name', 'displayName', 'description'}
     response = send(client, task, skillId=item['id'])
@@ -63,7 +63,7 @@ def test_uninstalled_rows_hidden_and_old_defaults_only_map_installed_names(overs
         session.add(Skill(id=old_id, name='sample', stage='analysis'))
         session.flush()
         session.add(SkillVersion(skill_id=old_id, version=1, files={'SKILL.md': 'uninstalled'}))
-    assert client.get(ROOT + '/management/skills').json() == {'items': [], 'canToggle': False}
+    assert client.get(ROOT + '/management/skills').json() == {'items': [], 'canToggle': False, 'canManagePlatforms': True}
     with factory.begin() as session, pytest.raises(HTTPException) as caught:
         freeze_selected(session, old_id)
     assert caught.value.status_code == 422

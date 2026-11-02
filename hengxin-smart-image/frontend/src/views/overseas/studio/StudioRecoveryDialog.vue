@@ -9,8 +9,11 @@
     <ul v-if="result?.errors.length" class="recovery-errors" role="alert"><li v-for="item in result.errors" :key="item.id">{{ item.name }}：{{ item.message }}</li></ul>
     <p v-if="loading" role="status">正在查找本会话文件…</p>
     <p v-else-if="loaded && !items.length">没有可取回的文件。未生成、已删除或已覆盖且没有副本的文件无法恢复。</p>
-    <div v-if="items.length" class="recovery-files" aria-label="可取回文件">
-      <div v-for="file in items" :key="file.id" class="recovery-file">
+    <ElInput v-if="items.length" v-model="search" placeholder="搜索文件名或路径" aria-label="搜索取回文件" clearable />
+    <p v-if="items.length" role="status">显示 {{ filtered.length }} / {{ items.length }} 个文件<span v-if="hiddenSelected"> · 另有 {{ hiddenSelected }} 个已选文件被搜索隐藏，仍会一并取回</span></p>
+    <ElEmpty v-if="items.length && !filtered.length" description="没有匹配的文件，请调整搜索" :image-size="60" />
+    <div v-if="filtered.length" class="recovery-files" aria-label="可取回文件">
+      <div v-for="file in filtered" :key="file.id" class="recovery-file">
         <ElCheckbox :model-value="selected.includes(file.id)" :disabled="blocked || (!selected.includes(file.id) && selected.length >= 100)" :aria-label="`选择 ${file.name}`" @change="value => toggle(file.id, !!value)">{{ file.name }}</ElCheckbox>
         <small>{{ sources[file.source] }} · {{ formatAttachmentSize(file.sizeBytes) }}</small><small>{{ file.path }}</small>
       </div>
@@ -20,11 +23,16 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import { useStudioRecovery } from './use-studio-recovery'
 const props = defineProps<{ taskId: string; conversationId: string; readonly: boolean; busy: boolean }>()
 const emit = defineEmits<{ close: []; saved: []; failure: [reason: unknown] }>()
 const { items, selected, loading, saving, serverBusy, error, result, loaded, blocked, canSave, load, recover, toggle } = useStudioRecovery(() => props, () => emit('saved'), reason => emit('failure', reason))
+const search = ref('')
+const filtered = computed(() => items.value.filter(file => `${file.name} ${file.path}`.toLowerCase().includes(search.value.trim().toLowerCase())))
+const hiddenSelected = computed(() => selected.value.filter(id => !filtered.value.some(file => file.id === id)).length)
+watch(() => [props.taskId, props.conversationId], () => { search.value = '' })
 const sources = { work: '工作文件', native: '生成图片', snapshot: '本轮副本' }
 </script>
 <style scoped>

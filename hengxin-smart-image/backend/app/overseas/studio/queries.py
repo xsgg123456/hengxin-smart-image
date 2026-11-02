@@ -132,7 +132,7 @@ def view(session, actor, task_id, conversation_id=None):
         completed=task.status == 'completed', taskVersion=task.version,
         archiveId=str(record.id) if record else None, reopened=reopened, turns=turns,
         materials=[asset(row, source) for row, source in visible(session, task.id, channel.id if channel else None)],
-        skills=enabled_listing(session),
+        skills=enabled_listing(session, task.platform),
         activeTurnId=active)
 
 

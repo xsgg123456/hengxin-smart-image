@@ -4,9 +4,9 @@ import { createServer, loadConfigFromFile } from 'vite'
 import { readFile, writeFile } from 'node:fs/promises'
 const controlFile = '../../output/skill-availability/preview-control.json'
 const skills = [
-  { id: 's', name: 'amazon-new-product-image-set', displayName: 'OUTON 亚马逊新品整套主图生成', description: '根据真实产品资料与参考图片生成完整主图。保留商品结构、尺寸及品牌信息，完整描述可换行阅读。', enabled: true, version: 1 },
-  { id: 'aplus', name: 'amazon-new-product-aplus', displayName: '亚马逊新品A+整套图片生成', description: '根据商品资料与品牌信息制作完整 A+ 页面图片，保留商品结构与真实卖点。', enabled: true, version: 1 },
-  { id: 'disabled', name: 'other', displayName: '已安装的其他 Skill', description: '此项仍保留在管理目录，关闭后工作台不能选择。', enabled: false, version: 1 }
+  { id: 's', name: 'amazon-new-product-image-set', displayName: 'OUTON 亚马逊新品整套主图生成', description: '根据真实产品资料与参考图片生成完整主图。保留商品结构、尺寸及品牌信息，完整描述可换行阅读。', enabled: true, version: 1, platforms: ['Amazon'] },
+  { id: 'aplus', name: 'amazon-new-product-aplus', displayName: '亚马逊新品A+整套图片生成', description: '根据商品资料与品牌信息制作完整 A+ 页面图片，保留商品结构与真实卖点。', enabled: true, version: 1, platforms: ['Amazon'] },
+  { id: 'disabled', name: 'other', displayName: '已安装的其他 Skill', description: '此项仍保留在管理目录，关闭后工作台不能选择。', enabled: false, version: 1, platforms: [] }
 ]
 const caps = ['task.read', 'task.design', 'skills.manage', 'settings.manage']
 const task = { id: 't', name: 'Skill 开关隔离验收', productName: '灯具', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'A' }], workflow: 'studio', status: 'studio', version: 1, createdAt: '2026-10-22', updatedAt: '2026-10-22', createdBy: { id: 'u', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: caps, events: [] }
@@ -34,8 +34,8 @@ const server = await createServer({ ...config, configFile: false, mode: 'develop
         else if (control.mode === 'failure') status = 503
         else if (!item || item.version !== input.version) status = 409
         else { item.enabled = input.enabled; item.version++ }
-        body = status === 200 ? { items: skills, canToggle: control.owner } : { detail: '隔离故障场景' }
-      } else if (path.endsWith('/management/skills')) { if (control.mode === 'load-failure') status = 503; body = { items: skills, canToggle: control.owner } }
+        body = status === 200 ? { items: skills, canToggle: control.owner, canManagePlatforms: false } : { detail: '隔离故障场景' }
+      } else if (path.endsWith('/management/skills')) { if (control.mode === 'load-failure') status = 503; body = { items: skills, canToggle: control.owner, canManagePlatforms: false } }
       else if (path.endsWith('/studio/transcript')) body = { items: [], cursor: 0, hasMore: false }
       else if (path.endsWith('/studio')) body = state()
       else if (path.endsWith('/tasks/t')) body = task

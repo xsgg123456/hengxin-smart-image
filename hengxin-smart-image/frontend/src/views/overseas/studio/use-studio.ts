@@ -27,7 +27,7 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
   const canReopen = computed(() => !!data.value?.completed && task().capabilities.includes('task.design') && !busy.value && !uploading.value && !pending.value && !data.value.activeTurnId)
   const limitError = computed(() => turnLimitError(attachments.value.length, references.value.length))
   const revisionError = computed(() => revisions.value.some(r => (!r.text.trim() && (!text.value.trim() || !!r.annotation))) ? '请在工作台输入区补充修改要求' : '')
-  const skillError = computed(() => data.value && skill.value && !data.value.skills.some(item => item.id === skill.value) ? '所选 Skill 已关闭或不可用，请重新选择或清空选择后发送。' : '')
+  const skillError = computed(() => data.value && skill.value && !data.value.skills.some(item => item.id === skill.value) ? '所选 Skill 已关闭、不适用于当前任务平台或不可用，请重新选择或清空选择后发送。' : '')
   const canSend = computed(() => !locked.value && !limitError.value && !revisionError.value && !skillError.value && !data.value?.activeTurnId && !!(text.value.trim() || attachments.value.length || references.value.length))
   const canNewConversation = computed(() => !locked.value && !data.value?.activeTurnId)
   let alive = true, cursor = 0, operation = 0, refreshError = false, retryRead = false, denied = false, timer: ReturnType<typeof setTimeout> | undefined

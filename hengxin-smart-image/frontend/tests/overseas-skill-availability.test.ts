@@ -2,14 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as Management from '../src/api/overseas/management'
 import { IdentityError } from '../src/api/identity/request'
+import { skillCatalogComponent as catalog } from './skill-platforms-components'
 import { compile, table, mount, all, text, find, click, flush } from './membership-test-harness'
 
-const catalog = compile('views/overseas/admin/OverseasSkillCatalog.vue', { '@/components/core/tables/art-table/index.vue': { default: table, __esModule: true } })
 const component = compile('views/overseas/admin/OverseasLiveSkills.vue', {
   '@/api/overseas/management': Management, '@/api/identity/request': { IdentityError },
   './OverseasSkillCatalog.vue': { default: catalog, __esModule: true }
 })
-const skill = { id: 's', name: 'test', displayName: '真实 Skill', description: '完整说明', enabled: true, version: 1 }
+const skill = { id: 's', name: 'test', displayName: '真实 Skill', description: '完整说明', enabled: true, version: 1, platforms: ['Amazon'] }
 const button = (root: Parameters<typeof all>[0], label: string) => all(root).find(n => n.tag === 'ElButton' && text(n) === label)
 const rows = (root: Parameters<typeof all>[0]) => find(root, 'ArtTable').props.data as Management.ManagedSkill[]
 const notice = (root: Parameters<typeof all>[0]) => String(find(root, 'ElAlert').props.title)
@@ -17,7 +17,7 @@ const notice = (root: Parameters<typeof all>[0]) => String(find(root, 'ElAlert')
 test('所有者切换真实SFC：请求前状态不变、禁止重入、按服务端完整目录更新', async () => {
   let reads = 0, resolve!: (v: Management.SkillCatalog) => void
   const writes: unknown[] = []
-  const api = { skills: async () => { reads++; return { items: [{ ...skill }], canToggle: true } },
+  const api = { skills: async () => { reads++; return { items: [{ ...skill }], canToggle: true, canManagePlatforms: true } },
     setSkillAvailability: async (...args: unknown[]) => { writes.push(args); return new Promise<Management.SkillCatalog>(r => { resolve = r }) } }
   const view = mount(component, { api }); await flush()
   try {
@@ -27,7 +27,7 @@ test('所有者切换真实SFC：请求前状态不变、禁止重入、按服�
     assert.equal(writes.length, 1); assert.equal(reads, 1)
     assert.equal(rows(view.root)[0].enabled, true); assert.equal(button(view.root, '关闭')!.props.disabled, true)
     assert.deepEqual(writes[0], ['s', false, 1])
-    resolve({ items: [{ ...skill, enabled: false, version: 2 }], canToggle: true }); await flush()
+    resolve({ items: [{ ...skill, enabled: false, version: 2 }], canToggle: true, canManagePlatforms: true }); await flush()
     assert.equal(rows(view.root)[0].enabled, false); assert.ok(button(view.root, '开启'))
     assert.match(notice(view.root), /状态已更新/)
   } finally { view.close() }
@@ -35,7 +35,7 @@ test('所有者切换真实SFC：请求前状态不变、禁止重入、按服�
 
 test('非所有者只读，Demo保留原两列且不伪造开关', async () => {
   let writes = 0
-  const view = mount(component, { api: { skills: async () => ({ items: [skill], canToggle: false }), setSkillAvailability: async () => { writes++; throw Error('unexpected') } } })
+  const view = mount(component, { api: { skills: async () => ({ items: [skill], canToggle: false, canManagePlatforms: false }), setSkillAvailability: async () => { writes++; throw Error('unexpected') } } })
   await flush()
   try { assert.equal(button(view.root, '关闭'), undefined); assert.equal(writes, 0); assert.match(text(view.root), /仅指定账号可调整/); assert.equal(rows(view.root)[0].enabled, true) } finally { view.close() }
   const demo = mount(catalog, { skills: [{ id: 'd', name: 'demo', displayName: '预览', description: '预览描述' }] })
@@ -44,11 +44,11 @@ test('非所有者只读，Demo保留原两列且不伪造开关', async () => {
 
 test('409冲突刷新最新状态和版本；只在用户再次操作时提交', async () => {
   let reads = 0, writes = 0
-  const api = { skills: async () => ({ items: [{ ...skill, enabled: ++reads === 1, version: reads }], canToggle: true }),
+  const api = { skills: async () => ({ items: [{ ...skill, enabled: ++reads === 1, version: reads }], canToggle: true, canManagePlatforms: true }),
     setSkillAvailability: async (_id: string, enabled: boolean, version: number) => {
       if (++writes === 1) throw new IdentityError(409, '版本冲突')
       assert.equal(enabled, true); assert.equal(version, 2)
-      return { items: [{ ...skill, enabled, version: 3 }], canToggle: true }
+      return { items: [{ ...skill, enabled, version: 3 }], canToggle: true, canManagePlatforms: true }
     } }
   const view = mount(component, { api }); await flush()
   try {
@@ -61,12 +61,12 @@ test('409冲突刷新最新状态和版本；只在用户再次操作时提交',
 test('403降级只读、401收起目录；未知结果读回失败阻止再次写入，刷新可恢复', async () => {
   for (const status of [401, 403]) {
     const failures: unknown[] = []
-    const view = mount(component, { api: { skills: async () => ({ items: [skill], canToggle: true }), setSkillAvailability: async () => { throw new IdentityError(status, '权限变化') } }, onFailure: (e: unknown) => failures.push(e) })
+    const view = mount(component, { api: { skills: async () => ({ items: [skill], canToggle: true, canManagePlatforms: true }), setSkillAvailability: async () => { throw new IdentityError(status, '权限变化') } }, onFailure: (e: unknown) => failures.push(e) })
     await flush(); click(view.root, '关闭'); await flush()
     try { assert.equal(button(view.root, '关闭'), undefined); assert.equal(failures.length, status === 401 ? 1 : 0); assert.match(notice(view.root), status === 401 ? /权限变化/ : /没有切换权限/) } finally { view.close() }
   }
   let reads = 0, failRefresh = true, writes = 0
-  const view = mount(component, { api: { skills: async () => { if (++reads > 1 && failRefresh) throw Error('服务离线'); return { items: [skill], canToggle: true } }, setSkillAvailability: async () => { writes++; throw new IdentityError(0, '网络中断') } } })
+  const view = mount(component, { api: { skills: async () => { if (++reads > 1 && failRefresh) throw Error('服务离线'); return { items: [skill], canToggle: true, canManagePlatforms: true } }, setSkillAvailability: async () => { writes++; throw new IdentityError(0, '网络中断') } } })
   await flush(); click(view.root, '关闭'); await flush()
   try {
     assert.match(notice(view.root), /无法确认最新 Skill 状态/); assert.equal(button(view.root, '关闭'), undefined); assert.equal(writes, 1)
@@ -76,11 +76,11 @@ test('403降级只读、401收起目录；未知结果读回失败阻止再次�
 
 test('写入响应丢失按服务器结果恢复，卸载后迟到回包不产生反馈', async () => {
   let enabled = true, resolve!: (v: Management.SkillCatalog) => void
-  const api = { skills: async () => ({ items: [{ ...skill, enabled }], canToggle: true }), setSkillAvailability: async () => { enabled = false; throw new IdentityError(500, '丢失响应') } }
+  const api = { skills: async () => ({ items: [{ ...skill, enabled }], canToggle: true, canManagePlatforms: true }), setSkillAvailability: async () => { enabled = false; throw new IdentityError(500, '丢失响应') } }
   const view = mount(component, { api }); await flush(); click(view.root, '关闭'); await flush()
   try { assert.equal(rows(view.root)[0].enabled, false); assert.match(notice(view.root), /已刷新服务端状态/); assert.doesNotMatch(notice(view.root), /状态已更新/) } finally { view.close() }
   const late = mount(component, { api: { ...api, setSkillAvailability: () => new Promise<Management.SkillCatalog>(r => { resolve = r }) } })
-  await flush(); click(late.root, '开启'); late.close(); resolve({ items: [skill], canToggle: true }); await flush()
+  await flush(); click(late.root, '开启'); late.close(); resolve({ items: [skill], canToggle: true, canManagePlatforms: true }); await flush()
   assert.equal(all(late.root).filter(n => n.tag === 'ElAlert').length, 0)
 })
 
@@ -90,7 +90,7 @@ test('系统配置默认选项只列开启项；既有关闭绑定显示不可�
   })
   const settings: Management.Settings = { version: 1, paused: false, concurrency: 1, timeoutSeconds: 60, defaults: { analysis: 'closed', generation: null, revision: null }, autoCleanup: false }
   let writes = 0
-  const view = mount(settingsComponent, { api: { settings: async () => settings, skills: async () => ({ items: [skill, { ...skill, id: 'closed', displayName: '关闭项', enabled: false }], canToggle: false }), saveSettings: async () => { writes++; return settings } } })
+  const view = mount(settingsComponent, { api: { settings: async () => settings, skills: async () => ({ items: [skill, { ...skill, id: 'closed', displayName: '关闭项', enabled: false }], canToggle: false, canManagePlatforms: false }), saveSettings: async () => { writes++; return settings } } })
   await flush()
   try {
     const options = all(view.root).filter(n => n.tag === 'ElOption')
@@ -112,5 +112,5 @@ test('失效选择使用可读占位而非内部ID，显式清空；可用选择
   const locked = mount(selector, { skills: [], modelValue: 'internal-id', disabled: true })
   try { assert.equal(button(locked.root, '清空 Skill 选择')?.props.disabled, true) } finally { locked.close() }
   const available = mount(selector, { skills: [skill], modelValue: skill.id, disabled: false })
-  try { assert.equal(find(available.root, 'ElSelect').props['model-value'], skill.id); assert.equal(button(available.root, '清空 Skill 选择'), undefined) } finally { available.close() }
+  try { assert.equal(find(available.root, 'ElSelect').props['model-value'], skill.id); assert.equal(text(find(available.root, 'ElOption')), skill.displayName); click(available.root, '查看 Skill 说明'); assert.match(text(find(available.root, 'ElDialog')), /完整说明/); assert.equal(button(available.root, '清空 Skill 选择'), undefined) } finally { available.close() }
 })

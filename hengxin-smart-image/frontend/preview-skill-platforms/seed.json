@@ -1,0 +1,165 @@
+[
+  {
+    "id": "9aee4200-0e84-52db-8fb2-39ac42240006",
+    "name": "amazon-main-image-product-swap-1600",
+    "displayName": "主图产品替换",
+    "description": "按每批4张JPG底图和4张JPG产品素材，逐张替换亚马逊商品主图中的产品，保护其他内容和排版，交付4张1600×1600像素、72 DPI的JPG并直接预览。用户说“把这个产品替换掉图片中的产品，其他一律不允许有任何改变”或提出同义的亚马逊主图产品替换任务时使用；不用于单纯换壁纸或整图重新设计。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "267e2a35-8996-5ac2-b044-94a4e1987860",
+    "name": "amazon-main-image-product-swap-1250",
+    "displayName": "亚马逊1250尺寸主图产品替换",
+    "description": "按每批4张JPG底图和4张JPG产品素材，逐张替换亚马逊商品主图中的产品，保护其他内容和排版，交付4张1250×1600像素、72 DPI的JPG并直接预览。用户说“把这个产品替换掉图片中的产品，其他一律不允许有任何改变”或提出同义的亚马逊主图产品替换任务时使用；不用于单纯换壁纸或整图重新设计。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "c74ffe48-9230-509f-93eb-c6631e3d9ff1",
+    "name": "amazon-aplus-product-swap",
+    "displayName": "亚马逊A+图片产品替换",
+    "description": "按任意数量的JPG亚马逊A+底图与JPG产品素材，局部替换产品并保护其他内容，按上传底图所属端输出电脑端1464×600或手机端600×450、72 DPI的JPG，仅展示最终图片预览。在A+场景下，用户说“把这个产品替换掉图片中的产品，其他一律不允许有任何改变”或提出同义要求时使用；不用于商品首图、整套新品A+设计或单纯换壁纸。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "70a4ab0e-361e-5fd1-9345-113912575b53",
+    "name": "wayfair-new-product-image-set-main",
+    "displayName": "OUTON · Wayfair新品整套图片生成",
+    "description": "根据需求PPT、1–6张产品图、已归档的OUTON品牌视觉资料和亚马逊竞品链接，制作Wayfair新品整套商品首图与场景、卖点、细节副图。标题、正文、数字及标点统一Sofia Pro，品牌色#7B19A0，美式现代简约氛围美学，交付2000×2000像素、72 DPI的JPG并逐张预览。用于整套新品图片设计及返修，不用于A+或仅替换现有图片中的产品、壁纸。",
+    "platforms": [
+      "Wayfair"
+    ],
+    "enabled": true,
+    "version": 1
+  },
+  {
+    "id": "7498cf1d-a637-5620-b8fe-1ddcdd0c3781",
+    "name": "wayfair-new-product-image-set-main-aplus",
+    "displayName": "OUTON · Wayfair新品主图与A+图片生成",
+    "description": "根据需求PPT、1–6张产品图、已归档的OUTON品牌视觉资料和亚马逊竞品链接，制作Wayfair新品商品主图、场景卖点副图及A+图片。标题、正文、数字及标点统一Sofia Pro，品牌色#7B19A0，美式现代简约氛围美学，商品主图2000×2000，A+固定3000×1500且只做一个版本，均为72 DPI的JPG并逐张预览。用于新品主图、Wayfair A+设计及返修，不用于Amazon A+或仅替换现有图片中的产品、壁纸。",
+    "platforms": [
+      "Wayfair"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "e9291ef7-9e24-5ece-bab6-4dcf1357c09b",
+    "name": "overseas-product-image-swap",
+    "displayName": "海外平台图片产品替换",
+    "description": "按用户上传的1张以上JPG底图和1张以上JPG产品素材，替换海外电商图片中的产品，保护其他内容与排版，逐张验收并交付指定像素尺寸、72 DPI的JPG及直接预览。用户说“把这个产品替换掉图片中的产品，其他一律不允许有任何改变”或提出同义的海外多平台产品替换任务时使用；不用于整图重新设计、单纯换壁纸或已有固定模板的专用替换任务。",
+    "platforms": [],
+    "enabled": true,
+    "version": 1
+  },
+  {
+    "id": "ea211500-92ea-52e2-abd9-db4239eca57b",
+    "name": "walmart-new-product-image-set-original",
+    "displayName": "沃尔玛新品整套主图生成",
+    "description": "根据主图需求PPT、4–6张产品图片、品牌调性参考图及亚马逊竞品链接，制作整套沃尔玛新品商品首图与卖点、场景副图。固定汉仪旗黑X1正文、Segoe UI标点、品牌色#FFDB00及高级美式现代简约风格，交付2000×2000像素、72 DPI的JPG并逐张预览。用于整套新品图片设计及后续修改，不用于A+、单纯换壁纸或只替换现有图中的产品。",
+    "platforms": [
+      "Walmart"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "70d1dd7f-4bd5-56c8-98d3-3656b4af27ca",
+    "name": "walmart-new-product-image-set-revised-0927",
+    "displayName": "沃尔玛新品商品图片制作",
+    "description": "根据新品主图需求PPT、产品实拍或渲染素材、真实尺寸、品牌参考及竞品链接，制作沃尔玛新品商品首图、卖点图与场景副图；重点保留产品结构、校准场景尺度并控制整套排版，交付2000×2000像素、72 DPI的JPG及逐张预览。适用于整套新品商品图和后续修改，不用于A+、店铺装修或仅替换手机壁纸。",
+    "platforms": [
+      "Walmart"
+    ],
+    "enabled": true,
+    "version": 1
+  },
+  {
+    "id": "39c235a4-bf3d-56ad-98b1-af9a802dabe6",
+    "name": "beleev-amazon-image-set",
+    "displayName": "BELEEV 亚马逊新品图片整套制作",
+    "description": "根据新品主图需求PPT、1–6张产品图片、BELEEV品牌视觉资料和亚马逊竞品链接，制作整套亚马逊首张主图及卖点、场景副图。采用源柔ゴシックP、品牌蓝#4086EF与欧美家庭户外儿童运动摄影风格，按PPT逐张交付1600×1600或1250×1600、72 DPI的JPG并直接预览。适用于BELEEV新品整套商品图片及后续修改，不用于A+、店铺装修或仅替换壁纸。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "57714e3f-0207-56a1-85d9-4d26b2fd5df0",
+    "name": "beleev-amazon-aplus",
+    "displayName": "BELEEV 亚马逊新品 A+ 图片",
+    "description": "根据新品A+需求PPT、1–6张产品图、BELEEV品牌视觉资料及亚马逊竞品链接，制作整套新品A+图片。采用源柔ゴシックP、品牌蓝#4086EF及欧美家庭户外儿童运动摄影风格。先交付1464×600电脑端JPG，电脑端确认后且用户明确要求生成手机端，才制作600×450手机端JPG，均为72 DPI并逐张预览。用于BELEEV新品A+及后续修改，不用于Listing首图、副图或店铺装修。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "eb4b40c9-2ce4-5d32-95a1-3a962ee053c6",
+    "name": "outonlife-amazon-image-set",
+    "displayName": "OUTONLIFE 亚马逊新品整套主图",
+    "description": "根据新品主图需求PPT、1–6张产品图片、OUTONLIFE品牌视觉资料和亚马逊竞品链接，制作整套亚马逊商品首图、卖点图和场景图。使用汉仪旗黑X1、Segoe UI标点、品牌色#762200及高级美式现代简约温馨家庭风格，按逐张要求交付1600×1600或1250×1600、72 DPI的JPG并直接预览。适用于OUTONLIFE新品套图及后续修改，不用于A+、店铺装修、其他品牌或单纯产品替换。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "16cb909b-7811-5975-94ca-cbad66110e72",
+    "name": "amazon-outonlife-new-product-aplus",
+    "displayName": "OUTONLIFE 家居新品 A+ 图片制作",
+    "description": "根据新品A+需求PPT、1–6张产品图片、OUTONLIFE品牌视觉资料及亚马逊竞品链接，生成整套家居新品A+图片。使用汉仪旗黑X1、Segoe UI标点和品牌色#762200，呈现高级美式、现代简约、温馨家庭氛围。先交付1464×600电脑端JPG，电脑端确认通过且用户明确要求生成手机端后，再交付600×450手机端JPG，均为72 DPI并逐张预览。用于该品牌A+整套制作及修改，不用于商品主图或其他品牌套图。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": false,
+    "version": 1
+  },
+  {
+    "id": "f5fbb532-eee8-50f8-93d8-10fad4ed7a2a",
+    "name": "amazon-new-product-image-set",
+    "displayName": "AMAZON OUTON 主图设计（设计部版）",
+    "description": "设计部版：为AMAZON平台OUTON品牌制作整套商品主图（首图、卖点副图及场景图）。依据主图需求PPT、4–6张产品图片和已归档品牌参考，使用汉仪旗黑X1、Segoe UI标点及品牌色#FF8712，保持高级美式现代简约风格；尺寸按用户提示词指定，交付72 DPI的JPG并逐张预览。不用于A+图或仅替换现有图片中的产品、壁纸。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": true,
+    "version": 1
+  },
+  {
+    "id": "b0365aa5-4be5-58bf-a462-c6a50d986c72",
+    "name": "amazon-new-product-aplus",
+    "displayName": "AMAZON OUTON A+图设计（设计部版）",
+    "description": "设计部版：为AMAZON平台OUTON品牌制作整套A+图片及后续修改。依据A+需求PPT、4–6张产品图片、品牌参考和竞品链接，使用汉仪旗黑X1、Segoe UI标点及品牌色#FF8712，保持高级美式、现代简约、智能实用风格；尺寸按用户提示词指定，先交付电脑端，确认通过且用户明确触发后再制作手机端，均为72 DPI的JPG并逐张预览。不用于商品主图、普通卖点副图或单纯换壁纸。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": true,
+    "version": 1
+  },
+  {
+    "id": "3bcd92ee-85d7-5392-b9df-97802156b86f",
+    "name": "outon-brand-image-design-version-1023-night",
+    "displayName": "AMAZON OUTON 主图与A+设计（IT重构版）",
+    "description": "专用于 AMAZON 平台 OUTON 品牌的图片设计（IT重构版）。根据产品资料、竞品分析及图需PPT，制作或修改主图、场景图和A+图片；遵循OUTON品牌规范，使用内置真实字体与Logo，支持先学习资料再制作，尺寸与数量按本次需求确定。",
+    "platforms": [
+      "Amazon"
+    ],
+    "enabled": true,
+    "version": 1
+  }
+]
