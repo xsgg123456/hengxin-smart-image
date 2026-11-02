@@ -12,9 +12,9 @@
 - 发布工具language62 + outon70：132 passed；独立reviewer另行复跑通过。
 - 生产依赖审计critical 0，既有high39/moderate38/low5；本轮不改依赖，未声明解决历史漏洞。output/language-release/dependency-audit.json。
 
-## 待完成
+## 执行中间状态（已由后续记录更新）
 
-Linux B批75模块（原73+两个修正迁移模块）运行中；独立审查最终报告、Git提交、实际镜像安装验证、生产备份迁移与页面验收尚待完成。
+本记录首次编写时 Linux B批75模块尚在运行，审查、提交与发布尚未执行。最终分批结果见下节；生产执行结果见 [生产交付记录](REQUIREMENT-LANGUAGE-PRODUCTION-20261102.md)。
 
 ## 最终回归补充
 
@@ -23,3 +23,5 @@ Linux B批75模块：1079 passed、1 failed、2 skipped（527.83秒），其中A
 B批两项跳过对应Windows junction和需要可选私有STUDIO_INCIDENT_FIXTURE的历史事故输入。Windows junction在本机单独复验1 passed（0.40秒）。可选历史事故样本本轮未提供；本轮语言/归档/迁移必需用例无跳过。
 
 最终代码快照a1eb4c2a58bd081efa0de3ee7027b5bbaca41a5f1c1960614f592bf77b7cfdc3，仅在上一轮审查后追加一处真实迁移NULL列断言，业务源码不变；最终独立差异复核报告见reviews/REQUIREMENT-LANGUAGE-FINAL-20261102.md。
+
+最终快照独立 Stage 1/Stage 2 均 PASS，已登记批准并提交 `f02cb9c`。实际待部署镜像17模块安装回归144 passed、0 skipped（108.44秒）；备份恢复、生产迁移及部署完成。线上表单、历史任务及国内外健康检查通过；归档详情线上目视受现有归档被并行删除限制，未创建生产测试归档。
