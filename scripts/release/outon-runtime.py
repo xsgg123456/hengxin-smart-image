@@ -22,6 +22,7 @@ VERSION, OLD_REVISION, REVISION = '0.2.58', 'overseas_0023', 'overseas_0024'
 BASE_IMAGE = 'sha256:e4fa8e1f4644120c6de5f588ce5f52a1d2c53a78f7f2243102cfa13677045dd7'
 FILES = {'app/overseas/'+name+'.py' for name in (
     'auth/models', 'auth/dependencies', 'auth/router', 'config', 'db', 'permissions', 'members/schemas', 'materials/service',
+    'management/models', 'management/skills',
     'tasks/schemas', 'tasks/requirements', 'tasks/queries', 'tasks/service',
     'studio/recovery_router', 'studio/recovery_files', 'studio/queries', 'studio/message_metadata')} | {
     'migrations/overseas/versions/0024_designer_roles.py'}
@@ -50,11 +51,26 @@ def worker(mode, node='-', timeout=40):
         mode,str(state['pid']),node,cwd=state['cwd'],env=env,timeout=timeout))
 
 
+def native_baselines(native):
+    require(isinstance(native, dict) and set(native) == {'units'} and
+            isinstance(native['units'], dict) and set(native['units']) == set(UNITS),
+            'Unexpected native baseline units')
+    for unit in UNITS:
+        saved = native['units'][unit]
+        require(isinstance(saved, dict) and set(saved) == {'files'} and
+                isinstance(saved['files'], dict) and set(saved['files']) == NATIVE_FILES,
+                'Unexpected native baseline scope')
+        require(all(value is None or isinstance(value, str) and re.fullmatch('[a-f0-9]{64}', value)
+                    for value in saved['files'].values()), 'Invalid native baseline checksum')
+    return native
+
+
 def verify_package(source):
     manifest = json.loads((source/'release.json').read_text())
     require(manifest['version'] == VERSION and set(manifest['api']['files']) == FILES,
             'Unexpected release scope')
     require(manifest['api']['image'] == BASE_IMAGE, 'Unexpected API baseline')
+    native_baselines(manifest.get('native'))
     require(re.fullmatch(r'outon-[a-z0-9-]+', manifest['release']), 'Unsafe release tag')
     required = {'api/'+name for name in FILES} | {'tests/'+name for name in ('conftest.py', *TESTS)} | {
         'frontend/package.json', 'frontend/dist/index.html', 'scripts/release/outon-workflow.py'}

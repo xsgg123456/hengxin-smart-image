@@ -1597,3 +1597,6 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 五人权限追加已完成本地交付：前端441项、Linux/PG海外751项、发布工具65项通过；类型/生产构建/浏览器只读与撤权验证通过。新快照b79034980d927ef5a919ac073b3ae96c9e4fe1c99a264b2001c1f639f85ff554独立两阶段PASS。详见docs/WORKFLOW-COLLABORATORS-VALIDATION-20261102.md。仍未提交/部署/应用五人生产配置；消息实际发送人与时间显示目前仅讨论。
 
 2026-11-02 消息署名时间与最终发布：依docs/STUDIO-MESSAGE-METADATA-20261102.md，先DTO和消息头→全测试/构建/浏览器→独立快照审查→中文提交→已审打包安装测试→生产排空备份恢复迁移/原生与API前端配置/Skill安装→线上验收。最新用户已恢复提交部署授权，五人权限配置必须与本次一起生效。
+
+
+2026-11-02 生产预检补充：首次prepare因API与native历史源码基线不同安全阻止，未变更线上。依消息元信息合同补充章节，分别固定真实运行基线；native最小补齐现有Skill平台筛选的models/skills依赖，19个API路径/18个native路径，其余源码和配置保持。真实native布局隔离测试、独立审查后重新提交发布。

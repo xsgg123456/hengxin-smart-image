@@ -22,3 +22,12 @@
 - 定向Linux10模块163 passed、2 skipped（123.86秒），`output/message-ci/run_repair.stdout`。跳过原因明确为Windows junction（已本机1 passed）和缺少可选 `STUDIO_INCIDENT_FIXTURE` 私有历史事故样本；本轮消息PG、权限及四修正模块无跳过。repair制品SHA256 `ae0a54e600875c190fd3f9d8c4b99de13ee196171c8e937c9807a8987ce92191`。
 
 待追加最终镜像安装/生产只读验收实际结果。未执行项不算通过。
+
+## 生产预检后独立运行基线修正
+
+首次edfa075制品prepare在native源文件预检失败，服务未停止/替换。实查确认native历史版本不同；分别固定API19路径及两个native各18路径的真实源字节，保留所有未知漂移拒绝。新增的两个Skill依赖文件与已上线API及HEAD字节相同，未修改其业务实现。
+
+- 全部OUTON及已有平台发布工具：84 passed（3.98秒），`output/message-release/native-baseline-tools.junit.xml`。
+- 实际native完整307源文件，只覆盖18白名单，新增helper后308个文件；其余290文件逐字节保持。业务依赖版本完全匹配API，API额外7项为测试依赖。
+- 隔离Linux/PG、真实native UID 999、完整native布局：7模块97 passed、0 skipped（87.64秒）。覆盖消息SQLite/PG、五人工作台授权、原生恢复二次授权、执行流程、Skill按平台筛选依赖。`output/message-ci/run_native.stdout`；包SHA256 `177c0ea9daae865e1dac8b369dcfac1d6cef5019779d73bbed4cf29b1da9681b`。
+- 首轮额外测试夹具缺失的96 passed/1 error记录保留 `native-first-layout.stdout`；补全测试夹具后重跑全部7模块，业务源文件未变。一次测试镜像构建以错误用户删除测试层失败，已修测试Dockerfile的构建身份并清理其独立失败容器；未触碰生产目录。

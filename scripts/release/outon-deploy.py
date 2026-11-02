@@ -19,7 +19,9 @@ def state(work,tested=False):
     data = json.loads((work/'prepared.json').read_text())
     source = Path(data['source'])
     r.require(r.digest(source/'release.json') == data['manifest'],'Manifest drift')
-    r.verify_package(source)
+    manifest = r.verify_package(source)
+    r.require(data['native'] == manifest['native'] and data['patch'] == manifest['api']['files'],
+              'Prepared source baseline drift')
     r.require(all(r.digest(p)==h for p,h in data['compose']['files'].items()),'Compose drift')
     r.require(r.hashes(data['image']) == {n:v['sha256'] for n,v in data['patch'].items()},'Image drift')
     r.require(r.digest(work/'api-overlay.json') == data['overlayHash'],'Overlay drift')
@@ -48,7 +50,7 @@ def prepare(work,source):
     r.require(protected['frontendVersion'] == '0.2.57','Frontend baseline drift')
     r.require(r.sql(r.DB,'SELECT version_num FROM overseas_alembic_version') == 'overseas_0023','Schema drift')
     data = dict(source=str(source),manifest=r.digest(source/'release.json'),oldId=live['Id'],oldImage=live['Image'],
-                compose=r.a.compose_info(live),patch=manifest['api']['files'],protected=protected)
+                compose=r.a.compose_info(live),patch=manifest['api']['files'],native=manifest['native'],protected=protected)
     r.helper('outon-native').preflight(data)
     before = json.loads(r.a.compose(data['compose'],'config','--format','json'))
     r.a.check_live_config(live,before)

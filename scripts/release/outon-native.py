@@ -65,18 +65,32 @@ def guard(work, data):
         r.require(current == expected, 'Native source drift')
 
 
-def preflight(data):
+def baseline_roots(data):
+    r.native_baselines(data.get('native'))
     r.require(set(r.UNITS) <= set(data['protected']['units']), 'Overseas native units missing')
-    roots = {data['protected']['units'][unit]['cwd'] for unit in r.UNITS}
+    roots = {}
+    for unit in r.UNITS:
+        root = data['protected']['units'][unit]['cwd']
+        files = data['native']['units'][unit]['files']
+        r.require(root not in roots or roots[root] == files, 'Shared native baseline conflict')
+        roots[root] = files
     r.require(all(saved['cwd'] not in roots for unit,saved in data['protected']['units'].items()
                   if unit not in r.UNITS), 'Native source is shared with unrelated service')
+    return roots
+
+
+def preflight(data):
+    baseline_roots(data)
     for unit in r.UNITS:
         saved = data['protected']['units'][unit]
         r.require(not drop_path(unit).exists(), 'Stop override already exists')
         for name in r.NATIVE_FILES:
             path = safe(Path(saved['cwd'])/name)
+            r.require(not path.exists() or path.is_file(), 'Invalid native baseline file: '+name)
             actual = r.digest(path) if path.is_file() else None
-            r.require(actual == data['patch'][name]['baseline'], 'Native/API baseline source differs: '+name)
+            r.require(actual == data['native']['units'][unit]['files'][name], 'Native baseline source differs: '+name)
+            r.require(data['protected']['units'][unit]['source'].get(name.removeprefix('app/')) == actual,
+                      'Native baseline snapshot differs: '+name)
 
 
 def stop(work, data):
@@ -177,12 +191,13 @@ def install(work, data, source):
     r.require((work/'MIGRATION_VERIFIED').is_file(), 'Migration must be verified before native install')
     r.require(not (work/'NATIVE_PATCH_STARTED').exists(), 'Inspect partial native patch; do not overwrite recovery files')
     stopped()
-    roots = sorted({data['protected']['units'][unit]['cwd'] for unit in r.UNITS})
+    baselines = baseline_roots(data)
+    roots = sorted(baselines)
     records = []
     for index, root in enumerate(roots):
         for name in sorted(r.NATIVE_FILES):
             path = safe(Path(root)/name)
-            baseline = data['patch'][name]['baseline']
+            baseline = baselines[root][name]
             if baseline is None:
                 r.require(not path.exists() and path.parent.is_dir(), 'Unexpected new native file or missing parent')
                 records.append({'path':str(path), 'backup':None, 'sha256':None})

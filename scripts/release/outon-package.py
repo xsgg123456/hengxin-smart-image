@@ -31,6 +31,22 @@ def collect_tests(directory, source):
     return files
 
 
+def native_manifest(baseline):
+    sources = baseline.get('nativeSources', {})
+    r.require(set(sources) == set(r.UNITS), 'Native source baselines missing')
+    native = {'units': {}}
+    roots = {}
+    for unit in r.UNITS:
+        r.require(set(sources[unit]) == r.NATIVE_FILES, 'Unexpected native source scope')
+        files = {name:hashlib.sha256(base64.b64decode(raw, validate=True)).hexdigest() if raw is not None else None
+                 for name, raw in sources[unit].items()}
+        root = baseline['units'][unit]['WorkingDirectory']
+        r.require(root and (root not in roots or roots[root] == files), 'Shared native baseline conflict')
+        roots[root] = files
+        native['units'][unit] = {'files':files}
+    return r.native_baselines(native)
+
+
 def build(repo, baseline_path):
     common = r.helper('package-delivery')
     git = lambda *args: common.git(repo, *args)
@@ -42,6 +58,7 @@ def build(repo, baseline_path):
     commit = git('rev-parse', 'HEAD').decode().strip()
     baseline = json.loads(baseline_path.read_text(encoding='utf-8-sig'))
     r.require(set(baseline['sources']) == r.FILES and baseline['frontendVersion'] == '0.2.57', 'Unexpected baseline')
+    native = native_manifest(baseline)
     files, patch = {}, {}
     def source(name):
         raw = common.normalized(git('show', commit + ':' + name))
@@ -52,6 +69,8 @@ def build(repo, baseline_path):
         raw = source('hengxin-smart-image/backend/' + name)
         encoded = baseline['sources'][name]
         old = base64.b64decode(encoded) if encoded is not None else None
+        if name in {'app/overseas/management/models.py', 'app/overseas/management/skills.py'}:
+            r.require(raw == old, 'Compatibility dependency must match API baseline: '+name)
         files['api/' + name] = raw
         patch[name] = dict(baseline=hashlib.sha256(old).hexdigest() if old is not None else None,
                            sha256=hashlib.sha256(raw).hexdigest())
@@ -68,7 +87,7 @@ def build(repo, baseline_path):
     r.require(json.loads(files['frontend/package.json'])['version'] == r.VERSION, 'Frontend version mismatch')
     release = 'outon-20261102-' + commit[:7]
     manifest = dict(release=release, version=r.VERSION, commit=commit, candidateId=approved['currentId'],
-        api={'image': baseline['image'], 'files': patch}, baselineEvidenceSha256=r.digest(baseline_path),
+        api={'image': baseline['image'], 'files': patch}, native=native, baselineEvidenceSha256=r.digest(baseline_path),
         files={n: hashlib.sha256(raw).hexdigest() for n, raw in sorted(files.items())})
     files['release.json'] = json.dumps(manifest, indent=2).encode()
     archive = r.helper('package-text').archive_bytes(files)

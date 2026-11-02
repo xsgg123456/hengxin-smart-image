@@ -57,7 +57,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn('1 skipped',(root/'installed-tests.txt').read_text())
 
     def test_closed_file_allowlist_has_only_overseas_app_and_0024(self):
-        self.assertEqual(len(r.FILES), 17)
+        self.assertEqual(len(r.FILES), 19)
+        self.assertEqual(len(r.NATIVE_FILES), 18)
+        self.assertTrue({'app/overseas/management/models.py', 'app/overseas/management/skills.py'} <= r.NATIVE_FILES)
         self.assertEqual(r.FILES-r.NATIVE_FILES, {'migrations/overseas/versions/0024_designer_roles.py'})
         self.assertTrue(all(name.startswith('app/overseas/') for name in r.NATIVE_FILES))
         self.assertEqual((r.OLD_REVISION,r.REVISION), ('overseas_0023','overseas_0024'))

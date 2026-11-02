@@ -23,7 +23,7 @@ r = n.r
 
 class NativeTests(unittest.TestCase):
     def fixture(self, root):
-        data = {'manifest':'release', 'protected':{'units':{}}, 'patch':{}}
+        data = {'manifest':'release', 'protected':{'units':{}}, 'patch':{}, 'native':{'units':{}}}
         native = root/'native'
         source = root/'source'
         for name in r.NATIVE_FILES:
@@ -33,6 +33,7 @@ class NativeTests(unittest.TestCase):
                 path.write_text(contents)
             data['patch'][name] = {'baseline':r.digest(native/name),'sha256':r.digest(source/'api'/name)}
         for index,unit in enumerate(r.UNITS):
+            data['native']['units'][unit] = {'files':{name:r.digest(native/name) for name in r.NATIVE_FILES}}
             data['protected']['units'][unit] = {'pid':10+index,'cwd':str(native),'files':{},
                                               'source':r.b.tree(native/'app')}
         r.private(root/'gate.json',{'node':'worker','manifest':'release'})
@@ -131,6 +132,8 @@ class NativeTests(unittest.TestCase):
         data['patch'][name]['baseline'] = None
         for saved in data['protected']['units'].values():
             saved['source'] = r.b.tree(native/'app')
+        for saved in data['native']['units'].values():
+            saved['files'][name] = None
         r.private(root/'MIGRATION_VERIFIED',{'manifest':'release','revision':r.REVISION})
         return data, source, native, name
 

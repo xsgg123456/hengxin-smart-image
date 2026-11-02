@@ -1,6 +1,8 @@
 """Release closure and narrow migration exceptions remain explicit."""
 import importlib.util
 import json
+import base64
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -23,7 +25,95 @@ b = load('outon-baseline')
 class ContractTests(unittest.TestCase):
     def test_probe_and_runtime_share_exact_closed_files(self):
         self.assertEqual(b.FILES,r.FILES)
+        self.assertEqual(b.NATIVE_FILES,r.NATIVE_FILES)
         self.assertEqual(b.UNITS,r.UNITS)
+
+    def native_fixture(self):
+        return {'nativeSources':{unit:{name:base64.b64encode(b'old native').decode() for name in r.NATIVE_FILES}
+                                 for unit in r.UNITS},
+                'units':{unit:{'WorkingDirectory':'/native'} for unit in r.UNITS}}
+
+    def test_native_manifest_pins_each_unit_without_embedding_private_sources(self):
+        baseline = self.native_fixture()
+        name = sorted(r.NATIVE_FILES)[0]
+        for unit in r.UNITS:
+            baseline['nativeSources'][unit][name] = None
+        native = p.native_manifest(baseline)
+        for unit in r.UNITS:
+            self.assertIsNone(native['units'][unit]['files'][name])
+            self.assertTrue(all(value in (None,hashlib.sha256(b'old native').hexdigest())
+                                for value in native['units'][unit]['files'].values()))
+        self.assertNotIn('old native',json.dumps(native))
+
+    def test_native_manifest_requires_every_unit_and_exact_scope(self):
+        baseline = self.native_fixture()
+        del baseline['nativeSources'][r.UNITS[0]]
+        with self.assertRaisesRegex(RuntimeError,'baselines missing'):
+            p.native_manifest(baseline)
+        baseline = self.native_fixture()
+        baseline['nativeSources'][r.UNITS[0]]['app/overseas/unrelated.py'] = None
+        with self.assertRaisesRegex(RuntimeError,'source scope'):
+            p.native_manifest(baseline)
+
+    def test_native_manifest_rejects_shared_root_disagreement(self):
+        baseline = self.native_fixture()
+        baseline['nativeSources'][r.UNITS[1]][sorted(r.NATIVE_FILES)[0]] = None
+        with self.assertRaisesRegex(RuntimeError,'Shared native baseline conflict'):
+            p.native_manifest(baseline)
+        baseline['units'][r.UNITS[1]]['WorkingDirectory'] = '/other'
+        p.native_manifest(baseline)
+
+    def snapshot_fixture(self, root, *, active=True, changed=False):
+        calls = {}
+        name = sorted(b.NATIVE_FILES)[0]
+        path = root/name
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b'actual native source')
+        def run(*args):
+            if args[:2] == ('docker','exec'):
+                return json.dumps({n:None for n in b.FILES})
+            if args[:2] == ('docker','inspect'):
+                return 'image'
+            unit,key = args[2],args[4]
+            if key == 'MainPID':
+                calls[unit] = calls.get(unit,0)+1
+                return '0' if not active else '11' if changed and calls[unit]>1 else '10'
+            return str(root) if key == 'WorkingDirectory' else 'value'
+        return name,run
+
+    def test_snapshot_captures_each_live_native_source_and_explicit_absence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            name,run = self.snapshot_fixture(root)
+            with patch.object(b,'run',side_effect=run),patch.object(b.os,'readlink',return_value=str(root)), \
+                 patch.object(b.Path,'read_text',return_value='{"version":"0.2.57"}'):
+                result = b.snapshot()
+            self.assertEqual(set(result['nativeSources']),set(r.UNITS))
+            for files in result['nativeSources'].values():
+                self.assertEqual(set(files),r.NATIVE_FILES)
+                self.assertEqual(base64.b64decode(files[name]),b'actual native source')
+                self.assertTrue(all(value is None for key,value in files.items() if key != name))
+
+    def test_snapshot_rejects_inactive_unit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            _,run = self.snapshot_fixture(Path(folder),active=False)
+            with patch.object(b,'run',side_effect=run),self.assertRaisesRegex(RuntimeError,'not running'):
+                b.snapshot()
+
+    def test_snapshot_rejects_actual_process_directory_mismatch(self):
+        with tempfile.TemporaryDirectory() as folder:
+            _,run = self.snapshot_fixture(Path(folder))
+            with patch.object(b,'run',side_effect=run),patch.object(b.os,'readlink',return_value='different'), \
+                 self.assertRaisesRegex(RuntimeError,'working directory differs'):
+                b.snapshot()
+
+    def test_snapshot_rejects_process_change_during_capture(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            _,run = self.snapshot_fixture(root,changed=True)
+            with patch.object(b,'run',side_effect=run),patch.object(b.os,'readlink',return_value=str(root)), \
+                 self.assertRaisesRegex(RuntimeError,'process changed'):
+                b.snapshot()
 
     def test_test_source_closure_includes_transitive_helpers_and_terminates_cycles(self):
         with tempfile.TemporaryDirectory() as folder:

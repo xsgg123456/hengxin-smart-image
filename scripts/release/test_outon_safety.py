@@ -31,6 +31,7 @@ class SafetyTests(unittest.TestCase):
             path.write_text('{"version":"0.2.58"}' if name.endswith('package.json') else 'content')
         files = {n:r.digest(root/n) for n in paths}
         manifest = {'release':'outon-20261102-test', 'version':r.VERSION,
+                    'native':{'units':{unit:{'files':{n:'b'*64 for n in r.NATIVE_FILES}} for unit in r.UNITS}},
                     'api':{'image':r.BASE_IMAGE, 'files':{
                         n:{'baseline':'a'*64, 'sha256':files['api/'+n]} for n in r.FILES}}, 'files':files}
         (root/'release.json').write_text(json.dumps(manifest))
@@ -49,6 +50,35 @@ class SafetyTests(unittest.TestCase):
             (root/'release.json').write_text(json.dumps(manifest))
             with self.assertRaisesRegex(RuntimeError, 'Patch checksum'):
                 r.verify_package(root)
+
+    def test_native_manifest_rejects_missing_unit_extra_file_and_malformed_hash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for corruption in ('unit','file','hash'):
+                manifest = self.package(root)
+                units = manifest['native']['units']
+                if corruption == 'unit':
+                    del units[r.UNITS[0]]
+                elif corruption == 'file':
+                    units[r.UNITS[0]]['files']['app/unrelated.py'] = None
+                else:
+                    units[r.UNITS[0]]['files'][sorted(r.NATIVE_FILES)[0]] = 'unknown'
+                (root/'release.json').write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(RuntimeError,'native baseline'):
+                    r.verify_package(root)
+
+    def test_prepared_native_baseline_must_remain_bound_to_manifest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            work = Path(folder)
+            source = work/'source'
+            manifest = self.package(source)
+            data = {'source':str(source), 'manifest':r.digest(source/'release.json'),
+                    'native':manifest['native'], 'patch':manifest['api']['files']}
+            data['native']['units'][r.UNITS[0]]['files'][sorted(r.NATIVE_FILES)[0]] = 'c'*64
+            (work/'prepared.json').write_text(json.dumps(data))
+            with patch.object(d.r,'hashes') as hashes, self.assertRaisesRegex(RuntimeError,'Prepared source baseline drift'):
+                d.state(work)
+            hashes.assert_not_called()
 
     def test_package_rejects_parent_traversal_even_with_correct_hash(self):
         with tempfile.TemporaryDirectory() as folder:
