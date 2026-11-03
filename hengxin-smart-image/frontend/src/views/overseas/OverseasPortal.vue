@@ -3,7 +3,7 @@
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
     <div class="layout-content"><div :class="managementPage === 'codex-auth' && managementAllowed ? undefined : 'hx-page'">
       <div v-if="!taskPage && !archivePage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
-      <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+      <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :drafts-api="draftsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasArchivePage v-else-if="archivePage && member.capabilities?.includes('task.read')" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <AccountPage v-else-if="managementPage === 'codex-auth' && managementAllowed" :key="'codex-auth-' + member.id + refreshKey" side="overseas" :adapter="codexAdapter" @failure="managementFailure" />
       <OverseasLiveManagement v-else-if="managementPage && managementPage !== 'users' && managementAllowed" :key="managementPage + refreshKey" :page="managementPage" :api="managementAdapter" :all-members="member.roles?.some(role => ['super_admin', 'design_manager'].includes(role))" @failure="managementFailure" />
@@ -27,6 +27,7 @@ import OverseasLiveManagement from './admin/OverseasLiveManagement.vue'
 import { createManagementApi, managementPages, managementCapability, type ManagementPage, type ManagementApi } from '@/api/overseas/management'
 import OverseasTasksPage from './OverseasTasksPage.vue'
 import OverseasArchivePage from './OverseasArchivePage.vue'
+import { createDraftsApi, type DraftsApi } from '@/api/overseas/requirement-drafts'
 import { createMaterialsApi, type MaterialsApi } from '@/api/overseas/materials'
 import { createTasksApi, type TasksApi } from '@/api/overseas/tasks'
 import AccountPage from '../codex-auth/AccountPage.vue'
@@ -113,9 +114,20 @@ const tasksAdapter: TasksApi = {
   async resubmit(id, draft, version, key) { await taskAuthorize('task.create'); return tasksApi.resubmit(id, draft, version, key) },
   async designers(query) { await taskAuthorize(route.path === '/overseas/create' ? 'task.create' : 'task.reassign'); return tasksApi.designers(query) }
 }
+const draftService = createDraftsApi()
+const draftsAdapter: DraftsApi = {
+  async get() { await taskAuthorize('task.create'); return draftService.get() },
+  async save(version, fields) { await taskAuthorize('task.create'); return draftService.save(version, fields) },
+  async source(version, sku, requirementId, fields) { await taskAuthorize('task.create'); return draftService.source(version, sku, requirementId, fields) },
+  async query(sku) { await taskAuthorize('task.create'); return draftService.query(sku) },
+  async retry(id) { await taskAuthorize('task.create'); return draftService.retry(id) },
+  async cancel(id) { await taskAuthorize('task.create'); return draftService.cancel(id) },
+  async removeMaterial(id) { await taskAuthorize('task.create'); return draftService.removeMaterial(id) },
+  async clear(version) { await taskAuthorize('task.create'); return draftService.clear(version) }
+}
 const materialsApi = createMaterialsApi()
 const materialsAdapter: MaterialsApi = {
-  async upload(file, kind, progress, signal) { await taskAuthorize('task.create'); return materialsApi.upload(file, kind, progress, signal) },
+  async upload(file, kind, progress, signal, draftId) { await taskAuthorize('task.create'); return materialsApi.upload(file, kind, progress, signal, draftId) },
   async get(id) { await taskAuthorize('task.read'); return materialsApi.get(id) },
   async list(id) { await taskAuthorize('task.read'); return materialsApi.list(id) },
   async remove(id) { await taskAuthorize('task.create'); return materialsApi.remove(id) },

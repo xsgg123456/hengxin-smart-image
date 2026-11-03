@@ -3,7 +3,7 @@ import { STATUS_LABELS } from '../../views/overseas/types'
 import { validateLanguage } from '../../views/overseas/languages'
 export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', deleting: '正在删除', delete_failed: '删除失败', deleted: '已删除', ...STATUS_LABELS }
 export interface TaskDeletion { taskId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
-export interface TaskDraft { name: string; productName: string; brand: string; platform: string; language: string; market: string; skus: { code: string }[]; designerId: string; materialIds?: string[] }
+export interface TaskDraft { name: string; productName: string; brand: string; platform: string; language: string; market: string; skus: { code: string }[]; designerId: string; materialIds?: string[]; draftId?: string; draftVersion?: number }
 export interface TaskSummary extends Omit<TaskDraft, 'designerId' | 'language'> {
   language?: string | null
   remarks: string
@@ -87,7 +87,7 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
 }
 export function emptyTaskDraft(): TaskDraft { return { name: '', productName: '', brand: '', platform: '', language: '', market: '', skus: [{ code: '' }], designerId: '' } }
 export function cleanDraft(d: TaskDraft): TaskDraft {
-  return { name: d.name.trim(), productName: d.productName.trim(), brand: d.brand.trim(), platform: d.platform.trim(), language: d.language, market: d.market.trim(), skus: d.skus.map(s => ({ code: s.code.trim() })), designerId: d.designerId, ...(d.materialIds ? { materialIds: [...d.materialIds] } : {}) }
+  return { name: d.name.trim(), productName: d.productName.trim(), brand: d.brand.trim(), platform: d.platform.trim(), language: d.language, market: d.market.trim(), skus: d.skus.map(s => ({ code: s.code.trim() })), designerId: d.designerId, ...(d.materialIds ? { materialIds: [...d.materialIds] } : {}), ...(d.draftId ? { draftId: d.draftId, draftVersion: d.draftVersion } : {}) }
 }
 export function validateDraft(d: TaskDraft) {
   if (![d.name, d.productName, d.brand, d.platform, d.designerId].every(v => v.trim())) throw Error('请填写必填信息并指定设计')
@@ -95,6 +95,7 @@ export function validateDraft(d: TaskDraft) {
   if (!d.skus.length || d.skus.length > 100 || d.skus.some(s => !s.code.trim())) throw Error('请填写 1–100 个 SKU')
   if (new Set(d.skus.map(s => s.code.trim().toLowerCase())).size !== d.skus.length) throw Error('SKU 不能重复')
 }
+export function validateNewDraft(d: TaskDraft) { validateDraft(d); if (d.skus.length !== 1) throw Error('新建图需仅支持一个 SKU') }
 // Keep the same key for each unsuccessful payload, including A → B → A edits.
 export function createRequestKeys(random: () => string = () => crypto.randomUUID()) {
   const keys = new Map<string, string>()

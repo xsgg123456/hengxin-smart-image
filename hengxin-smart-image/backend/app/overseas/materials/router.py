@@ -16,12 +16,14 @@ router = APIRouter(prefix='/api/overseas/v1', tags=['overseas-materials'])
 
 @router.post('/materials', status_code=201, dependencies=[Depends(browser_request)], openapi_extra=UPLOAD_BODY)
 async def upload(request: Request, actor: CurrentMember, session: Database,
-                 kind: Literal['requirement', 'competitor'], store=Depends(get_store)):
+                 kind: Literal['requirement', 'competitor'], draftId: UUID | None = None,
+                 store=Depends(get_store)):
     await run_in_threadpool(authorize_member, session, actor, 'task.create')
+    await run_in_threadpool(session.commit)
     form, file = await parse_upload(request, files.MAX_BYTES, maximum=files.MAX_BYTES, label='资料', size_label='500 MB')
     try:
         data = await file.read(files.MAX_BYTES + 1)
-        return await run_in_threadpool(files.save_upload, session, store, actor, data, file.filename, kind)
+        return await run_in_threadpool(files.save_upload, session, store, actor, data, file.filename, kind, draftId)
     finally:
         await form.close()
 

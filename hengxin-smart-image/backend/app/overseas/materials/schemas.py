@@ -4,7 +4,7 @@ from app.overseas.tasks.schemas import StrictBody
 
 
 class SubmitMaterials(StrictBody):
-    materialIds: list[UUID] = Field(min_length=1, max_length=2)
+    materialIds: list[UUID] = Field(min_length=1, max_length=100)
     version: int = Field(ge=1, strict=True)
 
     @field_validator('materialIds')

@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 Text80 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 Text60 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
@@ -14,7 +14,7 @@ class Sku(StrictBody):
     code: Text80
 
 
-class CreateTask(StrictBody):
+class TaskInput(StrictBody):
     name: Text80
     productName: Text80
     brand: Text60
@@ -25,13 +25,13 @@ class CreateTask(StrictBody):
     remarks: str = Field(default='', max_length=1000)
     skus: list[Sku] = Field(min_length=1, max_length=100)
     designerId: UUID
-    materialIds: list[UUID] | None = Field(default=None, min_length=1, max_length=2)
+    materialIds: list[UUID] | None = Field(default=None, min_length=1, max_length=100)
 
     @field_validator('materialIds')
     @classmethod
     def unique_materials(cls, values):
         if values is None or len(set(values)) != len(values):
-            raise ValueError('请提供一至两份不同资料，或省略资料字段')
+            raise ValueError('请提供一至一百份不同资料，或省略资料字段')
         return values
 
     @field_validator('platform', mode='before')
@@ -45,6 +45,19 @@ class CreateTask(StrictBody):
         if len({item.code.casefold() for item in values}) != len(values):
             raise ValueError('SKU不能重复')
         return values
+
+
+class CreateTask(TaskInput):
+    draftId: UUID | None = None
+    draftVersion: int | None = Field(default=None, ge=1, strict=True)
+
+    @model_validator(mode='after')
+    def draft_reference(self):
+        if (self.draftId is None) != (self.draftVersion is None):
+            raise ValueError('草稿标识与版本必须一起提供')
+        if self.draftId is not None and len(self.skus) != 1:
+            raise ValueError('新建图需草稿只支持一个SKU')
+        return self
 
 
 class Assignment(StrictBody):
@@ -64,6 +77,6 @@ class RequirementsReview(StrictBody):
     version: int = Field(ge=1, strict=True)
 
 
-class ResubmitTask(CreateTask):
+class ResubmitTask(TaskInput):
     version: int = Field(ge=1, strict=True)
-    materialIds: list[UUID] = Field(min_length=1, max_length=2)
+    materialIds: list[UUID] = Field(min_length=1, max_length=100)

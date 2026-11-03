@@ -1,28 +1,21 @@
 <template>
   <ElCard class="art-card hx-section" shadow="never">
     <div class="section-heading"><h2>图需资料</h2><ElTag v-if="editable" type="info">至少提供一份</ElTag></div>
-    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类一份，单份不超过 500 MB。支持 PPT/PPTX、Word、PDF、表格等各类文件；上传后下载原件查看。</p>
+    <p v-if="editable" class="hx-muted hx-gap">至少上传一份资料，每类支持多份，单份不超过 500 MB。支持 PPT/PPTX、Word、PDF、表格等各类文件；上传后下载原件查看。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
-    <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card" :data-material-id="file(kind.key)?.id">
-      <h3>{{ kind.label }}</h3>
-      <template v-if="file(kind.key)">
-        <p class="file-name">{{ file(kind.key)?.name }}</p>
-        <p class="hx-muted">{{ formatAttachmentSize(file(kind.key)!.sizeBytes) }}</p>
-        <AttachmentDownload :url="`/api/overseas/v1/materials/${encodeURIComponent(file(kind.key)!.id)}/content`" :name="file(kind.key)!.name" @failure="$emit('failure', $event)" />
-        <ElButton v-if="editable && replaceable && file(kind.key)?.taskId" text type="danger" :disabled="locked" @click="detach(file(kind.key)!)">更换资料</ElButton>
-        <template v-if="editable && !file(kind.key)?.taskId">
-          <div class="hx-gap"><ElButton type="danger" text :disabled="locked" @click="remove(file(kind.key)!)">移除资料</ElButton></div>
-        </template>
-      </template>
-      <ElUpload v-else-if="editable" drag :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :data-material-kind="kind.key" :disabled="locked" :on-change="selected => upload(selected, kind.key)">
-        <div class="upload-copy"><strong>点击选择或拖入{{ kind.label }}</strong><span>不限文件格式（含 PPT/PPTX） · 单份不超过 500 MB</span></div>
+    <div class="material-grid"><div v-for="kind in kinds" :key="kind.key" class="material-card">
+      <h3>{{ kind.label }}<span v-if="group(kind.key).length"> · {{ group(kind.key).length }} 份</span></h3>
+      <div v-for="item in group(kind.key)" :key="item.id" :data-material-id="item.id" class="material-item">
+        <p class="file-name">{{ item.name }}</p><p class="hx-muted">{{ formatAttachmentSize(item.sizeBytes) }}</p>
+        <AttachmentDownload :url="`/api/overseas/v1/materials/${encodeURIComponent(item.id)}/content`" :name="item.name" @failure="$emit('failure', $event)" />
+        <ElButton v-if="editable && replaceable && item.taskId" text type="danger" :disabled="locked" @click="detach(item)">移除资料</ElButton>
+        <ElButton v-if="editable && !item.taskId" text type="danger" :disabled="locked" @click="remove(item)">移除资料</ElButton>
+      </div>
+      <ElUpload v-if="editable" drag multiple :key="`${kind.key}-${inputKey}`" :auto-upload="false" :show-file-list="false" :data-material-kind="kind.key" :disabled="disabled" :on-change="selected => upload(selected, kind.key)">
+        <div class="upload-copy"><strong>{{ group(kind.key).length ? '继续添加文件' : `点击选择或拖入${kind.label}` }}</strong><span>支持多份 · 单份不超过 500 MB</span></div>
       </ElUpload>
-      <p v-else class="hx-muted">未提供{{ kind.label }}</p>
-      <template v-if="uploading === kind.key">
-        <ElProgress :percentage="progress" />
-        <p role="status">{{ progress === 100 ? '上传完成，正在保存…' : '正在上传…' }}</p>
-        <ElButton @click="cancel">取消上传</ElButton>
-      </template>
+      <p v-else-if="!group(kind.key).length" class="hx-muted">未提供{{ kind.label }}</p>
+      <template v-if="uploading === kind.key"><ElProgress :percentage="progress" /><p role="status">{{ progress === 100 ? '上传完成，正在保存…' : '正在上传…' }}</p><ElButton @click="cancel">取消上传</ElButton></template>
     </div></div>
     <p v-if="editable" class="review-notice">提交后先由图需审核，审核通过后才能继续 AI 设计；资料不完整时退回提交人修改。</p>
   </ElCard>
@@ -39,22 +32,25 @@ const props = defineProps<{ api: MaterialsApi; editable: boolean; disabled?: boo
 const emit = defineEmits<{ busy: [value: boolean]; failure: [reason: unknown] }>()
 const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '竞品分析表格' }] as const
 const busy = ref(false), progress = ref(0), uploading = ref<MaterialKind>(), error = ref(''), inputKey = ref(0)
-const locked = computed(() => busy.value || props.disabled), file = (kind: MaterialKind) => files.value.find(f => f.kind === kind)
+const locked = computed(() => busy.value || props.disabled), group = (kind: MaterialKind) => files.value.filter(f => f.kind === kind)
+let pending: { file: UploadFile; kind: MaterialKind }[] = []
 let generation = 0, controller: AbortController | undefined
 watch(busy, value => emit('busy', value), { flush: 'sync' })
-function cancel() { ++generation; controller?.abort(); controller = undefined; busy.value = false; uploading.value = undefined; progress.value = 0; inputKey.value++ }
+function cancel() { pending = []; ++generation; controller?.abort(); controller = undefined; busy.value = false; uploading.value = undefined; progress.value = 0; inputKey.value++ }
 function failed(reason: unknown) {
   error.value = materialError(reason)
-  if (reason instanceof IdentityError && reason.status === 409) files.value = []
+
   if (reason instanceof IdentityError && [401, 403, 404].includes(reason.status)) { files.value = []; emit('failure', reason) }
 }
 async function upload(selected: UploadFile, kind: MaterialKind) {
-  if (locked.value || !props.editable || !selected.raw || file(kind)) return
-  try { validateFile(selected.raw, kind) } catch (reason) { failed(reason); inputKey.value++; return }
+  if (props.disabled || !props.editable || !selected.raw) return
+  if (files.value.length + pending.length + (busy.value ? 1 : 0) >= 100) { error.value = '单次最多 100 份资料，请分批处理'; return }
+  try { validateFile(selected.raw, kind) } catch (reason) { failed(reason); return }
+  if (busy.value) { pending.push({ file: selected, kind }); return }
   const current = ++generation; controller = new AbortController(); error.value = ''; busy.value = true; uploading.value = kind; progress.value = 0
   try { const result = await props.api.upload(selected.raw, kind, value => { if (current === generation) progress.value = value }, controller.signal); if (current === generation) files.value = [...files.value, result] }
   catch (reason) { if (current === generation) failed(reason) }
-  finally { if (current === generation) { busy.value = false; uploading.value = undefined; inputKey.value++ } }
+  finally { if (current === generation) { busy.value = false; uploading.value = undefined; inputKey.value++; const next = pending.shift(); if (next) void upload(next.file, next.kind) } }
 }
 async function remove(material: Material) {
   if (locked.value || !props.editable || material.taskId) return
@@ -67,9 +63,9 @@ async function remove(material: Material) {
   } catch (reason) { if (current === generation && reason !== 'cancel' && reason !== 'close') failed(reason) }
   finally { if (current === generation) busy.value = false }
 }
-function detach(material: Material) {
+async function detach(material: Material) {
   if (!props.editable || !props.replaceable || locked.value) return
-  files.value = files.value.filter(file => file.id !== material.id)
+  try { await ElMessageBox.confirm('从本次图需移除此资料？原任务原件保持。', '移除资料', { type: 'warning', confirmButtonText: '确认移除', cancelButtonText: '取消' }); if (props.editable && !locked.value) files.value = files.value.filter(file => file.id !== material.id) } catch { /* 用户取消 */ }
 }
 watch(() => props.editable, () => { cancel() })
 onUnmounted(cancel)
@@ -78,6 +74,7 @@ onUnmounted(cancel)
 h2 { font-size: 16px; }
 h3 { font-size: 14px; margin-bottom: 12px; }
 p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.material-item { padding: 12px 0; border-bottom: 1px solid var(--el-border-color-lighter); margin-bottom: 12px; }
 .file-name { margin-bottom: 12px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .material-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }

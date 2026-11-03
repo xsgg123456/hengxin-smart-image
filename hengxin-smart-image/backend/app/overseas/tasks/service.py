@@ -64,6 +64,9 @@ def create_task(session, actor, body, key):
     if body.materialIds is not None:
         from app.overseas.materials.service import bind
         bind(session, actor, task, body.materialIds)
+    if body.draftId is not None:
+        from app.overseas.drafts.hooks import consume_for_task
+        consume_for_task(session, actor, body, task, key=key)
     record_change(session, task, actor, 'task.created')
     request_record(session, actor, 'create', '', key, body_hash, task)
     session.flush()

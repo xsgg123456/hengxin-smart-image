@@ -86,7 +86,7 @@ test('提交及修改共用表单移除站点，保留目标平台和历史值',
     const draft = { ...Tasks.emptyTaskDraft(), remarks: '', market: editing ? '美国' : '' }
     const view = mount('OverseasCreate', { modelValue: draft, allowed: true, editing })
     const labels = flatten(view.root).filter(n => n.tag === 'ElFormItem').map(n => n.props.label)
-    assert.deepEqual(labels, ['SKU 1', '目标平台', '品牌', '任务名称', '品名', '语言'])
+    assert.deepEqual(labels, [editing ? 'SKU 1' : '商品 SKU', '目标平台', '品牌', '任务名称', '品名', '语言'])
     assert.ok(!textOf(view.root).includes('补充说明'))
     assert.ok(!labels.some(label => String(label).includes('站点')))
     assert.equal(draft.market, editing ? '美国' : '')

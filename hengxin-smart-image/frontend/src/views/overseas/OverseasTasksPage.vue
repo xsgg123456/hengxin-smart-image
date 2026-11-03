@@ -1,9 +1,6 @@
 <template>
   <div>
-    <OverseasCreate v-if="creating && canCreate" v-model="draft" :allowed="canCreate" :busy="saving" @back="router.push('/overseas/tasks')">
-      <template #designer><ElFormItem label="负责设计" required><DesignerPicker :api="api" v-model="draft.designerId" :disabled="saving" @failure="failure" /></ElFormItem></template>
-      <template #after><OverseasMaterialsPanel :key="panelEpoch" v-model="materials" :api="materialsApi" :editable="canCreate" :disabled="saving" @busy="materialsBusy = $event" @failure="failure" /><ElAlert v-if="error" :title="error" type="error" :closable="false" /><div class="hx-filter"><ElButton type="primary" :loading="saving" :disabled="!ready || materialsBusy" @click="create">提交图需</ElButton></div></template>
-    </OverseasCreate>
+    <OverseasTaskCreate v-if="creating && canCreate" :key="actorId" :actor-id="actorId" :api="api" :materials-api="materialsApi" :drafts-api="draftsApi" :allowed="canCreate" @back="router.push('/overseas/tasks')" @created="router.push(`/overseas/tasks/${$event}`)" @failure="failure" />
     <template v-else-if="detailId">
       <div v-if="!editingRequirements" class="hx-heading" :class="{ 'studio-task-heading': studio }"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail && !studio">{{ taskStatuses[detail.status] }}</p></div><div class="studio-actions"><ElButton v-if="studio" size="small" :loading="busy" @click="load">刷新任务详情</ElButton><ElButton :size="studio ? 'small' : 'default'" @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div></div>
       <p v-if="busy" role="status">正在加载任务…</p>
@@ -50,12 +47,13 @@ import { ElMessage } from 'element-plus'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'
-import { cleanDraft, createRequestKeys, emptyTaskDraft, taskError, taskStatuses, taskDeletionActive, type TaskDeletion, validateDraft, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import { createRequestKeys, taskError, taskStatuses, taskDeletionActive, type TaskDeletion, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import type { DraftsApi } from '@/api/overseas/requirement-drafts'
 import { languageLabel } from './languages'
 import OverseasRequirementsReview from './OverseasRequirementsReview.vue'
 import OverseasRequirementsResubmit from './OverseasRequirementsResubmit.vue'
 import OverseasTaskDelete from './OverseasTaskDelete.vue'
-import OverseasCreate from './OverseasCreate.vue'
+import OverseasTaskCreate from './OverseasTaskCreate.vue'
 import OverseasWorkspace from './OverseasWorkspace.vue'
 import OverseasTaskInfo from './OverseasTaskInfo.vue'
 import OverseasExecution from './OverseasExecution.vue'
@@ -65,11 +63,11 @@ import DesignerPicker from './DesignerPicker.vue'
 import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
 import OverseasStudio from './studio/OverseasStudio.vue'
 import { readyMaterialIds, type Material, type MaterialsApi } from '@/api/overseas/materials'
-const props = defineProps<{ actorId: string; api: TasksApi; materialsApi: MaterialsApi; capabilities: string[]; refresh: number }>()
+const props = defineProps<{ actorId: string; api: TasksApi; materialsApi: MaterialsApi; draftsApi?: DraftsApi; capabilities: string[]; refresh: number }>()
 const emit = defineEmits<{ failure: [reason: unknown] }>()
 const route = useRoute(), router = useRouter(), creating = computed(() => route.path === '/overseas/create'), detailId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
 const canCreate = computed(() => props.capabilities.includes('task.create')), canRead = computed(() => props.capabilities.includes('task.read'))
-const draft = ref(emptyTaskDraft()), tasks = ref<TaskSummary[]>([]), detail = ref<TaskDetail>(), total = ref(0), page = ref(1)
+const tasks = ref<TaskSummary[]>([]), detail = ref<TaskDetail>(), total = ref(0), page = ref(1)
 const search = ref(''), scope = ref('all'), status = ref(''), error = ref(''), busy = ref(false), saving = ref(false), assigning = ref(false), designerId = ref('')
 const editingRequirements = ref(false)
 const deleting = computed(() => !!detail.value && taskDeletionActive(detail.value))
@@ -79,7 +77,7 @@ const panelEpoch = ref(0), plansRefresh = ref(0)
 const materials = ref<Material[]>([]), materialsBusy = ref(false)
 const ready = computed(() => { try { readyMaterialIds(materials.value); return true } catch { return false } })
 const materialKeys = createRequestKeys()
-const createKeys = createRequestKeys(), assignKeys = createRequestKeys()
+const assignKeys = createRequestKeys()
 let generation = 0, timer: ReturnType<typeof setTimeout> | undefined, active = true
 function failure(reason: unknown) { ++generation; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; total.value = 0; emit('failure', reason) }
 function failed(reason: unknown) { error.value = taskError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) failure(reason) }
@@ -121,15 +119,6 @@ async function refreshDetail() {
   if (!id) return
   try { const value = await props.api.get(id); if (active && current === generation) { updateDetail(value); plansRefresh.value++ } }
   catch (reason) { if (active && current === generation) failed(reason) }
-}
-async function create() {
-  if (saving.value || materialsBusy.value || !ready.value || !canCreate.value) return
-  try { validateDraft(draft.value) } catch (reason) { error.value = taskError(reason); return }
-  const body = cleanDraft({ ...draft.value, materialIds: readyMaterialIds(materials.value) }), key = createKeys.for(body), origin = route.path, current = generation
-  saving.value = true; error.value = ''
-  try { const value = await props.api.create(body, key); if (!active || current !== generation || !canCreate.value) return; createKeys.clear(); draft.value = emptyTaskDraft(); if (route.path !== origin) return; await router.push(`/overseas/tasks/${value.id}`) }
-  catch (reason) { if (active && current === generation) failed(reason) }
-  finally { saving.value = false }
 }
 async function submitMaterials() {
   if (saving.value || materialsBusy.value || !ready.value || !detail.value?.capabilities.includes('task.materials.submit')) return

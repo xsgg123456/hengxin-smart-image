@@ -58,9 +58,9 @@ def parse_revision(session, record, data):
 
 
 def bind(session, actor, task, material_ids, *, resubmit=False):
+    if not 1 <= len(material_ids) <= 100 or len(set(material_ids)) != len(material_ids):
+        raise HTTPException(422, '请提供一至一百份不同资料')
     records = [find(session, key, lock=True) for key in sorted(material_ids, key=str)]
-    if len({r.kind for r in records}) != len(records):
-        raise HTTPException(422, '每种资料最多提交一份')
     for record in records:
         if not (resubmit and record.task_id == task.id):
             owned(session, record, actor)

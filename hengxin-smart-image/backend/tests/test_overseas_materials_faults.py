@@ -16,7 +16,7 @@ def test_phase19_hash_replays_without_new_field(materials):
     client, factory, _, designer, _ = materials
     body = payload(designer)
     data = create(client, body).json()
-    old = CreateTask(**body).model_dump(mode='json', exclude={'materialIds'})
+    old = CreateTask(**body).model_dump(mode='json', exclude={'materialIds', 'draftId', 'draftVersion'})
     with factory.begin() as session:
         session.scalar(select(TaskRequest)).body_hash = fingerprint_payload(old)
     assert create(client, body).status_code == 200

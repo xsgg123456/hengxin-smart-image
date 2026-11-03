@@ -212,11 +212,11 @@ def test_binding_failure_rolls_back_material_task_event_and_outbox(materials, mo
     assert client.get(ROOT + '/materials/' + data['id']).json()['taskId'] is None
 
 
-def test_same_kind_duplicate_and_empty_materials_rejected(materials):
+def test_duplicate_and_empty_materials_rejected(materials):
     client, factory, _, designer, _ = materials
     first, second = upload(client).json(), upload(client).json()
     for ids, code in (([], 422), ([first['id'], first['id']], 422),
-                      ([first['id'], second['id']], 422), (None, 422)):
+                      ([str(uuid4()) for _ in range(101)], 422), (None, 422)):
         assert create(client, {**payload(designer), 'materialIds': ids}).status_code == code
     assert counts(factory) == [0] * 5
 

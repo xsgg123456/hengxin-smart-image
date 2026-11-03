@@ -20,6 +20,8 @@
           <slot name="example" />
         </div>
         <ElForm label-position="top" :disabled="!allowed || busy">
+          <slot name="sku">
+            <template v-if="editing">
           <div class="hx-section-title">
             <h2>商品 SKU</h2>
             <ElButton :disabled="draft.skus.length >= 100" @click="draft.skus.push({ code: '' })"
@@ -40,6 +42,9 @@
               >移除</ElButton
             >
           </div>
+            </template>
+            <ElFormItem v-else label="商品 SKU" required><ElInput v-model="draft.skus[0].code" aria-label="商品 SKU" maxlength="80" /></ElFormItem>
+          </slot>
           <div class="form-grid">
             <ElFormItem label="目标平台" required><ElSelect v-model="draft.platform" placeholder="请选择目标平台"><ElOption v-for="p in platformOptions" :key="p.value" :value="p.value" :label="p.label" /></ElSelect></ElFormItem>
             <ElFormItem label="品牌" required><ElSelect v-model="draft.brand" placeholder="请选择品牌"><ElOption v-for="brand in brandOptions" :key="brand" :value="brand" :label="brand" /></ElSelect></ElFormItem>

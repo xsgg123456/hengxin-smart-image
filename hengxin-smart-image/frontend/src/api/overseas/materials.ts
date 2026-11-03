@@ -3,7 +3,7 @@ import { createIdentityRequest, IdentityError, record } from '../identity/reques
 export type MaterialKind = 'requirement' | 'competitor'
 export interface Material { id: string; kind: MaterialKind; name: string; sizeBytes: number; contentType: string; taskId: string | null; createdAt: string; status: 'ready' }
 export interface MaterialsApi {
-  upload(file: File, kind: MaterialKind, progress: (percent: number) => void, signal: AbortSignal): Promise<Material>
+  upload(file: File, kind: MaterialKind, progress: (percent: number) => void, signal: AbortSignal, draftId?: string): Promise<Material>
   get(id: string): Promise<Material>
   list(taskId: string): Promise<Material[]>
   remove(id: string): Promise<void>
@@ -20,8 +20,8 @@ export function validateFile(file: Pick<File, 'name' | 'size'>, kind: MaterialKi
   if (!['requirement', 'competitor'].includes(kind)) throw Error('资料类别无效')
 }
 export function readyMaterialIds(files: Material[]) {
-  if (!files.length || files.length > 2 || files.some(f => f.taskId !== null)) throw Error('至少提供一份已上传的未绑定资料')
-  if (new Set(files.map(f => f.kind)).size !== files.length || new Set(files.map(f => f.id)).size !== files.length) throw Error('每类资料仅支持一份')
+  if (!files.length || files.length > 100 || files.some(f => f.taskId !== null)) throw Error('请提供 1–100 份已上传的未绑定资料')
+  if (new Set(files.map(f => f.id)).size !== files.length) throw Error('资料不能重复')
   return files.map(f => f.id)
 }
 export function materialError(reason: unknown) {
@@ -46,13 +46,13 @@ export function createMaterialsApi(fetcher: typeof fetch = fetch, xhrFactory = (
     get: id => request(path(id), isMaterial),
     list: id => request(`/api/overseas/v1/tasks/${encodeURIComponent(id)}/materials`, (v): v is Material[] => Array.isArray(v) && v.every(isMaterial)),
     async remove(id) { await binary(path(id), 'DELETE') },
-    async upload(file, kind, progress, signal) {
+    async upload(file, kind, progress, signal, draftId) {
       validateFile(file, kind)
       return new Promise<Material>((resolve, reject) => {
         if (signal.aborted) { reject(new Error('上传已取消')); return }
         const xhr = xhrFactory(), abort = () => xhr.abort()
         const cleanup = () => signal.removeEventListener('abort', abort)
-        xhr.open('POST', `${base}?kind=${kind}`); xhr.withCredentials = true; xhr.timeout = 0
+        xhr.open('POST', `${base}?kind=${kind}${draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''}`); xhr.withCredentials = true; xhr.timeout = 0
         xhr.setRequestHeader('X-HX-Request', '1'); xhr.setRequestHeader('Accept', 'application/json')
         xhr.upload.onprogress = event => { if (event.lengthComputable) progress(Math.round(event.loaded / event.total * 100)) }
         xhr.onload = () => {

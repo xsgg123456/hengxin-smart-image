@@ -17,7 +17,7 @@ from app.overseas.upload_limits import MAX_UPLOAD_BYTES
 MAX_BYTES = MAX_UPLOAD_BYTES
 
 
-def save_upload(session, store, actor, data, filename, kind):
+def save_upload(session, store, actor, data, filename, kind, draft_id=None):
     name, content_type = parsers.validate_document(data, filename, kind)
     if Path(name).suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'):
         from app.overseas.studio.files import validate
@@ -29,9 +29,10 @@ def save_upload(session, store, actor, data, filename, kind):
                       content_type=content_type, size_bytes=len(data), checksum=sha256(data).hexdigest(),
                       status='staging', version=0)
     session.add(record)
+    delivery = FileDelivery.capture(record)
     session.commit()
     try:
-        store.put(record, data)
+        store.put(delivery, data)
     except Exception:
         record.status = 'failed'
         session.commit()
@@ -39,6 +40,9 @@ def save_upload(session, store, actor, data, filename, kind):
     # Revalidate after the staging commit before making the document visible.
     lock_actor(session, actor, 'task.create')
     record.status = 'ready'
+    if draft_id is not None:
+        from app.overseas.drafts.hooks import attach_uploaded
+        attach_uploaded(session, actor, record, draft_id)
     result = service.describe(session, record)
     try:
         session.commit()
