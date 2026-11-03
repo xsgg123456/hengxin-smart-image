@@ -118,3 +118,5 @@
 - 实施合同：docs/OVERSEAS-ARCHIVE-PENDING-20261103.md；实际验收与上线状态以本轮验证文档为准。
 
 0.2.62已于2026-11-03正式部署，代码0943f5f；验证与回退记录见OVERSEAS-ARCHIVE-VALIDATION-20261103.md。
+
+0.2.63已于2026-11-03正式部署，功能提交7c4d1ce；支持完整Skill文件夹拖入、保存为文件夹及二次确认删除。部署、网关恢复及验收边界见SKILL-FOLDERS-PRODUCTION-20261103.md。

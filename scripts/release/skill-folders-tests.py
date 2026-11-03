@@ -130,6 +130,16 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(getattr(d,name)(args[0]),'delegated')
                 action.assert_called_once_with(*args)
 
+    def test_gateway_helper_is_mandatory_in_release_package(self):
+        self.assertIn('skill-folders-gateway',r.HELPERS)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = self.package(root)
+            del manifest['files']['scripts/release/skill-folders-gateway.py']
+            (root/'release.json').write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError,'Incomplete package'):
+                r.verify_package(root)
+
     def test_recovery_candidate_rejection_precedes_host_operations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

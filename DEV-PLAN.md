@@ -1623,3 +1623,5 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 1. 后端完整包生命周期：app/overseas/management/skill_transfers*.py、skill_publisher*.py、installed_catalog.py、management/router.py 与 tests/test_overseas_skill_transfers*.py。验收：全量哈希、空目录、空发布、幂等、权限、历史冻结与故障隔离。
 2. 前端完整包交互：src/views/overseas/admin/OverseasLiveSkills.vue、OverseasSkillCatalog.vue、SkillFolder*.vue，src/api/overseas/skill-transfers.ts 与文件夹读写工具。验收：真实目录拖入、进度/差异确认、文件夹读回核验、删除确认/取消和兼容提示；类型/单测/构建通过。
 3. 集成与发布：隔离浏览器、Linux实目录与实际服务身份验证，独立双阶段review，scripts/release/skill-folders-* 部署工具与生产证据。验收：原有技能与配置保留、正式入口可用、中文提交与部署完成。
+
+Skill文件夹管理已部署0.2.63，功能提交7c4d1ce；正式安装51项、前端514项、浏览器6项及独立双阶段通过。公网DNS缓存问题已平滑重载恢复，并补发布工具防复发；原生目录窗口因工具中止留有明确验收边界。详见docs/SKILL-FOLDERS-PRODUCTION-20261103.md。

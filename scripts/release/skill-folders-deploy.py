@@ -201,6 +201,7 @@ def api(work):
     r.helper('sku-native').verified(work,data)
     r.private(work/'API_SWITCH_STARTED',{'manifest':data['manifest'],'image':data['image']})
     r.a.compose(data['compose'],'up','-d','--no-deps','--no-build','api',overlay=work/'api-overlay.json')
+    r.helper('skill-folders-gateway').refresh(r,data)
     return verify(work)
 
 def verify(work):
@@ -217,6 +218,7 @@ def verify(work):
              'assert not os.access(p,os.W_OK); assert os.geteuid()==10001; '
              'from app.overseas.management.installed_catalog import catalog; catalog(); print("READ_ONLY_CATALOG_OK")')
     r.require(r.run('docker','exec',r.API,'python','-B','-c',check)=='READ_ONLY_CATALOG_OK','API runtime permission probe failed')
+    r.helper('skill-folders-gateway').readiness(r)
     r.private(work/'API_VERIFIED',{'manifest':data['manifest'],'image':data['image'],'id':live['Id']})
     return 'API_NATIVE_PUBLISHER_VERIFIED'
 

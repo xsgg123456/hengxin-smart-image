@@ -27,6 +27,7 @@ def recover_before_switch(work,r,p,state):
         r.worker('resume',json.loads((work/'GATE_STARTED').read_text())['node'])
     r.run('docker','start',r.API)
     r.helper('image-cache-runtime').readiness('http://127.0.0.1:18018/api/overseas/v1/health/ready')
+    r.helper('skill-folders-gateway').refresh(r,data)
     r.private(work/'RECOVERED_BEFORE_SWITCH',{'manifest':data['manifest']})
     return 'ORIGINAL_API_RECOVERED_NATIVE_COMPATIBLE_READER_RETAINED'
 
@@ -45,6 +46,7 @@ def rollback(work,r,p,state,imports_idle):
         r.worker('idle')
     except BaseException:
         r.run('docker','start',r.API)
+        r.helper('skill-folders-gateway').refresh(r,data)
         raise
     stop_publisher(data,r,p)
     # Old reader cannot consume new metadata/empty catalogs: rollback is allowed only before user changes.
@@ -57,6 +59,7 @@ def rollback(work,r,p,state,imports_idle):
     if (work/'frontend-backup/COMPLETE.json').exists():
         r.helper('sku-frontend').rollback(r.a.APP,work/'frontend-backup')
     r.helper('image-cache-runtime').readiness('http://127.0.0.1:18018/api/overseas/v1/health/ready')
+    r.helper('skill-folders-gateway').refresh(r,data)
     r.private(work/'ROLLED_BACK',{'manifest':data['manifest'],'image':data['oldImage']})
     return 'OLD_API_FRONTEND_RESTORED_COMPATIBLE_NATIVE_READER_RETAINED_NO_DB_REWIND'
 

@@ -19,7 +19,8 @@ r.TESTS = ('test_overseas_installed_skills.py','test_overseas_installed_titles.p
            'test_overseas_skill_transfers.py','test_overseas_skill_transfers_failures.py',
            'test_overseas_management_freeze.py')
 r.HELPERS = tuple(dict.fromkeys((*r.HELPERS, 'archive-runtime','archive-deploy',
-    'skill-folders-runtime','skill-folders-deploy','skill-folders-native','skill-folders-recovery')))
+    'skill-folders-runtime','skill-folders-deploy','skill-folders-native','skill-folders-recovery',
+    'skill-folders-gateway')))
 original_helper = r.helper
 SOCKET_ROOT = '/run/hengxin-skill-publisher'
 TRANSFER_ROOT = '/var/lib/hengxin-overseas/skill-transfers'
