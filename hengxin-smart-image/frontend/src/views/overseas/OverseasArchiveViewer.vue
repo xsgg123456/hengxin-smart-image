@@ -1,6 +1,6 @@
 <template>
-  <ElImageViewer :url-list="urls" :initial-index="initialIndex" :infinite="false" show-progress teleported :z-index="6000" @close="$emit('close')" @switch="activeIndex = $event" @error="url && imageError()">
-    <template #progress><div class="image-caption">归档成品 · {{ activeIndex + 1 }} / {{ pictures.length || '…' }}<br>{{ pictures[activeIndex]?.name }}<small>← → 切换图片 · 滚轮缩放 · Esc 关闭</small></div></template>
+  <ElImageViewer :key="imageKey" :url-list="urls" :initial-index="activeIndex" :infinite="false" show-progress teleported :z-index="6000" @close="$emit('close')" @switch="activeIndex = $event" @error="url && imageError()">
+    <template #progress><div class="image-caption">归档成品 · {{ activeIndex + 1 }} / {{ pictures.length || '…' }}<br>{{ pictures[activeIndex]?.name }} <ElButton :loading="downloading" @click.stop="download">下载原图</ElButton><small>{{ downloadError }}</small><small>← → 切换图片 · 滚轮缩放 · Esc 关闭</small></div></template>
     <div v-if="loading || metadataLoading || error || metadataError" class="archive-viewer-state" role="status">
       <span>{{ error || metadataError || '正在加载原图…' }}</span>
       <ElButton v-if="error || metadataError" type="primary" @click="metadataError ? loadMetadata() : load()">重新加载图片</ElButton>
@@ -13,12 +13,16 @@ import { ElImageViewer } from 'element-plus'
 import { IdentityError } from '@/api/identity/request'
 import { archiveError, type ArchivePicture, type ArchivesApi } from '@/api/overseas/archives'
 import { useArchiveImage } from './use-archive-image'
+import { useArchivePrefetch } from './use-archive-prefetch'
+import { useArchiveDownload } from './use-archive-download'
 const props = defineProps<{ archiveId: string; api: ArchivesApi; initialIndex: number; group?: ArchivePicture[] }>()
 const emit = defineEmits<{ close: []; failure: [reason: unknown] }>()
 const pictures = ref<ArchivePicture[]>(props.group || []), activeIndex = ref(props.initialIndex), metadataLoading = ref(false), metadataError = ref('')
 let alive = true
-const { url, error, loading, load, imageError } = useArchiveImage(props.api, () => props.archiveId, () => pictures.value[activeIndex.value], reason => emit('failure', reason))
-// Only the active original is fetched; Element Plus owns navigation, transform reset and focus restoration.
+const { url, error, loading, load, imageError, imageKey } = useArchiveImage(props.api, () => props.archiveId, () => pictures.value[activeIndex.value], reason => emit('failure', reason), false)
+useArchivePrefetch(() => props.archiveId, () => pictures.value)
+const { download, downloading, downloadError } = useArchiveDownload(() => props.archiveId, () => pictures.value[activeIndex.value], reason => emit('failure', reason))
+// Only the selected original is decoded; the bounded queue retains compressed blobs.
 const blank = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
 const urls = computed(() => pictures.value.length ? pictures.value.map((_, index) => index === activeIndex.value && url.value ? url.value : blank) : [blank])
 async function loadMetadata() {

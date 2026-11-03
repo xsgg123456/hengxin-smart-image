@@ -11,6 +11,7 @@ import * as Archives from '../src/api/overseas/archives'
 import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
 import * as Management from '../src/api/overseas/management'
 import { IdentityError } from '../src/api/identity/request'
+import { overseasImageCache } from '../src/api/overseas/image-cache'
 import { useArchiveImage } from '../src/views/overseas/use-archive-image'
 interface Node { tag: string; children: Node[]; parent: Node | null; props: Record<string, unknown>; text: string }
 const node = (text = '', tag = ''): Node => ({ tag, children: [], parent: null, props: {}, text })
@@ -21,7 +22,7 @@ const renderer = Vue.createRenderer<Node, Node>({
   parentNode: child => child.parent, nextSibling: child => child.parent?.children[child.parent.children.indexOf(child) + 1] || null,
   patchProp: (el, key, _old, value) => { el.props[key] = value }, setText: (el, text) => { el.text = text }, setElementText: (el, text) => { el.text = text }
 })
-const flush = async () => { for (let i = 0; i < 15; i++) { await Promise.resolve(); await Vue.nextTick() } }
+const flush = async () => { for (let i = 0; i < 15; i++) { await Promise.resolve(); await Vue.nextTick() } await new Promise(resolve => setImmediate(resolve)); await Vue.nextTick() }
 const flatten = (n: Node): Node[] => [n, ...n.children.flatMap(flatten)]
 const textOf = (n: Node): string => n.text + n.children.map(textOf).join('')
 const downloads: {blob: Blob; name: string}[] = []
@@ -37,6 +38,13 @@ function component(name: string): Vue.Component {
     if (path === 'vue') return Vue
     if (path === './languages') return Languages
     if (path === 'element-plus') return { ElImageViewer: stub('ElImageViewer') }
+    if (path.endsWith('/use-archive-prefetch')) return { useArchivePrefetch: () => undefined }
+    if (path.endsWith('/use-archive-download')) {
+      const source = readFileSync(new URL('../src/views/overseas/use-archive-download.ts', import.meta.url), 'utf8')
+      const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+      const hook = { exports: {} }; new Function('require', 'module', 'exports', code)(require, hook, hook.exports); return hook.exports
+    }
+    if (path.endsWith('/image-cache')) return { overseasImageCache }
     if (path.endsWith('/use-archive-image')) return { useArchiveImage }
     if (path === '@/utils/beijing-time') return BeijingTime
     if (path.endsWith('/tasks')) return Tasks
@@ -56,7 +64,7 @@ function component(name: string): Vue.Component {
 }
 function mount(name: string, props: Record<string, unknown>) {
   const app = renderer.createApp(component(name), props)
-  for (const n of ['ElTag', 'ElCard', 'ElAlert', 'ElForm', 'ElFormItem', 'ElInput', 'ElButton', 'ElDialog', 'ElImage']) app.component(n, stub(n))
+  for (const n of ['ElTag', 'ElCard', 'ElAlert', 'ElForm', 'ElFormItem', 'ElInput', 'ElButton', 'ElDialog', 'ElImage', 'ElSelect', 'ElOption']) app.component(n, stub(n))
   const root = node(); app.mount(root)
   const find = (tag: string) => flatten(root).find(n => n.tag === tag)!
   const button = (label: string) => flatten(root).find(n => n.tag === 'ElButton' && textOf(n) === label)
@@ -116,39 +124,60 @@ test('实际归档详情 SFC：原任务已删时独立读取，保留图片、�
   mode='denied';await view.click('刷新成品详情');assert.equal(failures.length,1);assert.equal(view.find('OverseasArchivePicture'),undefined);view.app.unmount()
   mode='slow';const late=mount('OverseasArchiveDetail',{id:'a',api});await flush();late.app.unmount();resolve(archive);await flush();assert.equal(late.find('OverseasArchivePicture'),undefined)
 })
-test('实际归档图片 SFC：真实字节生成预览/下载，元数据不符拒绝、403上报、卸载中止读取', async () => {
-  downloads.length=0;const picture={id:'p',name:'主图.png',sku:'A',width:10,height:10,contentType:'image/png',sizeBytes:3,url:'/api/overseas/v1/archives/a/pictures/p/content'}
-  let mode='ok',signal:AbortSignal|undefined,resolve!:(value:Blob)=>void;const failures:unknown[]=[]
-  const blob=new Blob([new Uint8Array([1,2,3])],{type:'image/png'})
-  const api={content:async(id:string,pictureId:string,controller:AbortSignal)=>{assert.equal(id,'a');assert.equal(pictureId,'p');signal=controller;if(mode==='wrong')return new Blob(['wrong']);if(mode==='denied')throw new IdentityError(403,'图片无权限');if(mode==='slow')return new Promise<Blob>(r=>{resolve=r});return blob}}
-  const view=mount('OverseasArchivePicture',{archiveId:'a',picture,api});await flush();assert.match(String(view.find('ElImage').props.src),/^blob:/);await view.click('下载图片');assert.equal(downloads[0].blob,blob);assert.equal(downloads[0].name,picture.name);view.app.unmount();assert.equal(signal?.aborted,true)
-  mode='wrong';const wrong=mount('OverseasArchivePicture',{archiveId:'a',picture,api,onFailure:(reason:unknown)=>failures.push(reason)});await flush();assert.ok(textOf(wrong.root).includes('图片文件与归档记录不一致'));assert.equal(wrong.button('下载图片')?.props.disabled,true)
-  mode='denied';await wrong.click('重新加载图片');assert.equal(failures.length,1);wrong.app.unmount()
-  mode='slow';const late=mount('OverseasArchivePicture',{archiveId:'a',picture,api});await flush();late.app.unmount();assert.equal(signal?.aborted,true);resolve(blob);await flush();assert.equal(late.find('ElImage'),undefined)
+test('实际归档图片 SFC：缩略图独立下载原字节、原件不符拒绝、403上报、卸载中止读取', async () => {
+  downloads.length = 0
+  const picture = { id:'p',name:'主图.png',sku:'A',width:10,height:10,contentType:'image/png',sizeBytes:3,url:'/api/overseas/v1/archives/a/pictures/p/content' }
+  let mode = 'ok', signal: AbortSignal | undefined, resolve!: (value: Blob) => void
+  const failures: unknown[] = [], originalFetch = globalThis.fetch
+  const blob = new Blob([new Uint8Array([1,2,3])], { type:'image/png' })
+  overseasImageCache.setIdentity('test-picture'); overseasImageCache.clear()
+  globalThis.fetch = async () => mode === 'wrong' ? new Response('wrong') : new Response(blob)
+  const api = { content: async (id: string, pictureId: string, controller: AbortSignal, thumbnail: boolean) => {
+    assert.equal(id,'a'); assert.equal(pictureId,'p'); assert.equal(thumbnail,true); signal = controller
+    if (mode === 'denied') throw new IdentityError(403,'图片无权限')
+    if (mode === 'slow') return new Promise<Blob>(r => { resolve = r })
+    return new Blob(['small'], { type: 'image/webp' })
+  } }
+  try {
+    const view = mount('OverseasArchivePicture', { archiveId:'a',picture,api }); await flush()
+    assert.match(String(view.find('ElImage').props.src), /^blob:/); await view.click('下载图片')
+    assert.deepEqual(new Uint8Array(await downloads[0].blob.arrayBuffer()), new Uint8Array([1,2,3])); assert.equal(downloads[0].name,picture.name)
+    view.app.unmount(); assert.equal(signal?.aborted,true); overseasImageCache.clear()
+    mode = 'wrong'; const wrong = mount('OverseasArchivePicture', { archiveId:'a',picture,api,onFailure:(reason:unknown)=>failures.push(reason) }); await flush()
+    assert.ok(wrong.find('ElImage')); await wrong.click('下载图片'); assert.match(textOf(wrong.root), /图片文件与归档记录不一致/); assert.equal(downloads.length,1)
+    mode = 'denied'; (wrong.find('ElImage').props.onError as () => void)(); await flush(); await wrong.click('重新加载图片')
+    assert.equal(failures.filter(reason => reason instanceof IdentityError && reason.status === 403).length,1); wrong.app.unmount()
+    mode = 'slow'; const late = mount('OverseasArchivePicture', { archiveId:'a',picture,api }); await flush()
+    assert.equal(late.button('下载图片')?.props.disabled,undefined); late.app.unmount(); assert.equal(signal?.aborted,true)
+    resolve(blob); await flush(); assert.equal(late.find('ElImage'),undefined)
+  } finally { globalThis.fetch = originalFetch; overseasImageCache.clear() }
 })
 
 const archivePictures: Archives.ArchivePicture[] = [0, 1, 2].map(index => ({ id: `p${index}`, name: `图${index}.png`, sku: 'A', width: 10, height: 10, contentType: 'image/png', sizeBytes: 3, url: Archives.archivePictureUrl('a', `p${index}`) }))
 const imageBlob = () => new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })
 test('整套查看器按点击索引加载，切图释放Blob，乱序响应不能串图，关闭中止读取', async () => {
-  const calls: string[] = [], pending = new Map<string, (blob: Blob) => void>(), signals: AbortSignal[] = [], revoked: string[] = []
-  const original = URL.revokeObjectURL
+  const calls: string[] = [], pending = new Map<string, (response: Response) => void>(), signals: AbortSignal[] = [], revoked: string[] = []
+  const original = URL.revokeObjectURL, originalFetch = globalThis.fetch
+  overseasImageCache.setIdentity('test-viewer'); overseasImageCache.clear()
   URL.revokeObjectURL = value => { revoked.push(value); original(value) }
   try {
-    const api = { content: async (id: string, picture: string, signal: AbortSignal) => { assert.equal(id, 'a'); calls.push(picture); signals.push(signal); return new Promise<Blob>(resolve => pending.set(picture, resolve)) } }
+    globalThis.fetch = async (url, options) => { const picture = String(url).split('/').at(-2)!; calls.push(picture); signals.push(options!.signal!); return new Promise<Response>(resolve => pending.set(picture, resolve)) }; const api = {}
     const view = mount('OverseasArchiveViewer', { archiveId: 'a', api, group: archivePictures, initialIndex: 1 })
     await flush(); assert.deepEqual(calls, ['p1']); assert.equal(view.find('ElImageViewer').props['initial-index'], 1); assert.equal(view.find('ElImageViewer').props.infinite, false)
-    pending.get('p1')!(imageBlob()); await flush()
+    pending.get('p1')!(new Response(imageBlob())); await flush()
     const first = (view.find('ElImageViewer').props['url-list'] as string[])[1]; assert.match(first, /^blob:/)
     const next = view.find('ElImageViewer').props.onSwitch as (index: number) => void
-    next(2); await flush(); assert.ok(revoked.includes(first)); assert.equal(signals[0].aborted, true)
+    next(2); await flush(); assert.ok(revoked.includes(first)); assert.equal(overseasImageCache.stats().entries, 1)
     next(0); await flush(); assert.equal(signals[1].aborted, true)
-    pending.get('p2')!(imageBlob()); await flush(); assert.ok((view.find('ElImageViewer').props['url-list'] as string[]).every(url => !url.startsWith('blob:')))
-    pending.get('p0')!(imageBlob()); await flush(); assert.match((view.find('ElImageViewer').props['url-list'] as string[])[0], /^blob:/)
-    assert.match(textOf(view.root), /1 \/ 3/); view.app.unmount(); assert.equal(signals[2].aborted, true); assert.equal(revoked.length, 2)
-  } finally { URL.revokeObjectURL = original }
+    pending.get('p2')!(new Response(imageBlob())); await flush(); assert.ok((view.find('ElImageViewer').props['url-list'] as string[]).every(url => !url.startsWith('blob:')))
+    pending.get('p0')!(new Response(imageBlob())); await flush(); assert.match((view.find('ElImageViewer').props['url-list'] as string[])[0], /^blob:/)
+    assert.match(textOf(view.root), /1 \/ 3/); view.app.unmount(); assert.equal(overseasImageCache.stats().entries, 2); assert.equal(revoked.length, 2)
+  } finally { URL.revokeObjectURL = original; globalThis.fetch = originalFetch; overseasImageCache.clear() }
 })
 test('查看器详情失败、图片失败及解码失败可重试，权限失效不保留Blob', async () => {
   let mode = 'metadata', failures: unknown[] = [], reads = 0
+  const originalFetch = globalThis.fetch; overseasImageCache.setIdentity('test-viewer'); overseasImageCache.clear()
+  globalThis.fetch = async () => { reads++; if (mode === 'image') throw Error('存储不可用'); return mode === 'denied' ? new Response(null, { status: 401 }) : new Response(imageBlob()) }
   const api = { get: async () => { if (mode === 'metadata') throw Error('暂时离线'); return { pictures: archivePictures } }, content: async () => { reads++; if (mode === 'image') throw Error('存储不可用'); if (mode === 'denied') throw new IdentityError(401, '身份已失效'); return imageBlob() } }
   const view = mount('OverseasArchiveViewer', { archiveId: 'a', api, initialIndex: 0, onFailure: (reason: unknown) => failures.push(reason) })
   await flush(); assert.match(textOf(view.root), /暂时离线/); assert.equal(reads, 0)
@@ -157,11 +186,11 @@ test('查看器详情失败、图片失败及解码失败可重试，权限失�
   ;(view.find('ElImageViewer').props.onError as () => void)(); await flush(); assert.match(textOf(view.root), /图片无法显示/)
   await view.click('重新加载图片'); assert.doesNotMatch(textOf(view.root), /图片无法显示/)
   mode = 'denied'; (view.find('ElImageViewer').props.onSwitch as (index: number) => void)(1); await flush()
-  assert.equal(failures.length, 1); assert.ok((view.find('ElImageViewer').props['url-list'] as string[]).every(url => !url.startsWith('blob:'))); view.app.unmount()
+  assert.equal(failures.filter(reason => reason instanceof IdentityError && reason.status === 401).length, 1); assert.ok((view.find('ElImageViewer').props['url-list'] as string[]).every(url => !url.startsWith('blob:'))); view.app.unmount(); globalThis.fetch = originalFetch; overseasImageCache.clear()
 })
 test('封面仅请求首图，点击直接发出预览，旧归档缺封面时鉴权读取详情恢复', async () => {
   let metadataReads = 0, preview = 0; const reads: string[] = []
-  const api = { get: async () => { metadataReads++; return { pictures: archivePictures } }, content: async (_id: string, id: string) => { reads.push(id); return imageBlob() } }
+  const api = { get: async () => { metadataReads++; return { pictures: archivePictures } }, content: async (_id: string, id: string, _signal: AbortSignal, thumbnail: boolean) => { assert.equal(thumbnail, true); reads.push(id); return imageBlob() } }
   const archive = { id: 'a', productName: '产品', pictureCount: 3, cover: archivePictures[0] }
   const view = mount('OverseasArchiveCover', { archive, api, onPreview: () => preview++ }); await flush()
   assert.deepEqual(reads, ['p0']); assert.equal(metadataReads, 0); assert.match(textOf(view.root), /共 3 张/)

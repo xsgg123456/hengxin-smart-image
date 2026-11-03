@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import * as Vue from 'vue'
 import { compile, all, text, simple, flush, type Node } from './membership-test-harness'
 import { IdentityError } from '../src/api/identity/request'
-import { archiveError } from '../src/api/overseas/archives'
+import { archiveError, archiveImageFailure } from '../src/api/overseas/archives'
 import type { Studio } from '../src/api/overseas/studio'
 import { handleStudioSendKey } from '../src/views/overseas/studio/studio-send-key'
 import { useImagePrefetch } from '../src/views/overseas/studio/use-image-prefetch'
@@ -27,6 +27,7 @@ const locked = Vue.computed(() => data.value.completed || busy.value || !permitt
 const canReopen = Vue.computed(() => data.value.completed && permitted.value && !busy.value && !pending.value && !data.value.activeTurnId)
 const canComplete = Vue.computed(() => !locked.value && !!data.value.archiveId)
 let loseReopen = false, reopenCalls = 0, completeCalls = 0, archiveErrorStatus = 0, resolveArchive: (() => void) | undefined
+const selected = Vue.ref<string[]>([]), submittedSkus: string[] = []
 const archiveCalls: string[] = []
 const archiveApi = { get: async (id: string) => {
   archiveCalls.push(id)
@@ -35,7 +36,7 @@ const archiveApi = { get: async (id: string) => {
   return { id, taskId: 'task', sourceDeleted: false, productName: '同名商品', brand: '品牌', platform: 'Amazon', skus: [], pictureCount: 0, pictures: [], createdAt: '' }
 } }
 const detail = compile('views/overseas/OverseasArchiveDetail.vue', {
-  '@/api/identity/request': { IdentityError }, '@/api/overseas/archives': { archiveError },
+  '@/api/identity/request': { IdentityError }, '@/api/overseas/archives': { archiveError, archiveImageFailure }, './use-archive-prefetch': { useArchivePrefetch: () => undefined },
   './OverseasArchiveFields.vue': { default: simple('ArchiveFields') }, './OverseasArchivePicture.vue': { default: simple('ArchivePicture') }, './OverseasArchiveViewer.vue': { default: simple('ArchiveViewer') }
 })
 const unused = () => undefined
@@ -49,16 +50,16 @@ const component = compile('views/overseas/studio/OverseasStudio.vue', {
   ...Object.fromEntries(['StudioDownload', 'StudioTextEditor', 'StudioRecoveryDialog', 'StudioSessionList', 'StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioAnnotationDialog', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
   './use-studio-sessions': { useStudioSessions: () => ({
     sessions: Vue.ref([{ id: 'same', name: '原会话' }]), activeId: Vue.ref('same'), currentSession: Vue.ref({ id: 'same', name: '原会话' }), runningCount: Vue.ref(0), canManage: Vue.computed(() => !locked.value), sessionBusy: Vue.ref(false), sessionError: Vue.ref(''), sessionPending: Vue.ref(), preferenceNotice: Vue.ref(''), selectSession: unused, renameConversation: unused, deleteConversation: unused, saveScroll: unused, scrollPosition: Vue.ref(null), retrySession: unused,
-    data, text: draft, skill: Vue.ref(''), attachments: Vue.ref([]), references: Vue.ref([]), revisions: Vue.ref([]), selected: Vue.ref([]), transcript: Vue.ref([]), error: Vue.ref(''), revisionError: Vue.ref(''), limitError: Vue.ref(''), materialNotice: Vue.ref(''),
+    data, text: draft, skill: Vue.ref(''), attachments: Vue.ref([]), references: Vue.ref([]), revisions: Vue.ref([]), selected, transcript: Vue.ref([]), error: Vue.ref(''), revisionError: Vue.ref(''), limitError: Vue.ref(''), materialNotice: Vue.ref(''),
     busy, uploading: Vue.ref(false), loading: Vue.ref(false), pending, editable: Vue.computed(() => !data.value.completed), activeTurn: Vue.ref(), locked, canSend: Vue.computed(() => !locked.value), canNewConversation: Vue.computed(() => !locked.value), canComplete, canReopen,
-    refresh: unused, retry: unused, send: unused, newConversation: unused, archive: unused, stop: unused, add: unused, receive: unused, toggle: unused, toggleGroup: unused, fail: unused,
+    refresh: unused, retry: unused, send: unused, newConversation: unused, archive: async (sku: string) => { submittedSkus.push(sku); return true }, stop: unused, add: unused, receive: unused, toggle: unused, toggleGroup: unused, fail: unused,
     draftKey: unused, confirmRevision: unused, removeRevision: unused, removeMaterial: unused,
     complete: async () => { completeCalls++; data.value = { ...data.value, completed: true, taskVersion: data.value.taskVersion + 1 }; return true },
     reopen: async () => { reopenCalls++; if (loseReopen) { pending.value = { key: 'same', body: { version: 4 } }; return false }; data.value = { ...data.value, completed: false, reopened: true, taskVersion: data.value.taskVersion + 1 }; return true }
   }) }
 })
-function open() {
-  const root = node('root'), failures: unknown[] = [], app = renderer.createApp(component, { actorId: 'designer', task: { id: 'task', capabilities: ['task.design'], skus: [] }, onFailure: (e: unknown) => failures.push(e) })
+function open(skus: { code: string }[] = []) {
+  const root = node('root'), failures: unknown[] = [], app = renderer.createApp(component, { actorId: 'designer', task: { id: 'task', capabilities: ['task.design'], skus }, onFailure: (e: unknown) => failures.push(e) })
   for (const name of ['ElAlert', 'ElButton', 'ElCard', 'ElDialog', 'ElInput', 'ElOption', 'ElSelect', 'ElTag']) app.component(name, simple(name))
   app.mount(root); return { root, failures, close: () => app.unmount() }
 }
@@ -129,3 +130,27 @@ test('解冻未知结果关闭确认层露出相同请求重试入口，状态�
   } finally { view.close() }
 })
 
+
+
+test('归档单SKU自动归属，多SKU必须选择，任务SKU变化清除过期选择', async () => {
+  for (const codes of [['A'], ['A', 'B']]) {
+    reset(); data.value = { ...data.value, completed: false }; selected.value = ['image']; submittedSkus.length = 0
+    const skus = Vue.reactive(codes.map(code => ({ code }))), view = open(skus)
+    try {
+      click(view.root, '归档所选图片（1）'); await flush()
+      if (codes.length === 1) {
+        assert.equal(all(view.root).some(n => n.props['aria-label'] === '本次归档所属 SKU'), false)
+      } else {
+        assert.equal(button(view.root, '确认归档').props.disabled, true)
+        let select = all(view.root).find(n => n.props['aria-label'] === '本次归档所属 SKU')!
+        ;(select.props['onUpdate:modelValue'] as (v: string) => void)('B'); await flush()
+        skus[1].code = 'C'; await flush()
+        assert.equal(button(view.root, '确认归档').props.disabled, true)
+        select = all(view.root).find(n => n.props['aria-label'] === '本次归档所属 SKU')!
+        ;(select.props['onUpdate:modelValue'] as (v: string) => void)('C'); await flush()
+      }
+      click(view.root, '确认归档'); await flush()
+      assert.deepEqual(submittedSkus, [codes.length === 1 ? 'A' : 'C'])
+    } finally { view.close(); selected.value = [] }
+  }
+})

@@ -24,11 +24,11 @@
       <p v-if="detail.sourceDeleted || !detail.taskId" class="hx-gap">原任务已删除</p>
       <ElButton v-else text type="primary" @click="$emit('source', detail.taskId)">查看原任务</ElButton>
       <ElSelect v-model="sourceFilter" aria-label="筛选来源会话" class="hx-gap"><ElOption label="全部会话" value="" /><ElOption v-for="source in archiveSources" :key="source.id" :label="source.name" :value="source.id" /></ElSelect>
-      <div class="archive-pictures hx-gap"><div v-for="picture in filteredPictures" :key="detail.id + picture.id + revision"><OverseasArchivePicture :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = detail.pictures.findIndex(p => p.id === picture.id)" /><p class="hx-footnote">来源会话：{{ picture.sourceConversationName || '历史会话未记录' }}</p></div></div>
+      <div class="archive-pictures hx-gap"><div v-for="picture in filteredPictures" :key="detail.id + picture.id + revision"><OverseasArchivePicture :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = filteredPictures.findIndex(p => p.id === picture.id)" /><p class="hx-footnote">来源会话：{{ picture.sourceConversationName || '历史会话未记录' }}</p></div></div>
     </template>
     <template #footer><ElButton @click="$emit('close')">关闭</ElButton></template>
   </ElDialog>
-  <OverseasArchiveViewer v-if="detail && previewIndex !== null" :key="detail.id" :archive-id="detail.id" :api="api" :group="detail.pictures" :initial-index="previewIndex" @close="previewIndex = null" @failure="failure" />
+  <OverseasArchiveViewer v-if="detail && previewIndex !== null" :key="detail.id" :archive-id="detail.id" :api="api" :group="filteredPictures" :initial-index="previewIndex" @close="previewIndex = null" @failure="failure" />
 </template>
 <script setup lang="ts">
 import { formatBeijingTime } from '@/utils/beijing-time'
@@ -36,7 +36,8 @@ import { formatBeijingTime } from '@/utils/beijing-time'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import type { ArchiveDetail, ArchivesApi } from '@/api/overseas/archives'
-import { archiveError } from '@/api/overseas/archives'
+import { archiveError, archiveImageFailure } from '@/api/overseas/archives'
+import { useArchivePrefetch } from './use-archive-prefetch'
 import OverseasArchiveFields from './OverseasArchiveFields.vue'
 import OverseasArchivePicture from './OverseasArchivePicture.vue'
 import OverseasArchiveViewer from './OverseasArchiveViewer.vue'
@@ -46,10 +47,13 @@ const detail = ref<ArchiveDetail>(), error = ref(''), loading = ref(false), revi
 const previewIndex = ref<number | null>(null), sourceFilter = ref('')
 const archiveSources = computed(() => [...new Map((detail.value?.pictures || []).map(p => [p.sourceConversationId || 'legacy', { id: p.sourceConversationId || 'legacy', name: p.sourceConversationName || '历史会话未记录' }])).values()])
 const filteredPictures = computed(() => (detail.value?.pictures || []).filter(p => !sourceFilter.value || (p.sourceConversationId || 'legacy') === sourceFilter.value))
+useArchivePrefetch(() => props.id, () => filteredPictures.value)
+watch(sourceFilter, () => { previewIndex.value = null }, { flush: 'sync' })
 let epoch = 0, alive = true
 function failure(reason: unknown) {
+  archiveImageFailure(props.id, reason)
   error.value = reason instanceof IdentityError && reason.status === 409 ? '成品正在删除或暂不可用，请刷新成品详情。' : archiveError(reason)
-  if (reason instanceof IdentityError && [401, 403].includes(reason.status)) { ++epoch; detail.value = undefined; emit('failure', reason) }
+  if (reason instanceof IdentityError && [401, 403, 404, 409].includes(reason.status)) { ++epoch; detail.value = undefined; emit('failure', reason) }
 }
 async function load() {
   const id = props.id, current = ++epoch

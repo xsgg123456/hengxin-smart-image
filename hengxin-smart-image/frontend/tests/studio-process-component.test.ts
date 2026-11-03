@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { defineComponent, h, reactive, nextTick } from 'vue'
 import { compile, mount, find, all, text, simple } from './membership-test-harness'
 import { splitStudioReply } from '../src/views/overseas/studio/studio-process'
+import { languageLabel } from '../src/views/overseas/languages'
 import type { StudioTranscript, StudioTurn } from '../src/api/overseas/studio'
 
 const markdown = defineComponent({ props: ['text'], setup: p => () => h('markdown', p.text) })
@@ -55,10 +56,23 @@ test('最终回复不同于stream消息仍显示；空历史回复回退最后�
   assert.deepEqual(splitStudioReply(turn('cancelled', '结论'), entries), { entries, reply: '' })
 })
 
-test('归档产品字段来自真实task，不展示创建人作为归档人', () => {
-  const fields = compile('views/overseas/studio/StudioArchiveFields.vue', {})
-  const view = mount(fields, { task: { productName: '真实产品', brand: '真实品牌', platform: 'Amazon' } })
-  try { assert.equal(text(view.root), '品名真实产品品牌真实品牌平台Amazon') } finally { view.close() }
+test('归档确认与成品详情共用六字段，真实值及历史缺失一致', async () => {
+  const detail = compile('views/overseas/OverseasArchiveFields.vue', { './languages': { languageLabel } })
+  const fields = compile('views/overseas/studio/StudioArchiveFields.vue', { '../OverseasArchiveFields.vue': { default: detail } })
+  const task = reactive({ name: '任务名称', productName: '真实产品', brand: '真实品牌', platform: 'Amazon', language: 'de' as string | null, skus: [{ code: 'A' }, { code: 'B' }] })
+  const view = mount(fields, { task })
+  const archived = mount(detail, { archive: { ...task, taskName: task.name } })
+  try {
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['SKU', '目标平台', '品牌', '任务名称', '品名', '语言'])
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'dd').map(text), ['A · B', 'Amazon', '真实品牌', '任务名称', '真实产品', '德语'])
+    assert.equal(text(view.root), text(archived.root))
+    task.language = null; task.name = ''; await nextTick()
+    assert.equal(all(view.root).filter(n => n.tag === 'dd' && text(n) === '未设置').length, 2)
+    for (const [code, label] of [['en', '英语'], ['fr', '法语'], ['es', '西班牙语']]) {
+      task.language = code; await nextTick(); assert.equal(text(all(view.root).filter(n => n.tag === 'dd').at(-1)!), label)
+    }
+    assert.ok(!text(view.root).includes('归档人'))
+  } finally { view.close(); archived.close() }
 })
 
 test('正式StudioTurns将正式图片置于折叠组之外并保留图片选择事件', () => {

@@ -26,6 +26,7 @@ const requestedPages: number[] = []
 const api = { get: async () => { if (rejected) throw new IdentityError(403, '暂无权限'); return structuredClone(result) }, list: async (query: { page: number }) => { requestedPages.push(query.page); return { items: listEmpty ? [] : [structuredClone(result)], total: listEmpty ? 0 : 21, page: query.page, pageSize: 20 } } }
 const simple = (name: string) => Vue.defineComponent({ name, setup(_p, { attrs, slots }) { return () => Vue.h(name, attrs, slots.default?.()) } })
 const deps: Record<string, unknown> = {
+  './use-archive-prefetch': { useArchivePrefetch: () => undefined },
   vue: Vue, './languages': Languages, 'vue-router': { useRouter: () => ({ push: () => undefined }) },
   '@/utils/beijing-time': BeijingTime, '@/api/identity/request': { IdentityError },
   '@/api/overseas/archives': { ...Archives, createArchivesApi: () => api }, '@/api/overseas/pictures': { saveBlob: () => undefined },
@@ -45,7 +46,7 @@ deps['./OverseasArchiveDetail.vue'] = { default: detail }
 const page = compile('OverseasArchivePage')
 function mount(component: Vue.Component, props: Record<string, unknown>) {
   const root = node('root'), app = renderer.createApp({ render: () => Vue.h(component, props) })
-  for (const name of ['ElDialog', 'ElButton', 'ElAlert', 'ElCard', 'ElInput', 'ElTag', 'ElEmpty', 'ElPagination']) app.component(name, simple(name))
+  for (const name of ['ElDialog', 'ElButton', 'ElAlert', 'ElCard', 'ElInput', 'ElTag', 'ElEmpty', 'ElPagination', 'ElSelect', 'ElOption']) app.component(name, simple(name))
   app.mount(root)
   return { root, close: () => app.unmount() }
 }

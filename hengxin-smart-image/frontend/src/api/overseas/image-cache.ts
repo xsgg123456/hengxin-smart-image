@@ -15,7 +15,9 @@ export function createImageCache(options: { fetcher?: typeof fetch; maxBytes?: n
   const maxBytes = options.maxBytes ?? 128 * 1024 * 1024, maxEntries = options.maxEntries ?? 40
   const createUrl = options.createUrl || (blob => URL.createObjectURL(blob)), revokeUrl = options.revokeUrl || (url => URL.revokeObjectURL(url))
   const entries = new Map<string, Entry>(), jobs = new Map<string, Job>(), listeners = new Set<() => void>()
-  let account = '', epoch = 0, active = 0, bytes = 0, scope = '', attempted = new Set<string>()
+  const prefetches = new Map<symbol, { scope: string; wanted: Set<string>; attempted: Set<string>; failure?: (reason: unknown) => void }>()
+  const defaultOwner = Symbol('studio-prefetch')
+  let account = '', epoch = 0, active = 0, bytes = 0
   function drop(url: string) {
     const entry = entries.get(url); if (!entry) return
     entries.delete(url); bytes -= entry.blob.size
@@ -33,20 +35,25 @@ export function createImageCache(options: { fetcher?: typeof fetch; maxBytes?: n
     if (jobs.get(job.url) === job) jobs.delete(job.url)
   }
   function clear() {
-    ++epoch; scope = ''; attempted.clear()
+    ++epoch; prefetches.clear()
     for (const job of jobs.values()) cancel(job)
     for (const url of entries.keys()) drop(url)
     listeners.forEach(listener => listener())
   }
   function setIdentity(value: string) { if (account !== value) { clear(); account = value } }
   function invalidate(url: string) { drop(url); const job = jobs.get(url); if (job) cancel(job) }
+  function invalidatePrefix(prefix: string) {
+    for (const url of new Set([...entries.keys(), ...jobs.keys()])) if (url.startsWith(prefix)) invalidate(url)
+    for (const state of prefetches.values()) for (const url of state.wanted) if (url.startsWith(prefix)) state.wanted.delete(url)
+  }
+  function wanted(url: string) { return [...prefetches.values()].some(state => state.wanted.has(url)) }
   function assertCurrent(job: Job) { if (job.epoch !== epoch || job.controller.signal.aborted) throw cancelledImage() }
   async function request(job: Job, method: 'HEAD' | 'GET', etag?: string) {
     const response = await fetcher(job.url, { method, credentials: 'include', cache: 'no-cache', redirect: 'error',
       signal: AbortSignal.any([job.controller.signal, AbortSignal.timeout(120000)]), headers: etag ? { 'If-None-Match': etag } : undefined })
     assertCurrent(job)
     if (!response.ok && response.status !== 304) {
-      if ([401, 403, 404].includes(response.status)) drop(job.url)
+      if ([401, 403, 404, 409].includes(response.status)) drop(job.url)
       throw imageResponseError(response.status)
     }
     return response
@@ -108,23 +115,38 @@ export function createImageCache(options: { fetcher?: typeof fetch; maxBytes?: n
       } }
     } finally {
       signal?.removeEventListener('abort', abort); job.users--
-      if (!job.users && !job.background && signal?.aborted) { cancel(job); pump() }
+      if (!job.users && signal?.aborted && !wanted(url)) { cancel(job); pump() }
     }
   }
-  function setPrefetch(nextScope: string, sources: ImageSource[]) {
-    if (scope !== nextScope) { scope = nextScope; attempted = new Set() }
-    const wanted = new Set(sources.filter(item => !item.size || item.size <= PREFETCH_IMAGE_BYTES).map(item => item.url))
-    for (const job of jobs.values()) if (job.background && !wanted.has(job.url) && !job.users) cancel(job)
+  function reconcilePrefetch() {
+    for (const job of jobs.values()) if (!wanted(job.url) && !job.users) cancel(job)
     if (!account) return
-    for (const url of wanted) {
-      if (attempted.has(url) || entries.has(url) || jobs.has(url)) continue
-      attempted.add(url)
+    for (const state of prefetches.values()) for (const url of state.wanted) {
+      if (state.attempted.has(url) || entries.has(url) || jobs.has(url)) continue
+      state.attempted.add(url)
       const job = ensure(url, true)
-      void job.promise.catch(() => { /* Prefetch never blocks the page; a click retries explicitly. */ })
+      void job.promise.catch(reason => {
+        for (const consumer of prefetches.values()) if (consumer.wanted.has(url)) consumer.failure?.(reason)
+        // A click retries transient prefetch failures explicitly.
+      })
     }
     pump()
   }
-  return { acquire, setPrefetch, setIdentity, clear, invalidate, subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener) },
+  function setPrefetch(nextScope: string, sources: ImageSource[], owner = defaultOwner, failure?: (reason: unknown) => void) {
+    const previous = prefetches.get(owner)
+    if (!sources.length) prefetches.delete(owner)
+    else prefetches.set(owner, { scope: nextScope, failure,
+      wanted: new Set(sources.filter(item => !item.size || item.size <= PREFETCH_IMAGE_BYTES).map(item => item.url)),
+      attempted: previous?.scope === nextScope ? previous.attempted : new Set() })
+    reconcilePrefetch()
+  }
+  // Each mounted consumer owns only its queue; closing an archive cannot cancel studio work.
+  function createPrefetch(failure?: (reason: unknown) => void) {
+    const owner = Symbol('image-prefetch')
+    return { update: (scope: string, sources: ImageSource[]) => setPrefetch(scope, sources, owner, failure),
+      dispose: () => { prefetches.delete(owner); reconcilePrefetch() } }
+  }
+  return { acquire, setPrefetch, createPrefetch, setIdentity, clear, invalidate, invalidatePrefix, subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener) },
     stats: () => ({ entries: entries.size, bytes, active, queued: [...jobs.values()].filter(job => !job.running).length }) }
 }
 export const overseasImageCache = createImageCache()

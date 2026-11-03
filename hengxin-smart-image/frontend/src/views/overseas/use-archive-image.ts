@@ -1,35 +1,50 @@
 import { onUnmounted, ref, watch } from 'vue'
-import { IdentityError } from '@/api/identity/request'
-import { archiveError, type ArchivePicture, type ArchivesApi } from '@/api/overseas/archives'
+import { archiveError, archiveImageFailure, archivePictureUrl, type ArchivePicture, type ArchivesApi } from '@/api/overseas/archives'
+import { overseasImageCache, type ImageLease } from '@/api/overseas/image-cache'
 
-/** A single authenticated original. No cache survives a picture/owner change or unmount. */
-export function useArchiveImage(api: ArchivesApi, archiveId: () => string, picture: () => ArchivePicture | undefined, failure: (reason: unknown) => void) {
-  const blob = ref<Blob>(), url = ref(''), error = ref(''), loading = ref(false)
-  let epoch = 0, alive = true, controller: AbortController | undefined
+/** Cards read small derivatives; the viewer leases authenticated, revalidated originals. */
+export function useArchiveImage(api: ArchivesApi, archiveId: () => string, picture: () => ArchivePicture | undefined, failure: (reason: unknown) => void, thumbnail = true) {
+  const blob = ref<Blob>(), url = ref(''), error = ref(''), loading = ref(false), imageKey = ref(0)
+  let epoch = 0, alive = true, controller: AbortController | undefined, lease: ImageLease | undefined
   function release() {
     controller?.abort()
-    if (url.value) URL.revokeObjectURL(url.value)
+    if (lease) { lease.release(); lease = undefined }
+    else if (url.value) URL.revokeObjectURL(url.value)
     url.value = ''; blob.value = undefined
   }
   async function load() {
     const current = ++epoch, target = picture(), id = archiveId()
-    release(); error.value = ''; loading.value = false
+    release(); error.value = ''; loading.value = false; imageKey.value++
     if (!target) return
     controller = new AbortController(); loading.value = true
+    const signal = controller.signal
     try {
-      const value = await api.content(id, target.id, AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]))
-      if (!alive || current !== epoch) return
-      if (value.type !== target.contentType || value.size !== target.sizeBytes) throw Error('图片文件与归档记录不一致，请刷新后重试')
-      blob.value = value; url.value = URL.createObjectURL(value)
+      let value: Blob
+      if (thumbnail) value = await api.content(id, target.id, AbortSignal.any([signal, AbortSignal.timeout(60000)]), true)
+      else {
+        const acquired = await overseasImageCache.acquire(archivePictureUrl(id, target.id), { signal })
+        if (!alive || current !== epoch) { acquired.release(); return }
+        lease = acquired; value = acquired.blob
+      }
+      if (!alive || current !== epoch || signal.aborted) return
+      if (!thumbnail && (value.type !== target.contentType || value.size !== target.sizeBytes)) {
+        overseasImageCache.invalidate(archivePictureUrl(id, target.id))
+        throw Error('图片文件与归档记录不一致，请刷新后重试')
+      }
+      blob.value = value; url.value = lease?.url || URL.createObjectURL(value)
     } catch (reason) {
-      if (alive && current === epoch) {
-        error.value = archiveError(reason)
-        if (reason instanceof IdentityError && [401, 403].includes(reason.status)) failure(reason)
+      if (alive && current === epoch && !signal.aborted) {
+        release(); error.value = archiveError(reason); archiveImageFailure(id, reason); failure(reason)
       }
     } finally { if (alive && current === epoch) loading.value = false }
   }
-  function imageError() { error.value = '图片无法显示，请重试或下载原图查看' }
+  function imageError() {
+    release()
+    if (!thumbnail && picture()) overseasImageCache.invalidate(archivePictureUrl(archiveId(), picture()!.id))
+    error.value = '图片无法显示，请重试或下载原图查看'
+  }
+  const unsubscribe = overseasImageCache.subscribe(() => { ++epoch; release(); loading.value = false })
   watch([archiveId, picture], load, { immediate: true, flush: 'sync' })
-  onUnmounted(() => { alive = false; ++epoch; release() })
-  return { blob, url, error, loading, load, imageError }
+  onUnmounted(() => { alive = false; ++epoch; release(); unsubscribe() })
+  return { blob, url, error, loading, imageKey, load, imageError }
 }

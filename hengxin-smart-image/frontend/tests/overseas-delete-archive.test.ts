@@ -31,7 +31,7 @@ test('任务不存在时归档仍独立读取与下载；拒绝外部/跨成品�
   assert.deepEqual(await api.get(archive.id),archive)
   assert.equal((await api.content(archive.id,'p1')).size,3); assert.equal((await api.download(archive.id)).size,3)
   assert.deepEqual(calls.map(call=>call.url),['/api/overseas/v1/archives/a%2F1',archivePictureUrl(archive.id,'p1'),'/api/overseas/v1/archives/a%2F1/download'])
-  for(const call of calls){assert.equal(call.options?.credentials,'include');assert.equal(call.options?.cache,'no-store')}
+  for(const call of calls){assert.equal(call.options?.credentials,'include');assert.equal(call.options?.cache,call.url.endsWith('/content') ? 'no-cache' : 'no-store')}
   for(const status of [401,403,404,500]) await assert.rejects(createArchivesApi(async()=>json({},status)).content(archive.id,'p1'),(error:unknown)=>error instanceof IdentityError&&error.status===status)
 })
 

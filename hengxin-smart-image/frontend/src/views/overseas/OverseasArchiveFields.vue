@@ -20,7 +20,7 @@
 import type { Archive } from '@/api/overseas/archives'
 import { computed } from 'vue'
 import { languageLabel } from './languages'
-const props = defineProps<{ archive: Archive; compact?: boolean }>()
+const props = defineProps<{ archive: Pick<Archive, 'productName' | 'brand' | 'platform' | 'taskName' | 'language' | 'skus'>; compact?: boolean }>()
 const skuText = computed(() => props.archive.skus.map(sku => sku.code).filter(Boolean).join(' · ') || '未设置')
 </script>
 <style scoped>

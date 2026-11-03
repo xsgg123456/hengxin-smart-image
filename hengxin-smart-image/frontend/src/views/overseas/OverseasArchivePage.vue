@@ -37,11 +37,12 @@ import OverseasArchiveFields from './OverseasArchiveFields.vue'
 import OverseasArchiveDetail from './OverseasArchiveDetail.vue'
 import OverseasArchiveCover from './OverseasArchiveCover.vue'
 import OverseasArchiveViewer from './OverseasArchiveViewer.vue'
-import { archiveError } from '@/api/overseas/archives'
+import { archiveError, clearArchiveImages } from '@/api/overseas/archives'
 const props = defineProps<{ refresh: number; capabilities?: string[] }>(), emit = defineEmits<{ failure: [reason: unknown] }>()
 const router = useRouter(), api = createArchivesApi(), items = ref<Archive[]>([]), total = ref(0), page = ref(1), search = ref(''), error = ref(''), loading = ref(false), downloading = ref(''), selected = ref('')
 const preview = ref(''), canDelete = computed(() => props.capabilities?.includes('task.delete') === true)
 function deletionChanged(value: ArchiveDeletion) {
+  clearArchiveImages(value.archiveId)
   if (selected.value === value.archiveId) selected.value = ''
   if (preview.value === value.archiveId) preview.value = ''
   if (value.status === 'deleted') { void load(); return }
@@ -58,8 +59,8 @@ async function load() {
 }
 async function download(item: Archive) { if (downloading.value || item.deletionStatus) return; downloading.value = item.id; const current = epoch; try { const blob = await api.download(item.id); if (alive && current === epoch && !item.deletionStatus) saveBlob(blob, `${item.productName}.zip`) } catch (reason) { if (alive && current === epoch) fail(reason) } finally { downloading.value = '' } }
 function reset() { if (search.value) search.value = ''; else if (page.value !== 1) page.value = 1; else void load() }
-watch(search, () => { ++epoch; loading.value = true; error.value = ''; items.value = []; total.value = 0; clearTimeout(timer); timer = setTimeout(() => { if (page.value === 1) void load(); else page.value = 1 }, 250) })
-watch([page, () => props.refresh], load, { immediate: true })
+watch(search, () => { selected.value = ''; preview.value = ''; ++epoch; loading.value = true; error.value = ''; items.value = []; total.value = 0; clearTimeout(timer); timer = setTimeout(() => { if (page.value === 1) void load(); else page.value = 1 }, 250) })
+watch([page, () => props.refresh], () => { selected.value = ''; preview.value = ''; void load() }, { immediate: true })
 onUnmounted(() => { alive = false; ++epoch; clearTimeout(timer); items.value = [] })
 </script>
 <style scoped>

@@ -127,3 +127,55 @@ test('缓存校验在途期间不被其他完成请求淘汰，回填计数与�
   assert.equal(instance.stats().bytes, 4); assert.equal(instance.stats().entries, 1)
   assert.equal(await protectedLease.blob.text(), '1234'); protectedLease.release(); instance.clear()
 })
+
+
+test('独立预取owner共享两并发和在途，归档筛选/关闭不取消工作台或另一个查看器', async () => {
+  const calls: string[] = [], signals = new Map<string, AbortSignal>(), finishes = new Map<string, (value: Response) => void>()
+  const { instance } = cache(async (url, options) => {
+    calls.push(`${options?.method}:${url}`); signals.set(String(url), options!.signal!)
+    if (options?.method === 'HEAD') return content()
+    return new Promise(resolve => finishes.set(String(url), resolve))
+  })
+  const detail = instance.createPrefetch(), viewer = instance.createPrefetch()
+  instance.setPrefetch('studio', [{ url: 'studio' }])
+  detail.update('archive', [{ url: 'a' }, { url: 'b' }]); await tick()
+  viewer.update('archive', [{ url: 'a' }]); detail.dispose(); await tick()
+  assert.equal(signals.get('studio')!.aborted, false); assert.equal(signals.get('a')!.aborted, false)
+  assert.equal(instance.stats().active, 2); assert.ok(!calls.includes('GET:b'))
+  viewer.dispose(); assert.equal(signals.get('a')!.aborted, true); assert.equal(signals.get('studio')!.aborted, false)
+  finishes.get('studio')!(content()); finishes.get('a')!(content()); await tick()
+  assert.equal(instance.stats().entries, 1); instance.clear()
+})
+
+test('预取晋升后切图取消消费者仍保留套图需要的请求，离开最后owner才取消', async () => {
+  let finish!: (response: Response) => void, signal!: AbortSignal
+  const { instance } = cache(async (_url, options) => {
+    signal = options!.signal!; return options?.method === 'HEAD' ? content() : new Promise(resolve => { finish = resolve })
+  })
+  const owner = instance.createPrefetch(); owner.update('archive', [{ url: 'a' }]); await tick()
+  const controller = new AbortController(), clicked = instance.acquire('a', { signal: controller.signal })
+  const rejected = assert.rejects(clicked, { name: 'AbortError' }); controller.abort(); await rejected
+  assert.equal(signal.aborted, false)
+  owner.dispose(); assert.equal(signal.aborted, true); finish(content()); await tick()
+  assert.equal(instance.stats().entries, 0)
+})
+
+test('按归档前缀失效清理整套缓存和在途，不影响同名图或其他业务', async () => {
+  const { instance, revoked } = cache(async () => content())
+  const a = await instance.acquire('/archives/a/pictures/x'), b = await instance.acquire('/archives/ab/pictures/x')
+  instance.invalidatePrefix('/archives/a/pictures/')
+  assert.deepEqual(revoked, [a.url]); assert.equal(instance.stats().entries, 1)
+  a.release(); b.release(); instance.clear()
+})
+
+
+test('归档后台预取撤权即清理整套缓存，工作台缓存保持', async () => {
+  const { instance } = cache(async url => String(url).endsWith('/denied') ? new Response(null, { status:403 }) : content())
+  const a = await instance.acquire('/archives/a/cached'); a.release()
+  const studio = await instance.acquire('/studio/image'); studio.release(); await tick()
+  const errors: unknown[] = []
+  const owner = instance.createPrefetch(reason => { errors.push(reason); instance.invalidatePrefix('/archives/a/') })
+  owner.update('archive', [{ url:'/archives/a/denied' }, { url:'/archives/a/later' }]); await tick()
+  assert.equal(errors.length,1); assert.equal(instance.stats().entries,1)
+  owner.dispose(); instance.clear()
+})
