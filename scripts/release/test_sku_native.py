@@ -22,6 +22,42 @@ r = n.r
 
 
 class NativeTests(unittest.TestCase):
+    def test_recovery_accepts_empty_or_zero_job_and_rejects_pending_jobs_before_start(self):
+        for job in ('', '0', '123', '123 /org/freedesktop/systemd1/job/123'):
+            with self.subTest(job=job), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                data,_ = self.fixture(root)
+                calls = []
+                original_stat = n.Path.stat
+                def stat(path, *args, **kwargs):
+                    if path.as_posix() == '/proc/42':
+                        return SimpleNamespace(st_uid=999)
+                    return original_stat(path, *args, **kwargs)
+                def run(*args, **kwargs):
+                    calls.append(args)
+                    if 'ActiveState' in args:
+                        return 'inactive'
+                    if 'Job' in args:
+                        return job
+                    return 'active'
+                with patch.object(n.r, 'run', side_effect=run), patch.object(n, 'pid', return_value=42), \
+                     patch.object(n.r, 'worker') as worker, \
+                     patch.object(n.r, 'worker_probe', return_value={'node':'worker'}), \
+                     patch.object(n.Path, 'stat', autospec=True, side_effect=stat), \
+                     patch.object(n.os, 'readlink', return_value=data['protected']['units'][r.UNITS[0]]['cwd']), \
+                     patch.object(n, 'remove_protection') as remove:
+                    if job in ('', '0'):
+                        n.start(root, data, recovery=True)
+                        self.assertTrue((root/'NATIVE_VERIFIED').read_text())
+                        worker.assert_called_once()
+                        remove.assert_called_once()
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'Native job still pending'):
+                            n.start(root, data, recovery=True)
+                        self.assertFalse(any('start' in call for call in calls))
+                        worker.assert_not_called()
+                        remove.assert_not_called()
+
     def fixture(self, root):
         data = {'manifest':'release', 'protected':{'units':{}}, 'patch':{}, 'native':{'units':{}}}
         native = root/'native'

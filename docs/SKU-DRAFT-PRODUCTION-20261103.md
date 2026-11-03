@@ -66,3 +66,15 @@ python3 -B "$SRC/scripts/release/sku-deploy.py" resume --work "$WORK"
 - 前端可执行 `sku-frontend.py rollback --backup "$WORK/frontend-backup"`。只恢复入口与版本文件，保留两代哈希资源，防止既有标签页缺文件；这不等于后端或数据库回退。
 - 生产最终核验需要正式入口页面目视验证、当前与历史图需可读、草稿恢复/来源查询，以及国内、海外健康与保护哈希。不得创建演示任务或触发生图。
 - 未实际执行生产附件导入/进程重启恢复时，只能报告隔离测试证据；不能以 readiness 200 代替导入线程、持久队列或页面视觉验收。
+
+## 首次正式发布尝试与恢复
+
+- 已审代码提交 `18fd64c`；快照 `6e41fbc941835d635ee0541fbe6d95eca5d82839524590b298a1c923276b52f1` 两阶段 PASS，报告 `output/sku-release/REVIEW-FINAL.md`。
+- 包 `sku-20261103-18fd64c`：5036086 字节，SHA256 `caa0c4f737046cd7b809c8f540acb3663c85586b39a6691b0e41c27d4757be56`，隐私与上传校验通过。
+- 正式已审镜像安装测试：164 passed、0 skipped，123.44 秒；`output/sku-release/attempt-18fd64c/test.stdout`。
+- 首次 gate 排空并正常停机通过。备份恢复后行数据指纹一致，但 schema 保护检查失败，因此未开始生产迁移或 API 切换。
+- 诊断：394 列、113 索引一致；143 条约束中 10 个 CHECK 在 pg_restore 重解析后改变了 varchar 数组到 text 数组的类型转换表示。不能因此取消约束校验，修复须保留真实约束差异检测。
+- 自动恢复还发现 systemd 无 Job 返回空串而脚本只接受 `0`；实际两服务 inactive/dead、MainPID=0。核对无待执行 Job、原代码与数据库版本后，通过有界原服务启动、恢复消费、工作身份与 readiness 检查完成操作恢复。
+- `output/sku-release/recover_operational.stdout` 确认 `OLD_API_AND_NATIVE_RECOVERED; SCHEMA_0025_UNCHANGED`。旧 API 容器 ID 未变；原生服务正常恢复。失败发布目录及备份保留，不重用失败的 gate 记录。
+
+修复验证：局部规范化完整匹配的 CHECK 数组 cast 表示，未知表达式保持逐字比较；空/0 Job 允许恢复，非空 Job 仍阻断。发布单测 62 passed；旧 dump 隔离恢复及两次迁移均通过，旧行/列/索引/约束保持一致，新表为空且结构稳定，SQL 等价验证通过。证据 `output/sku-release/restore-fix-validation.json`。

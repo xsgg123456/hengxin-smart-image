@@ -118,6 +118,30 @@ def columns(database):
     return hashlib.sha256(json.dumps([column_hash, schema_extra(database, new=False)], sort_keys=True).encode()).hexdigest()
 
 
+def normalized_constraint(definition):
+    """Canonicalize only pg_restore's varchar-literal-array to text[] cast rewrite.
+
+    PostgreSQL may distribute the array cast over its literal elements when it
+    reparses a dumped CHECK. Keep the complete CHECK shape, column, literals,
+    element order and constraint flags; unknown expressions remain byte-exact.
+    """
+    identifier = r'(?:[a-z_][a-z0-9_]*|"(?:[^"]|"")+")'
+    match = re.fullmatch(
+        r'CHECK \(\(\((' + identifier + r')\)::text = ANY \(\(ARRAY\[(.*)\]'
+        r'\)::text\[\]\)\)\)((?: NO INHERIT)?(?: NOT VALID)?)', definition)
+    if not match:
+        return definition
+    # SQL quotes may contain commas/parentheses and escaped single quotes. Do
+    # not touch backslash strings, expressions, typmods, or other cast types.
+    literal = r"'(?:[^'\\]|'')*'::character varying"
+    values = match[2]
+    if not re.fullmatch(literal + r'(?:, ' + literal + r')*', values):
+        return definition
+    elements = re.findall(literal, values)
+    return ('CHECK (((' + match[1] + ')::text = ANY (ARRAY[' +
+            ', '.join('(' + item + ')::text' for item in elements) + '])))' + match[3])
+
+
 def schema_extra(database, new=True):
     predicate = ('NOT ('+TABLE_FILTER+')') if new else TABLE_FILTER
     indexes = sql(database, "SELECT coalesce(json_agg(json_build_array(tablename,indexname,indexdef) "
@@ -127,7 +151,9 @@ def schema_extra(database, new=True):
         "pg_get_constraintdef(c.oid)) ORDER BY t.relname,c.conname),'[]') FROM pg_constraint c "
         "JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace "
         "WHERE n.nspname='public' AND " + predicate.replace('table_name', 't.relname'))
-    return {'indexes': json.loads(indexes), 'constraints': json.loads(constraints)}
+    return {'indexes': json.loads(indexes), 'constraints': [
+        [table, name, normalized_constraint(definition)]
+        for table, name, definition in json.loads(constraints)]}
 
 
 def verify_new_tables(database, before=False):

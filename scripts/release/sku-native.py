@@ -154,7 +154,8 @@ def start(work, data, recovery=False):
         for unit in r.UNITS:
             r.require(r.run('systemctl','show',unit,'-p','ActiveState','--value') in ('active','inactive'),
                       'Native stop still pending; retain protection')
-            r.require(r.run('systemctl','show',unit,'-p','Job','--value') == '0', 'Native job still pending')
+            r.require(r.run('systemctl','show',unit,'-p','Job','--value') in ('', '0'),
+                      'Native job still pending')
     else:
         stopped()
     r.private(work/'NATIVE_START_STARTED', {'manifest':data['manifest']})
