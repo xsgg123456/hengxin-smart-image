@@ -28,3 +28,14 @@
 命令 `python output/polling-release/candidate.py` exit 0。证据 `output/polling-release/candidate-ffac39640348.stdout`，结尾 `PRODUCTION_UNCHANGED`，stderr 为空。隔离 PG 容器及卷已由 finally 清理；候选镜像与测试日志保留。测试边界：没有对生产数据库制造锁等待或杀生产进程。
 
 独立 `code-review` 两阶段 PASS，候选 `78616f8ad665d5e7c79be0070f78e6f72a289b0d54f0dcbf50342dc6d977b6d0`，报告 `output/polling-release/REVIEW.md`。发布测试文件超长问题已拆分并复核，未关闭 HIGH/MEDIUM 为 0。正式提交及生产结果在完成后追加。
+
+## 正式生产交付
+
+- 代码提交：`49a1145fb189a4d5b3316dc80c5550cf5a184533`，中文标题“fix: 停止草稿无效轮询并消除查询行锁”。正式包 `polling-20261103-49a1145`，4,999,773 字节，SHA256 `fdb947b8c594a060d2c9458f48ab973549a0a5e57825e524e4835b7e4cb7092c`，隐私扫描和上传后哈希核验通过。
+- 部署目录 `/opt/hengxin-releases/polling-20261103-49a1145`；正式已审制品安装测试 **177 passed，0 failed/skip，152.95 秒**，证据 `output/polling-release/test.stdout`。使用隔离 PG，无生产配置/卷，测试结束清理隔离容器与卷。
+- prepare → test → gate → backup → api → frontend → resume 全部成功；api/frontend/resume 内置 verify。排空检查与正常停机通过；备份在隔离库恢复并校验全表记录和 schema，不迁移数据库。备份 SHA256 `5a9150a212686f0a5e5309853636f2cb6c41bd6bb33033c69895e58266062c5c`。
+- 最终前端 **0.2.61**、schema **overseas_0026**；API 镜像 `sha256:44376948ece1f3ed50fb99c8ebc7ef7fdfdbad486b714c3987c2c64c793f9067`，容器 `61cea805d038915b3e616fe43c2d3efa4bd9baa67907b3e534376354a5707de0`。两原生服务恢复，源码/配置/Skill 保护检查通过；国内与海外 readiness 均 200。
+- 生产记录指纹复核：tasks 9、materials 21、drafts 1、draft_materials 0、draft_imports 3，五表记录均与切换前备份逐行指纹一致。当前草稿为空是备份时已有状态，本轮没有清空草稿、创建测试任务或触发生图。证据 `output/polling-release/final-readonly.json`。
+- 新建独立 Chrome 验收页，保持用户原标签页不操作。正式新建页成功显示“草稿已保存”，界面目视正常；06:56:02 UTC 读取一次草稿，到 06:57:24 UTC 的日志窗口没有再次 GET 草稿，页面 `document.visibilityState` 为 visible。证据 `output/polling-release/production-api.log`。随后只读打开历史 9 任务列表及“IT演示版”，原有会话和 3 份素材可见。
+- 本轮生产没有人为写入新草稿或再次导入附件；有内容的持久化恢复、并发附件及故障行为以隔离正式浏览器与真实 PG 测试为证。旧标签页需刷新以加载新前端；若停机期间停留“服务连接失败”，刷新或重新连接恢复。
+- 首次 scp 遇到 SSH 连接超时，重试成功；失败发生在任何生产停止之前。部署过程无回退、无数据库变更。原镜像、前端入口备份与恢复证据保留。本地 3040 验证服务已关闭。
