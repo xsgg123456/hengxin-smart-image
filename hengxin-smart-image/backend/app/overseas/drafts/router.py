@@ -4,7 +4,7 @@ from app.core.browser_auth import browser_request
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.tasks.router import Database
 from app.overseas.permissions import authorize_member
-from . import service, source
+from . import read, service, source
 from .schemas import SaveDraft, SelectSource, VersionBody
 from .selection import select_source
 
@@ -28,7 +28,7 @@ def lookup(actor: CurrentMember, session: Database, sku: str = Query(min_length=
 
 @router.get('/requirement-draft')
 def get(actor: CurrentMember, session: Database):
-    return service.finish(session, service.owned(session, actor))
+    return read.get(session, actor)
 
 
 @router.put('/requirement-draft', dependencies=protected)

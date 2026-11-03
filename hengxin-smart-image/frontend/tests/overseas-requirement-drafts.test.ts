@@ -75,10 +75,10 @@ test('来源变更冲突不能把本地旧来源字段套到新附件', async ()
   storage.write({id:'old',version:1,fields:full(),source:{sku:'OLD',requirementId:'old'},pendingUploads:[]})
   await c.initialize(); await assert.rejects(c.resolve(true), /来源已变化/); assert.equal(c.state.conflict,true); assert.equal(remote.get().source?.sku,'NEW'); c.dispose()
 })
-test('轮询更新附件进度但不覆盖正在输入字段', async () => {
+test('查询前保存正在输入字段，再更新附件进度', async () => {
   const {c,remote} = setup(); await c.initialize(); c.edit({...full(),name:'正在输入'})
   remote.set({...fresh(),materials:[file('1'),file('2')]}); await c.refresh()
-  assert.equal(c.state.fields.name,'正在输入'); assert.equal(c.state.server?.materials.length,2); assert.equal(c.state.dirty,true); c.dispose()
+  assert.equal(c.state.fields.name,'正在输入'); assert.equal(c.state.server?.materials.length,2); assert.equal(c.state.dirty,false); assert.equal(remote.get().fields.name,'正在输入'); c.dispose()
 })
 test('本地存储失败仍保存服务器，账号及标签存储键隔离', async () => {
   const remote = fakeApi(), c=createDraftController(remote.api,{read(){throw Error('blocked')},write(){throw Error('quota')},clear(){}})

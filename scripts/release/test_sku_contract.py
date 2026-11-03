@@ -27,12 +27,14 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(b.UNITS, r.UNITS)
 
     def test_all_current_draft_sources_and_tests_are_in_release(self):
+        # 0.2.60 is immutable history; later read-only additions belong to 0.2.61.
+        polling = load('polling-runtime').runtime
         backend = Path(__file__).resolve().parents[2]/'hengxin-smart-image/backend'
         actual = {path.relative_to(backend).as_posix() for path in (backend/'app/overseas/drafts').glob('*.py')}
-        self.assertEqual(actual, {n for n in r.FILES if '/drafts/' in n})
+        self.assertEqual(actual, {n for n in r.FILES | polling.FILES if '/drafts/' in n})
         tests = {path.name for pattern in ('test_overseas_draft*.py', 'test_overseas_sku*.py')
                  for path in (backend/'tests').glob(pattern)}
-        self.assertLessEqual(tests, set(r.TESTS))
+        self.assertLessEqual(tests, set(polling.TESTS))
 
     def test_native_manifest_records_native_bytes_independently(self):
         value = {'nativeSources': {u: {n: base64.b64encode(u.encode()).decode() for n in r.NATIVE_FILES}

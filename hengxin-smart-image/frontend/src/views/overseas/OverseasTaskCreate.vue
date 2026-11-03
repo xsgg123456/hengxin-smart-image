@@ -2,6 +2,7 @@
   <div class="draft-status" aria-live="polite"><span>{{ status }}</span><ElButton v-if="state.error && !state.conflict" link type="primary" :disabled="state.saving" @click="retrySave">重试保存</ElButton><ElButton type="danger" text :disabled="locked || state.saving || uploadBusy || source.querying.value" @click="clearDraft">清空草稿</ElButton></div>
   <ElAlert v-if="state.localError" :title="state.localError" type="warning" :closable="false" />
   <ElAlert v-if="state.error" :title="state.error" type="error" :closable="false" />
+  <div v-if="state.queryError" class="draft-query-error"><ElAlert :title="state.queryError" type="warning" :closable="false" /><ElButton link type="primary" :disabled="state.loading || state.querying || state.conflict || !!state.submission" @click="controller.retryQuery">重试查询</ElButton></div>
   <div v-if="state.conflict" class="conflict-actions"><p>本地内容已保留，选择恢复方式前不会写入服务器。</p><ElButton :disabled="state.loading" @click="resolve(false)">使用服务器草稿</ElButton><ElButton type="primary" :disabled="state.loading" @click="resolve(true)">用本地字段恢复</ElButton></div>
   <ElAlert v-if="interrupted.length" type="warning" :closable="false" :title="`上次上传尚未确认完成，请核对已保存附件，缺失文件需要重新选择：${interrupted.join('、')}`" />
   <ElAlert v-if="state.submission" title="上次提交结果尚未确认，字段已保留。请重试提交以确认原任务，不会重复创建。" type="warning" :closable="false" />
@@ -14,7 +15,7 @@
     </template>
     <template #designer><ElFormItem label="负责设计" required><DesignerPicker v-model="draft.designerId" :api="api" :selected="source.designer.value || state.server?.matchedDesigner" :disabled="locked" @failure="$emit('failure', $event)" /></ElFormItem></template>
     <template #after>
-      <DraftMaterialsPanel v-if="state.server && state.initialized" :key="state.server.id" :draft="state.server" :api="materialsApi" :disabled="locked || source.querying.value || source.confirming.value" :change="changeAttachment" :refresh="controller.refresh" @busy="uploadBusy = $event" @pending="controller.uploads" @failure="$emit('failure', $event)" />
+      <DraftMaterialsPanel v-if="state.server && state.initialized" :key="state.server.id" :draft="state.server" :api="materialsApi" :disabled="locked || source.querying.value || source.confirming.value" :change="changeAttachment" :refresh="controller.refreshAfterUpload" @busy="uploadBusy = $event" @pending="controller.uploads" @failure="$emit('failure', $event)" />
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
       <div class="draft-submit"><ElButton type="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">{{ state.submission ? '重试提交并确认结果' : '提交图需' }}</ElButton><span v-if="failedImports" class="submit-hint">请先重试或移除导入失败的附件。</span><span v-else-if="importing" class="hx-muted">附件正在后台导入，完成后可提交。</span></div>
     </template>
@@ -47,6 +48,7 @@ let synchronizing = false, active = true
 watch(() => state.fields, value => { if (!sameFields(value, draft.value)) { synchronizing = true; draft.value = JSON.parse(JSON.stringify(value)); synchronizing = false } }, { deep: true, flush: 'sync' })
 watch(draft, value => { if (!synchronizing) controller.edit(value) }, { deep: true, flush: 'sync' })
 const locked = computed(() => !props.allowed || !state.initialized || state.loading || state.conflict || submitting.value || clearing.value || !!state.submission || source.applying.value || source.confirming.value)
+watch(locked, value => controller.setPaused(value), { immediate: true, flush: 'sync' })
 const importing = computed(() => state.server?.imports.some(i => ['queued', 'running'].includes(i.state)))
 const failedImports = computed(() => state.server?.imports.some(i => i.state === 'failed'))
 const status = computed(() => state.loading ? '正在恢复个人草稿…' : state.conflict ? '草稿版本冲突' : state.error ? '草稿保存失败' : state.saving || state.dirty ? '正在保存草稿…' : state.initialized ? '草稿已保存' : '草稿未恢复')
@@ -57,7 +59,7 @@ const canSubmit = computed(() => {
   try { validateNewDraft(draft.value); readyMaterialIds(state.server?.materials || []); return true } catch { return false }
 })
 function query() { if (!locked.value && !uploadBusy.value) void source.query() }
-async function retrySave() { try { if (!state.initialized) await controller.initialize(); else await controller.flush() } catch { /* 状态含明确失败 */ } }
+async function retrySave() { try { await controller.flush() } catch { /* 状态含明确失败 */ } }
 async function resolve(local: boolean) {
   try {
     await ElMessageBox.confirm(local ? '将当前本地字段恢复到最新服务器版本；服务器附件保持。确认前请核对当前表单内容。' : '将使用服务器草稿替换当前页面字段。', '选择草稿恢复方式', { type: 'warning', confirmButtonText: '确认恢复', cancelButtonText: '取消' })
@@ -99,9 +101,12 @@ async function submit() {
     if (reason instanceof IdentityError && reason.status >= 400 && reason.status < 500) { controller.clearSubmission(); if (reason.status === 409) await controller.refresh(); if ([401,403].includes(reason.status)) emit('failure', reason) }
   } finally { if (active) submitting.value = false }
 }
-void controller.initialize().then(() => { if (!active) return; interrupted.value = [...state.pendingUploads]; if (state.recoveredTaskId) emit('created', state.recoveredTaskId) })
-const poll = setInterval(() => { if (!locked.value && !state.saving) void controller.refresh() }, 2000)
-onUnmounted(() => { active = false; clearInterval(poll); controller.dispose() })
+watch(() => state.initialized, value => { if (active && value) interrupted.value = [...state.pendingUploads] })
+watch(() => state.recoveredTaskId, id => { if (active && id) emit('created', id) })
+void controller.initialize()
+const visibilityChanged = () => controller.setVisible(!document.hidden)
+visibilityChanged(); document.addEventListener('visibilitychange', visibilityChanged)
+onUnmounted(() => { active = false; document.removeEventListener('visibilitychange', visibilityChanged); controller.dispose() })
 </script>
 <style scoped>
 .draft-status,.conflict-actions,.draft-submit{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;font-size:13px}.draft-status{color:var(--el-text-color-secondary)}.conflict-actions{padding:12px}.sku-section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}.sku-section-title h2{font-size:16px;font-weight:600}.sku-lookup-row{display:flex;gap:12px;width:100%;align-items:center}.sku-lookup-row .el-input{min-width:0}.sku-lookup-row .el-button{flex-shrink:0}.lookup-notice{margin-bottom:20px}.lookup-notice ul{padding:10px 16px 0;color:var(--el-color-warning-dark-2);font-size:13px;line-height:1.9}.lookup-notice :deep(.el-alert__title){line-height:1.7;overflow-wrap:anywhere}.submit-hint{color:var(--el-color-danger);font-size:13px}

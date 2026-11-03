@@ -12,6 +12,7 @@ spec = importlib.util.spec_from_file_location('sku_runtime', Path(__file__).with
 r = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(r)
 ENTRIES = ('frontend/dist/index.html', 'frontend/dist/index.html.gz', 'frontend/package.json', 'FRONTEND_RELEASE.json')
+BASE_VERSION = '0.2.59'
 
 
 def atomic_copy(source, destination):
@@ -25,7 +26,7 @@ def atomic_copy(source, destination):
 
 def deploy(source, app, backup):
     manifest = r.verify_package(source)
-    r.require(json.loads((app / 'frontend/package.json').read_text())['version'] == '0.2.59', 'Frontend baseline changed')
+    r.require(json.loads((app / 'frontend/package.json').read_text())['version'] == BASE_VERSION, 'Frontend baseline changed')
     source_dist, target_dist = source / 'frontend/dist', app / 'frontend/dist'
     for path in source_dist.rglob('*'):
         if path.is_file() and path.name not in ('index.html', 'index.html.gz'):
@@ -66,7 +67,7 @@ def deploy(source, app, backup):
         if name == 'frontend/package.json' or name.startswith('frontend/dist/'):
             r.require(r.digest(app / name) == expected, 'Installed frontend checksum mismatch')
     r.private(backup / 'INSTALLED.json', {name:r.digest(app / name) if (app / name).exists() else None for name in ENTRIES})
-    return 'FRONTEND_0.2.60_INSTALLED'
+    return 'FRONTEND_' + r.VERSION + '_INSTALLED'
 
 
 def rollback(app, backup):
