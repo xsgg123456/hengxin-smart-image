@@ -1,16 +1,25 @@
 <template>
-  <OverseasSkillCatalog :skills="skills" :loading="loading" :error="error" :managed="true" :can-toggle="canToggle" :saving-id="savingId" :notice="notice" :can-manage-platforms="canManagePlatforms" :platform-error="platformError" :save-platforms="savePlatforms" :refresh-platforms="load" @edit="platformError = ''" @refresh="load" @toggle="toggle" />
+  <OverseasSkillCatalog :skills="skills" :transfer-api="transfers" @upload="uploadOpen = true" @failure="transferFailure" :loading="loading" :error="error" :managed="true" :can-toggle="canToggle" :saving-id="savingId" :notice="notice" :can-manage-platforms="canManagePlatforms" :platform-error="platformError" :save-platforms="savePlatforms" :refresh-platforms="load" @edit="platformError = ''" @refresh="load" @toggle="toggle" />
+  <SkillFolderUpload v-if="canToggle" :open="uploadOpen" :api="transfers" @close="uploadOpen = false" @installed="load" @failure="transferFailure" />
 </template>
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { managementError, type ManagedSkill, type SkillCatalog, type SkillPlatformUpdate, type ManagementApi } from '@/api/overseas/management'
+import { createSkillTransferApi, type SkillTransferApi } from '@/api/overseas/skill-transfers'
+import SkillFolderUpload from './SkillFolderUpload.vue'
 import OverseasSkillCatalog from './OverseasSkillCatalog.vue'
-const props = defineProps<{ api: Pick<ManagementApi, 'skills' | 'setSkillAvailability' | 'setSkillPlatforms'> }>()
+const props = defineProps<{ api: Pick<ManagementApi, 'skills' | 'setSkillAvailability' | 'setSkillPlatforms'>; transferApi?: SkillTransferApi }>()
+const transfers = props.transferApi || createSkillTransferApi()
+const uploadOpen = ref(false)
 const emit = defineEmits<{ failure: [reason: unknown] }>()
 const skills = ref<ManagedSkill[]>([]), error = ref(''), loading = ref(false)
 const canManagePlatforms = ref(false), platformError = ref('')
 const canToggle = ref(false), savingId = ref(''), notice = ref('')
+function transferFailure(reason: unknown) {
+  if (reason instanceof IdentityError && reason.status === 401) { skills.value = []; canToggle.value = false; canManagePlatforms.value = false; emit('failure', reason) }
+  if (reason instanceof IdentityError && reason.status === 403) { canToggle.value = false; notice.value = '当前账号没有此操作权限，请刷新目录核对权限' }
+}
 let active = true
 function apply(result: SkillCatalog) { skills.value = result.items; canToggle.value = result.canToggle; canManagePlatforms.value = result.canManagePlatforms }
 async function load() {

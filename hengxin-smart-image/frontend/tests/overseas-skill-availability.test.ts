@@ -1,11 +1,13 @@
+import * as Transfers from '../src/api/overseas/skill-transfers'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as Management from '../src/api/overseas/management'
 import { IdentityError } from '../src/api/identity/request'
 import { skillCatalogComponent as catalog } from './skill-platforms-components'
-import { compile, table, mount, all, text, find, click, flush } from './membership-test-harness'
+import { compile, table, simple, mount, all, text, find, click, flush } from './membership-test-harness'
 
 const component = compile('views/overseas/admin/OverseasLiveSkills.vue', {
+  '@/api/overseas/skill-transfers': Transfers, './SkillFolderUpload.vue': { default: simple('SkillFolderUpload'), __esModule: true },
   '@/api/overseas/management': Management, '@/api/identity/request': { IdentityError },
   './OverseasSkillCatalog.vue': { default: catalog, __esModule: true }
 })

@@ -1,6 +1,6 @@
 <template>
   <ElCard class="art-card hx-section hx-admin-table-card">
-    <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">WORKFLOW SKILLS</span><h2>海外 Skill 目录</h2><p>{{ managed ? '按平台管理 Skill；AI 设计工作台仅显示当前任务平台下已开启的 Skill。' : '查看已安装 Skill 的名称与描述。' }}</p><p v-if="managed && !loading && !error && !canToggle">仅指定账号可调整 Skill 开关。</p></div><ElButton :loading="loading" :disabled="!!savingId || !!dialog" @click="$emit('refresh')">刷新 Skill</ElButton></div>
+    <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">WORKFLOW SKILLS</span><h2>海外 Skill 目录</h2><p>{{ managed ? '按平台管理 Skill；AI 设计工作台仅显示当前任务平台下已开启的 Skill。' : '查看已安装 Skill 的名称与描述。' }}</p><p v-if="managed && !loading && !error && !canToggle">仅指定账号可调整 Skill 开关。</p></div><ElButton v-if="transferApi && canToggle" type="primary" :disabled="blocked" @click="$emit('upload')">上传 Skill 文件夹</ElButton><ElButton :loading="loading" :disabled="!!savingId || !!dialog" @click="$emit('refresh')">刷新 Skill</ElButton></div>
     <ElTabs v-if="managed" v-model="group" class="platform-tabs">
       <ElTabPane :label="`全部 (${skills.length})`" name="all" />
       <ElTabPane v-for="p in platforms" :key="p.value" :label="`${p.value} (${count(p.value)})`" :name="p.value" />
@@ -19,7 +19,7 @@
       <template #description="{ row }"><span class="skill-text">{{ row.description || '暂无描述' }}</span></template>
       <template #platforms="{ row }"><div class="platform-tags"><ElTag v-for="p in row.platforms" :key="p" size="small" effect="plain">{{ p }}</ElTag><span v-if="!row.platforms?.length" class="hx-muted">未分组</span></div></template>
       <template #availability="{ row }"><div class="skill-availability"><ElTag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '已开启' : '已关闭' }}</ElTag><ElButton v-if="canToggle" size="small" :aria-label="`${row.enabled ? '关闭' : '开启'} ${row.displayName}`" :loading="savingId === row.id" :disabled="blocked || !!dialog" @click="$emit('toggle', row.id)">{{ row.enabled ? '关闭' : '开启' }}</ElButton></div></template>
-      <template #actions="{ row }"><div v-if="canManagePlatforms" class="skill-availability"><ElButton text size="small" :disabled="blocked" @click="edit([row.id])">编辑平台</ElButton><ElButton v-if="isPlatform" text type="danger" size="small" :disabled="blocked" @click="remove(row)">移出平台</ElButton></div></template>
+      <template #actions="{ row }"><div v-if="canManagePlatforms" class="skill-availability"><ElButton text size="small" :disabled="blocked" @click="edit([row.id])">编辑平台</ElButton><ElButton v-if="isPlatform" text type="danger" size="small" :disabled="blocked" @click="remove(row)">移出平台</ElButton></div><SkillFolderActions v-if="transferApi" :key="row.id" :skill="row" :api="transferApi" :can-manage="!!canToggle" :disabled="blocked" @changed="$emit('refresh')" @failure="$emit('failure', $event)" /></template>
     </ArtTable>
     <p v-if="managed" class="catalog-foot">平台分组沿用提交图需中的目标平台。开关对该 Skill 的所有平台生效；移出平台保留 Skill 文件与历史任务。</p>
   </ElCard>
@@ -31,9 +31,11 @@ import { ElMessageBox } from 'element-plus'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import type { Skill, ManagedSkill, SkillPlatformUpdate } from '@/api/overseas/management'
 import { OVERSEAS_PLATFORMS as platforms } from '../platforms'
+import type { SkillTransferApi } from '@/api/overseas/skill-transfers'
+import SkillFolderActions from './SkillFolderActions.vue'
 import OverseasSkillPlatformsDialog from './OverseasSkillPlatformsDialog.vue'
-const props = defineProps<{ skills: Skill[]; loading?: boolean; error?: string; managed?: boolean; canToggle?: boolean; savingId?: string; notice?: string; canManagePlatforms?: boolean; platformError?: string; refreshPlatforms?: () => Promise<void>; savePlatforms?: (items: SkillPlatformUpdate[]) => Promise<boolean> }>()
-const emit = defineEmits<{ refresh: []; toggle: [id: string]; edit: [] }>()
+const props = defineProps<{ skills: Skill[]; transferApi?: SkillTransferApi; loading?: boolean; error?: string; managed?: boolean; canToggle?: boolean; savingId?: string; notice?: string; canManagePlatforms?: boolean; platformError?: string; refreshPlatforms?: () => Promise<void>; savePlatforms?: (items: SkillPlatformUpdate[]) => Promise<boolean> }>()
+const emit = defineEmits<{ refresh: []; toggle: [id: string]; edit: []; upload: []; failure: [reason: unknown] }>()
 const group = ref('all'), search = ref(''), status = ref('all'), selected = ref<string[]>([])
 const dialog = ref<'edit' | 'add'>(), editing = ref<string[]>([]), dialogPlatform = ref('')
 const table = ref<InstanceType<typeof ArtTable>>()
@@ -49,7 +51,7 @@ const columns = computed(() => [
   ...(props.canManagePlatforms ? [{ type: 'selection' as const, width: 44, reserveSelection: true, selectable: () => !blocked.value }] : []),
   { prop: 'displayName', label: '名称', minWidth: 200, useSlot: true }, { prop: 'description', label: '描述', minWidth: 300, useSlot: true },
   ...(props.managed ? [{ prop: 'platforms', label: '适用平台', width: 190, useSlot: true }, { prop: 'availability', label: '状态', width: 88, useSlot: true }] : []),
-  ...(props.canManagePlatforms ? [{ prop: 'actions', label: '操作', width: 100, useSlot: true }] : [])
+  ...(props.canManagePlatforms || props.transferApi ? [{ prop: 'actions', label: '操作', width: props.transferApi ? 156 : 100, useSlot: true }] : [])
 ])
 function selectRows(rows: Skill[]) { selected.value = rows.map(s => s.id).filter(id => props.skills.some(s => s.id === id)) }
 function clearSelection() { selected.value = []; table.value?.elTableRef?.clearSelection() }

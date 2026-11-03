@@ -232,3 +232,6 @@ Phase7：沿用模板编辑ElDialog、图片排序组件、ArtTable及Skill管�
 
 ## 2026-11-03 · SKU获取需求预览已确认
 正式采用 frontend/preview-sku-import 的查询输入、多记录选择弹窗、字段反馈及两类多附件列表，复用真实OverseasShell/OverseasCreate布局。移除演示工具栏与原版对照开关，接真实查询与后台进度；新增简洁草稿保存状态、重试和确认清空。失败不清空表单，页面恢复不闪空覆盖。
+
+## 2026-11-03 · 海外 Skill 文件夹管理
+沿用现有 Skill 平台管理页面；添加上传弹窗与目录树、真实进度，行操作增加保存为文件夹与红色删除。删除使用二次确认显示名称和历史版本保留说明。完整交互以 docs/SKILL-FOLDERS-IMPLEMENTATION-20261103.md 为准，覆盖历史只读目录限制。

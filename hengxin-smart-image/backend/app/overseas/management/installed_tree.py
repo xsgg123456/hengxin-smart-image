@@ -7,6 +7,7 @@ import stat
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 import yaml
+from markdown_it import MarkdownIt
 
 from app.core.skill_package import validate_files as validate_package
 from .schemas import validate_files
@@ -97,7 +98,7 @@ def tree(path, *, protected=False):
         raise ValueError('Invalid Skill YAML metadata') from error
     if not NAME.fullmatch(package.name):
         raise ValueError('Invalid Skill name')
-    check_references(files)
+    check_references(files, entries)
     return package, entries
 
 
@@ -126,27 +127,41 @@ def tree_stamp(path, *, protected=False):
     return tuple(stamps)
 
 
-def check_references(files):
-    """Reject missing literal Markdown package resources, including reference pages."""
+def reference_targets(files):
+    """Yield real CommonMark links, never examples in code blocks or YAML."""
+    parser = MarkdownIt('commonmark')
     for filename, data in files.items():
-        if not filename.endswith('.md'):
+        if not filename.lower().endswith('.md'):
             continue
-        document = data.decode('utf-8-sig')
-        for match in re.finditer(r'\[[^\]\n]*\]\(([^)\n]+)\)', document):
-            target = match.group(1).strip().split(' "', 1)[0].strip('<>')
-            if not target or target.startswith('#') or urlsplit(target).scheme:
+        document = re.sub(r'\A---\s*\r?\n(.*?)\r?\n---(?:\s*\r?\n|$)', '',
+                          data.decode('utf-8-sig'), count=1, flags=re.S)
+        pending = list(parser.parse(document))
+        while pending:
+            token = pending.pop()
+            pending.extend(token.children or [])
+            target = token.attrGet('href') if token.type == 'link_open' else (
+                token.attrGet('src') if token.type == 'image' else None)
+            if not target or target.startswith('#'):
                 continue
-            relative = unquote(target.split('#', 1)[0])
-            # Only literal bundled resource paths; generic prose links remain prose.
-            if not relative or not any(part in relative for part in ('references/', 'assets/', 'scripts/', 'SKILL.md')):
+            parsed = urlsplit(target)
+            if parsed.scheme or parsed.netloc or not parsed.path:
                 continue
-            parts = []
-            for part in (PurePosixPath(filename).parent / relative).parts:
-                if part == '..':
-                    if not parts:
-                        raise ValueError('Skill reference escapes package')
-                    parts.pop()
-                elif part != '.':
-                    parts.append(part)
-            if '/'.join(parts) not in files:
-                raise ValueError('Skill reference is missing: ' + relative)
+            yield filename, unquote(parsed.path)
+
+
+def check_references(files, entries=None):
+    """Keep historical scope; new uploads separately validate all local resource links."""
+    known = {path.rstrip('/') for path in (entries if entries is not None else files)}
+    for filename, relative in reference_targets(files):
+        if not any(part in relative for part in ('references/', 'assets/', 'scripts/', 'SKILL.md')):
+            continue
+        parts = []
+        for part in (PurePosixPath(filename).parent / relative).parts:
+            if part == '..':
+                if not parts:
+                    raise ValueError('Skill reference escapes package')
+                parts.pop()
+            elif part != '.':
+                parts.append(part)
+        if '/'.join(parts) not in known:
+            raise ValueError('Skill reference is missing: ' + relative)

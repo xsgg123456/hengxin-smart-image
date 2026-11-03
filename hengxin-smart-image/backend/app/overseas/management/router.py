@@ -6,8 +6,10 @@ from app.db.session import get_session
 from app.overseas.permissions import require_permission
 from . import facts, monitor, settings, skills, usage
 from .schemas import SettingsPatch, SkillPatch, SkillPlatformsPatch
+from .skill_transfer_router import router as transfers_router
 
 router = APIRouter(prefix='/api/overseas/v1/management', tags=['overseas-management'])
+router.include_router(transfers_router)
 stats = require_permission('stats.read')
 skill_admin = require_permission('skills.manage')
 settings_admin = require_permission('settings.manage')

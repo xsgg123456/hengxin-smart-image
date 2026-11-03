@@ -40,8 +40,8 @@ def release_manifest(root, release, protected=False):
     if not isinstance(manifest, dict) or manifest.get('schema') != 1 or digest(manifest) != release:
         raise ValueError('Skill release manifest integrity mismatch')
     items = manifest.get('items')
-    if not isinstance(items, list) or not items:
-        raise ValueError('Skill release manifest is empty')
+    if not isinstance(items, list):
+        raise ValueError('Invalid Skill release items')
     names = set()
     for item in items:
         name = item.get('name')
@@ -92,8 +92,10 @@ def verified_release(root_value, release, stamp, protected):
     return items
 
 
-def read_catalog(root, protected=False):
+def read_catalog(root, protected=False, *, allow_pending=False):
     root = safe_directory(root, protected=protected)
+    if not allow_pending and (root / '.pending.json').exists():
+        raise ValueError('Skill publication is awaiting transaction recovery')
     pointer = root / 'current.json'
     if not pointer.exists():
         # An empty installation is valid; an unindexed directory is not success.
