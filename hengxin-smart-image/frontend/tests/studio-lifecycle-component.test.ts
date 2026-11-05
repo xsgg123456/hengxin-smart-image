@@ -7,6 +7,7 @@ import { archiveError, archiveImageFailure } from '../src/api/overseas/archives'
 import type { Studio } from '../src/api/overseas/studio'
 import { handleStudioSendKey } from '../src/views/overseas/studio/studio-send-key'
 import { useImagePrefetch } from '../src/views/overseas/studio/use-image-prefetch'
+import { revisionAssetIds } from '../src/views/overseas/studio/studio-revisions'
 
 const node = (tag: string, value = ''): Node & { querySelector: () => null } => ({ tag, text: value, props: {}, children: [], parent: null, querySelector: () => null })
 const renderer = Vue.createRenderer<Node, Node>({
@@ -46,14 +47,17 @@ const component = compile('views/overseas/studio/OverseasStudio.vue', {
   '@/api/overseas/archives': { createArchivesApi: () => archiveApi }, '@/api/identity/request': { IdentityError }, '../OverseasArchiveDetail.vue': { default: detail },
   './studio.css': {}, './studio-sessions.css': {}, './studio-send-key': { handleStudioSendKey },
   'element-plus': { ElMessage: { info: unused, success: unused }, ElMessageBox: { confirm: async () => undefined } },
-  '@/views/hengxin/components/annotation/annotation-drafts': { forgetAnnotationDraft: unused },
-  ...Object.fromEntries(['StudioDownload', 'StudioTextEditor', 'StudioRecoveryDialog', 'StudioSessionList', 'StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioAnnotationDialog', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
+  './studio-revisions': { revisionAssetIds },
+  './editing/state': { draftFor: () => ({ marks: [], references: [] }), forgetDraft: unused },
+  './editing/EditorDialog.vue': { default: simple('StudioEditDialog') },
+  './editing/style.css': {},
+  ...Object.fromEntries(['StudioDownload', 'StudioTextEditor', 'StudioRecoveryDialog', 'StudioSessionList', 'StudioTurns', 'StudioArchiveFields', 'StudioAttachments', 'StudioRevisionDraft', 'StudioMaterials', 'StudioSkillSelect'].map(name => [`./${name}.vue`, { default: simple(name) }])),
   './use-studio-sessions': { useStudioSessions: () => ({
     sessions: Vue.ref([{ id: 'same', name: '原会话' }]), activeId: Vue.ref('same'), currentSession: Vue.ref({ id: 'same', name: '原会话' }), runningCount: Vue.ref(0), canManage: Vue.computed(() => !locked.value), sessionBusy: Vue.ref(false), sessionError: Vue.ref(''), sessionPending: Vue.ref(), preferenceNotice: Vue.ref(''), selectSession: unused, renameConversation: unused, deleteConversation: unused, saveScroll: unused, scrollPosition: Vue.ref(null), retrySession: unused,
     data, text: draft, skill: Vue.ref(''), attachments: Vue.ref([]), references: Vue.ref([]), revisions: Vue.ref([]), selected, transcript: Vue.ref([]), error: Vue.ref(''), revisionError: Vue.ref(''), limitError: Vue.ref(''), materialNotice: Vue.ref(''),
     busy, uploading: Vue.ref(false), loading: Vue.ref(false), pending, editable: Vue.computed(() => !data.value.completed), activeTurn: Vue.ref(), locked, canSend: Vue.computed(() => !locked.value), canNewConversation: Vue.computed(() => !locked.value), canComplete, canReopen,
     refresh: unused, retry: unused, send: unused, newConversation: unused, archive: async (sku: string) => { submittedSkus.push(sku); return true }, stop: unused, add: unused, receive: unused, toggle: unused, toggleGroup: unused, fail: unused,
-    draftKey: unused, confirmRevision: unused, removeRevision: unused, removeMaterial: unused,
+    draftKey: unused, confirmRevisions: unused, removeRevision: unused, removeMaterial: unused,
     complete: async () => { completeCalls++; data.value = { ...data.value, completed: true, taskVersion: data.value.taskVersion + 1 }; return true },
     reopen: async () => { reopenCalls++; if (loseReopen) { pending.value = { key: 'same', body: { version: 4 } }; return false }; data.value = { ...data.value, completed: false, reopened: true, taskVersion: data.value.taskVersion + 1 }; return true }
   }) }

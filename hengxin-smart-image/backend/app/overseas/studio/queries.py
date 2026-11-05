@@ -12,6 +12,7 @@ from app.overseas.execution.models import Job, TERMINAL, ExecutionEvent
 from .models import Turn, Upload, Picture, OutputFile, Conversation, Transcript, ConversationDeletion
 from .material_list import visible
 from . import message_metadata
+from .image_edit_history import frozen_metadata, public_edits
 
 ROOT = '/api/overseas/v1'
 
@@ -110,6 +111,8 @@ def view(session, actor, task_id, conversation_id=None):
         if job.status not in TERMINAL:
             active = str(turn.id)
         attachments = [asset(*attachment(session, task, identity)) for identity in turn.attachment_ids]
+        reference_pictures = [picture_dto(picture(session, task, UUID(value))) for value in turn.reference_ids]
+        frozen_metadata(job.payload, attachments, reference_pictures)
         result = job.result or {}
         order = {value: index for index, value in enumerate(result.get('deliveryOrder', []))}
         pictures = list(session.scalars(select(Picture).where(Picture.turn_id == turn.id)
@@ -119,9 +122,8 @@ def view(session, actor, task_id, conversation_id=None):
             text=turn.text, skillName=turn.skill_name, deliveryError=turn.delivery_error,
             deliveryStatus=result.get('deliveryStatus'),
             status=job.status, reply=turn.reply, error=job.error, jobId=str(job.id),
-            jobVersion=job.version, attachments=attachments,
-            referencePictures=[picture_dto(picture(session, task, UUID(value)))
-                               for value in turn.reference_ids],
+            jobVersion=job.version, attachments=attachments, imageEdits=public_edits(job.payload),
+            referencePictures=reference_pictures,
             pictures=[picture_dto(p) for p in pictures],
             outputs=[output_dto(row) for row in session.scalars(select(OutputFile)
                 .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))],

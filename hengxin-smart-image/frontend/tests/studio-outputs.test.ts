@@ -5,6 +5,7 @@ import { isStudio, type StudioTurn } from '../src/api/overseas/studio'
 import { createStudioOutputsApi, isRecoverableFiles, isRecoveryResult, isStudioOutput } from '../src/api/overseas/studio-outputs'
 import { formatAttachmentSize } from '../src/api/overseas/attachment-download'
 import { all, compile, find, mount, simple, text } from './membership-test-harness'
+import { historicalRevisions } from '../src/views/overseas/studio/studio-revisions'
 
 const output = { id: 'f', name: '方案.zip', contentType: 'application/zip', sizeBytes: 0, url: '/api/overseas/v1/tasks/task/studio/outputs/f/content' }
 const picture = { id: 'p', name: '效果.png', url: '/api/overseas/v1/tasks/task/studio/pictures/p/content', width: 20, height: 20, turnId: 'turn', sku: null, archived: false }
@@ -22,6 +23,8 @@ test('普通输出契约接收0B和partial终态，只接受本任务同域输�
 })
 test('实际消息混合输出保留图片选择，普通文件只有名称大小下载，partial不显示执行或自动补收', async () => {
   const component = compile('views/overseas/studio/StudioTurns.vue', {
+    './studio-revisions': { historicalRevisions },
+    './StudioRevisionDetails.vue': { default: simple('StudioRevisionDetails') },
     './StudioOutputs.vue': { default: outputComponent }, './StudioAttachments.vue': { default: defineComponent({ render: () => null }) },
     './StudioProcess.vue': { default: defineComponent({ render: () => null }) },
     './StudioAssetImage.vue': { default: defineComponent({ props: ['asset'], setup: props => () => h('picture', { id: props.asset.id }) }) }

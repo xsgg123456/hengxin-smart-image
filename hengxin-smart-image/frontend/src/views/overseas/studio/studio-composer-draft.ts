@@ -1,9 +1,9 @@
 import { ref, watch, type Ref } from 'vue'
-import { isAsset, type Asset, type Studio, type StudioPicture } from '@/api/overseas/studio'
+import { isAsset, isEditReference, type Asset, type Studio, type StudioPicture } from '@/api/overseas/studio'
 import { record } from '@/api/identity/request'
 import { annotationDraft } from '@/views/hengxin/components/annotation/annotation-drafts'
 import type { AnnotationMark } from '@/views/hengxin/components/annotation/annotation-model'
-import { studioDraftKey, type StudioRevision } from './studio-revisions'
+import { studioDraftKey, type RevisionReference, type StudioRevision } from './studio-revisions'
 
 interface Composer {
   text: Ref<string>; skill: Ref<string>; attachments: Ref<Asset[]>
@@ -36,7 +36,8 @@ export function useComposerDraft(actor: string, task: string, state: Composer) {
       else localStorage.setItem(key, JSON.stringify({ version: 1, text: text.value, skill: skill.value,
         attachments: attachments.value, references: references.value.map(p => p.id),
         revisions: revisions.value.map(r => ({ pictureId: r.base.id, annotationId: r.annotation?.id || null,
-          text: r.text, marks: annotationDraft(r.draftKey).marks })) }))
+          text: r.text, marks: r.marks || annotationDraft(r.draftKey).marks,
+          referenceImages: (r.referenceImages || []).map(ref => ({ attachmentId: ref.asset.id, kind: ref.kind, customPurpose: ref.customPurpose, note: ref.note })) })) }))
       notice.value = skill.value && !availableSkills.has(skill.value) ? skillWarning : ''
     } catch { notice.value = storageWarning }
   }
@@ -68,7 +69,16 @@ export function useComposerDraft(actor: string, task: string, state: Composer) {
         if (!base || (item.annotationId && !annotation) || !saved.references.includes(item.pictureId)) throw Error('missing revision')
         const draftKey = studioDraftKey(actor, task, value.conversationId, base.id)
         annotationDraft(draftKey).marks = item.marks
-        revisions.push({ base, annotation, text: item.text, draftKey })
+        const referenceImages: RevisionReference[] = []
+        if (item.referenceImages !== undefined) {
+          if (!Array.isArray(item.referenceImages) || !item.referenceImages.every(isEditReference)) throw Error('invalid reference images')
+          for (const ref of item.referenceImages) {
+            const asset = saved.attachments.find(a => a.id === ref.attachmentId)
+            if (!asset || !['image/jpeg', 'image/png', 'image/webp'].includes(asset.contentType)) throw Error('missing reference image')
+            referenceImages.push({ asset, kind: ref.kind, customPurpose: ref.customPurpose, note: ref.note })
+          }
+        }
+        revisions.push({ base, annotation, text: item.text, draftKey, referenceImages, marks: item.marks })
       }
       const references = saved.references.map(id => pictures.find(p => p.id === id)).filter((p): p is StudioPicture => !!p)
       if (references.length !== saved.references.length) throw Error('missing reference')

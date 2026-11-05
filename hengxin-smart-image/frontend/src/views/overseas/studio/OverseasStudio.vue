@@ -20,7 +20,7 @@
       <ElAlert v-if="pending && !busy" title="上次操作的结果尚未确认。请使用相同请求重试，避免重复提交。" type="warning" :closable="false"><ElButton :loading="busy" :disabled="!task.capabilities.includes('task.design')" @click="retry">核实并重试上次操作</ElButton></ElAlert>
       <div class="studio-workspace"><StudioSessionList v-if="sessionsOpen" :sessions="sessions" :active-id="activeId" :disabled="!canManage" :can-create="canNewConversation" @select="s => selectSession(s.id)" @create="newConversation" @close="sessionsOpen = false" @action="sessionAction" /><section class="studio-conversation">
         <div class="session-current"><div><strong>{{ currentSession?.name || (sessions.length ? '加载会话…' : '暂无会话') }}</strong><small>{{ completed ? '只读会话 · 历史记录与文件保留' : currentSession?.deletionStatus ? currentSession.deletionError || '正在清理会话文件，请稍候' : data?.activeTurnId ? activeTurn?.status === 'collecting' ? '回复已结束 · 正在保存文件' : '执行中 · 切换会话不中断执行' : '独立上下文 · 独立工作文件' }}</small></div><div class="studio-actions"><ElButton size="small" :disabled="!currentSession || !!currentSession.deletionStatus || data?.conversationId !== activeId" @click="recoveryOpen = true">取回文件</ElButton><ElButton v-if="currentSession" text size="small" :disabled="!canManage || !!currentSession.deletionStatus" @click="sessionAction('rename', currentSession)">重命名</ElButton></div></div>
-        <StudioTurns v-if="data?.conversationId === activeId" :key="activeId" :scroll-position="scrollPosition" @scroll-position="(position, id) => saveScroll(position, id || undefined)" :turns="data?.turns || []" :transcript="transcript" :conversation-id="data?.conversationId" :selected="selected" :disabled="locked" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" />
+        <StudioTurns v-if="data?.conversationId === activeId" :key="activeId" :scroll-position="scrollPosition" @scroll-position="(position, id) => saveScroll(position, id || undefined)" :turns="data?.turns || []" :transcript="transcript" :conversation-id="data?.conversationId" :selected="selected" :disabled="locked" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" @batch-modify="openBatchAnnotation" />
         <div class="session-archive-bar"><span>{{ completed ? '成品已归入本任务，可通过右上角查看' : selected.length ? `已选当前会话 ${selected.length} 张图片` : '勾选当前会话图片，可下载或归档到本任务' }}</span><div class="studio-actions"><StudioDownload :key="`${actorId}:${task.id}:${activeId}`" :pictures="selectedPictures" @failure="fail" /><ElButton size="small" type="primary" :disabled="locked || !!data?.activeTurnId || !selected.length" @click="archiveOpen = true">归档所选图片（{{ selected.length }}）</ElButton></div></div>
         <div class="studio-composer" @dragover.prevent @drop.prevent="drop" @paste="paste">
           <p v-if="completed" class="studio-completion-note">任务已完成。需要继续修改时，点击右上方“解冻工作台”。</p>
@@ -40,7 +40,7 @@
       </section><StudioMaterials v-if="materialsOpen" :key="activeId" :assets="data?.materials || []" :disabled="locked" :removing="removingMaterials" @close="materialsOpen = false" @add="add" @remove="confirmRemoveMaterial" @remove-selected="confirmRemoveMaterials" @failure="fail" /></div>
     </ElCard>
     <StudioRecoveryDialog v-if="recoveryOpen && activeId && data?.conversationId === activeId" :key="`${task.id}:${activeId}`" :task-id="task.id" :conversation-id="activeId" :readonly="completed || !task.capabilities.includes('task.design') || !!currentSession?.deletionStatus" :busy="!!data?.activeTurnId || uploading" @close="recoveryOpen = false" @saved="refresh" @failure="fail" />
-    <StudioAnnotationDialog v-if="editing && data" :key="editingKey" ref="annotationDialog" :picture="editing" :draft-key="editingKey" :submitting="uploading" :error="annotationError" @close="closeAnnotation" @confirm="applyAnnotation" @failure="fail" />
+    <StudioEditDialog v-if="editing && data" :key="editingKey" :pictures="editing.pictures" :initial-id="editing.initialId" :batch="editing.batch" :has-confirmed="editing.pictures.some(p => revisions.some(r => r.base.id === p.id))" :key-for="draftKey" :submitting="uploading" :error="annotationError" @close="closeAnnotation" @confirm="applyAnnotation" />
     <ElDialog v-model="archiveOpen" title="归档所选图片" width="min(600px,94vw)" append-to-body><p>归属任务：{{ task.name }} · 来源会话：{{ currentSession?.name }}。将当前会话所选 {{ selected.length }} 张图片归入指定 SKU，保留来源信息。</p><StudioArchiveFields :task="task" /><template v-if="task.skus.length > 1"><label for="studio-archive-sku">本次归档所属 SKU</label><ElSelect id="studio-archive-sku" v-model="sku" style="width:100%;margin-top:8px" aria-label="本次归档所属 SKU" placeholder="选择所属 SKU"><ElOption v-for="item in task.skus" :key="item.code" :value="item.code" :label="item.code" /></ElSelect></template><template #footer><ElButton @click="archiveOpen = false">取消</ElButton><ElButton type="primary" :disabled="locked || !!data?.activeTurnId || !sku || !selected.length" :loading="busy" @click="doArchive">确认归档</ElButton></template></ElDialog>
     <ElDialog v-model="completeOpen" title="确认完成任务" width="min(480px,94vw)" append-to-body><p>完成后本任务所有会话将锁定，已归档成品和对话记录都会保留。</p><p>后续需要修改，可以解冻工作台，继续当前对话。</p><template #footer><ElButton @click="completeOpen = false">继续设计</ElButton><ElButton type="primary" :loading="busy" :disabled="!canComplete" @click="doComplete">确认完成</ElButton></template></ElDialog>
     <ElDialog v-model="reopenOpen" title="解冻工作台" width="min(480px,94vw)" append-to-body><p>解冻后任务回到第③步“AI 设计工作台”，恢复为设计中。</p><p>本任务全部 {{ sessions.length }} 个会话恢复编辑。原会话、上下文、草稿和已归档成品保留；不会自动开始生成，也不需要重新提交图需或审核。</p><template #footer><ElButton @click="reopenOpen = false">取消</ElButton><ElButton type="primary" :loading="busy" :disabled="!canReopen" @click="doReopen">确认解冻</ElButton></template></ElDialog>
@@ -61,11 +61,12 @@ import StudioArchiveFields from './StudioArchiveFields.vue'
 import { handleStudioSendKey } from './studio-send-key'
 import type { Asset, StudioPicture } from '@/api/overseas/studio'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { PreparedAnnotation } from '@/views/hengxin/components/annotation/AnnotationEditor.vue'
-import { forgetAnnotationDraft } from '@/views/hengxin/components/annotation/annotation-drafts'
+import { draftFor, forgetDraft, type PreparedRevision } from './editing/state'
+import { revisionAssetIds } from './studio-revisions'
 import StudioAttachments from './StudioAttachments.vue'
 import StudioRevisionDraft from './StudioRevisionDraft.vue'
-import StudioAnnotationDialog from './StudioAnnotationDialog.vue'
+import StudioEditDialog from './editing/EditorDialog.vue'
+import './editing/style.css'
 import StudioMaterials from './StudioMaterials.vue'
 import StudioSkillSelect from './StudioSkillSelect.vue'
 import StudioTextEditor from './StudioTextEditor.vue'
@@ -77,7 +78,7 @@ import './studio-sessions.css'
 import './studio.css'
 const props = defineProps<{ actorId: string; task: TaskDetail }>()
 const emit = defineEmits<{ failure: [reason: unknown]; changed: [] }>()
-const { data, text, skill, attachments, references, revisions, revisionError, skillError, draftKey, confirmRevision, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, removeMaterials, removingMaterials, materialNotice, draftNotice, sessions, activeId, currentSession, runningCount, canManage, sessionBusy, sessionError, sessionPending, retrySession, preferenceNotice, selectSession, renameConversation, deleteConversation, saveScroll, scrollPosition } = useStudioSessions(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
+const { data, text, skill, attachments, references, revisions, revisionError, skillError, draftKey, confirmRevisions, removeRevision, selected, transcript, error, limitError, busy, uploading, loading, pending, editable, activeTurn, locked, canSend, canNewConversation, canComplete, canReopen, refresh, send, newConversation, retry, archive, complete, reopen, stop, add, receive, toggle, toggleGroup, fail, removeMaterial, removeMaterials, removingMaterials, materialNotice, draftNotice, sessions, activeId, currentSession, runningCount, canManage, sessionBusy, sessionError, sessionPending, retrySession, preferenceNotice, selectSession, renameConversation, deleteConversation, saveScroll, scrollPosition } = useStudioSessions(() => props.task, reason => emit('failure', reason), () => emit('changed'), undefined, props.actorId)
 const selectedPictures = computed(() => data.value?.conversationId === activeId.value ? data.value.turns.flatMap(turn => turn.pictures).filter(picture => selected.value.includes(picture.id)) : [])
 const completed = computed(() => data.value?.completed ?? props.task.status === 'completed')
 useImagePrefetch(() => `${props.actorId}:${props.task.id}:${activeId.value}`, () => data.value?.conversationId === activeId.value ? data.value : undefined, () => [...attachments.value, ...references.value])
@@ -95,17 +96,31 @@ async function confirmRemoveMaterials(ids: string[]) {
   if (result.remaining) ElMessage.warning(`已移除 ${result.removed} 项，${result.remaining} 项未完成，请检查后重试`)
   else ElMessage.success(`已从列表移除 ${result.removed} 项，历史消息和待发送附件保留`)
 }
-const editing = ref<StudioPicture>(), editingKey = ref(''), annotationDialog = ref<InstanceType<typeof StudioAnnotationDialog>>(), annotationError = ref('')
-const ordinaryAttachments = computed(() => attachments.value.filter(a => !revisions.value.some(r => r.annotation?.id === a.id)))
+const editing = ref<{ pictures: StudioPicture[]; initialId: string; batch: boolean }>(), editingKey = ref(''), annotationError = ref('')
+const visitedDrafts = new Set<string>()
+const ordinaryAttachments = computed(() => { const ids = new Set(revisions.value.flatMap(revisionAssetIds)); return attachments.value.filter(a => !ids.has(a.id)) })
 const plainReferences = computed(() => references.value.filter(p => !revisions.value.some(r => r.base.id === p.id)))
 function removeAttachment(id: string) { if (!locked.value) { attachments.value = attachments.value.filter(a => a.id !== id); references.value = references.value.filter(p => p.id !== id) } }
-function openAnnotation(picture: StudioPicture) { if (!locked.value) { annotationError.value = ''; editingKey.value = draftKey(picture); editing.value = picture } }
-function closeAnnotation() { if (editing.value && !revisions.value.some(r => r.base.id === editing.value!.id)) forgetAnnotationDraft(editingKey.value); editing.value = undefined; annotationError.value = '' }
-async function applyAnnotation(value: PreparedAnnotation) {
+function openEditor(pictures: StudioPicture[], batch: boolean) {
+  if (locked.value || !pictures.length) return
+  for (const picture of pictures) {
+    const key = draftKey(picture); visitedDrafts.add(key)
+    draftFor(key, revisions.value.find(r => r.base.id === picture.id)?.referenceImages)
+  }
+  annotationError.value = ''; editingKey.value = `${draftKey(pictures[0])}:${batch}`
+  editing.value = { pictures, initialId: pictures[0].id, batch }
+}
+function openAnnotation(picture: StudioPicture) { openEditor([picture], false) }
+function openBatchAnnotation(pictures: StudioPicture[]) { openEditor(pictures, true) }
+function closeAnnotation() { editing.value = undefined; annotationError.value = '' }
+async function applyAnnotation(items: PreparedRevision[], groupIds?: string[]) {
   if (!editing.value) return
+  const owner = editing.value
   annotationError.value = ''
-  if (await confirmRevision(editing.value, value)) { annotationDialog.value?.commit(); editing.value = undefined }
-  else annotationError.value = error.value || '标注未保存，请重试'
+  const saved = await confirmRevisions(items, groupIds)
+  if (editing.value !== owner) return
+  if (saved) { closeAnnotation(); ElMessage.success(items.length ? `已带回${items.length}张图片，补充后点击发送` : '已移除本组待发送修改') }
+  else annotationError.value = error.value || '修改材料未保存，请重试'
 }
 watch(data, value => { if (!value) closeAnnotation() })
 watch(activeId, () => { recoveryOpen.value = false; closeAnnotation(); archiveOpen.value = false; sku.value = '' })
@@ -147,5 +162,5 @@ async function sessionAction(command: string, session: SessionView) {
 }
 async function doComplete() { const success = await complete(); completeOpen.value = false; if (success) ElMessage.success('任务已完成，归档成品和对话记录已保留') }
 async function doReopen() { const success = await reopen(); reopenOpen.value = false; if (success) ElMessage.success('已解冻，继续使用原来的对话') }
-onUnmounted(() => { closeAnnotation(); resizeObserver?.disconnect(); window.removeEventListener('resize', fitWorkspace) })
+onUnmounted(() => { closeAnnotation(); visitedDrafts.forEach(forgetDraft); resizeObserver?.disconnect(); window.removeEventListener('resize', fitWorkspace) })
 </script>

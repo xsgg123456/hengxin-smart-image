@@ -5,6 +5,7 @@ import { compile, mount, find, all, text, simple } from './membership-test-harne
 import { splitStudioReply } from '../src/views/overseas/studio/studio-process'
 import { languageLabel } from '../src/views/overseas/languages'
 import type { StudioTranscript, StudioTurn } from '../src/api/overseas/studio'
+import { historicalRevisions } from '../src/views/overseas/studio/studio-revisions'
 
 const markdown = defineComponent({ props: ['text'], setup: p => () => h('markdown', p.text) })
 const transcript = compile('views/overseas/studio/StudioTranscript.vue', { './StudioMarkdown.vue': { default: markdown } })
@@ -78,15 +79,19 @@ test('归档确认与成品详情共用六字段，真实值及历史缺失一�
 test('正式StudioTurns将正式图片置于折叠组之外并保留图片选择事件', () => {
   const image = defineComponent({ props: ['asset'], setup: p => () => h('picture', { id: p.asset.id }) })
   const turns = compile('views/overseas/studio/StudioTurns.vue', {
+    './studio-revisions': { historicalRevisions },
+    './StudioRevisionDetails.vue': { default: simple('StudioRevisionDetails') },
     './StudioOutputs.vue': { default: simple('StudioOutputs') },
-  './StudioProcess.vue': { default: process },
+    './StudioProcess.vue': { default: process },
     './StudioAttachments.vue': { default: defineComponent({ render: () => null }) },
     './StudioAssetImage.vue': { default: image }
   })
   Object.assign(turns, { components: { ElCheckbox: simple('ElCheckbox') } })
   const selected: string[] = []
+  const batches: unknown[] = []
   const picture = { id: 'real-picture', name: '正式图片.png', turnId: 'turn', url: '/picture', width: 800, height: 800, archived: false, sku: null }
-  const view = mount(turns, { turns: [{ ...turn('succeeded', '最终回复'), pictures: [picture] }], transcript: [entry(1, 'tool', '执行消息'), entry(2, 'message', '最终回复')], selected: [], disabled: false, onToggle: (id: string) => selected.push(id) })
+  const pictures = [picture, { ...picture, id: 'second-picture', name: '第二张.png' }]
+  const view = mount(turns, { turns: [{ ...turn('succeeded', '最终回复'), pictures }], transcript: [entry(1, 'tool', '执行消息'), entry(2, 'message', '最终回复')], selected: [], disabled: false, onToggle: (id: string) => selected.push(id), onBatchModify: (items: unknown) => batches.push(items) })
   try {
     assert.equal(find(view.root, 'details').props.open, false)
     const result = find(view.root, 'picture')
@@ -96,5 +101,9 @@ test('正式StudioTurns将正式图片置于折叠组之外并保留图片选择
     assert.ok(checkbox)
     ;(checkbox.props.onChange as () => void)()
     assert.deepEqual(selected, ['real-picture'])
+    const batch = all(view.root).find(n => n.tag === 'ElButton' && text(n) === '批量标注')!
+    ;(batch.props.onClick as () => void)()
+    assert.deepEqual(batches, [pictures], '批量入口传递完整原组，不受归档勾选影响')
+    assert.deepEqual(selected, ['real-picture'], '打开标注不改变归档勾选')
   } finally { view.close() }
 })

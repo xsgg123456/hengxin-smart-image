@@ -18,6 +18,9 @@ def mutate(session, actor, task_id, body, key, operation, expected_status='studi
     actor = lock_actor(session, actor, 'task.design')
     task = queries.access(session, actor, task_id, write=True)
     payload = body.model_dump(mode='json')
+    for edit in payload.get('imageEdits', []):
+        if edit.get('references') == []:
+            edit.pop('references')  # Preserve requests recorded before per-image references existed.
     if payload.get('imageEdits') == []:
         payload.pop('imageEdits')  # Preserve fingerprints recorded before image edits existed.
     for field in ('conversationId', 'name'):

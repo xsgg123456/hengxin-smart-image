@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { defineComponent, h, nextTick, reactive } from 'vue'
 import { isStudio, type StudioDeliveryStatus, type StudioTurn } from '../src/api/overseas/studio'
 import { all, compile, find, mount, simple } from './membership-test-harness'
+import { historicalRevisions } from '../src/views/overseas/studio/studio-revisions'
 
 const picture = { id: 'p', name: '已保存.jpg', url: '/api/overseas/v1/tasks/task/studio/pictures/p/content', width: 1600, height: 1600, turnId: 'turn', sku: null, archived: false }
 const turn = (): StudioTurn => ({ id: 'turn', text: '', skillName: null, status: 'collecting', reply: '最终回复', error: null, jobId: 'job', jobVersion: 1, attachments: [], pictures: [picture], referencePictures: [], createdAt: '' })
@@ -25,6 +26,8 @@ test('保存进度DTO兼容旧响应并接收真实数量，拒绝未知状态�
 })
 
 const turns = compile('views/overseas/studio/StudioTurns.vue', {
+  './studio-revisions': { historicalRevisions },
+  './StudioRevisionDetails.vue': { default: simple('StudioRevisionDetails') },
   './StudioOutputs.vue': { default: simple('StudioOutputs') },
   './StudioProcess.vue': { default: defineComponent({ render: () => null }) },
   './StudioAttachments.vue': { default: defineComponent({ render: () => null }) },
@@ -59,6 +62,7 @@ test('旧轮次没有收图状态时不增加提示或额外操作', () => {
   const view = mount(turns, { turns: [turn()], transcript: [], selected: [], disabled: false })
   try {
     assert.equal(progress(view.root).length, 0)
-    assert.equal(all(view.root).filter(n => n.tag === 'ElButton').length, 1)
+    const footer = all(view.root).find(n => n.props.class === 'studio-picture-footer')!
+    assert.equal(all(footer).filter(n => n.tag === 'ElButton').length, 1)
   } finally { view.close() }
 })

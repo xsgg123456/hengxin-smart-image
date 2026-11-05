@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
 
@@ -6,10 +7,34 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+class ImageReference(Strict):
+    attachmentId: str
+    kind: Literal['product', 'effect', 'custom']
+    customPurpose: str | None = Field(None, max_length=2000)
+    note: str = Field(min_length=1, max_length=2000)
+
+    @model_validator(mode='after')
+    def content(self):
+        if not self.attachmentId.startswith('upload:'):
+            raise ValueError('参考图必须是本轮上传附件')
+        try:
+            UUID(self.attachmentId.split(':', 1)[1])
+        except ValueError:
+            raise ValueError('参考图附件编号无效') from None
+        if not self.note.strip():
+            raise ValueError('请填写参考图说明')
+        if self.kind == 'custom' and not (self.customPurpose or '').strip():
+            raise ValueError('请填写自定义参考用途')
+        if self.kind != 'custom':
+            self.customPurpose = None
+        return self
+
+
 class ImageEdit(Strict):
     pictureId: UUID
     annotationId: str | None = None
     text: str = Field('', max_length=4000)
+    references: list[ImageReference] = Field(default_factory=list, max_length=100)
 
 
 class Send(Strict):
@@ -47,6 +72,17 @@ class Send(Strict):
                 if identity in annotations:
                     raise ValueError('标注图片不能重复绑定')
                 annotations.add(identity)
+        for edit in self.imageEdits:
+            references = set()
+            for reference in edit.references:
+                identity = UUID(reference.attachmentId.split(':', 1)[1])
+                if reference.attachmentId not in self.attachmentIds:
+                    raise ValueError('参考图必须包含在本轮附件中')
+                if identity in references:
+                    raise ValueError('同一图片的参考图不能重复')
+                if identity in annotations:
+                    raise ValueError('标注图片不能同时作为参考图')
+                references.add(identity)
         return self
 
 

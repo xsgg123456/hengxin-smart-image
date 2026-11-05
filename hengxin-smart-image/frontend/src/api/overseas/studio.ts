@@ -6,17 +6,28 @@ export interface Asset { id: string; name: string; contentType: string; sizeByte
 export interface UploadedAsset extends Asset { materialState?: 'added' | 'existing' | 'restored' }
 export interface StudioPicture { id: string; name: string; url: string; width: number; height: number; turnId: string; sku: string | null; archived: boolean; sourcePath?: string | null }
 export interface StudioDeliveryStatus { state: 'capturing' | 'saving' | 'complete' | 'waiting' | 'partial'; expected: number | null; saved: number }
-export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; outputs?: StudioOutput[]; createdAt: string; actor?: { id: string; name: string | null }; replyAt?: string | null; replyTimeSource?: 'message' | 'completed' | null; conversationId?: string; deliveryError?: string | null; deliveryStatus?: StudioDeliveryStatus | null }
+export interface StudioTurn { id: string; text: string; skillName: string | null; status: string; reply: string | null; error: string | null; jobId: string; jobVersion: number; attachments: Asset[]; pictures: StudioPicture[]; referencePictures: StudioPicture[]; imageEdits?: ImageEdit[]; outputs?: StudioOutput[]; createdAt: string; actor?: { id: string; name: string | null }; replyAt?: string | null; replyTimeSource?: 'message' | 'completed' | null; conversationId?: string; deliveryError?: string | null; deliveryStatus?: StudioDeliveryStatus | null }
 export interface StudioConversation { id: string; name: string; version: number; createdAt: string; updatedAt: string; activeTurnId: string | null; status: string; turnCount: number; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
 export interface Studio { conversations?: StudioConversation[]; activeConversationCount?: number; maxConversations?: number; taskId: string; taskVersion: number; archiveId: string | null; reopened: boolean; completed: boolean; turns: StudioTurn[]; materials: Asset[]; skills: Skill[]; activeTurnId: string | null; conversationId?: string | null }
 export interface StudioEvent { id: number; turnId: string; kind: string; text: string; createdAt: string }
 export interface StudioTranscript { id: number; turnId: string; itemId: string; kind: 'message' | 'reasoning' | 'tool' | 'notice'; text: string; state: 'running' | 'completed' | 'failed'; createdAt: string }
 export interface TranscriptPage { items: StudioTranscript[]; cursor: number; hasMore: boolean }
-export interface ImageEdit { pictureId: string; annotationId: string | null; text: string }
+export interface EditReference { attachmentId: string; kind: 'product' | 'effect' | 'custom'; customPurpose?: string; note: string }
+export interface ImageEdit { pictureId: string; annotationId: string | null; text: string; references?: EditReference[] }
 export interface TurnInput { conversationId?: string; text: string; skillId: string | null; attachmentIds: string[]; referencePictureIds: string[]; imageEdits?: ImageEdit[] }
 const root = '/api/overseas/v1', base = (id: string) => `${root}/tasks/${encodeURIComponent(id)}/studio`
 const string = (v: unknown): v is string => typeof v === 'string'
 const integer = (v: unknown) => Number.isInteger(v) && Number(v) >= 0
+export function isEditReference(v: unknown): v is EditReference {
+  return record(v) && string(v.attachmentId) && v.attachmentId.startsWith('upload:')
+    && ['product', 'effect', 'custom'].includes(String(v.kind)) && string(v.note) && !!v.note.trim() && v.note.length <= 2000
+    && (v.customPurpose === undefined || (string(v.customPurpose) && v.customPurpose.length <= 2000))
+    && (v.kind !== 'custom' || (string(v.customPurpose) && !!v.customPurpose.trim()))
+}
+function isImageEdit(v: unknown): v is ImageEdit {
+  return record(v) && string(v.pictureId) && (v.annotationId === null || string(v.annotationId)) && string(v.text)
+    && (v.references === undefined || (Array.isArray(v.references) && v.references.every(isEditReference)))
+}
 function isDeliveryStatus(v: unknown): v is StudioDeliveryStatus {
   return record(v) && string(v.state) && ['capturing', 'saving', 'complete', 'waiting', 'partial'].includes(v.state)
     && (v.expected === null || integer(v.expected)) && integer(v.saved)
@@ -49,6 +60,7 @@ export function isStudio(v: unknown, taskId: string): v is Studio {
       && (t.replyTimeSource === undefined || t.replyTimeSource === null || t.replyTimeSource === 'message' || t.replyTimeSource === 'completed')
       && (t.conversationId === undefined || string(t.conversationId)) && (t.deliveryError === undefined || t.deliveryError === null || string(t.deliveryError))
       && (t.deliveryStatus == null || isDeliveryStatus(t.deliveryStatus))
+      && (t.imageEdits === undefined || (Array.isArray(t.imageEdits) && t.imageEdits.every(isImageEdit)))
       && (t.outputs === undefined || (Array.isArray(t.outputs) && t.outputs.every(output => isStudioOutput(output, taskId))))
       && Array.isArray(t.attachments) && t.attachments.every(a => isAsset(a, taskId))
       && Array.isArray(t.pictures) && t.pictures.every(p => isStudioPicture(p, taskId) && p.turnId === t.id)
