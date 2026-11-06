@@ -124,6 +124,30 @@ class RecoveryTests(unittest.TestCase):
 
 class CandidatePermissionTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == 'linux' and os.geteuid() == 0,
+                         'Requires Linux root for actual directory ownership')
+    def test_invoke_private_scratch_owned_by_execution_uid(self):
+        import pwd
+        import tempfile
+        runner = load('skill-reuse-test')
+        user = pwd.getpwnam('nobody')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runner.r = SimpleNamespace(require=require,private=private)
+            for as_root in (False, True):
+                label = 'root' if as_root else 'service'
+                expected_uid,expected_gid = (0,0) if as_root else (user.pw_uid,user.pw_gid)
+                def execute(command,**kwargs):
+                    scratch = next(root.glob(label+'-*'))
+                    info = scratch.stat()
+                    self.assertEqual((info.st_uid,info.st_gid),(expected_uid,expected_gid))
+                    self.assertEqual(info.st_mode & 0o777,0o700)
+                    self.assertIn('assert os.getuid()=='+str(expected_uid),' '.join(command))
+                    return SimpleNamespace(returncode=0,stdout='2 passed',stderr='')
+                with patch.object(pwd,'getpwnam',return_value=user),\
+                     patch.object(runner.subprocess,'run',side_effect=execute):
+                    runner.invoke(root,root,root,root,label,Path(sys.executable),as_root=as_root)
+
+    @unittest.skipUnless(sys.platform == 'linux' and os.geteuid() == 0,
                          'Requires Linux root to exercise a real unprivileged UID')
     def test_umask_077_candidate_and_vendor_importable_by_nobody(self):
         import pwd

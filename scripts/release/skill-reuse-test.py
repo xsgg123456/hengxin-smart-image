@@ -18,8 +18,8 @@ def invoke(work,root,source,target,label,python,as_root=False):
     scratch = target/(label+'-'+uuid4().hex)
     scratch.mkdir(mode=0o700)
     user = pwd.getpwnam('hengxin-overseas')
-    os.chown(scratch,user.pw_uid,user.pw_gid)
     uid = 0 if as_root else user.pw_uid
+    os.chown(scratch,uid,0 if as_root else user.pw_gid)
     code = ('import pathlib,os,pytest; from app.overseas.execution import materials; '
         'assert os.getuid()=='+repr(uid)+'; '
         'assert pathlib.Path(materials.__file__).resolve()==pathlib.Path('+repr(str(root/'app/overseas/execution/materials.py'))+'); '

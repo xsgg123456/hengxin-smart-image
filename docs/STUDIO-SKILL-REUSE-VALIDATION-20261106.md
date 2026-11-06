@@ -20,3 +20,6 @@
 
 ## 首次服务器隔离安装
 代码提交731c84e，包SHA256为79df247b6b454fc661daada439195d4e70a4b3a4d6ce46a50e49aa40032bdd89，prepare成功且生产服务未改变。candidate测试在导入pytest时失败：`ModuleNotFoundError: No module named 'py'`。实际API镜像pytest9.1.1中存在`site-packages/py.py`兼容模块，发布vendor遗漏该单文件模块。仅修发布工具：白名单补入py.py并保留0644；Linux普通UID回归fixture实际让pytest导入py，防止只测目录可读而漏依赖。WSL15/15通过（0.558秒）。业务三个模块未变，生产仍未关门/切换；修复重新审查提交打包后重试。
+
+## 第二次服务器隔离安装
+单文件依赖修复经独立两阶段PASS（VENDOR-REVIEW报告），提交db56bf1、包SHA256为5612ce54ca5d62610287c8eac3c16b2f19c9195c3ddb1c5564699067e41ff869。真实服务UID999从候选安装目录跑完74/74（6.44秒，无skip），包括实际Bubblewrap挂载。额外root测试2项失败：invoke给所有0700临时根都设为服务UID，root用户命名空间中无法遍历该根。仅改invoke使临时根属主等于该次执行UID/GID；新WSL实际chown测试覆盖root/nobody，全部16/16通过（0.407秒）。在服务器仅调整原失败的隔离测试根属主为root，原正式包测试和候选代码原字节重跑，两项2/2通过（1.51秒），证明根因；这是诊断证据，不替代新固定提交的完整安装测试。生产服务仍未关门或切换。
