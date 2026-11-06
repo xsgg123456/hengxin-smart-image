@@ -23,3 +23,11 @@
 
 ## 第二次服务器隔离安装
 单文件依赖修复经独立两阶段PASS（VENDOR-REVIEW报告），提交db56bf1、包SHA256为5612ce54ca5d62610287c8eac3c16b2f19c9195c3ddb1c5564699067e41ff869。真实服务UID999从候选安装目录跑完74/74（6.44秒，无skip），包括实际Bubblewrap挂载。额外root测试2项失败：invoke给所有0700临时根都设为服务UID，root用户命名空间中无法遍历该根。仅改invoke使临时根属主等于该次执行UID/GID；新WSL实际chown测试覆盖root/nobody，全部16/16通过（0.407秒）。在服务器仅调整原失败的隔离测试根属主为root，原正式包测试和候选代码原字节重跑，两项2/2通过（1.51秒），证明根因；这是诊断证据，不替代新固定提交的完整安装测试。生产服务仍未关门或切换。
+
+## 最终正式包服务器隔离验收
+OWNER-REVIEW对候选c0d2c7ab07263b3d2a55f85c917d5dee66d3b417c143bac8a5c9ddb8b3da63f4两阶段PASS，提交3a6e84ca2e89f3172dba4933446935a175bde494。正式包SHA256为cf2c049bdc389195c2def7fc55e33845d011f0b5d0dfb0e34f72d5d37e336cb5，29个文件、40352字节，隐私扫描PASS。
+服务器prepare/test完整通过：真实服务UID999下74 passed/0 skipped（5.93秒），额外root真实Bubblewrap两项2 passed/0 skipped（0.86秒）。全程使用正式包、生产原生解释器、隔离源码目录和vendor，env-i/unshare网络，不载入生产凭据或调用模型。实际已安装Walmart技能探针在相同正式候选代码下通过：18文件、13,358,055字节、连续两轮共一份内容，路径/校验/inode/mtime及历史sentinel保持不变。证据在服务器`/opt/hengxin-skill-reuse-3a6e84c/work/`，本地output/release同发布号留副本。
+此时仍有真实生产任务运行，尚未gate/install/resume；等待自然排空后再切换，不能据隔离通过宣称已上线。
+
+## 生产切换完成
+2026-11-06 12:17（北京时间）最终验收：任务自然排空后gate/install/verify/resume依次成功。真实生产安装路径同五文件74 passed/0 skipped（5.39秒），root实际沙箱2 passed/0 skipped（0.75秒）；真实已安装Walmart技能探针再次PASS，18文件、13,358,055字节、两轮一份。全执行根63,532条元数据和8张Studio表摘要在切换前后完全一致，其中42会话、216轮次、6954条转录记录、729上传、660图片、73输出文件记录。API ID/image/StartedAt保持不变，两个原生服务active、国内及海外公网ready均200，代理原字节恢复、release owner已释放。详细回执、提交、备份与边界见STUDIO-SKILL-REUSE-DEPLOYED-20261106.md。不宣称Windows全量零失败，不宣称逐个真实收费模型续聊；本轮未删历史副本。
