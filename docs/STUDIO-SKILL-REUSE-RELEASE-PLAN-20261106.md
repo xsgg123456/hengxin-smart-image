@@ -18,7 +18,7 @@
 1. 本地回归与编译、两阶段独立review、中文提交。完成标准：当前提交匹配已批准快照，工作区干净。Linux真实身份/Bubblewrap隔离回归在步骤4从固定提交安装后完成，未通过不得进入步骤5。
 2. `skill-reuse-baseline.py` 从真实环境读取API ID/image/StartedAt、schema、两个unit实际cwd、三个源码基线hash（新增允许absent）、既有context_fs依赖hash。输出只有代码hash与基础设施身份，不输出环境或业务内容。
 3. `skill-reuse-package.py` 从固定Git提交只提取白名单源码、递归纯Python测试依赖、明确的发布helper；隐私扫描并记录全部SHA256。正式包必须已批准review。candidate包仅允许prepare/test。
-4. `prepare` 验包并固定真实服务/源码/Compose/环境hash、Skill树、前端入口hash、两代理原文和执行根路径；不修改生产服务。`test` 在 `/opt/hengxin-skill-reuse-test-<manifest16>` 复制纯app源码并叠加三个候选模块。使用原生venv解释器，pytest六个纯Python模块从原API镜像导出到独立vendor，不写生产venv。`unshare --net`、清空环境、真实服务UID执行全部纯文件测试；root另跑Linux bwrap测试。必须有passed且无failed/skipped/xfail。断言应用模块来自指定安装根、pytest来自vendor、运行UID正确。
+4. `prepare` 验包并固定真实服务/源码/Compose/环境hash、Skill树、前端入口hash、两代理原文和执行根路径；不修改生产服务。`test` 在 `/opt/hengxin-skill-reuse-test-<manifest16>` 复制纯app源码并叠加三个候选模块。使用原生venv解释器，pytest六个纯Python包和py.py兼容模块从原API镜像导出到独立vendor，不写生产venv。`unshare --net`、清空环境、真实服务UID执行全部纯文件测试；root另跑Linux bwrap测试。必须有passed且无failed/skipped/xfail。断言应用模块来自指定安装根、pytest来自vendor、运行UID正确。
 5. `gate` 复用host级release.lock，并持久化跨CLI阶段的独占owner。关闭双代理海外入口，统一360秒内验证503并等待reload前全部nginx worker退出，避免已有上传请求晚入队。再在180秒内检查任务/导入/删除排空、pause已识别consumer，复用sku-native禁SIGKILL保护、统一60秒停止两单元。停稳后记录整个执行根所有条目的相对路径/类型/size/mtime/inode/uid/gid/mode，以及Studio/会话表记录数与内容hash；不读取会话文件内容、不hash全30GB。
 6. `install` 在已关闭入口且两单元停止时备份旧源码和absent清单。app树外同文件系统暂存、hash核对、保留权限、fsync、原子替换。真实UID从最终安装路径跑完整纯文件套件，root再跑bwrap；严格核对会话元数据/表摘要，再启动两个原生服务、验证PID、UID、cwd和环境hash。
 7. 主Agent用 `skill-reuse-catalog-probe.py` 在隔离工作区、真实服务身份、无网环境读取实际已安装Skill，验证A/A同路径与内容/mtime复用；不加载生产凭据、不调用模型。candidate和正式安装路径都执行，证据独立保存。

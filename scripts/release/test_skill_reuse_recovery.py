@@ -143,14 +143,20 @@ class CandidatePermissionTests(unittest.TestCase):
                 path = dependencies/name
                 path.mkdir(parents=True)
                 (path/'__init__.py').write_text('VALUE = 43')
+            (dependencies/'py.py').write_text('VALUE = 44')
+            (dependencies/'pytest/__init__.py').write_text('import py\nVALUE = py.VALUE - 1')
             nobody = pwd.getpwnam('nobody')
             calls = []
 
             def docker(*args):
                 if args[1] == 'run':
-                    return json.dumps({name:str(dependencies/name) for name in names})
+                    return json.dumps({**{name:str(dependencies/name) for name in names},
+                                       'py':str(dependencies/'py.py')})
                 if args[1] == 'create': return 'test-container'
-                if args[1] == 'cp': shutil.copytree(Path(args[2].split(':',1)[1]),args[3])
+                if args[1] == 'cp':
+                    original = Path(args[2].split(':',1)[1])
+                    if original.is_dir(): shutil.copytree(original,args[3])
+                    else: shutil.copyfile(original,args[3])
                 return ''
 
             def invoke(_work,install,_source,target,label,python,as_root=False):
@@ -182,6 +188,7 @@ class CandidatePermissionTests(unittest.TestCase):
             target = root/('hengxin-skill-reuse-test-'+'a'*16)
             self.assertEqual(target.stat().st_mode & 0o777,0o755)
             self.assertEqual((target/'vendor').stat().st_mode & 0o777,0o755)
+            self.assertEqual((target/'vendor/py.py').stat().st_mode & 0o777,0o644)
 
 
 if __name__ == '__main__':

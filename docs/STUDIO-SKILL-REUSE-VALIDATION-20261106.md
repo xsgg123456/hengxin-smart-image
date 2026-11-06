@@ -17,3 +17,6 @@
 
 ## 最终源码审查
 `STUDIO-SKILL-REUSE-FINAL-REVIEW-20261106.md` 对上述复审candidate给出Stage 1 PASS、Stage 2 PASS，主Agent已用review-approve登记同一快照。独立复跑WSL发布测试15/15、Windows后端63通过/11环境跳过、18文件编译及真实临时文件恢复通过。正式Linux安装、真实catalog和生产保留验证仍待执行，未用本地结果替代。
+
+## 首次服务器隔离安装
+代码提交731c84e，包SHA256为79df247b6b454fc661daada439195d4e70a4b3a4d6ce46a50e49aa40032bdd89，prepare成功且生产服务未改变。candidate测试在导入pytest时失败：`ModuleNotFoundError: No module named 'py'`。实际API镜像pytest9.1.1中存在`site-packages/py.py`兼容模块，发布vendor遗漏该单文件模块。仅修发布工具：白名单补入py.py并保留0644；Linux普通UID回归fixture实际让pytest导入py，防止只测目录可读而漏依赖。WSL15/15通过（0.558秒）。业务三个模块未变，生产仍未关门/切换；修复重新审查提交打包后重试。

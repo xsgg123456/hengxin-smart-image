@@ -41,15 +41,17 @@ def vendor(target,image):
     directory = target/'vendor'
     directory.mkdir(mode=0o755)
     directory.chmod(0o755)  # main uses umask 077; descendants do not fix the root.
-    names = ('pytest','_pytest','pluggy','iniconfig','packaging','pygments')
-    code = ('import importlib.util,json,pathlib; print(json.dumps({n:str(pathlib.Path('
-        'importlib.util.find_spec(n).origin).parent) for n in '+repr(names)+'}))')
+    names = ('pytest','_pytest','pluggy','iniconfig','packaging','pygments','py')
+    code = ('import importlib.util,json,pathlib; print(json.dumps({n:str('
+        'pathlib.Path(importlib.util.find_spec(n).origin) if n == "py" else '
+        'pathlib.Path(importlib.util.find_spec(n).origin).parent) for n in '+repr(names)+'}))')
     paths = json.loads(r.run('docker','run','--rm','--network','none','--entrypoint','python',image,'-B','-c',code))
     container = r.run('docker','create','--network','none','--entrypoint','python',image,'-c','pass')
     try:
         for name,path in paths.items():
-            r.require(name in names and Path(path).name == name, 'Unexpected pytest dependency path')
-            r.run('docker','cp',container+':'+path,str(directory/name))
+            filename = name+'.py' if name == 'py' else name
+            r.require(name in names and Path(path).name == filename, 'Unexpected pytest dependency path')
+            r.run('docker','cp',container+':'+path,str(directory/filename))
     finally:
         r.run('docker','rm','-v',container)
     for path in directory.rglob('*'):
