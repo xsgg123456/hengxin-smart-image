@@ -25,7 +25,11 @@ def file(skill_id, release, path):
             raise HTTPException(404, '文件不在固定发布版本中')
         # The pinned manifest is content-addressed; verify this file without rereading
         # the whole 256 MiB package once per downloaded resource.
-        source = directory / item['name'] / path
+        try:
+            package_root = catalog.package_directory(directory, item, protected)
+        except FileNotFoundError:
+            raise HTTPException(410, '此 Skill 固定版本已回收，无法下载') from None
+        source = package_root / path
         safe_directory(source.parent, protected=protected)
         data = read_file(source, protected=protected)
         expected = item['entries'][path]

@@ -78,9 +78,9 @@ def test_uninstalled_rows_hidden_and_old_defaults_only_map_installed_names(overs
 def test_corruption_missing_root_and_permission_errors_do_not_look_empty(overseas, monkeypatch):
     client, _, _, _ = setup(overseas, ('super_admin',))
     install_sample(files={'assets/ref.png': b'original'})
-    release, _ = catalog.catalog()
+    release, items = catalog.catalog()
     root = Path(get_settings().local_skill_root)
-    asset = root / 'releases' / release / 'sample/assets/ref.png'
+    asset = catalog.package_directory(root / 'releases' / release, items[0]) / 'assets/ref.png'
     asset.write_bytes(b'corrupt')
     response = client.get(ROOT + '/management/skills')
     assert response.status_code == 503
@@ -169,8 +169,9 @@ def test_directory_cache_skips_byte_reads_and_detects_in_place_changes(overseas,
     # Executions always re-read full content even when directory listing is cached.
     catalog.frozen_package(catalog.freeze(item['id']))
     assert called == ['sample']
-    release, _ = catalog.catalog()
-    path = Path(get_settings().local_skill_root) / 'releases' / release / 'sample/SKILL.md'
+    release, items = catalog.catalog()
+    directory = Path(get_settings().local_skill_root) / 'releases' / release
+    path = catalog.package_directory(directory, items[0]) / 'SKILL.md'
     path.write_bytes(path.read_bytes().replace(b'first', b'other'))
     with pytest.raises(HTTPException) as caught:
         catalog.listing()

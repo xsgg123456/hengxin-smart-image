@@ -14,12 +14,12 @@
     <p v-if="loading" role="status">正在加载 Skill 目录…</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
     <ElAlert v-if="notice" :title="notice" type="info" :closable="false" class="hx-gap" />
-    <ArtTable v-if="!error" ref="table" row-key="id" :data="rows" :columns="columns" :cell-style="{ verticalAlign: 'top' }" :loading="loading" height="auto" empty-height="240px" :show-table-header="false" :show-pagination="false" :empty-text="emptyText" @selection-change="selectRows">
+    <ArtTable v-if="!error || skills.length" ref="table" row-key="id" :data="rows" :columns="columns" :cell-style="{ verticalAlign: 'top' }" :loading="loading" height="auto" empty-height="240px" :show-table-header="false" :show-pagination="false" :empty-text="emptyText" @selection-change="selectRows">
       <template #displayName="{ row }"><span class="skill-text">{{ row.displayName }}</span></template>
       <template #description="{ row }"><span class="skill-text">{{ row.description || '暂无描述' }}</span></template>
       <template #platforms="{ row }"><div class="platform-tags"><ElTag v-for="p in row.platforms" :key="p" size="small" effect="plain">{{ p }}</ElTag><span v-if="!row.platforms?.length" class="hx-muted">未分组</span></div></template>
       <template #availability="{ row }"><div class="skill-availability"><ElTag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '已开启' : '已关闭' }}</ElTag><ElButton v-if="canToggle" size="small" :aria-label="`${row.enabled ? '关闭' : '开启'} ${row.displayName}`" :loading="savingId === row.id" :disabled="blocked || !!dialog" @click="$emit('toggle', row.id)">{{ row.enabled ? '关闭' : '开启' }}</ElButton></div></template>
-      <template #actions="{ row }"><div v-if="canManagePlatforms" class="skill-availability"><ElButton text size="small" :disabled="blocked" @click="edit([row.id])">编辑平台</ElButton><ElButton v-if="isPlatform" text type="danger" size="small" :disabled="blocked" @click="remove(row)">移出平台</ElButton></div><SkillFolderActions v-if="transferApi" :key="row.id" :skill="row" :api="transferApi" :can-manage="!!canToggle" :disabled="blocked" @changed="$emit('refresh')" @failure="$emit('failure', $event)" /></template>
+      <template #actions="{ row }"><div v-if="canManagePlatforms" class="skill-availability"><ElButton text size="small" :disabled="blocked" @click="edit([row.id])">编辑平台</ElButton><ElButton v-if="isPlatform" text type="danger" size="small" :disabled="blocked" @click="remove(row)">移出平台</ElButton></div><SkillFolderActions v-if="transferApi" :key="row.id" :skill="row" :api="transferApi" :can-manage="!!canToggle" :disabled="!!loading || !!savingId" @changed="$emit('refresh', $event)" @failure="$emit('failure', $event)" /></template>
     </ArtTable>
     <p v-if="managed" class="catalog-foot">平台分组沿用提交图需中的目标平台。开关对该 Skill 的所有平台生效；移出平台保留 Skill 文件与历史任务。</p>
   </ElCard>
@@ -35,7 +35,7 @@ import type { SkillTransferApi } from '@/api/overseas/skill-transfers'
 import SkillFolderActions from './SkillFolderActions.vue'
 import OverseasSkillPlatformsDialog from './OverseasSkillPlatformsDialog.vue'
 const props = defineProps<{ skills: Skill[]; transferApi?: SkillTransferApi; loading?: boolean; error?: string; managed?: boolean; canToggle?: boolean; savingId?: string; notice?: string; canManagePlatforms?: boolean; platformError?: string; refreshPlatforms?: () => Promise<void>; savePlatforms?: (items: SkillPlatformUpdate[]) => Promise<boolean> }>()
-const emit = defineEmits<{ refresh: []; toggle: [id: string]; edit: []; upload: []; failure: [reason: unknown] }>()
+const emit = defineEmits<{ refresh: [notice?: string]; toggle: [id: string]; edit: []; upload: []; failure: [reason: unknown] }>()
 const group = ref('all'), search = ref(''), status = ref('all'), selected = ref<string[]>([])
 const dialog = ref<'edit' | 'add'>(), editing = ref<string[]>([]), dialogPlatform = ref('')
 const table = ref<InstanceType<typeof ArtTable>>()

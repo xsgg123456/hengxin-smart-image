@@ -99,8 +99,9 @@ def test_pending_journal_blocks_new_reads_preserves_frozen_and_recovers(transfer
     item = client.get(URL + '/skills').json()['items'][0]
     frozen = catalog.freeze(item['id'])
     second, _ = upload(client, {'SKILL.md': DOCUMENT + b'new'})
-    assert install(client, second).status_code == 200
-    newest, _ = catalog.read_catalog(store.installed_root)
+    # Crash before DB commit: neither old content nor the historical pointer was reclaimed.
+    replacement = dict(second['package'], entries=second['entries'], rootName=second['rootName'])
+    newest = publication.prepare_release(store, [replacement], second)
     atomic_json(store.installed_root / '.pending.json', {'audit': str(uuid4()),
         'before': frozen['installedRelease'], 'after': newest})
     assert client.get(URL + '/skills').status_code == 503
@@ -108,6 +109,7 @@ def test_pending_journal_blocks_new_reads_preserves_frozen_and_recovers(transfer
     with factory() as session:
         publication.recover(store, session)
     assert catalog.read_catalog(store.installed_root)[0] == frozen['installedRelease']
+    assert install(client, second).status_code == 200
     with factory() as session:
         committed = session.scalar(select(Audit).where(Audit.action == 'skill.update'))
         atomic_json(store.installed_root / '.pending.json', {'audit': str(committed.id),
@@ -213,6 +215,7 @@ def test_fixed_download_rejects_missing_path_and_modified_bytes(transfers):
     url = URL + '/skills/' + item['id'] + '/files'
     assert client.get(url, params={'release': package['release'], 'path': '../SKILL.md'}).status_code == 404
     assert client.get(url, params={'release': package['release'], 'path': 'empty/'}).status_code == 404
-    asset = store.installed_root / 'releases' / package['release'] / 'folder-test/assets/data.bin'
+    directory, manifest = catalog.release_manifest(store.installed_root, package['release'])
+    asset = catalog.package_directory(directory, manifest['items'][0]) / 'assets/data.bin'
     asset.write_bytes(b'tampered')
     assert client.get(url, params={'release': package['release'], 'path': 'assets/data.bin'}).status_code == 503

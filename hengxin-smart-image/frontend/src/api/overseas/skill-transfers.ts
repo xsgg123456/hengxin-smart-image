@@ -3,6 +3,7 @@ import { IdentityError, record } from '../identity/request'
 export type FolderEntry = { directory: true } | { size: number; sha256: string }
 export interface FolderManifest { rootName: string; entries: Record<string, FolderEntry> }
 export interface SkillPackage extends FolderManifest { name: string; displayName: string; description: string; checksum: string; release: string }
+export interface SkillDeletion { deleted: true; release: string; reclaimedBytes: number }
 export interface SkillTransfer extends FolderManifest {
   id: string; status: 'uploading' | 'validated' | 'installed' | 'failed' | 'cancelled'; received: string[]; error?: string | null
   package?: Pick<SkillPackage, 'name' | 'displayName' | 'description' | 'checksum'>
@@ -25,8 +26,8 @@ export function isTransfer(v: unknown): v is SkillTransfer {
 }
 export function isPackage(v: unknown): v is SkillPackage { return isManifest(v) && record(v) && ['name', 'displayName', 'description', 'checksum', 'release'].every(k => typeof v[k] === 'string') }
 export function skillTransferError(reason: unknown): string {
-  if (reason instanceof IdentityError && reason.status === 409) return 'Skill 或平台配置已变化，请刷新最新状态后重新核对操作'
   if (reason instanceof IdentityError && typeof reason.detail === 'string') return reason.detail
+  if (reason instanceof IdentityError && reason.status === 409) return 'Skill 或平台配置已变化，请刷新最新状态后重新核对操作'
   return reason instanceof Error ? reason.message : '操作失败，请重试'
 }
 export function createSkillTransferApi(fetcher: typeof fetch = fetch) {
@@ -59,7 +60,7 @@ export function createSkillTransferApi(fetcher: typeof fetch = fetch) {
     cancel: (id: string) => json(transferPath(id), isTransfer, 'DELETE', {}),
     package: (id: string) => json(skillPath(id) + '/package', isPackage),
     async file(id: string, release: string, path: string) { return (await request(skillPath(id) + '/files?' + new URLSearchParams({ release, path }))).arrayBuffer() },
-    async remove(id: string, release: string, checksum: string, version: number) { await request(skillPath(id), 'DELETE', JSON.stringify({ release, checksum, version })) }
+    remove: (id: string, release: string, checksum: string, version: number) => json(skillPath(id), (v): v is SkillDeletion => record(v) && v.deleted === true && typeof v.release === 'string' && Number.isSafeInteger(v.reclaimedBytes) && Number(v.reclaimedBytes) >= 0, 'DELETE', { release, checksum, version })
   }
 }
 export type SkillTransferApi = ReturnType<typeof createSkillTransferApi>

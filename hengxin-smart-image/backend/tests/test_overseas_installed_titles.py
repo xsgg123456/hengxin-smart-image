@@ -64,7 +64,7 @@ def test_real_install_title_shared_by_management_studio_and_freeze(studio, monke
     assert manifest_path.read_bytes() == original
 
     # Changing heading bytes after caching must still fail integrity validation.
-    skill_path = manifest_path.parent / 'sample/SKILL.md'
+    skill_path = catalog.package_directory(manifest_path.parent, manifest_item) / 'SKILL.md'
     skill_path.write_bytes(skill_path.read_bytes().replace(title.encode(), '篡改名称'.encode()))
     with pytest.raises(HTTPException) as caught:
         catalog.listing()

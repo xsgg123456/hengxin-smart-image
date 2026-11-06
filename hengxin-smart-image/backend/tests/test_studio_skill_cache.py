@@ -49,6 +49,16 @@ def source(request, monkeypatch):
     monkeypatch.setattr(materials, 'get_store', lambda: store)
     monkeypatch.setattr('app.overseas.management.installed_catalog.frozen_package',
                         lambda skill: packages[skill['installedRelease']])
+    def metadata(skill):
+        from app.overseas.management.installed_tree import digest
+        package = packages[skill['installedRelease']]
+        entries = {p: dict(size=len(b), sha256=hashlib.sha256(b).hexdigest()) for p, b in package.files.items()}
+        for name in package.files:
+            for parent in Path(name).parents:
+                if str(parent) != '.':
+                    entries[parent.as_posix() + '/'] = {'directory': True}
+        return None, dict(name=package.name, checksum=digest(entries), entries=entries), False
+    monkeypatch.setattr('app.overseas.management.installed_catalog.frozen_item', metadata)
 
     def skill(name='A', files=None, binary=b'\x00\xffreference'):
         files = files or {'SKILL.md': '完整技能说明', 'scripts/run.py': 'print("first")\n'}

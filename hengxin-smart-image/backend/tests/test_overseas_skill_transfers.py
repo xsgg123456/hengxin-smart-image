@@ -85,7 +85,7 @@ def test_binary_empty_directories_original_name_roundtrip_and_default_disabled(t
         assert session.scalar(select(Audit)).action == 'skill.install'
 
 
-def test_update_diff_retains_state_and_old_frozen_bytes(transfers):
+def test_update_diff_retains_state_reclaims_unreferenced_old_bytes(transfers):
     client, factory, _, _ = transfers
     first, old_files = upload(client)
     assert install(client, first).status_code == 200
@@ -100,10 +100,12 @@ def test_update_diff_retains_state_and_old_frozen_bytes(transfers):
     assert install(client, second).status_code == 200
     current = client.get(URL + '/skills').json()['items'][0]
     assert current['enabled'] and current['platforms'] == ['Amazon']
-    assert installed_catalog.frozen_package(frozen).files == old_files
+    assert installed_catalog.frozen_item(frozen)[1]['checksum'] == frozen['checksum']
+    with pytest.raises(FileNotFoundError):
+        installed_catalog.frozen_package(frozen)
     download = client.get(URL + '/skills/' + item['id'] + '/files', params={
         'release': frozen['installedRelease'], 'path': 'assets/data.bin'})
-    assert download.content == old_files['assets/data.bin']
+    assert download.status_code == 410
 
 
 def test_identical_delete_last_conflicts_replay_and_reinstall(transfers):
@@ -123,8 +125,10 @@ def test_identical_delete_last_conflicts_replay_and_reinstall(transfers):
     assert result.status_code == 200, result.text
     assert deletion(client, item, package).json() == result.json()
     assert client.get(URL + '/skills').json()['items'] == []
-    assert installed_catalog.frozen_package({'name': 'folder-test', 'installedRelease': package['release'],
-                                            'checksum': package['checksum']}).files['SKILL.md'] == DOCUMENT
+    assert type(result.json()['reclaimedBytes']) is int and result.json()['reclaimedBytes'] >= 0
+    with pytest.raises(FileNotFoundError):
+        installed_catalog.frozen_package({'name': 'folder-test', 'installedRelease': package['release'],
+                                         'checksum': package['checksum']})
     again, _ = upload(client)
     assert again['change'] == 'create' and install(client, again).status_code == 200
     item = client.get(URL + '/skills').json()['items'][0]

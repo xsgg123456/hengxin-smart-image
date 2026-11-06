@@ -24,12 +24,12 @@ def prepare(job, workspace):
         prepare_cached(skill, workspace, get_store)
         return
     if skill.get('installedRelease'):
-        from app.overseas.management.installed_catalog import frozen_package
-        package = frozen_package(skill)
-        root = work / 'skills' / package.name
+        from .skill_content import describe
+        name, entries, read = describe(skill, get_store, workspace)
+        root = work / 'skills' / name
         from .skill_copy import write_package
-        write_package(root, package.files, work)
-        workspace.skill_name = package.name
+        write_package(root, {path: read(path) for path in entries}, work)
+        workspace.skill_name = name
         workspace.local_skill = root
         return
     name, files = skill.get('name'), skill.get('files')

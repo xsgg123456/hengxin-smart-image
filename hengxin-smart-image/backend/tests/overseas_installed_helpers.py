@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from app.overseas.management.skill_install import bundle, install
-from app.overseas.management.installed_catalog import catalog, identity, root_config
+from app.overseas.management.installed_catalog import catalog, identity, root_config, package_directory
 
 
 def enable_sample(factory, name='sample', platforms=None):
@@ -23,7 +23,7 @@ def install_sample(name='sample', content='first', files=None, display_name='示
         rows = []
         for item in current:
             if item['name'] != name:
-                shutil.copytree(installed / 'releases' / release / item['name'], source / item['name'])
+                shutil.copytree(package_directory(installed / 'releases' / release, item), source / item['name'])
                 rows.append(dict(name=item['name'], source=item['name'], displayName=item['displayName']))
         package = source / name
         package.mkdir(parents=True)

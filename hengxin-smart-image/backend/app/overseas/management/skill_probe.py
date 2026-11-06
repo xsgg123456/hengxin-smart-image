@@ -6,9 +6,10 @@ import tempfile
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 from app.core.config import get_settings
-from app.execution.workspace import Workspace, sandbox_command
+from app.execution.workspace import prepare_workspace, sandbox_command
 from app.overseas.execution.materials import prepare
 from .installed_catalog import catalog, freeze, identity, root_config
 
@@ -38,10 +39,8 @@ def probe():
     with tempfile.TemporaryDirectory(prefix='skill-probe-', dir=settings.codex_execution_root) as temporary:
         root = Path(temporary)
         for item in items:
-            home, work, control = [root / item['name'] / p for p in ('home', 'work', 'control')]
-            for path in (home, work, control):
-                path.mkdir(parents=True)
-            workspace = Workspace(home, work, control)
+            workspace = prepare_workspace(root, uuid4(), uuid4(), None, copy_auth=False)
+            work = workspace.work
             frozen = freeze(identity(item['name']))
             prepare(SimpleNamespace(payload={'skill': frozen}), workspace)
             files = {p.relative_to(workspace.local_skill).as_posix(): sha256(p.read_bytes()).hexdigest()

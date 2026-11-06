@@ -3,18 +3,22 @@ import assert from 'node:assert/strict'
 import * as Transfers from '../src/api/overseas/skill-transfers'
 import * as Read from '../src/views/overseas/admin/skill-folder-read'
 import * as Save from '../src/views/overseas/admin/skill-folder-save'
+import * as Management from '../src/api/overseas/management'
+import { formatAttachmentSize } from '../src/api/overseas/attachment-download'
+import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
 import { IdentityError } from '../src/api/identity/request'
-import { all, click, compile, flush, mount, simple, text, type Node } from './membership-test-harness'
+import { all, click, compile, flush, mount, simple, table, text, type Node } from './membership-test-harness'
 import { dirNode, fileNode, MemoryDirectory } from './skill-folders-fixture'
 const uploadComponent = compile('views/overseas/admin/SkillFolderUpload.vue', { '@/api/overseas/skill-transfers': Transfers, './skill-folder-read': Read })
 Object.assign(uploadComponent, { components: { ElTree: simple('ElTree'), ElProgress: simple('ElProgress') } })
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-let accept = true, chosen = 0, cancelled = false, confirmOptions: Record<string, unknown> | undefined
+let accept = true, chosen = 0, cancelled = false, confirmMessage = '', confirmOptions: Record<string, unknown> | undefined
 const parent = new MemoryDirectory('Downloads')
 const actions = compile('views/overseas/admin/SkillFolderActions.vue', {
   '@/api/overseas/skill-transfers': Transfers, '@/api/identity/request': { IdentityError },
+  '@/api/overseas/attachment-download': { formatAttachmentSize },
   './skill-folder-save': { ...Save, chooseParent: () => { chosen++; if (cancelled) return Promise.reject(new DOMException('cancel', 'AbortError')); return Promise.resolve(parent) } },
-  'element-plus': { ElMessageBox: { confirm: async (_message: string, _title: string, options: Record<string, unknown>) => { confirmOptions = options; if (!accept) throw Error('cancel') } } }
+  'element-plus': { ElMessageBox: { confirm: async (message: string, _title: string, options: Record<string, unknown>) => { confirmMessage = message; confirmOptions = options; if (!accept) throw Error('cancel') } } }
 })
 const skill = { id: 'fixture', name: 'fixture', displayName: '测试技能', description: '说明', version: 7, enabled: false, platforms: [] }
 const baseApi = () => Transfers.createSkillTransferApi(async () => { throw Error('不应请求真实API') })
@@ -78,22 +82,72 @@ test('取消上传清除草稿后可拖入新目录，空历史与查询失败�
 })
 test('删除二次确认可取消，提交固定release/checksum及确认前version，冲突不误报成功', async () => {
   let removed = 0, changed = 0, failure = false
-  const api = { ...baseApi(), package: async () => ({ ...skill, rootName: 'root', release: 'r1', checksum: 'checksum', entries: {} }), remove: async (...args: unknown[]) => { removed++; assert.deepEqual(args, ['fixture', 'r1', 'checksum', 7]); if (failure) throw new IdentityError(409, '冲突') } }
+  const api = { ...baseApi(), package: async () => ({ ...skill, rootName: 'root', release: 'r1', checksum: 'checksum', entries: {} }), remove: async (...args: unknown[]) => { removed++; assert.deepEqual(args, ['fixture', 'r1', 'checksum', 7]); if (failure) throw new IdentityError(409, '冲突', '仍有运行中的任务使用此 Skill，请稍后重试'); return { deleted: true, release: 'r2', reclaimedBytes: 6_570_000_000 } } }
   const view = mount(actions, { skill, api, canManage: true, onChanged: () => { changed++ } })
   try {
     accept = false; await runClick(view.root, '删除 Skill'); assert.equal(removed, 0)
     assert.equal(confirmOptions?.confirmButtonText, '确认删除'); assert.equal(confirmOptions?.cancelButtonText, '取消')
-    accept = true; failure = true; await runClick(view.root, '删除 Skill'); assert.equal(removed, 1); assert.match(text(view.root), /已变化/); assert.doesNotMatch(text(view.root), /已删除/)
-    failure = false; await runClick(view.root, '删除 Skill'); assert.equal(removed, 2); assert.equal(changed, 2); assert.match(text(view.root), /历史冻结版本保留/)
+    assert.match(confirmMessage, /永久删除/); assert.match(confirmMessage, /历史会话资料保留/); assert.match(confirmMessage, /排队中或运行中/)
+    accept = true; failure = true; await runClick(view.root, '删除 Skill'); assert.equal(removed, 1); assert.match(text(view.root), /仍有运行中的任务使用此 Skill/); assert.doesNotMatch(text(view.root), /已删除/)
+    failure = false; await runClick(view.root, '删除 Skill'); assert.equal(removed, 2); assert.equal(changed, 2); assert.match(text(view.root), /Skill 已删除，释放 6570.0 MB/)
   } finally { accept = true; view.close() }
 })
-test('删除响应丢失后读回不存在才报已删除；无维护权限不显示删除', async () => {
+test('删除响应丢失不推断成功，原请求可重试且如实显示零释放；无维护权限不显示删除', async () => {
   let reads = 0, changed = 0
-  const api = { ...baseApi(), package: async () => { if (++reads > 1) throw new IdentityError(404, '不存在'); return { ...skill, rootName: 'root', release: 'r1', checksum: 'checksum', entries: {} } }, remove: async () => { throw new IdentityError(0, '响应丢失') } }
+  let calls = 0
+  const api = { ...baseApi(), package: async () => { if (++reads > 1) throw new IdentityError(404, '不存在'); return { ...skill, rootName: 'root', release: 'r1', checksum: 'checksum', entries: {} } }, remove: async (...args: unknown[]) => { assert.deepEqual(args, ['fixture', 'r1', 'checksum', 7]); if (++calls === 1) throw new IdentityError(0, '响应丢失'); return { deleted: true, release: 'r2', reclaimedBytes: 0 } } }
   const view = mount(actions, { skill, api, canManage: true, onChanged: () => { changed++ } })
-  try { await runClick(view.root, '删除 Skill'); assert.equal(changed, 1); assert.match(text(view.root), /已核实 Skill 已删除/) } finally { view.close() }
+  try {
+    await runClick(view.root, '删除 Skill'); assert.equal(changed, 0); assert.match(text(view.root), /响应丢失/); assert.doesNotMatch(text(view.root), /已删除/)
+    await runClick(view.root, '删除 Skill'); assert.equal(changed, 1); assert.equal(reads, 1); assert.match(text(view.root), /Skill 已删除，释放 0 B/)
+  } finally { view.close() }
   const readonly = mount(actions, { skill, api, canManage: false })
   try { assert.equal(all(readonly.root).some(n => n.tag === 'ElButton' && text(n) === '删除 Skill'), false); assert.match(text(readonly.root), /保存为文件夹/) } finally { readonly.close() }
+})
+
+test('删除API仅接受已完成且回收字节为非负安全整数的响应', async () => {
+  for (const reclaimedBytes of [0, 6_570_000_000]) {
+    const result = { deleted: true, release: 'r2', reclaimedBytes }
+    const api = Transfers.createSkillTransferApi(async () => Response.json(result))
+    assert.deepEqual(await api.remove('s', 'r1', 'checksum', 7), result)
+  }
+  for (const result of [{ deleted: false, release: 'r2', reclaimedBytes: 0 }, { deleted: true, release: 'r2' }, { deleted: true, release: 'r2', reclaimedBytes: -1 }, { deleted: true, release: 'r2', reclaimedBytes: 1.5 }]) {
+    const api = Transfers.createSkillTransferApi(async () => Response.json(result))
+    await assert.rejects(api.remove('s', 'r1', 'checksum', 7), /响应格式错误/)
+  }
+})
+
+test('清理失败后目录503保留真实行与原删除请求，重试成功后目录移除仍显示回收量', async () => {
+  const catalog = compile('views/overseas/admin/OverseasSkillCatalog.vue', {
+    '@/components/core/tables/art-table/index.vue': { default: table, __esModule: true },
+    './SkillFolderActions.vue': { default: actions, __esModule: true },
+    '../platforms': { OVERSEAS_PLATFORMS }, './OverseasSkillPlatformsDialog.vue': { default: simple('Dialog'), __esModule: true },
+    'element-plus': { ElMessageBox: {} }
+  })
+  const live = compile('views/overseas/admin/OverseasLiveSkills.vue', {
+    '@/api/overseas/skill-transfers': Transfers, './SkillFolderUpload.vue': { default: simple('Upload'), __esModule: true },
+    '@/api/overseas/management': Management, '@/api/identity/request': { IdentityError },
+    './OverseasSkillCatalog.vue': { default: catalog, __esModule: true }
+  })
+  let pending = false, removed = false, reads = 0, deletes = 0
+  const api = { skills: async () => { if (pending) throw new IdentityError(503, '清理未完成，请重试删除'); return { items: removed ? [] : [skill], canToggle: true, canManagePlatforms: true } } }
+  const transferApi = { ...baseApi(), package: async () => { reads++; assert.equal(pending, false); return { ...skill, rootName: 'root', release: 'r1', checksum: 'checksum', entries: {} } },
+    remove: async (...args: unknown[]) => {
+      assert.deepEqual(args, ['fixture', 'r1', 'checksum', 7])
+      if (++deletes === 1) { pending = true; throw new IdentityError(503, '清理失败', '清理失败，请重试删除') }
+      pending = false; removed = true; return { deleted: true, release: 'r2', reclaimedBytes: 1_500_000 }
+    } }
+  const view = mount(live, { api, transferApi }); await flush()
+  try {
+    await runClick(view.root, '删除 Skill'); assert.match(text(view.root), /清理失败，请重试删除/); assert.doesNotMatch(text(view.root), /已删除/)
+    await runClick(view.root, '刷新 Skill')
+    assert.ok(all(view.root).some(n => n.tag === 'ElAlert' && String(n.props.title).includes('清理未完成')))
+    assert.match(text(view.root), /测试技能/)
+    assert.equal(all(view.root).find(n => n.tag === 'ElButton' && text(n) === '删除 Skill')?.props.disabled, false)
+    await runClick(view.root, '删除 Skill'); assert.equal(reads, 1); assert.equal(deletes, 2)
+    assert.doesNotMatch(text(view.root), /测试技能/)
+    assert.ok(all(view.root).some(n => n.tag === 'ElAlert' && n.props.title === 'Skill 已删除，释放 1.5 MB'))
+  } finally { view.close() }
 })
 test('目录权限在网络前请求，取消选择完全不导出', async () => {
   chosen = 0; cancelled = true; let reads = 0

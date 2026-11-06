@@ -7,12 +7,15 @@ from pathlib import Path
 from uuid import UUID
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from app.db.session import session_factory
 from . import skill_publication as publication
 from .installed_catalog import root_config
 from .skill_transfer_client import SOCKET_DEFAULT, bounded_stream, parse_body
-from .skill_transfer_schema import SkillDelete, TransferCreate, TransferInstall
+from .skill_transfer_schema import SkillDelete, SkillReclaim, TransferCreate, TransferInstall
 from .skill_transfer_store import TransferStore
+
+RECOVERY_INTERVAL = 5
 
 
 def create_app(store, factory):
@@ -20,9 +23,31 @@ def create_app(store, factory):
 
     @asynccontextmanager
     async def lifespan(app):
-        with factory() as session:
-            publication.recover(store, session)
-        yield
+        def recover_pending():
+            try:
+                with factory() as session:
+                    publication.recover(store, session)
+            except (ValueError, OSError, SQLAlchemyError):
+                # The durable journal and 503 catalog remain until the underlying failure is fixed.
+                # Retrying a committed deletion requires no browser-local request state.
+                return
+
+        stopping = asyncio.Event()
+        async def retry():
+            while not stopping.is_set():
+                try:
+                    await asyncio.wait_for(stopping.wait(), timeout=RECOVERY_INTERVAL)
+                except TimeoutError:
+                    async with lock:
+                        recover_pending()
+
+        recover_pending()
+        recovery = asyncio.create_task(retry())
+        try:
+            yield
+        finally:
+            stopping.set()
+            await recovery
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
@@ -43,6 +68,8 @@ def create_app(store, factory):
 
     @app.get('/health')
     def health():
+        if (store.installed_root / '.pending.json').exists():
+            return JSONResponse({'status': 'awaiting-recovery'}, status_code=503)
         return {'status': 'ok'}
 
     @app.api_route('/transfers', methods=['GET', 'POST'])
@@ -52,6 +79,7 @@ def create_app(store, factory):
         async with lock:
             with factory() as session:
                 publication.authorize(session, actor)
+                publication.recover(store, session)
                 if body:
                     return store.create(body, actor, request.headers.get('Idempotency-Key'))
                 result = store.list(actor)
@@ -64,6 +92,7 @@ def create_app(store, factory):
         async with lock:
             with factory() as session:
                 publication.authorize(session, actor)
+                publication.recover(store, session)
                 state = publication.transfer_status(store, session, store.load(transfer_id, actor))
                 if request.method == 'DELETE':
                     return store.cancel(transfer_id, actor)
@@ -75,6 +104,7 @@ def create_app(store, factory):
         async with lock:
             with factory() as session:
                 publication.authorize(session, actor)
+                publication.recover(store, session)
                 publication.transfer_status(store, session, store.load(transfer_id, actor))
                 # Release the permission lock before streaming; installation rechecks authorization.
                 session.rollback()
@@ -87,6 +117,7 @@ def create_app(store, factory):
         async with lock:
             with factory() as session:
                 publication.authorize(session, actor)
+                publication.recover(store, session)
                 publication.transfer_status(store, session, store.load(transfer_id, actor))
                 return store.validate(transfer_id, actor)
 
@@ -118,6 +149,17 @@ def create_app(store, factory):
             with factory() as session:
                 publication.recover(store, session)
                 return publication.delete(store, session, actor, str(skill_id), body)
+
+    @app.post('/maintenance/reclaim')
+    async def reclaim(request: Request):
+        # This private UDS route has no corresponding public API/proxy route.
+        from .skill_maintenance import reclaim as run
+        actor = actor_id(request)
+        body = await parse_body(request, SkillReclaim)
+        async with lock:
+            with factory() as session:
+                publication.recover(store, session)
+                return run(store, session, actor, body.release, body.dryRun)
 
     return app
 

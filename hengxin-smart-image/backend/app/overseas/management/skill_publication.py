@@ -1,8 +1,6 @@
 """Root-only immutable publication, DB admission ordering and crash recovery."""
 import json
 import os
-import shutil
-import tempfile
 from uuid import UUID, uuid4
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -10,7 +8,10 @@ from app.overseas.auth.models import Member
 from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
 from . import installed_catalog as catalog
-from .installed_tree import digest, tree
+from .installed_tree import digest, read_file
+from . import skill_cleanup as cleanup, skill_references as references
+from . import skill_preparation as preparation
+from .skill_objects import prepare_release as prepare_objects
 from .models import Audit, InstalledSkillAvailability
 from .skill_transfer_store import atomic_json, sync_directory
 from .skills import can_toggle
@@ -27,62 +28,20 @@ def authorize(session, actor_id):
 
 
 def prepare_release(store, items, replacement=None):
-    root = store.installed_root
-    old_release, _ = catalog.read_catalog(root, store.protected)
-    releases = root / 'releases'
-    releases.mkdir(exist_ok=True, mode=0o755)
-    if old_release is None:
-        # A failed first copy must still leave an indexed, readable empty installation.
-        empty = {'schema': 1, 'items': []}
-        empty_release = digest(empty)
-        empty_folder = releases / empty_release
-        empty_folder.mkdir(exist_ok=True, mode=0o755)
-        atomic_json(empty_folder / 'manifest.json', empty)
-        atomic_json(root / 'current.json', {'release': empty_release})
-    staging = type(root)(tempfile.mkdtemp(prefix='.install-', dir=releases))
-    try:
-        for item in items:
-            if replacement and item['name'] == replacement['package']['name']:
-                source = store.directory(replacement['id']) / 'package'
-            else:
-                source = releases / old_release / item['name']
-            package, entries = tree(source)
-            if package.checksum != item['checksum'] or entries != item['entries']:
-                raise ValueError('发布源文件与清单不符')
-            destination = staging / item['name']
-            destination.mkdir(mode=0o755)
-            for relative, info in entries.items():
-                path = destination / relative
-                if info.get('directory'):
-                    path.mkdir(parents=True, exist_ok=True, mode=0o755)
-                else:
-                    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-                    with path.open('wb') as output:
-                        output.write(package.files[relative])
-                        output.flush()
-                        os.fsync(output.fileno())
-                    path.chmod(0o755 if path.suffix.lower() in ('.sh', '.py') else 0o644)
-            catalog.verify_package(staging, item, store.protected)
-        manifest = dict(schema=1, items=sorted(items, key=lambda row: row['name']))
-        release = digest(manifest)
-        atomic_json(staging / 'manifest.json', manifest)
-        staging.chmod(0o755)
-        for path in staging.rglob('*'):
-            if path.is_dir():
-                path.chmod(0o755)
-                sync_directory(path)
-        sync_directory(staging)
-        target = releases / release
-        if not target.exists():
-            staging.rename(target)
-            sync_directory(releases)
-        directory, verified = catalog.release_manifest(root, release, store.protected)
-        for item in verified['items']:
-            catalog.verify_package(directory, item, store.protected)
-        return release
-    finally:
-        if staging.exists():
-            shutil.rmtree(staging)
+    sources = {replacement['package']['name']: store.directory(replacement['id']) / 'package'} if replacement else None
+    return prepare_objects(store.installed_root, items, sources, protected=store.protected)
+
+
+def finish(store, session, pending, audit):
+    if audit and pending.get('cleanup') and not audit.after.get('cleanupComplete'):
+        reclaimed = cleanup.execute(store, pending['cleanup'])
+        audit.after = dict(audit.after, cleanupComplete=True, reclaimedBytes=reclaimed,
+                           afterBytes=cleanup.footprint(store), libraryAfterBytes=cleanup.library_footprint(store))
+        session.commit()
+    if audit and audit.after.get('cleanupComplete'):
+        preparation.clear(store)
+    (store.installed_root / '.pending.json').unlink()
+    sync_directory(store.installed_root)
 
 
 def recover(store, session):
@@ -91,7 +50,7 @@ def recover(store, session):
     if not journal.exists():
         return
     lock_gate(session)
-    pending = json.loads(journal.read_text(encoding='utf-8'))
+    pending = json.loads(read_file(journal, protected=store.protected))
     audit = session.get(Audit, UUID(pending['audit']))
     release = pending['after'] if audit else pending['before']
     pointer = store.installed_root / 'current.json'
@@ -110,8 +69,7 @@ def recover(store, session):
         folder.mkdir(exist_ok=True)
         atomic_json(folder / 'manifest.json', empty)
         atomic_json(pointer, {'release': release})
-    journal.unlink()
-    sync_directory(store.installed_root)
+    finish(store, session, pending, audit)
     session.commit()
 
 
@@ -130,14 +88,15 @@ def transfer_status(store, session, state):
     return state
 
 
-def switch(store, session, actor, action, name, before, after, release):
+def switch(store, session, actor, action, name, before, after, release, cleanup_plan=None):
     identifier = uuid4()
     root = store.installed_root
     previous, _ = catalog.read_catalog(root, store.protected)
-    session.add(Audit(id=identifier, actor_id=actor.id, action=action, target=name,
-                      before=before, after=after))
+    audit = Audit(id=identifier, actor_id=actor.id, action=action, target=name, before=before, after=after)
+    session.add(audit)
     session.flush()
-    atomic_json(root / '.pending.json', dict(audit=str(identifier), before=previous, after=release))
+    pending = dict(audit=str(identifier), before=previous, after=release, cleanup=cleanup_plan)
+    atomic_json(root / '.pending.json', pending)
     try:
         atomic_json(root / 'current.json', {'release': release})
         session.commit()
@@ -145,13 +104,12 @@ def switch(store, session, actor, action, name, before, after, release):
         session.rollback()
         recover(store, session)
         raise
-    (root / '.pending.json').unlink()
-    sync_directory(root)
+    finish(store, session, pending, audit)
+    return audit.after
 
 
 def install(store, session, actor_id, transfer_id, base_release):
     actor = authorize(session, actor_id)
-    lock_gate(session)
     state = store.load(transfer_id, actor_id)
     if state['status'] == 'installed':
         return state
@@ -161,18 +119,22 @@ def install(store, session, actor_id, transfer_id, base_release):
         return store.save(state)
     if state['status'] not in ('validated', 'failed') or not state.get('package'):
         raise HTTPException(409, '请先完成服务端校验')
+    jobs = references.locked(session, {state['package']['name']})
+    preparation.guard(store, {state['package']['name']})
     release, items = catalog.read_catalog(store.installed_root, store.protected)
     if base_release != release or state['baseRelease'] != release:
         raise HTTPException(409, '安装目录已变化，请重新校验并确认差异')
     checked = store.validate(transfer_id, actor_id)
     name = checked['package']['name']
-    if checked['change'] == 'identical':
-        checked.update(status='installed', release=release)
-        return store.save(checked)
+    baseline = preparation.begin(store, session, jobs, {name})
+    references.preserve(session, jobs)
     before = next((item for item in items if item['name'] == name), None)
     item = dict(checked['package'], entries=checked['entries'], rootName=checked['rootName'])
     updated = [row for row in items if row['name'] != name] + [item]
     new_release = prepare_release(store, updated, checked)
+    retained = {(entry['name'], entry['checksum']) for entry in updated} | references.active_keys(jobs)
+    cleanup_plan = cleanup.plan(store, {name}, retained, baseline['beforeBytes'],
+                                preparation.history_bytes(baseline), transfer_id)
     row = session.get(InstalledSkillAvailability, name)
     if before is None:
         if row is None:
@@ -182,14 +144,13 @@ def install(store, session, actor_id, transfer_id, base_release):
         row.version = (row.version or 0) + 1
     switch(store, session, actor, 'skill.install' if before is None else 'skill.update', name,
            {'release': release, 'checksum': before['checksum'] if before else None},
-           {'release': new_release, 'checksum': item['checksum'], 'transferId': transfer_id}, new_release)
+           {'release': new_release, 'checksum': item['checksum'], 'transferId': transfer_id}, new_release, cleanup_plan)
     checked.update(status='installed', release=new_release)
     return store.save(checked)
 
 
 def delete(store, session, actor_id, skill_id, body):
     actor = authorize(session, actor_id)
-    lock_gate(session)
     release, items = catalog.read_catalog(store.installed_root, store.protected)
     item = next((item for item in items if catalog.identity(item['name']) == str(skill_id)), None)
     if item is None:
@@ -198,17 +159,28 @@ def delete(store, session, actor_id, skill_id, body):
         prior = next((row for row in rows if catalog.identity(row.target) == str(skill_id)
                       and row.before == body.model_dump()), None)
         if prior:
-            return {'deleted': True, 'release': prior.after['release']}
+            return {'deleted': True, 'release': prior.after['release'],
+                    'reclaimedBytes': prior.after.get('reclaimedBytes', 0)}
         raise HTTPException(404, 'Skill 不在当前安装目录中')
-    row = session.get(InstalledSkillAvailability, item['name'])
+    jobs = references.locked(session, {item['name']}, deleting=True)
+    preparation.guard(store, {item['name']})
+    # Gate acquired: reject concurrent publication/availability changes.
+    current, _ = catalog.read_catalog(store.installed_root, store.protected)
+    if current != release:
+        raise HTTPException(409, '安装目录已变化，请刷新后重新确认删除')
+    row = session.get(InstalledSkillAvailability, item['name'], populate_existing=True)
     version = row.version if row else 1
     if body.release != release or body.checksum != item['checksum'] or body.version != version:
         raise HTTPException(409, 'Skill 内容、开关或平台已变化，请刷新后重新确认删除')
+    baseline = preparation.begin(store, session, jobs, {item['name']})
+    references.preserve(session, jobs)
     updated = [entry for entry in items if entry['name'] != item['name']]
     new_release = prepare_release(store, updated)
+    cleanup_plan = cleanup.plan(store, {item['name']}, {(entry['name'], entry['checksum']) for entry in updated},
+                                baseline['beforeBytes'], preparation.history_bytes(baseline))
     if row:
         row.enabled, row.platforms, row.version = False, [], version + 1
-    switch(store, session, actor, 'skill.delete', item['name'],
+    result = switch(store, session, actor, 'skill.delete', item['name'],
            {'release': release, 'checksum': item['checksum'], 'version': version},
-           {'release': new_release, 'deleted': True}, new_release)
-    return {'deleted': True, 'release': new_release}
+           {'release': new_release, 'deleted': True}, new_release, cleanup_plan)
+    return {'deleted': True, 'release': new_release, 'reclaimedBytes': result['reclaimedBytes']}

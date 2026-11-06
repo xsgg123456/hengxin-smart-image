@@ -16,9 +16,16 @@ def entry(path, content=None, *, checksum=None, size=None):
                 mode=0o755 if PurePosixPath(path).suffix.lower() in ('.sh', '.py') else 0o644)
 
 
-def describe(skill, get_store):
+def describe(skill, get_store, workspace=None):
     if skill.get('installedRelease'):
-        from app.overseas.management.installed_catalog import frozen_package
+        from app.overseas.management.installed_catalog import frozen_item, frozen_package
+        if workspace is not None and hasattr(workspace, 'home'):
+            from .skill_history import find, owner
+            _, item, _ = frozen_item(skill)
+            found = find(owner(workspace), item)
+            if found is not None:
+                _, files = found
+                return item['name'], {p: entry(p, b) for p, b in files.items()}, files.__getitem__
         package = frozen_package(skill)
         return package.name, {p: entry(p, b) for p, b in package.files.items()}, package.files.__getitem__
     name, texts, assets = skill.get('name'), skill.get('files'), skill.get('assets') or {}

@@ -10,13 +10,15 @@
 import { ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { IdentityError } from '@/api/identity/request'
+import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import type { ManagedSkill } from '@/api/overseas/management'
 import { skillTransferError, type SkillTransferApi } from '@/api/overseas/skill-transfers'
 import { chooseParent, prepareFolderSave, writeFolder, type FolderSave } from './skill-folder-save'
 const props = defineProps<{ skill: ManagedSkill; api: SkillTransferApi; canManage: boolean; disabled?: boolean }>()
-const emit = defineEmits<{ changed: []; failure: [reason: unknown] }>()
+const emit = defineEmits<{ changed: [notice?: string]; failure: [reason: unknown] }>()
 const busy = ref(''), status = ref(''), incomplete = ref(false)
 let pending: FolderSave | undefined
+let pendingRemoval: { release: string; checksum: string; version: number } | undefined
 async function write() {
   if (!pending) return
   try {
@@ -41,24 +43,17 @@ async function retrySave() { if (busy.value || props.disabled || !pending) retur
 async function remove() {
   if (!props.canManage || busy.value || props.disabled) return
   busy.value = 'delete'; status.value = ''
-  const version = props.skill.version
-  let submitted = false
   try {
-    const descriptor = await props.api.package(props.skill.id)
-    try { await ElMessageBox.confirm(`删除「${props.skill.displayName}」后，该 Skill 将从所有平台及新轮选择中移除。已提交轮次和历史冻结版本保留，不影响排队、在途或重试任务。`, '删除 Skill', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }) } catch { return }
-    submitted = true
-    await props.api.remove(props.skill.id, descriptor.release, descriptor.checksum, version)
-    status.value = 'Skill 已删除，历史冻结版本保留'; emit('changed')
+    const version = props.skill.version
+    const descriptor = pendingRemoval || { ...await props.api.package(props.skill.id), version }
+    try { await ElMessageBox.confirm(`永久删除「${props.skill.displayName}」及不再需要的安装文件，并从所有平台及新轮选择中移除。历史会话资料保留。排队中或运行中的任务仍使用此 Skill 时无法删除，请稍后重试。`, '删除 Skill', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }) } catch { return }
+    pendingRemoval = { release: descriptor.release, checksum: descriptor.checksum, version: descriptor.version }
+    const result = await props.api.remove(props.skill.id, descriptor.release, descriptor.checksum, descriptor.version)
+    pendingRemoval = undefined
+    status.value = `Skill 已删除，释放 ${formatAttachmentSize(result.reclaimedBytes)}`; emit('changed', status.value)
   } catch (reason) {
-    if (submitted && (!(reason instanceof IdentityError) || reason.status === 0 || reason.status >= 500)) {
-      try { await props.api.package(props.skill.id) }
-      catch (check) {
-        if (check instanceof IdentityError && check.status === 404) { status.value = '已核实 Skill 已删除，历史冻结版本保留'; emit('changed'); return }
-        status.value = `删除结果尚未确认，请刷新目录核对：${skillTransferError(check)}`; emit('failure', check); return
-      }
-    }
     status.value = skillTransferError(reason); emit('failure', reason)
-    if (reason instanceof IdentityError && reason.status === 409) emit('changed')
+    if (reason instanceof IdentityError && reason.status === 409) { pendingRemoval = undefined; emit('changed') }
   }
   finally { busy.value = '' }
 }

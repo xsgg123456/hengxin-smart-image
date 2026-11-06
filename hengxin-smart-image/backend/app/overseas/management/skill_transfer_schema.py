@@ -62,3 +62,8 @@ class SkillDelete(Strict):
     release: str = Field(pattern=r'^[a-f0-9]{64}$')
     checksum: str = Field(pattern=r'^[a-f0-9]{64}$')
     version: int = Field(ge=1, strict=True)
+
+
+class SkillReclaim(Strict):
+    release: str = Field(pattern=r'^[a-f0-9]{64}$')
+    dryRun: bool = Field(default=True, strict=True)

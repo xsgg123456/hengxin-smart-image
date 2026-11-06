@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .installed_catalog import read_catalog, release_manifest, root_config, verify_package
 from .installed_tree import NAME, digest, safe_directory, tree
+from .skill_objects import prepare_release
 
 
 def definitions(source, mapping):
@@ -117,34 +118,14 @@ def install(bundle_path):
     safe_directory(root, protected=protected)
     source = Path(bundle_path)
     manifest = verify_bundle(source)
-    release = digest(manifest)
-    releases = root / 'releases'
-    releases.mkdir(exist_ok=True, mode=0o755)
-    safe_directory(releases, protected=protected)
-    staging = Path(tempfile.mkdtemp(prefix='.install-', dir=releases))
+    # Offline operators cannot prove DB/history references, so never collect
+    # old objects here. Publication only adds objects and atomically swaps the index.
+    release = prepare_release(root, manifest['items'],
+        replacement_sources={item['name']: source / item['name'] for item in manifest['items']},
+        protected=protected)
+    destination = root / 'releases' / release
     temporary = None
     try:
-        for item in manifest['items']:
-            package, entries = tree(source / item['name'])
-            copy_package(staging / item['name'], package, entries, package.name)
-        (staging / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False,
-            sort_keys=True, indent=2), encoding='utf-8')
-        staging.chmod(0o755)
-        for entry in staging.rglob('*'):
-            if entry.is_dir():
-                entry.chmod(0o755)
-            elif entry.suffix.lower() not in ('.sh', '.py'):
-                entry.chmod(0o644)
-        # Do not give an immutable release its final name until copied bytes match.
-        for item in manifest['items']:
-            verify_package(staging, item, protected)
-        destination = releases / release
-        if not destination.exists():
-            try:
-                staging.rename(destination)
-            except OSError:
-                if not destination.exists():
-                    raise
         directory, installed = release_manifest(root, release, protected)
         for item in installed['items']:
             verify_package(directory, item, protected)
@@ -164,8 +145,6 @@ def install(bundle_path):
                 os.close(descriptor)
         return summary(release, installed['items'], destination)
     finally:
-        if staging.exists():
-            shutil.rmtree(staging)
         if temporary and temporary.exists():
             temporary.unlink()
 

@@ -22,13 +22,14 @@ function transferFailure(reason: unknown) {
 }
 let active = true
 function apply(result: SkillCatalog) { skills.value = result.items; canToggle.value = result.canToggle; canManagePlatforms.value = result.canManagePlatforms }
-async function load() {
+async function load(successNotice = '') {
   if (loading.value || savingId.value) return
-  loading.value = true; error.value = ''; notice.value = ''; platformError.value = ''
+  loading.value = true; error.value = ''; notice.value = successNotice; platformError.value = ''
   try { const result = await props.api.skills(); if (active) apply(result) }
   catch (reason) {
     if (!active) return
-    skills.value = []; canToggle.value = false; canManagePlatforms.value = false; error.value = managementError(reason)
+    if (!(reason instanceof IdentityError && reason.status === 503)) { skills.value = []; canToggle.value = false; canManagePlatforms.value = false }
+    error.value = managementError(reason)
     if (reason instanceof IdentityError && [401, 403].includes(reason.status)) emit('failure', reason)
   } finally { if (active) loading.value = false }
 }

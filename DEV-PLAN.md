@@ -1637,3 +1637,12 @@ MinIO 私有 bucket 建议 `hengxin-smart-image`，对象分 templates/、inputs
 3. 集成与发布：隔离浏览器、Linux实目录与实际服务身份验证，独立双阶段review，scripts/release/skill-folders-* 部署工具与生产证据。验收：原有技能与配置保留、正式入口可用、中文提交与部署完成。
 
 Skill文件夹管理已部署0.2.63，功能提交7c4d1ce；正式安装51项、前端514项、浏览器6项及独立双阶段通过。公网DNS缓存问题已平滑重载恢复，并补发布工具防复发；原生目录窗口因工具中止留有明确验收边界。详见docs/SKILL-FOLDERS-PRODUCTION-20261103.md。
+
+
+## 2026-11-06 · Skill 独立存储、真实删除与存量回收
+依据 docs/SKILL-PHYSICAL-DELETE-20261106.md 按依赖实施：
+1. management/skill_objects.py 与 installed_catalog.py、skill_downloads.py：独立内容实体和索引、旧清单兼容；内容与空目录、原子发布验证。
+2. execution/skill_content.py、skill_cache.py 及独立历史快照模块：本会话历史读取、缺失补齐、原上下文及文件保留。
+3. management/skill_publication.py、skill_publisher.py、skill_transfer_store.py 及清理模块：引用保护、真实删除、暂存回收、故障与幂等验证；对应后端隔离测试。
+4. 现有 Skill 删除前端与 API 类型：确认文案、在途错误、实际释放反馈；全前端单测/类型/构建、浏览器验证。
+5. 独立快照审查、中文提交、增量打包与正式安装测试、API/publisher/native 受控发布；迁移工具备份校验后执行旧库回收，历史全量保护与净释放量验收。

@@ -54,7 +54,7 @@ def verify(root, entries):
 
 def prepare(skill, workspace, get_store):
     root = owner(workspace)
-    name, entries, read = describe(skill, get_store)
+    name, entries, read = describe(skill, get_store, workspace)
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,99}', name) or 'SKILL.md' not in entries:
         raise ValueError('Invalid frozen Skill identity')
     identity = hashlib.sha256(json.dumps([name, entries], sort_keys=True,
