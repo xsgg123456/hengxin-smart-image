@@ -19,6 +19,10 @@ def prepare(job, workspace):
     workspace.use_skill = skill is not None
     if skill is None:
         return
+    if getattr(workspace, 'persistent', False):
+        from .skill_cache import prepare as prepare_cached
+        prepare_cached(skill, workspace, get_store)
+        return
     if skill.get('installedRelease'):
         from app.overseas.management.installed_catalog import frozen_package
         package = frozen_package(skill)

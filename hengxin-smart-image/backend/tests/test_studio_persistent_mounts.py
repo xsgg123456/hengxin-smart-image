@@ -1,6 +1,7 @@
 """Mount wiring uses the same command constructor as the Linux worker."""
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -10,13 +11,15 @@ from app.overseas.execution import materials
 
 
 def space(tmp_path):
-    for folder in ('home', 'work', 'round', 'control', 'inputs'):
-        (tmp_path / folder).mkdir()
-    index = tmp_path / 'index.json'
+    root, turn = tmp_path / str(uuid4()), str(uuid4())
+    folders = dict(home=root / 'home', work=root / 'persistent/work',
+                   round_work=root / 'rounds' / turn, control=root / 'control' / turn,
+                   inputs_root=root / 'persistent/inputs')
+    for folder in folders.values():
+        folder.mkdir(parents=True)
+    index = root / 'persistent/context-index.json'
     index.write_text('{}')
-    return SimpleNamespace(home=tmp_path / 'home', work=tmp_path / 'work',
-        control=tmp_path / 'control', round_work=tmp_path / 'round',
-        inputs_root=tmp_path / 'inputs', context_index=index, persistent=True,
+    return SimpleNamespace(**folders, context_index=index, persistent=True,
         local_skill=None, skill_name='demo', skill_path='/work/skills/demo', use_skill=False)
 
 
@@ -30,7 +33,9 @@ def test_controlled_files_and_selected_skill_stay_outside_writable_work(tmp_path
     assert (ws.round_work / 'input.json').is_file()
     assert not (ws.work / 'skills').exists()
     if selected:
-        assert ws.local_skill == ws.round_work / 'skills/demo'
+        assert ws.local_skill.name == 'demo'
+        assert ws.local_skill.parent.parent.name == 'skill-cache'
+        assert not (ws.round_work / 'skills').exists()
     files = [tmp_path / n for n in ('codex', 'codex-code-mode-host', 'bwrap')]
     for file in files:
         file.touch()
