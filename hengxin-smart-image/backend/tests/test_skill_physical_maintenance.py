@@ -1,17 +1,23 @@
 """Whole-library schema migration on real isolated legacy trees and historical owners."""
 import json
 import shutil
+from copy import deepcopy
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from app.execution.workspace import prepare_workspace
 from app.overseas.execution import materials, skill_history
 from app.overseas.execution.models import ExecutionGate, Job
 from app.overseas.management import installed_catalog as catalog, skill_maintenance as maintenance
 from app.overseas.management.installed_tree import digest
 from app.overseas.management.skill_transfer_store import atomic_json
-from test_skill_physical_history import history, owned_job, transfers, overseas
+from app.overseas.studio import context_workspace
+from app.overseas.studio.models import Turn
+from test_skill_physical_history import history, owned_job, transfers, overseas, fingerprint
 
 
 def legacy(h):
@@ -34,6 +40,72 @@ def legacy(h):
 def pause(h):
     with h.factory.begin() as session:
         session.get(ExecutionGate, 1).paused = True
+
+
+def same_owner_release_jobs(h):
+    first = owned_job(h)
+    materials.prepare(first, first.workspace)
+    release, _ = legacy(h)
+    body = deepcopy(first.payload)
+    body['skill']['installedRelease'] = release
+    job_id, turn_id = uuid4(), uuid4()
+    with h.factory.begin() as session:
+        session.add(Job(id=job_id, task_id=h.task, kind='studio', dedupe_key=str(job_id),
+                        payload=body, status='succeeded', process_exited=True))
+        session.flush()
+        session.add(Turn(id=turn_id, task_id=h.task, conversation_id=first.conversation,
+                         job_id=job_id, actor_id=h.actor, text='下一轮原始消息',
+                         skill_name=body['skill']['name']))
+    workspace = prepare_workspace(h.root / 'studio', first.conversation, turn_id, None, copy_auth=False)
+    context_workspace.prepare(workspace, [], [], lambda _: pytest.fail('No remote calls'))
+    second = SimpleNamespace(id=job_id, payload=body, workspace=workspace)
+    materials.prepare(second, workspace)
+    pause(h)
+    return first, second, release
+
+
+def test_same_owner_content_across_releases_preserves_all_frozen_inputs(history):
+    h = history
+    first, second, release = same_owner_release_jobs(h)
+    old_files = {p: p.read_bytes() for p in first.owner.rglob('*') if p.is_file()}
+    for dry_run in (True, False):
+        with h.factory() as session:
+            result = maintenance.reclaim(h.store, session, h.actor, release, dry_run)
+        assert result['historyContents'] == result['existingHistoryContents'] == 1
+        assert result['jobs'] == 2 and result['frozenInputs'] == 4
+        assert result['dryRun'] == dry_run
+        assert all(p.read_bytes() == content for p, content in old_files.items())
+        with h.factory() as session:
+            assert session.get(Job, first.id).payload == first.payload
+            assert session.get(Job, second.id).payload == second.payload
+    assert result['cleanupComplete'] and result['targets'] == 3
+    assert all(set(p.name for p in folder.iterdir()) == {'manifest.json'}
+               for folder in (h.store.installed_root / 'releases').iterdir())
+    for job in (first, second):
+        item = catalog.frozen_item(job.payload['skill'])[1]
+        assert skill_history.find(first.owner, item)[1] == h.files
+    assert result['historyBytes'] == 0  # Existing verified owner copies need no extra content.
+
+
+@pytest.mark.parametrize('dry_run', [True, False])
+def test_same_content_unowned_release_still_blocks_gc(history, dry_run):
+    h = history
+    first, second, release = same_owner_release_jobs(h)
+    owned_releases = {job.payload['skill']['installedRelease'] for job in (first, second)}
+    unowned = next(path.name for path in (h.store.installed_root / 'releases').iterdir()
+                   if path.name not in owned_releases)
+    # This is a valid release of identical bytes, but no Job owns its disk reference.
+    path = second.workspace.control / 'input.json'
+    body = deepcopy(second.payload)
+    body['skill']['installedRelease'] = unowned
+    assert catalog.frozen_package(body['skill']).files == h.files
+    path.write_text(json.dumps(body), encoding='utf-8')
+    before = fingerprint(h.store.installed_root)
+    old_files = {p: p.read_bytes() for p in first.owner.rglob('*') if p.is_file()}
+    with h.factory() as session, pytest.raises(ValueError, match='Unaccounted'):
+        maintenance.reclaim(h.store, session, h.actor, release, dry_run)
+    assert fingerprint(h.store.installed_root) == before
+    assert all(p.read_bytes() == content for p, content in old_files.items())
 
 
 def test_full_migration_preserves_history_catalog_and_reports_actual_net_bytes(history):

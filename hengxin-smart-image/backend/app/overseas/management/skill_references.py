@@ -49,7 +49,8 @@ def execution_root():
     return fs.checked(root, directory=True)
 
 
-def owners(session, jobs):
+def owners(session, jobs, *, deduplicate=True):
+    """Validate ownership; retain every Job's frozen release when auditing inputs."""
     if not jobs:
         return []
     root = execution_root()
@@ -74,7 +75,7 @@ def owners(session, jobs):
         else:
             base, owner = root, root / str(job.id)
         skill = job.payload['skill']
-        key = (str(owner), skill['name'], skill['checksum'])
+        key = (str(owner), skill['name'], skill['checksum']) if deduplicate else job.id
         found[key] = (base, owner, skill)
     return list(found.values())
 

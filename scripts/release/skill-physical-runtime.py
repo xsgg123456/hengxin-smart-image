@@ -102,13 +102,19 @@ def overlay(before, images):
     publisher = before['services']['skill-publisher']
     r.require(publisher.get('user') == '0:0', 'Publisher must remain root')
     volumes = publisher.get('volumes', [])
-    r.require(not any(v['target'] == EXECUTION_ROOT for v in volumes), 'Publisher execution mount already exists')
+    existing = [v for v in volumes if v['target'] == EXECUTION_ROOT]
+    r.require(not existing or (len(existing) == 1 and existing[0].get('type') == 'bind' and
+        existing[0].get('source') == EXECUTION_ROOT and not existing[0].get('read_only', False) and
+        publisher.get('environment', {}).get('OVERSEAS_CODEX_EXECUTION_ROOT') == EXECUTION_ROOT),
+        'Publisher execution mount already exists with invalid identity')
     return {'services': {'api': {'image': images['api']}, 'skill-publisher': {
         'image': images['publisher'], 'environment': {'OVERSEAS_CODEX_EXECUTION_ROOT': EXECUTION_ROOT},
-        'volumes': [{'type': 'bind', 'source': EXECUTION_ROOT, 'target': EXECUTION_ROOT, 'read_only': False}]}}}
+        'volumes': [] if existing else [
+            {'type': 'bind', 'source': EXECUTION_ROOT, 'target': EXECUTION_ROOT, 'read_only': False}]}}}
 
 
 def check_overlay(before, after, images):
+    overlay(before, images)  # Validate any history bind inherited from a prior physical release.
     expected = copy.deepcopy(before)
     expected['services']['api']['image'] = images['api']
     publisher = expected['services']['skill-publisher']
@@ -119,6 +125,9 @@ def check_overlay(before, after, images):
     added = [m for m in mounts if m['target'] == EXECUTION_ROOT]
     r.require(len(added) == 1 and added[0]['type'] == 'bind' and added[0]['source'] == EXECUTION_ROOT and
               not added[0].get('read_only', False), 'Publisher native execution bind missing')
+    previous = [m for m in publisher['volumes'] if m['target'] == EXECUTION_ROOT]
+    r.require(not previous or added == previous, 'Existing history bind options changed')
+    publisher['volumes'] = [m for m in publisher['volumes'] if m['target'] != EXECUTION_ROOT]
     actual['services']['skill-publisher']['volumes'] = [m for m in mounts if m['target'] != EXECUTION_ROOT]
     r.require(actual == expected, 'Unrelated Compose configuration changed')
 

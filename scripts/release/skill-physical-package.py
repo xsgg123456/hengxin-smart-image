@@ -35,7 +35,7 @@ def old_digest(encoded):
 
 def baseline_manifest(baseline):
     r.require(baseline.get('kind') == 'skill-physical-baseline' and
-              baseline['frontendVersion'] == '0.2.64' and baseline['revision'] == 'overseas_0026',
+              baseline['frontendVersion'] == '0.2.65' and baseline['revision'] == 'overseas_0026',
               'Unexpected physical baseline')
     for key in ('sources', 'publisherSources'):
         r.require(set(baseline[key]) == FILES, 'Baseline patch scope mismatch')
@@ -115,7 +115,7 @@ def build(repo, baseline_path, candidate=False):
     files.update(assets)
     files['frontend/package.json'] = source('hengxin-smart-image/frontend/package.json')
     version = json.loads(files['frontend/package.json'])['version']
-    r.require(version == '0.2.65', 'Frontend version mismatch')
+    r.require(version == '0.2.66', 'Frontend version mismatch')
     release = 'skill-physical-20261106-'+('candidate-'+approved['currentId'][:12] if candidate else commit[:7])
     manifest = dict(kind='skill-physical', release=release, version=version, revision=baseline['revision'],
         commit=commit, candidateId=approved['currentId'], mode='candidate' if candidate else 'release',

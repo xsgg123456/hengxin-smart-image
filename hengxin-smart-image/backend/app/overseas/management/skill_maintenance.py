@@ -26,7 +26,7 @@ def names_in_library(store):
 
 def verify_inputs(session, jobs):
     """Reject unaccounted frozen disk inputs rather than silently dropping their only source."""
-    owners = references.owners(session, jobs)
+    owners = references.owners(session, jobs, deduplicate=False)
     expected = {(str(owner), skill['installedRelease'], skill['name'], skill['checksum'])
                 for _, owner, skill in owners}
     root = references.execution_root()
@@ -43,7 +43,10 @@ def verify_inputs(session, jobs):
             if key not in expected:
                 raise ValueError('Unaccounted historical Skill input; reclamation refused')
             count += 1
-    return owners, count
+    # Only preservation is content-deduplicated; input ownership retains each release.
+    contents = {(str(owner), skill['name'], skill['checksum']): (base, owner, skill)
+                for base, owner, skill in owners}
+    return list(contents.values()), count
 
 
 def reclaim(store, session, actor_id, expected_release, dry_run=True):
