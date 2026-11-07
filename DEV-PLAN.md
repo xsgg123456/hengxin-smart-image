@@ -1,10 +1,12 @@
-## 2026-11-07 · 海外管理及任务轻量化（用户已授权开发、提交和部署）
+## 2026-11-07 · 海外管理及任务轻量化（已部署生产）
 
 依据 Product-Spec 同日章节与 Design-Brief、`frontend/preview-overseas-light`；现有 FastAPI/SQLAlchemy、Vue/Element Plus 与 PostgreSQL，不增依赖，不调整数据库结构。SQLAlchemy `GROUP BY`、相关 `EXISTS` 和 FastAPI 查询校验已核对官方文档；现有数据量、执行与权限语义以项目实现和隔离验证为准。
 
 1. **后台查询**：`backend/app/overseas/management/{facts,usage,router}.py` 增加用户发起请求汇总、姓名与任务名/ID检索，按Turn关联实际发送人及创建日期，保留历史未知明细与旧接口；`archives/{service,router}.py` 基于实际归档事件新增人员候选、筛选和分页前计数；`tasks/{queries,router}.py` 新增当前负责人及三类状态过滤（包含旧返工、删除异常），权限先于筛选分页。完成标准：原接口兼容、本人/全员权限、跨页计数、停用成员、历史缺失、幂等/排队/失败/取消及时间边界通过隔离测试。
 2. **正式前端**：`frontend/src/api/overseas/{management,archives,tasks}.ts`、`identity-main.ts`、`views/overseas/{OverseasPortal,OverseasTasksPage,OverseasWorkspace,OverseasArchivePage}.vue`、`views/overseas/admin/OverseasActivityPage.vue` 对接真实接口和预览交互；旧管理地址兼容、状态不改底层流程；复用已有20条分页、卡片、危险操作和鉴权。完成标准：三页面筛选/详情/返回/空错态与预览一致，负责人和归档人只取用户有权见到的真实数据。
 3. **验证与发布**：前后端完整适用测试、类型检查、生产构建、浏览器对照及独立两阶段快照审查；中文Git提交。以最近部署记录先只读确认生产实际API、前端与原生worker基线；构建隐私审计与安装测试后，按项目现有保护/备份/回退方式仅发布本轮必要服务，保护在途任务；按正式入口核验页面和真实只读数据。无已验证迁移需求时不更改schema，不清理历史数据，不调用付费生成模型。每项验证有证据，失败修复重验后再继续；用户已授权部署。
+
+2026-11-07 已完成业务提交 `0b9d68b`、发布修复提交 `d7c21a1`、两阶段独立审查、正式包构建及生产切换。生产隔离安装 56 项通过，正式入口和只读接口核验通过，执行服务进程保持，未更改数据库结构。生产当时无成品归档，按归档人筛选的命中行为依据隔离测试验证；未做线上真实归档或付费生成。详见 [发布记录](docs/OVERSEAS-LIGHT-RELEASE-20261107.md)。
 
 ## 2026-11-06 · 同会话技能内容复用（已部署生产）
 
