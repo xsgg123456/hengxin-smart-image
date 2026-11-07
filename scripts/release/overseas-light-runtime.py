@@ -23,7 +23,8 @@ BASE_COMMIT = 'b8d0b57e3dcfdcefd8bda400af672efac6b18240'
 TESTS = ('test_overseas_management.py', 'test_overseas_management_operators.py', 'test_overseas_tasks.py',
          'test_overseas_archive_audit.py', 'test_overseas_lightweight.py', 'test_overseas_lightweight_postgres.py')
 HELPERS = ('account-runtime', 'skill-platform-baseline', 'skill-platform-runtime', 'sku-runtime', 'sku-native',
-           'skill-reuse-gate', 'sku-frontend', 'image-cache-runtime', 'overseas-light-runtime', 'overseas-light-deploy')
+           'skill-reuse-gate', 'sku-frontend', 'image-cache-runtime', 'overseas-light-runtime',
+           'overseas-light-guard', 'overseas-light-frontend', 'overseas-light-contract', 'overseas-light-deploy')
 
 
 def verify_package(source):

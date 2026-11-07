@@ -24,53 +24,17 @@ scope = load('overseas-light-runtime')
 r = scope.r
 gate = load('skill-reuse-gate')
 gate.r = r
-frontend = load('sku-frontend')
-frontend.r = r
-frontend.BASE_VERSION = '0.2.66'
+front = load('overseas-light-frontend')
+front.r = r
+front.guard.r = r
+front.frontend.r = r
+frontend = front.frontend
+atomic_frontend_copy = front.atomic_frontend_copy
+check_frontend_collisions = front.check_frontend_collisions
+install_frontend = front.install_frontend
 ready = load('image-cache-runtime').readiness
 
-CONTRACT = r'''
-import json
-from fastapi.testclient import TestClient
-from sqlalchemy import select, text
-from app.db.session import get_session, session_factory
-from app.overseas.auth.dependencies import get_current_member
-from app.overseas.auth.models import Member, MemberRole
-from app.overseas.main import app
-with session_factory()() as session:
-    session.execute(text('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY'))
-    actor = session.scalar(select(Member).join(MemberRole, MemberRole.user_id == Member.id).where(
-        MemberRole.role == 'super_admin', Member.status == 'active', Member.directory_state == 'enrolled').limit(1))
-    assert actor is not None
-    app.dependency_overrides[get_session] = lambda: session
-    app.dependency_overrides[get_current_member] = lambda: actor
-    client = TestClient(app)
-    def get(path):
-        response = client.get('/api/overseas/v1' + path)
-        assert response.status_code == 200, (path, response.status_code)
-        return response.json()
-    persons = get('/management/people')['items']
-    jobs = get('/management/jobs?pageSize=20')
-    assignees = get('/task-assignees')['items']
-    first = get('/tasks?pageSize=20')
-    second = get('/tasks?pageSize=20&page=2')
-    assert len(first['items']) <= 20 and len(second['items']) <= 20 and first['total'] == second['total']
-    assert not {t['id'] for t in first['items']} & {t['id'] for t in second['items']}
-    designing = get('/tasks?statusGroup=designing&pageSize=20')
-    if assignees:
-        selected = get('/tasks?designerId=' + assignees[0]['id'] + '&pageSize=20')
-        assert all(t['designer'] and t['designer']['id'] == assignees[0]['id'] for t in selected['items'])
-    operators = get('/archive-operators')['items']
-    archives = get('/archives?pageSize=20')
-    if operators:
-        get('/archives?archiverId=' + operators[0]['id'] + '&pageSize=20')
-    assert all(p['calls'] > 0 for p in persons)
-    print(json.dumps({'people': len(persons), 'jobs': jobs['total'], 'tasks': first['total'],
-        'designing': designing['total'], 'assignees': len(assignees), 'archives': archives['total'],
-        'archivers': len(operators), 'readOnly': True}))
-    client.close()
-    app.dependency_overrides.clear()
-'''
+CONTRACT = load('overseas-light-contract').CONTRACT
 
 
 def state(work, tested=False):
@@ -99,6 +63,7 @@ def prepare(work, source):
               'Live API source differs from reviewed parent')
     protected = r.b.snapshot()
     r.require(protected['frontendVersion'] == frontend.BASE_VERSION, 'Frontend baseline drift')
+    check_frontend_collisions(source, r.a.APP)
     r.require(r.sql(r.DB, 'SELECT version_num FROM overseas_alembic_version') == r.REVISION, 'Schema drift')
     data = dict(source=str(source), manifest=r.digest(source / 'release.json'), oldId=live['Id'],
                 oldImage=live['Image'], compose=r.a.compose_info(live), protected=protected)
@@ -192,11 +157,19 @@ def verify_public(source):
     ready('https://zhitu.qhhengxin.top/api/overseas/v1/health/ready')
 
 
-def deploy(work):
-    data, source = state(work, tested=True)
-    r.require(r.inspect()['Id'] == data['oldId'], 'API baseline identity changed')
-    r.require(r.digest(work / 'old-overlay.json') == data['oldOverlayHash'], 'Rollback overlay drift')
-    r.require(not (work / 'SWITCH_STARTED').exists(), 'Inspect previous switch attempt')
+def verify_web_root(app):
+    descriptor = front.open_directory(app / 'frontend/dist')
+    try:
+        value = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    mounted = r.run('docker', 'exec', 'hengxin-vps-staging-web-1', 'stat', '-c', '%d:%i', '/usr/share/nginx/html')
+    r.require(mounted == f'{value.st_dev}:{value.st_ino}', 'Frontend path differs from web mount')
+
+
+def deploy_locked(work, data, source):
+    check_frontend_collisions(source, r.a.APP)
+    verify_web_root(r.a.APP)
     data['overlay'] = str(work / 'api-overlay.json')
     backup = work / 'frontend-backup'
     gate_started = api_started = stop_confirmed = front_started = False
@@ -212,7 +185,7 @@ def deploy(work):
         contracts = verify_api(data)
         r.unchanged(data['protected'])
         front_started = True
-        frontend.deploy(source, r.a.APP, backup)
+        install_frontend(source, r.a.APP, backup)
         gate.set_gate(work, data, False)
         verify_public(source)
         r.unchanged(data['protected'])
@@ -221,6 +194,7 @@ def deploy(work):
     except BaseException:
         if gate_started:
             try:
+                errors = []
                 if api_started:
                     # A timed-out docker stop may still be running in the daemon.
                     # Never race it by replacing the container or reopening traffic.
@@ -228,24 +202,55 @@ def deploy(work):
                               'Graceful API stop is still pending')
                     gate.set_gate(work, data, True)
                     if front_started and (backup / 'COMPLETE.json').exists():
-                        frontend.rollback(r.a.APP, backup)
-                    r.a.compose(data['compose'], 'up', '-d', '--no-deps', '--no-build', 'api', overlay=work / 'old-overlay.json')
-                    r.require(r.inspect()['Image'] == data['oldImage'], 'Original API image not restored')
-                    ready('http://127.0.0.1:18018/api/overseas/v1/health/ready')
-                gate.set_gate(work, data, False)
-                r.unchanged(data['protected'])
+                        try:
+                            frontend.rollback(r.a.APP, backup)
+                        except BaseException as error:
+                            errors.append('frontend: ' + type(error).__name__)
+                    try:
+                        r.a.compose(data['compose'], 'up', '-d', '--no-deps', '--no-build', 'api', overlay=work / 'old-overlay.json')
+                        r.require(r.inspect()['Image'] == data['oldImage'], 'Original API image not restored')
+                        ready('http://127.0.0.1:18018/api/overseas/v1/health/ready')
+                    except BaseException as error:
+                        errors.append('api: ' + type(error).__name__)
+                try:
+                    r.unchanged(data['protected'])
+                except BaseException as error:
+                    errors.append('protected: ' + type(error).__name__)
+                if errors:
+                    r.private(work / 'ROLLBACK_ERRORS.json', {'errors': errors, 'manifest': data['manifest']})
+                    raise RuntimeError('Rollback incomplete; intake remains closed')
+                try:
+                    gate.set_gate(work, data, False)
+                except BaseException as error:
+                    errors.append('gate: ' + type(error).__name__)
+                    try:
+                        gate.set_gate(work, data, True)
+                    except BaseException as close_error:
+                        errors.append('gate-close: ' + type(close_error).__name__)
+                    r.private(work / 'ROLLBACK_ERRORS.json', {'errors': errors, 'manifest': data['manifest']})
+                    raise
                 print('ROLLBACK_COMPLETE_WORKERS_AND_DATABASE_RETAINED', flush=True)
             except BaseException:
                 print('ROLLBACK_REQUIRES_INSPECTION: ' + str(work), flush=True)
         raise
 
 
+def deploy(work):
+    with front.protect_publication_directories(r.a.APP, work):
+        data, source = state(work, tested=True)
+        r.require(r.inspect()['Id'] == data['oldId'], 'API baseline identity changed')
+        r.require(r.digest(work / 'old-overlay.json') == data['oldOverlayHash'], 'Rollback overlay drift')
+        r.require(not (work / 'SWITCH_STARTED').exists(), 'Inspect previous switch attempt')
+        return deploy_locked(work, data, source)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare', 'test', 'deploy'))
+    parser.add_argument('action', choices=('prepare', 'test', 'deploy', 'recover-permissions'))
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--source', type=Path)
     args = parser.parse_args()
+    args.work = args.work.resolve()
     r.require(os.geteuid() == 0, 'Root required')
     os.umask(0o077)
     args.work.mkdir(parents=True, exist_ok=True)
@@ -255,6 +260,9 @@ def main():
         if args.action == 'prepare':
             r.require(args.source is not None, 'Source required')
             result = prepare(args.work, args.source.resolve())
+        elif args.action == 'recover-permissions':
+            front.guard.recover_publication_directories(r.a.APP, args.work)
+            result = 'PUBLICATION_PERMISSIONS_RESTORED; INSPECT_PREVIOUS_RELEASE_BEFORE_RETRY'
         else:
             result = globals()[args.action](args.work)
         print(result, flush=True)

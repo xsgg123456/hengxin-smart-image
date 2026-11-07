@@ -27,6 +27,14 @@ collector = load('sku-package')
 archive = load('package-text')
 
 
+def asset_bytes(name, raw):
+    # Shared, unhashed public SVGs retain their canonical Git line endings.
+    # Hashed Vite assets must remain byte-for-byte identical to the build.
+    if name.startswith('frontend/dist/') and not name.startswith('frontend/dist/assets/') and name.endswith('.svg'):
+        return common.normalized(raw)
+    return raw
+
+
 def build_assets(repo, commit):
     """Build an extracted Git tree, never an ignored working-directory dist."""
     frontend = repo / 'hengxin-smart-image/frontend'
@@ -58,7 +66,7 @@ def build_assets(repo, commit):
                 continue
             assets.no_symlink(path)
             name = 'frontend/dist/' + path.relative_to(dist).as_posix()
-            raw = path.read_bytes()
+            raw = asset_bytes(name, path.read_bytes())
             assets.audit_asset(name, raw, frontend / 'node_modules/pdfjs-dist')
             files[name] = raw
         r.require('frontend/dist/index.html' in files, 'Isolated build did not produce index.html')
