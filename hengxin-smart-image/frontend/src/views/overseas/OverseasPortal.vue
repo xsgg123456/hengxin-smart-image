@@ -2,7 +2,7 @@
   <OverseasShell>
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
     <div class="layout-content"><div :class="managementPage === 'codex-auth' && managementAllowed ? undefined : 'hx-page'">
-      <div v-if="!taskPage && !archivePage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
+      <div v-if="!taskPage && !archivePage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p v-if="managementPage === 'activity'">按人员查看使用情况，跟进每一次 Codex 执行。</p><p v-else>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
       <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :drafts-api="draftsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <OverseasArchivePage v-else-if="archivePage && member.capabilities?.includes('task.read')" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <AccountPage v-else-if="managementPage === 'codex-auth' && managementAllowed" :key="'codex-auth-' + member.id + refreshKey" side="overseas" :adapter="codexAdapter" @failure="managementFailure" />
@@ -49,7 +49,7 @@ let active = true
 watch(() => props.member.capabilities?.join(','), () => {
   const taskMenus: AppRouteRecord[] = []
   for (const [cap, path, title, icon] of [['task.create', '/overseas/create', '提交图需', 'ri:add-circle-line'], ['task.read', '/overseas/tasks', '工作流任务', 'ri:task-line'], ['task.read', '/overseas/archive', '成品库', 'ri:folder-check-line']]) if (props.member.capabilities?.includes(cap)) taskMenus.push({ path, name: path.split('/').pop(), component: () => import('./OverseasTasksPage.vue'), meta: { title, icon } })
-  const adminMenus: AppRouteRecord[] = (Object.entries(managementPages) as [ManagementPage,string][]).filter(([page]) => props.member.capabilities?.includes(managementCapability(page))).map(([page,title]) => ({ path: '/overseas/admin/' + page, name: 'overseas-' + page, component: () => import('./admin/OverseasLiveManagement.vue'), meta: { title, icon: 'ri:settings-3-line' } }))
+  const adminMenus: AppRouteRecord[] = (Object.entries(managementPages) as [ManagementPage,string][]).filter(([page]) => !['usage', 'monitor'].includes(page) && props.member.capabilities?.includes(managementCapability(page))).map(([page,title]) => ({ path: '/overseas/admin/' + page, name: 'overseas-' + page, component: () => import('./admin/OverseasLiveManagement.vue'), meta: { title, icon: 'ri:settings-3-line' } }))
   menus.setMenuList([...taskMenus, ...(adminMenus.length ? [{ path: '/overseas/admin', name: 'overseas-admin', meta: { title: '管理中心', icon: 'ri:settings-3-line' }, children: adminMenus }] : [])])
   menus.setHomePath('/overseas/tasks')
   tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = []
@@ -104,6 +104,7 @@ async function taskAuthorize(capability: string) {
 const tasksApi = createTasksApi()
 const tasksAdapter: TasksApi = {
   async list(query) { await taskAuthorize('task.read'); return tasksApi.list(query) },
+  async assignees() { await taskAuthorize('task.read'); return tasksApi.assignees() },
   async get(id) { await taskAuthorize('task.read'); return tasksApi.get(id) },
   async remove(id, version) { await taskAuthorize('task.delete'); return tasksApi.remove(id, version) },
   async deletion(id) { await taskAuthorize('task.read'); return tasksApi.deletion(id) },
@@ -144,6 +145,7 @@ async function managementCall<T>(cap: string, action: () => Promise<T>, write = 
 const managementAdapter: ManagementApi = {
   operators: () => managementCall('stats.read', () => managementApi.operators()),
   usage: query => managementCall('stats.read', () => managementApi.usage(query)),
+  people: query => managementCall('stats.read', () => managementApi.people(query)),
   jobs: query => managementCall('stats.read', () => managementApi.jobs(query)),
   skills: () => managementCall('skills.manage', () => managementApi.skills()),
   async setSkillAvailability(id, enabled, version) {

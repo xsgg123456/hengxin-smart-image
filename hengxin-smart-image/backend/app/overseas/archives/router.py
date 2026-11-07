@@ -21,8 +21,13 @@ def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: 
 def listing(actor: CurrentMember, session: Database, product: str = Query('', max_length=200),
             brand: str = Query('', max_length=200), sku: str = Query('', max_length=200),
             search: str = Query('', max_length=200), page: int = Query(1, ge=1),
-            pageSize: int = Query(20, ge=1, le=100)):
-    return service.listing(session, actor, product, brand, sku, search, page, pageSize)
+            pageSize: int = Query(20, ge=1, le=100), archiverId: UUID | None = None):
+    return service.listing(session, actor, product, brand, sku, search, page, pageSize, archiverId)
+
+
+@router.get('/archive-operators')
+def archivers(actor: CurrentMember, session: Database):
+    return service.archivers(session, actor)
 
 
 @router.get('/archives/{archive_id}/download')

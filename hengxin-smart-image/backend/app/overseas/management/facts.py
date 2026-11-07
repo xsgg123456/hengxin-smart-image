@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 from fastapi import HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from app.overseas.execution.models import Job
 from app.overseas.auth.models import Member
 from app.overseas.studio.models import Turn
@@ -12,13 +12,18 @@ from app.overseas.tasks.models import Task
 
 
 def filters(from_: datetime | None = Query(None, alias='from'),
-            to: datetime | None = None, taskId: UUID | None = None, memberId: UUID | None = None,
+            to: datetime | None = None, before: datetime | None = None, taskId: UUID | None = None, memberId: UUID | None = None,
             kind: Literal['analysis', 'reanalysis', 'generation', 'revision', 'studio'] | None = None,
             status: Literal['queued', 'running', 'collecting', 'cancelling', 'uncertain',
-                            'succeeded', 'failed', 'cancelled'] | None = None):
-    start = from_.replace(tzinfo=timezone.utc) if from_ and not from_.tzinfo else from_
-    end = to.replace(tzinfo=timezone.utc) if to and not to.tzinfo else to
+                            'succeeded', 'failed', 'cancelled'] | None = None,
+            statusGroup: Literal['queued', 'running', 'uncertain', 'succeeded', 'failed', 'cancelled'] | None = None,
+            search: str = Query('', max_length=100)):
+    def utc(value):
+        return (value.replace(tzinfo=timezone.utc) if not value.tzinfo else value.astimezone(timezone.utc)) if value else None
+    start, end, limit = utc(from_), utc(to), utc(before)
     if start and end and start > end:
+        raise HTTPException(422, '开始时间不能晚于结束时间')
+    if start and limit and start >= limit:
         raise HTTPException(422, '开始时间不能晚于结束时间')
     clauses = []
     for column, value in ((Job.task_id, taskId), (Job.kind, kind), (Job.status, status),
@@ -29,6 +34,17 @@ def filters(from_: datetime | None = Query(None, alias='from'),
         clauses.append(Job.created_at >= start)
     if end:
         clauses.append(Job.created_at <= end)
+    if limit:
+        clauses.append(Job.created_at < limit)
+    if statusGroup:
+        clauses.append(Job.status.in_(('running', 'collecting', 'cancelling')) if statusGroup == 'running'
+                       else Job.status == statusGroup)
+    if search.strip():
+        term = search.strip()
+        normalized = term.replace('-', '')
+        clauses.append(or_(Task.name.icontains(term, autoescape=True),
+            func.replace(cast(Task.id, String), '-', '').icontains(normalized, autoescape=True))
+            if normalized else Task.name.icontains(term, autoescape=True))
     return clauses
 
 

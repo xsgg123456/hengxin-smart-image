@@ -20,6 +20,11 @@ def read_usage(actor=Depends(stats), session: Session = Depends(get_session), cl
     return usage.read(session, actor, clauses)
 
 
+@router.get('/people')
+def read_people(actor=Depends(stats), session: Session = Depends(get_session), clauses=Depends(facts.filters)):
+    return usage.people(session, actor, clauses)
+
+
 @router.get('/jobs')
 def read_jobs(actor=Depends(stats), session: Session = Depends(get_session), clauses=Depends(facts.filters),
               page: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100)):

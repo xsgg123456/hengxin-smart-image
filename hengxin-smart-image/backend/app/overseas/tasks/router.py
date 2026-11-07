@@ -25,9 +25,16 @@ def create(body: CreateTask, actor: CurrentMember, session: Database, response: 
 @router.get('/tasks')
 def tasks(actor: CurrentMember, session: Database, search: str = Query('', max_length=100),
           scope: Literal['all', 'mine'] = 'all', status: str | None = Query(None, max_length=40),
+          designerId: UUID | None = None, statusGroup: Literal['pending', 'designing', 'completed'] | None = None,
           page: int = Query(1, ge=1), page_size: int = Query(20, alias='pageSize', ge=1, le=100)):
     authorize_member(session, actor, 'task.read')
-    return queries.list_tasks(session, actor, search, scope, status, page, page_size)
+    return queries.list_tasks(session, actor, search, scope, status, page, page_size, designerId, statusGroup)
+
+
+@router.get('/task-assignees')
+def assignees(actor: CurrentMember, session: Database):
+    authorize_member(session, actor, 'task.read')
+    return queries.assignees(session, actor)
 
 
 @router.get('/task-designers')

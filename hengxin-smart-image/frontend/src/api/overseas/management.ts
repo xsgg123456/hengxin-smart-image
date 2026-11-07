@@ -1,13 +1,14 @@
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 export const stages = { analysis: '整套分析', generation: '按 SKU 生图', revision: '单图返工' }
 export type Stage = keyof typeof stages
-export const managementPages = { usage: '调用统计', monitor: '执行监控', users: '用户与角色', skills: 'Skill 管理', settings: '系统配置', 'codex-auth': 'Codex 账号' }
+export const managementPages = { activity: '调用与执行', usage: '调用统计', monitor: '执行监控', users: '用户与角色', skills: 'Skill 管理', settings: '系统配置', 'codex-auth': 'Codex 账号' }
 export type ManagementPage = keyof typeof managementPages
-export const managementCapability = (page: ManagementPage) => page === 'usage' || page === 'monitor' ? 'stats.read' : page === 'users' ? 'members.manage' : page === 'codex-auth' ? 'settings.manage' : page + '.manage'
-export interface ManagementQuery { memberId?: string; from: string; to: string; taskId: string; kind: string; status: string; page: number; pageSize: number }
+export const managementCapability = (page: ManagementPage) => page === 'activity' || page === 'usage' || page === 'monitor' ? 'stats.read' : page === 'users' ? 'members.manage' : page === 'codex-auth' ? 'settings.manage' : page + '.manage'
+export interface ManagementQuery { memberId?: string; from: string; to: string; before?: string; taskId: string; kind: string; status: string; statusGroup?: string; search?: string; page: number; pageSize: number }
 export interface Usage { jobs: number; queued: number; running: number; uncertain: number; succeeded: number; failed: number; cancelled: number; generationImages: number; revisionImages: number }
 export interface Job { id: string; taskId: string; taskName: string; kind: string; status: string; executionCount: number; imageCount: number; operatorId: string | null; operatorName: string | null; createdAt: string; startedAt: string | null; completedAt: string | null; error: string | null }
 export interface Operator { id: string; name: string }
+export interface PersonUsage extends Operator { calls: number; images: number; lastCall: string }
 export interface Jobs { items: Job[]; total: number; page: number; pageSize: number }
 export interface Skill { id: string; name: string; displayName: string; description: string }
 export interface ManagedSkill extends Skill { enabled: boolean; version: number; platforms: string[] }
@@ -27,6 +28,7 @@ export function createManagementApi(fetcher: typeof fetch = fetch) {
   return {
     operators: () => request(base + '/operators', (v): v is { items: Operator[] } => record(v) && Array.isArray(v.items) && v.items.every(item => record(item) && typeof item.id === 'string' && typeof item.name === 'string')),
     usage: (query: ManagementQuery) => request(base + '/usage', isUsage, undefined, { params: { ...query } }),
+    people: (query: ManagementQuery) => request(base + '/people', (v): v is { items: PersonUsage[] } => record(v) && Array.isArray(v.items) && v.items.every(p => record(p) && typeof p.id === 'string' && typeof p.name === 'string' && count(p.calls) && count(p.images) && typeof p.lastCall === 'string'), undefined, { params: { ...query } }),
     jobs: (query: ManagementQuery) => request(base + '/jobs', isJobs, undefined, { params: { ...query } }),
     skills: () => request(base + '/skills', isSkillCatalog),
     setSkillAvailability: (id: string, enabled: boolean, version: number) => request(base + '/skills/' + encodeURIComponent(id) + '/availability', isSkillCatalog, { enabled, version }, { method: 'PATCH' }),

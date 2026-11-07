@@ -23,7 +23,7 @@ const event = { id: 'e', actorId: 'actual', actorName: '实际确认者', at: '2
 const fixture: Archives.ArchiveDetail = { id: 'a', taskId: 'task', sourceDeleted: false, taskName: '真实任务名称', language: 'fr', productName: '真实品名', brand: '真实品牌', platform: 'Amazon', skus: [{ code: 'SKU-A' }], pictureCount: 1, createdAt: '2026-01-01T00:00:00Z', pictures: [picture], cover: picture, latestArchive: event, archiveHistory: [event], historyIncomplete: false }
 let result = structuredClone(fixture), rejected = false, listEmpty = false
 const requestedPages: number[] = []
-const api = { get: async () => { if (rejected) throw new IdentityError(403, '暂无权限'); return structuredClone(result) }, list: async (query: { page: number }) => { requestedPages.push(query.page); return { items: listEmpty ? [] : [structuredClone(result)], total: listEmpty ? 0 : 21, page: query.page, pageSize: 20 } } }
+const api = { operators: async () => ({ items: [{ id: 'actual', name: '实际确认者' }] }), get: async () => { if (rejected) throw new IdentityError(403, '暂无权限'); return structuredClone(result) }, list: async (query: { page: number }) => { requestedPages.push(query.page); return { items: listEmpty ? [] : [structuredClone(result)], total: listEmpty ? 0 : 21, page: query.page, pageSize: 20 } } }
 const simple = (name: string) => Vue.defineComponent({ name, setup(_p, { attrs, slots }) { return () => Vue.h(name, attrs, slots.default?.()) } })
 const deps: Record<string, unknown> = {
   './use-archive-prefetch': { useArchivePrefetch: () => undefined },
@@ -59,7 +59,7 @@ test('正式成品卡片明确四字段，只有已归档状态，没有重复�
   const view = mount(page, { refresh: 0 })
   try {
     await flush()
-    assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '平台', 'SKU', '归档人', '归档时间'])
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '平台', 'SKU', '最近归档人', '归档时间'])
     assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTag').map(text), ['21 套归档', '已归档'])
     assert.match(text(view.root), /归档人实际确认者/)
     assert.match(text(view.root), /2026-10-19 09:02:03/)

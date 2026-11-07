@@ -2,7 +2,7 @@
   <div>
     <OverseasTaskCreate v-if="creating && canCreate" :key="actorId" :actor-id="actorId" :api="api" :materials-api="materialsApi" :drafts-api="draftsApi" :allowed="canCreate" @back="router.push('/overseas/tasks')" @created="router.push(`/overseas/tasks/${$event}`)" @failure="failure" />
     <template v-else-if="detailId">
-      <div v-if="!editingRequirements" class="hx-heading" :class="{ 'studio-task-heading': studio }"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail && !studio">{{ taskStatuses[detail.status] }}</p></div><div class="studio-actions"><ElButton v-if="studio" size="small" :loading="busy" @click="load">刷新任务详情</ElButton><ElButton :size="studio ? 'small' : 'default'" @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div></div>
+      <div v-if="!editingRequirements" class="hx-heading" :class="{ 'studio-task-heading': studio }"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail && !studio">{{ taskStatusLabel(detail.status) }}<template v-if="taskStatusNote(detail.status)"> · {{ taskStatusNote(detail.status) }}</template></p></div><div class="studio-actions"><ElButton v-if="studio" size="small" :loading="busy" @click="load">刷新任务详情</ElButton><ElButton :size="studio ? 'small' : 'default'" @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div></div>
       <p v-if="busy" role="status">正在加载任务…</p>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
       <ElButton v-if="!editingRequirements && !studio" :loading="busy" @click="load">刷新任务详情</ElButton>
@@ -34,10 +34,10 @@
       <OverseasPictureResults v-if="detail && !deleting && !preReview && !studio" :key="detail.id" :task="detail" :refresh="plansRefresh" @failure="failure" @changed="updateDetail" @refresh="refreshDetail" />
       <OverseasExecution v-if="detail && !deleting && !preReview && !studio" :key="detail.id" :task-id="detail.id" :can-cancel="detail.capabilities.includes('task.design')" @failure="failure" @changed="refreshDetail" />
     </template>
-    <OverseasWorkspace v-else-if="!creating && canRead" v-model:query="search" v-model:status="status" v-model:scope="scope" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="load">
-      <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /></template>
+    <OverseasWorkspace v-else-if="!creating && canRead" class="workspace-in-portal" v-model:query="search" v-model:status="status" v-model:scope="scope" v-model:designer="assignee" :assignees="assignees" :tasks="tasks" :allowed="canCreate" :total="total" :busy="busy" @create="router.push('/overseas/create')" @open="router.push(`/overseas/tasks/${$event}`)" @refresh="refreshList">
+      <template #feedback><p v-if="busy" role="status">正在加载任务…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" /><ElAlert v-if="assigneesError" :title="assigneesError" type="error" :closable="false"><ElButton @click="loadAssignees">重试人员列表</ElButton></ElAlert><div class="task-page-top"><span>共 {{ total }} 个任务 · 每页 20 条</span><ElPagination v-if="!busy && !error" layout="prev, pager, next" :current-page="page" :page-size="20" :total="total" @current-change="page = $event" /></div></template>
       <template #action="{ row }"><OverseasTaskDelete :key="row.id" :task="row" :api="api" @changed="deletionChanged" @failure="failure" /></template>
-      <template #pagination><ElPagination v-if="!busy && !error" class="hx-gap" layout="prev, pager, next" :current-page="page" :page-size="20" :total="total" :disabled="busy" @current-change="page = $event" /></template>
+      <template #pagination><div v-if="!busy && !error" class="task-page-bottom"><span>{{ total ? `${(page - 1) * 20 + 1}–${Math.min(page * 20, total)}` : '0' }} / {{ total }} 条</span><ElPagination layout="prev, pager, next" :current-page="page" :page-size="20" :total="total" :disabled="busy" @current-change="page = $event" /></div></template>
     </OverseasWorkspace>
     <ElAlert v-else title="暂无此功能权限" type="warning" :closable="false" />
   </div>
@@ -47,7 +47,8 @@ import { ElMessage } from 'element-plus'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'
-import { createRequestKeys, taskError, taskStatuses, taskDeletionActive, type TaskDeletion, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import { createRequestKeys, taskError, taskDeletionActive, type Assignee, type TaskDeletion, type TaskDetail, type TaskSummary, type TasksApi } from '@/api/overseas/tasks'
+import { taskStatusLabel, taskStatusNote } from './task-status'
 import type { DraftsApi } from '@/api/overseas/requirement-drafts'
 import { languageLabel } from './languages'
 import OverseasRequirementsReview from './OverseasRequirementsReview.vue'
@@ -69,6 +70,7 @@ const route = useRoute(), router = useRouter(), creating = computed(() => route.
 const canCreate = computed(() => props.capabilities.includes('task.create')), canRead = computed(() => props.capabilities.includes('task.read'))
 const tasks = ref<TaskSummary[]>([]), detail = ref<TaskDetail>(), total = ref(0), page = ref(1)
 const search = ref(''), scope = ref('all'), status = ref(''), error = ref(''), busy = ref(false), saving = ref(false), assigning = ref(false), designerId = ref('')
+const assignee = ref(''), assignees = ref<Assignee[]>([]), assigneesError = ref('')
 const editingRequirements = ref(false)
 const deleting = computed(() => !!detail.value && taskDeletionActive(detail.value))
 const preReview = computed(() => detail.value && ['pending_review', 'returned'].includes(detail.value.status))
@@ -79,7 +81,7 @@ const ready = computed(() => { try { readyMaterialIds(materials.value); return t
 const materialKeys = createRequestKeys()
 const assignKeys = createRequestKeys()
 let generation = 0, timer: ReturnType<typeof setTimeout> | undefined, active = true
-function failure(reason: unknown) { ++generation; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; total.value = 0; emit('failure', reason) }
+function failure(reason: unknown) { ++generation; ++assigneesGeneration; assignees.value = []; assignee.value = ''; materials.value = []; materialsBusy.value = false; tasks.value = []; detail.value = undefined; total.value = 0; emit('failure', reason) }
 function failed(reason: unknown) { error.value = taskError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) failure(reason) }
 async function load() {
   if (detail.value?.id === detailId.value && studio.value && canRead.value) { await refreshDetail(); return }
@@ -89,17 +91,15 @@ async function load() {
   busy.value = true
   try {
     if (detailId.value) { const value = await props.api.get(detailId.value); if (current === generation) { const files = taskDeletionActive(value) ? [] : await props.materialsApi.list(value.id); if (current === generation) { detail.value = value; materials.value = files } } }
-    else { const value = await props.api.list({ search: search.value.trim(), scope: scope.value, status: status.value, page: page.value, pageSize: 20 }); if (current === generation) { tasks.value = value.items; total.value = value.total; if (!value.items.length && page.value > 1 && value.total > 0) page.value = Math.ceil(value.total / 20) } }
+    else { const value = await props.api.list({ search: search.value.trim(), scope: scope.value, status: '', statusGroup: status.value, designerId: assignee.value, page: page.value, pageSize: 20 }); if (current === generation) { tasks.value = value.items; total.value = value.total; if (!value.items.length && page.value > 1) page.value = Math.max(1, Math.ceil(value.total / 20)) } }
   } catch (reason) { if (current === generation) { total.value = 0; failed(reason) } }
   finally { if (current === generation) busy.value = false }
 }
 function deletionChanged(value: TaskDeletion) {
   if (value.status === 'deleted') {
-    const visible = tasks.value.some(task => task.id === value.taskId)
-    tasks.value = tasks.value.filter(task => task.id !== value.taskId)
-    if (visible) { total.value = Math.max(0, total.value - 1); if (!tasks.value.length) void load() }
     ElMessage.success('任务已永久删除，已归档成品保留')
     if (detailId.value === value.taskId) void router.push('/overseas/tasks')
+    else { void load(); void loadAssignees() }
     return
   }
   for (const task of [...tasks.value, ...(detail.value ? [detail.value] : [])]) if (task.id === value.taskId) {
@@ -142,10 +142,21 @@ async function assign() {
   } finally { saving.value = false }
 }
 watch([() => route.path, () => props.refresh, () => props.capabilities.join(',')], load, { immediate: true })
-watch([scope, status], () => { if (page.value === 1) void load(); else page.value = 1 })
+let assigneesGeneration = 0
+async function loadAssignees() {
+  const current = ++assigneesGeneration; assigneesError.value = ''
+  if (!canRead.value) { assignees.value = []; return }
+  try { const result = await props.api.assignees(); if (active && current === assigneesGeneration) { assignees.value = result.items; if (assignee.value && !result.items.some(person => person.id === assignee.value)) assignee.value = '' } }
+  catch (reason) { if (active && current === assigneesGeneration) { assignees.value = []; assigneesError.value = taskError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) failure(reason) } }
+}
+function refreshList() { void loadAssignees(); void load() }
+watch([scope, status, assignee], () => { if (page.value === 1) void load(); else page.value = 1 })
+watch([() => props.actorId, canRead], () => { assignee.value = ''; assignees.value = []; void loadAssignees() }, { immediate: true })
+watch(() => route.path, path => { if (path === '/overseas/tasks') void loadAssignees() })
+watch(() => props.refresh, () => void loadAssignees())
 watch(page, load)
 watch(search, () => { ++generation; tasks.value = []; total.value = 0; clearTimeout(timer); timer = setTimeout(() => { if (page.value === 1) void load(); else page.value = 1 }, 250) })
-onUnmounted(() => { active = false; materials.value = []; ++generation; clearTimeout(timer) })
+onUnmounted(() => { active = false; materials.value = []; ++generation; ++assigneesGeneration; clearTimeout(timer) })
 </script>
 <style scoped>
 .hx-heading { flex-wrap: wrap; }
@@ -153,4 +164,7 @@ onUnmounted(() => { active = false; materials.value = []; ++generation; clearTim
 .studio-task-heading { margin-bottom: 4px; gap: 8px; }
 .studio-task-heading h1 { font-size: 20px; margin: 0; }
 .studio-task-meta { margin-bottom: 6px; gap: 8px; font-size: 12px; color: var(--art-gray-600); }
+.workspace-in-portal { padding: 0; }
+.task-page-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0 14px; font-size: 13px; color: var(--art-gray-600); }
+.task-page-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 18px; font-size: 13px; color: var(--art-gray-600); }
 </style>

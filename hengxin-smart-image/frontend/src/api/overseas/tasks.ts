@@ -1,7 +1,7 @@
 import { createIdentityRequest, record, IdentityError } from '../identity/request'
 import { STATUS_LABELS } from '../../views/overseas/types'
 import { validateLanguage } from '../../views/overseas/languages'
-export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', deleting: '正在删除', delete_failed: '删除失败', deleted: '已删除', ...STATUS_LABELS }
+export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', deleting: '正在删除', delete_failed: '删除失败', deleted: '已删除', reworking: '返工中', ...STATUS_LABELS }
 export interface TaskDeletion { taskId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
 export interface TaskDraft { name: string; productName: string; brand: string; platform: string; language: string; market: string; skus: { code: string }[]; designerId: string; materialIds?: string[]; draftId?: string; draftVersion?: number }
 export interface TaskSummary extends Omit<TaskDraft, 'designerId' | 'language'> {
@@ -18,9 +18,11 @@ export interface RequirementsReview { id: string; decision: 'approve' | 'reject'
 export interface TaskDetail extends TaskSummary { events: TaskEvent[]; requirementsReviews?: RequirementsReview[] }
 export interface Designer { id: string; name: string; department: string }
 export interface Page<T> { items: T[]; total: number; page: number; pageSize: number }
-export interface TaskQuery { search: string; scope: string; status: string; page: number; pageSize: number }
+export interface TaskQuery { search: string; scope: string; status: string; page: number; pageSize: number; designerId?: string; statusGroup?: string }
+export interface Assignee { id: string; name: string }
 export interface TasksApi {
   list(query: TaskQuery): Promise<Page<TaskSummary>>
+  assignees(): Promise<{ items: Assignee[] }>
   get(id: string): Promise<TaskDetail>
   remove(id: string, version: number): Promise<TaskDeletion>
   deletion(id: string): Promise<TaskDeletion>
@@ -74,6 +76,7 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
   const request = createIdentityRequest(fetcher), base = '/api/overseas/v1/tasks'
   return {
     list: query => request(base, pageOf(isTask), undefined, { params: { ...query } }),
+    assignees: () => request('/api/overseas/v1/task-assignees', (v): v is { items: Assignee[] } => record(v) && Array.isArray(v.items) && v.items.every(person)),
     get: id => request(`${base}/${encodeURIComponent(id)}`, isTaskDetail),
     remove: (id, version) => request(`${base}/${encodeURIComponent(id)}`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id, { version }, { method: 'DELETE' }),
     deletion: id => request(`${base}/${encodeURIComponent(id)}/deletion`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id),

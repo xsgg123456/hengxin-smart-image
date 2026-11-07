@@ -74,11 +74,24 @@ def detail(session, task_id, actor, lock=False):
     return result
 
 
-def list_tasks(session, actor, search='', scope='all', status=None, page=1, page_size=20):
+STATUS_GROUPS = {
+    'pending': ('created', 'submitted', 'pending_review', 'returned'),
+    'designing': ('studio', 'analyzing', 'plan', 'generating', 'generationFailed', 'review', 'reworking'),
+    'completed': ('completed', 'archived'),
+}
+
+
+def list_tasks(session, actor, search='', scope='all', status=None, page=1, page_size=20,
+               designer_id=None, status_group=None):
     principal = principal_for(session, actor)
     filters = [task_filter(principal, Task.created_by, Task.designer_id)]
     if scope == 'mine':
         filters.append(or_(Task.created_by == actor.id, Task.designer_id == actor.id))
+    if designer_id:
+        filters.append(Task.designer_id == designer_id)
+    if status_group:
+        filters.append(Task.status.in_(STATUS_GROUPS[status_group]))
+        filters.append(~select(TaskDeletion.task_id).where(TaskDeletion.task_id == Task.id).exists())
     if status:
         from app.overseas.plans.models import Plan
         from app.overseas.execution.models import Job
@@ -109,6 +122,13 @@ def list_tasks(session, actor, search='', scope='all', status=None, page=1, page
                              .offset((page - 1) * page_size).limit(page_size))
     return {'items': [summary(session, task, principal) for task in records], 'total': total,
             'page': page, 'pageSize': page_size}
+
+
+def assignees(session, actor):
+    principal = principal_for(session, actor)
+    rows = session.execute(select(Member.id, Member.name).join(Task, Task.designer_id == Member.id)
+        .where(task_filter(principal, Task.created_by, Task.designer_id)).distinct().order_by(Member.name, Member.id))
+    return {'items': [{'id': str(identity), 'name': name} for identity, name in rows]}
 
 
 def designers(session, actor, search='', page=1, page_size=20):

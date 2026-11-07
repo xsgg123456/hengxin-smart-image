@@ -9,7 +9,8 @@ export function isArchiveDeletion(value: unknown): value is ArchiveDeletion {
 export interface ArchivePicture { sourceConversationId?: string | null; sourceConversationName?: string | null; id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
 export interface ArchiveEvent { id: string; actorId: string; actorName: string; at: string; pictures: { id: string; name: string; sku: string }[] }
 export interface ArchiveDetail extends Archive { pictures: ArchivePicture[]; archiveHistory?: ArchiveEvent[]; historyIncomplete?: boolean }
-export interface ArchiveQuery { search: string; page: number; pageSize: number }
+export interface ArchiveQuery { search: string; page: number; pageSize: number; archiverId?: string }
+export interface Archiver { id: string; name: string }
 const root = '/api/overseas/v1/archives'
 const positive = (value: unknown) => Number.isInteger(value) && Number(value) > 0
 const text = (value: unknown): value is string => typeof value === 'string'
@@ -67,6 +68,7 @@ export function createArchivesApi(fetcher: typeof fetch = fetch) {
     return response.blob()
   }
   return {
+    operators: () => request('/api/overseas/v1/archive-operators', (v): v is { items: Archiver[] } => record(v) && Array.isArray(v.items) && v.items.every(item => record(item) && text(item.id) && text(item.name))),
     deletionPreview: (id: string) => request(`${root}/${encodeURIComponent(id)}/deletion-preview`, (value): value is Archive => isArchive(value) && value.id === id && !!value.deleteToken),
     list: (query: ArchiveQuery) => request(root, (value): value is Page<Archive> => record(value) && Array.isArray(value.items) && value.items.every(isArchive) && Number.isInteger(value.total) && Number(value.total) >= 0 && positive(value.page) && positive(value.pageSize), undefined, { params: { ...query } }),
     get: async (id: string) => { try { return await request(`${root}/${encodeURIComponent(id)}`, (value): value is ArchiveDetail => isArchiveDetail(value, id)) } catch (reason) { archiveImageFailure(id, reason); throw reason } },

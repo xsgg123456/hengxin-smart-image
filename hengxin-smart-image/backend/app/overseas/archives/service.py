@@ -60,9 +60,12 @@ def dto(record, cover=None, latest=None):
         createdAt=record.created_at, latestArchive=event_dto(latest) if latest else None, cover=picture_dto(cover) if cover else None)
 
 
-def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20):
+def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20, archiver_id=None):
     principal = principal_for(session, actor)
     filters = [task_filter(principal, Archive.created_by, Archive.designer_id)]
+    if archiver_id:
+        filters.append(select(ArchiveEvent.id).where(ArchiveEvent.archive_id == Archive.id,
+            ArchiveEvent.actor_id == archiver_id).correlate(Archive).exists())
     for field, value in ((Archive.product_name, product), (Archive.brand, brand)):
         if value:
             filters.append(field.icontains(value, autoescape=True))
@@ -82,6 +85,18 @@ def listing(session, actor, product='', brand='', sku='', search='', page=1, pag
         .where(*filters).order_by(Archive.created_at.desc(), Archive.id)
         .offset((page - 1) * page_size).limit(page_size))
     return {'items': [{**dto(row, cover, latest), **deletion.fields(session, row)} for row, cover, latest in rows], 'total': total, 'page': page, 'pageSize': page_size}
+
+
+def archivers(session, actor):
+    principal = principal_for(session, actor)
+    ranked = (select(ArchiveEvent.actor_id, ArchiveEvent.actor_name,
+        func.row_number().over(partition_by=ArchiveEvent.actor_id,
+            order_by=(ArchiveEvent.created_at.desc(), ArchiveEvent.id.desc())).label('rank'))
+        .join(Archive, Archive.id == ArchiveEvent.archive_id)
+        .where(task_filter(principal, Archive.created_by, Archive.designer_id)).subquery())
+    rows = session.execute(select(ranked.c.actor_id, ranked.c.actor_name).where(ranked.c.rank == 1)
+                           .order_by(ranked.c.actor_name, ranked.c.actor_id))
+    return {'items': [{'id': str(identity), 'name': name} for identity, name in rows]}
 
 
 def access(session, actor, archive_id, store, metadata_only=False, protect_originals=True):

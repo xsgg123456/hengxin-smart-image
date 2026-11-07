@@ -41,14 +41,19 @@ def test_actor_snapshot_multiple_confirmations_and_replay(deletion):
     assert view['latestArchive']['actorId'] == str(creator)
     assert view['latestArchive']['pictures'][0]['sku'] == 'B'
     assert client.get(ROOT + '/archives').json()['items'][0]['latestArchive'] == view['latestArchive']
+    for person in (actual, creator):
+        assert client.get(ROOT + f'/archives?archiverId={person}&search=手机').json()['total'] == 1
+    assert {row['id'] for row in client.get(ROOT + '/archive-operators').json()['items']} == {str(actual), str(creator)}
     assert request(client, task).status_code == 200
     assert cleanup_once(factory, deletion[-1]) == 1
     after = client.get(ROOT + '/archives/' + archive['id']).json()
     assert after['sourceDeleted'] and after['archiveHistory'] == view['archiveHistory']
+    assert client.get(ROOT + f'/archives?archiverId={actual}').json()['total'] == 1
     change_roles(factory, creator, ('designer',))
     assert client.get(ROOT + '/archives/' + archive['id']).status_code == 200
     use_unrelated_designer(factory)
     assert client.get(ROOT + '/archives').json()['items'] == []
+    assert client.get(ROOT + '/archive-operators').json()['items'] == []
     assert client.get(ROOT + '/archives/' + archive['id']).status_code == 403
 
 
