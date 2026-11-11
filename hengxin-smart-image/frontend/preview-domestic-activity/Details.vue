@@ -1,0 +1,14 @@
+<template>
+  <ElDrawer :model-value="!!selected" title="执行详情" size="min(560px, 100vw)" @close="$emit('close-record')"><template v-if="selected"><h2 class="detail-title">{{ selected.task }}</h2><ElDescriptions :column="1" border><ElDescriptionsItem label="执行 ID">{{ selected.id }}</ElDescriptionsItem><ElDescriptionsItem label="实际操作者">{{ selected.person }}</ElDescriptionsItem><ElDescriptionsItem label="生成类型">{{ kinds[selected.kind] }}</ElDescriptionsItem><ElDescriptionsItem label="状态">{{ statuses[selected.status] }}</ElDescriptionsItem><ElDescriptionsItem label="发起时间">{{ time(selected.createdAt) }}</ElDescriptionsItem><ElDescriptionsItem label="开始时间">{{ time(selected.startedAt, '未开始') }}</ElDescriptionsItem><ElDescriptionsItem label="结束时间">{{ time(selected.finishedAt, '尚未结束') }}</ElDescriptionsItem><ElDescriptionsItem label="耗时">{{ selected.seconds === null ? '—' : `${selected.seconds} 秒` }}</ElDescriptionsItem><ElDescriptionsItem label="生成图片">{{ selected.images }} 张</ElDescriptionsItem><ElDescriptionsItem v-if="selected.kind !== 'cli_edit'" label="是否重试">{{ selected.retry ? '是（已包含在 API 请求数内）' : '否' }}</ElDescriptionsItem></ElDescriptions><ElAlert v-if="selected.error" class="hx-gap" :title="selected.error" type="warning" :closable="false" /><p class="hx-footnote">示例执行记录，仅用于预览布局和交互。</p></template></ElDrawer>
+  <ElDrawer :model-value="serviceOpen" title="执行服务详情" size="min(620px, 100vw)" @close="$emit('close-service')">
+    <p class="hx-footnote">服务状态来自心跳，不代表上游模型已验证可用。以下均为演示数据。</p>
+    <section v-for="channel in ['api', 'cli']" :key="channel" class="service-detail"><div class="activity-top"><h2>{{ channel === 'api' ? 'API 生图' : 'CLI 图片修改' }}</h2><ElTag :type="unavailable ? 'warning' : 'success'">{{ unavailable ? channel === 'api' ? '未知' : '不可用' : '在线' }}</ElTag></div><ElAlert v-if="unavailable" :title="channel === 'api' ? '未收到有效心跳，无法确认服务状态。' : '最近有效心跳已过期，请检查执行服务。'" type="warning" :closable="false" /><p class="hx-footnote">{{ channel === 'api' ? '任务准入 3 套 · 每批 5 张' : '最多并行 2 个修改轮次 · 同图会话串行' }}</p><ElTable :data="metrics(channel)"><ElTableColumn prop="label" label="阶段" /><ElTableColumn prop="count" label="执行记录（条）" /></ElTable><p class="hx-footnote">{{ unavailable ? '最近有效心跳：未知或已过期' : '演示节点心跳正常' }}</p></section>
+  </ElDrawer>
+</template>
+<script setup lang="ts">
+import { formatBeijingTime as time } from '@/utils/beijing-time'
+import { kinds, statuses, type RecordItem } from './data'
+const props = defineProps<{ selected: RecordItem | null; serviceOpen: boolean; rows: RecordItem[]; unavailable: boolean }>()
+defineEmits<{ 'close-record': []; 'close-service': [] }>()
+function metrics(channel: string) { return Object.entries(statuses).filter(([key]) => !['succeeded', 'cancelled'].includes(key)).map(([key,label]) => ({ label, count: props.rows.filter(row => (channel === 'cli' ? row.kind === 'cli_edit' : row.kind !== 'cli_edit') && row.status === key).length })) }
+</script>

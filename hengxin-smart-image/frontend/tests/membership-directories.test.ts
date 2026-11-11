@@ -30,7 +30,7 @@ test('真实海外目录SFC：分页加载保留总数不弹回首页，历史�
     fail = true; click(view.root, '刷新成员'); await flush(); assert.deepEqual(find(view.root, 'ArtTable').props.data, []); assert.equal(failures.length, 1)
   } finally { finish?.(); view.close() }
 })
-test('真实国内目录SFC：成员/历史独立query与总数，普通编辑不授权legacy，403清敏感表单', async () => {
+test('真实国内目录SFC：仅成员和申请，不请求历史目录，403清敏感表单', async () => {
   const queries: UserQuery[] = [], writes: UserInput[] = []; let reject = false
   const user = { id: 'u1', name: '国内成员', identitySessionId: null, role: 'designer', status: 'active', department: '', lastLoginAt: null }
   const domestic = compile('views/hengxin/admin/users.vue', {
@@ -41,8 +41,9 @@ test('真实国内目录SFC：成员/历史独立query与总数，普通编辑�
   const view = mount(domestic)
   try {
     await flush(); assert.equal(queries.at(-1)?.directory, 'members'); assert.ok(text(view.root).includes('共 30 位成员'))
-    update(find(view.root, 'ElTabs'), 'legacy'); await flush(); assert.equal(queries.at(-1)?.directory, 'legacy'); assert.ok(text(view.root).includes('共 3 条待核对记录'))
-    assert.equal(all(view.root).filter(n => n.tag === 'ElButton' && text(n) === '分配角色 / 状态').length, 0); assert.equal(writes.length, 0)
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTabPane').map(n => n.props.name), ['members', 'applications'])
+    const count = queries.length; update(find(view.root, 'ElTabs'), 'applications'); await flush(); assert.equal(queries.length, count); assert.equal(writes.length, 0)
+    assert.ok(queries.every(q => q.directory === 'members'))
     update(find(view.root, 'ElTabs'), 'members'); await flush(); click(view.root, '分配角色 / 状态'); await flush(); reject = true; click(view.root, '保存授权'); await flush()
     assert.equal(find(view.root, 'ElDialog').props.modelValue, false); assert.deepEqual(find(view.root, 'ArtTable').props.data, []); assert.ok(text(view.root).includes('共 0 位成员'))
   } finally { view.close() }

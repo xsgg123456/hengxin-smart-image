@@ -19,6 +19,7 @@ from app.modules.auth.application_router import router as application_router
 from app.modules.auth.management_router import router as member_management_router
 from app.modules.management.api_usage import router as api_usage_router
 from app.modules.management.api_monitor import router as api_monitor_router
+from app.modules.management.activity import router as activity_router
 from app.modules.management.execution_settings import router as execution_settings_router
 from app.modules.management.settings_router import router as settings_router
 from app.modules.management.retention_router import router as retention_router
@@ -47,6 +48,7 @@ app.include_router(member_management_router, prefix="/api/v1")
 app.include_router(identity_bridge_router)
 app.include_router(api_usage_router, prefix="/api/v1")
 app.include_router(api_monitor_router, prefix="/api/v1")
+app.include_router(activity_router, prefix="/api/v1")
 app.include_router(execution_settings_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(retention_router, prefix="/api/v1")

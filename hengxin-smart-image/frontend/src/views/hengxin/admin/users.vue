@@ -3,14 +3,13 @@
     <div class="hx-heading"><div><span class="hx-eyebrow">MEMBER ACCESS</span><h1>用户与角色</h1><p>成员归属与加入申请独立管理；姓名来自已验证企业身份，仅授权本业务权限。</p></div></div><AdminPreview />
     <ElCard class="art-card hx-section hx-admin-table-card">
       <div class="hx-admin-section-head"><div><span class="hx-admin-kicker">MEMBERS</span><h2>国内成员目录</h2><p>只有明确审批通过的成员可以进入国内业务。</p></div></div>
-      <ElTabs v-model="directory"><ElTabPane label="成员" name="members" /><ElTabPane label="加入申请" name="applications" /><ElTabPane label="历史待核对" name="legacy" /></ElTabs>
+      <ElTabs v-model="directory"><ElTabPane label="成员" name="members" /><ElTabPane label="加入申请" name="applications" /></ElTabs>
       <MembershipApplications v-if="directory === 'applications'" :adapter="managementApi" business-name="国内" :roles="roles" @failure="failure" />
       <template v-else>
-      <ElAlert v-if="directory === 'legacy'" title="历史来源尚未确认，仅供核对；需本人明确申请并审批，普通编辑不能授权。" type="info" :closable="false" class="hx-gap" />
       <div class="hx-filter"><ElInput v-model="search" class="hx-search" clearable placeholder="搜索姓名或部门" aria-label="搜索成员" :disabled="loading && !data" /><ElSelect v-model="status" clearable placeholder="全部状态" style="width: 160px" aria-label="成员状态" :disabled="loading && !data"><ElOption v-for="(label,key) in statuses" :key="key" :label="label" :value="key" /></ElSelect><ElButton :loading="loading" @click="load">刷新成员</ElButton></div>
       <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text @click="load">重试加载</ElButton></ElAlert>
-      <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roles[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? formatBeijingTime(row.lastLoginAt) : '尚未登录' }}</template><template #action="{ row }"><span v-if="directory === 'legacy'" class="hx-muted">仅供核对</span><ElButton v-else text type="primary" :disabled="loading || saving" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
-      <div class="hx-filter hx-gap"><span>{{ loading ? '正在读取…' : `共 ${total} ${directory === 'legacy' ? '条待核对记录' : '位成员'}` }}</span><ElPagination v-model:current-page="page" :page-size="12" :total="total" layout="prev,pager,next" :disabled="loading" /></div>
+      <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roles[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? formatBeijingTime(row.lastLoginAt) : '尚未登录' }}</template><template #action="{ row }"><ElButton text type="primary" :disabled="loading || saving" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
+      <div class="hx-filter hx-gap"><span>{{ loading ? '正在读取…' : `共 ${total} 位成员` }}</span><ElPagination v-model:current-page="page" :page-size="12" :total="total" layout="prev,pager,next" :disabled="loading" /></div>
       </template>
     </ElCard>
     <ElDialog v-model="open" title="成员授权" width="480px" :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving">
@@ -33,7 +32,7 @@ import AdminPreview from './AdminPreview.vue'
 import MembershipApplications from '@/views/auth/MembershipApplications.vue'
 import { ApiError } from '@/api/hengxin/http'
 const search=ref(''), status=ref<User['status']|''>(''), page=ref(1)
-const directory = ref<'members' | 'applications' | 'legacy'>('members')
+const directory = ref<'members' | 'applications'>('members')
 const data=ref<PageResult<ManagedUser>>(), total=ref(0), loading=ref(false), error=ref(''), conflict=ref(false)
 let generation=0, active=true, confirming=false
 function failure(reason: unknown) { data.value=undefined; total.value=0; open.value=false; error.value=reason instanceof Error ? reason.message : '读取失败，请重试' }
@@ -48,7 +47,7 @@ function filter(){ if(page.value!==1)page.value=1;else void load() }
 watch([search,status,directory],filter); watch(page,load)
 const roles:Record<Role,string>={super_admin:'超级管理员',design_manager:'设计主管',designer:'设计人员',operator:'运营人员'},statuses={pending:'待授权',active:'启用',disabled:'禁用'}
 const form=reactive<UserInput>({id:'',role:null,status:'pending'}),open=ref(false),name=ref(''),saving=ref(false),saveError=ref('')
-function edit(user:ManagedUser){if(directory.value==='legacy'||user.directoryState==='legacy_unconfirmed')return;Object.assign(form,{id:user.id,role:user.role,status:user.status});name.value=user.name;saveError.value='';conflict.value=false;open.value=true}
+function edit(user:ManagedUser){if(user.directoryState==='legacy_unconfirmed')return;Object.assign(form,{id:user.id,role:user.role,status:user.status});name.value=user.name;saveError.value='';conflict.value=false;open.value=true}
 async function save(){
   if(saving.value||conflict.value)return
   if(form.status==='active'&&!form.role){saveError.value='启用账号前请选择业务角色';return}

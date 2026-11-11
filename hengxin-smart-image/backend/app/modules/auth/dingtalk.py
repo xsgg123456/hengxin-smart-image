@@ -17,7 +17,7 @@ LOGIN_STATE_TTL = timedelta(minutes=10)
 CALLBACK_PATH = '/api/v1/auth/dingtalk/callback'
 ALLOWED_RETURN_PATHS = (
     '/api-image-edits/create', '/api-image-edits/records',
-    '/management/usage', '/management/monitor', '/management/users', '/management/settings',
+    '/management/activity', '/management/usage', '/management/monitor', '/management/users', '/management/settings',
 )
 
 
