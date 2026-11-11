@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import * as Transfers from '../src/api/overseas/skill-transfers'
 import * as Read from '../src/views/overseas/admin/skill-folder-read'
 import * as Save from '../src/views/overseas/admin/skill-folder-save'
+import * as Zip from '../src/views/overseas/admin/skill-folder-zip'
 import * as Management from '../src/api/overseas/management'
 import { formatAttachmentSize } from '../src/api/overseas/attachment-download'
 import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
@@ -17,7 +18,8 @@ const parent = new MemoryDirectory('Downloads')
 const actions = compile('views/overseas/admin/SkillFolderActions.vue', {
   '@/api/overseas/skill-transfers': Transfers, '@/api/identity/request': { IdentityError },
   '@/api/overseas/attachment-download': { formatAttachmentSize },
-  './skill-folder-save': { ...Save, chooseParent: () => { chosen++; if (cancelled) return Promise.reject(new DOMException('cancel', 'AbortError')); return Promise.resolve(parent) } },
+  './skill-folder-save': { ...Save, supportsDirectorySave: () => true, chooseParent: () => { chosen++; if (cancelled) return Promise.reject(new DOMException('cancel', 'AbortError')); return Promise.resolve(parent) } },
+  './skill-folder-zip': Zip,
   'element-plus': { ElMessageBox: { confirm: async (message: string, _title: string, options: Record<string, unknown>) => { confirmMessage = message; confirmOptions = options; if (!accept) throw Error('cancel') } } }
 })
 const skill = { id: 'fixture', name: 'fixture', displayName: '测试技能', description: '说明', version: 7, enabled: false, platforms: [] }

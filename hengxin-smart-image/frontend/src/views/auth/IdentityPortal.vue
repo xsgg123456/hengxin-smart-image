@@ -25,6 +25,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { randomUUID } from '../../utils/browser-crypto'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import LoginLeftView from '@/components/core/views/login/LoginLeftView.vue'
@@ -160,7 +161,7 @@ async function logout() {
   revalidator.invalidate()
   const epoch = ++generation
   busy.value = true; error.value = ''; member.value = undefined; overseas.value = false; states.value = {}
-  try { await identityApi.logout(); if (epoch !== generation) return; try { localStorage.setItem('hengxin:logout', crypto.randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; window.location.hash = '/auth/business' }
+  try { await identityApi.logout(); if (epoch !== generation) return; try { localStorage.setItem('hengxin:logout', randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; window.location.hash = '/auth/business' }
   catch (reason) { if (epoch === generation) error.value = reason instanceof Error ? reason.message : '退出失败，请重试' }
   finally { if (epoch === generation) busy.value = false }
 }

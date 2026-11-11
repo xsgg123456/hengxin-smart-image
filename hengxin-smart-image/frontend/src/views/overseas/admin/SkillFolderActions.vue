@@ -1,6 +1,6 @@
 <template>
   <div class="folder-actions">
-    <ElButton text size="small" :loading="busy === 'save'" :disabled="!!busy || disabled" @click="saveFolder">保存为文件夹</ElButton>
+    <ElButton text size="small" :loading="busy === 'save'" :disabled="!!busy || disabled" @click="saveFolder">{{ directorySave ? '保存为文件夹' : '下载 ZIP' }}</ElButton>
     <ElButton v-if="incomplete" text size="small" :disabled="!!busy || disabled" @click="retrySave">核验并重试保存</ElButton>
     <ElButton v-if="canManage" text type="danger" size="small" :loading="busy === 'delete'" :disabled="!!busy || disabled" @click="remove">删除 Skill</ElButton>
     <span v-if="status" role="status" class="folder-status">{{ status }}</span>
@@ -13,10 +13,12 @@ import { IdentityError } from '@/api/identity/request'
 import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import type { ManagedSkill } from '@/api/overseas/management'
 import { skillTransferError, type SkillTransferApi } from '@/api/overseas/skill-transfers'
-import { chooseParent, prepareFolderSave, writeFolder, type FolderSave } from './skill-folder-save'
+import { chooseParent, supportsDirectorySave, prepareFolderSave, writeFolder, type FolderSave } from './skill-folder-save'
+import { downloadSkillZip } from './skill-folder-zip'
 const props = defineProps<{ skill: ManagedSkill; api: SkillTransferApi; canManage: boolean; disabled?: boolean }>()
 const emit = defineEmits<{ changed: [notice?: string]; failure: [reason: unknown] }>()
 const busy = ref(''), status = ref(''), incomplete = ref(false)
+const directorySave = supportsDirectorySave()
 let pending: FolderSave | undefined
 let pendingRemoval: { release: string; checksum: string; version: number } | undefined
 async function write() {
@@ -30,6 +32,12 @@ async function saveFolder() {
   if (busy.value || props.disabled) return
   busy.value = 'save'; status.value = ''
   try {
+    if (!directorySave) {
+      const descriptor = await props.api.package(props.skill.id)
+      await downloadSkillZip(props.skill.id, descriptor, props.api, (done, total) => { status.value = `已下载并核验 ${done}/${total} 项` })
+      status.value = '已发起完整文件夹 ZIP 下载；请确认浏览器下载完成后解压，包含原文件及空目录'
+      return
+    }
     // Request permission before any network await, while the user gesture is active.
     const parent = await chooseParent()
     const descriptor = await props.api.package(props.skill.id)

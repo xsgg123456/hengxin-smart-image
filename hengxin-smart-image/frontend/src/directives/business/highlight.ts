@@ -42,6 +42,7 @@
  */
 
 import { App, Directive } from 'vue'
+import { copyText } from '../../utils/clipboard'
 let highlighter: Promise<typeof import('highlight.js')> | undefined
 const processing = new WeakSet<HTMLElement>()
 
@@ -76,9 +77,9 @@ function addCopyButton(block: HTMLElement) {
   copyButton.onclick = () => {
     // 过滤掉行号，只复制代码内容
     const codeContent = block.innerText.replace(/^\d+\s+/gm, '')
-    navigator.clipboard.writeText(codeContent).then(() => {
+    copyText(codeContent).then(() => {
       ElMessage.success('复制成功')
-    })
+    }).catch(() => { ElMessage.info('复制失败，请手动选择代码复制') })
   }
 
   const preElement = block.parentElement

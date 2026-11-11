@@ -1,3 +1,4 @@
+import { randomUUID } from '../../utils/browser-crypto'
 import { createIdentityRequest, record, IdentityError } from '../identity/request'
 import { STATUS_LABELS } from '../../views/overseas/types'
 import { validateLanguage } from '../../views/overseas/languages'
@@ -100,7 +101,7 @@ export function validateDraft(d: TaskDraft) {
 }
 export function validateNewDraft(d: TaskDraft) { validateDraft(d); if (d.skus.length !== 1) throw Error('新建图需仅支持一个 SKU') }
 // Keep the same key for each unsuccessful payload, including A → B → A edits.
-export function createRequestKeys(random: () => string = () => crypto.randomUUID()) {
+export function createRequestKeys(random: () => string = () => randomUUID()) {
   const keys = new Map<string, string>()
   return { for(body: unknown) { const hash = JSON.stringify(body); if (!keys.has(hash)) keys.set(hash, random()); return keys.get(hash)! }, clear() { keys.clear() } }
 }

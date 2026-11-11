@@ -71,6 +71,7 @@
     "dingtalk-jsapi": "^3.2.9",
     "echarts": "^6.0.0",
     "element-plus": "^2.11.2",
+    "fflate": "0.8.3",
     "file-saver": "^2.0.5",
     "highlight.js": "^11.10.0",
     "markdown-it": "15.0.2",

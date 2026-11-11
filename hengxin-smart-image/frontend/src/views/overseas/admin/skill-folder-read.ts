@@ -1,3 +1,5 @@
+import { sha256 } from '../../../utils/browser-crypto'
+export { sha256 } from '../../../utils/browser-crypto'
 import { isDirectory, type FolderManifest } from '../../../api/overseas/skill-transfers'
 import { previewSkillMetadata } from './skill-folder-metadata'
 export interface FolderNode {
@@ -7,9 +9,6 @@ export interface FolderNode {
 }
 export interface ScannedFolder extends FolderManifest { files: Map<string, File>; totalBytes: number; name: string; displayName: string; description: string }
 export const folderLimits = { file: 64 * 1024 * 1024, bytes: 256 * 1024 * 1024, files: 1000, entries: 2000 }
-export async function sha256(bytes: ArrayBuffer): Promise<string> {
-  return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(v => v.toString(16).padStart(2, '0')).join('')
-}
 export function safeSegment(name: string): boolean { return !!name && name !== '.' && name !== '..' && !/[\\/\u0000-\u001f]/.test(name) }
 export function droppedRoot(data: DataTransfer): FolderNode {
   const items = Array.from(data.items)

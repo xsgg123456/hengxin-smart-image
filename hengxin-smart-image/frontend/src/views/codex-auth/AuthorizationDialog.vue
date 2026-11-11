@@ -32,6 +32,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { copyText } from '../../utils/clipboard'
 import { ElMessage } from 'element-plus'
 import { businessNames, officialAuthorizationUrl, type Account, type Business, type CodexAuthApi, type Intent } from '../../api/codex-auth'
 import { useAuthorization } from './use-authorization'
@@ -44,7 +45,7 @@ const copied = ref(false)
 const title = computed(() => props.intent === 'replace' ? '更换 Codex 账号' : props.intent === 'connect' ? '登录并授权' : '重新授权')
 const officialUrl = computed(() => officialAuthorizationUrl(authorization.value?.verificationUrl || ''))
 function openOfficial() { if (officialUrl.value) window.open(officialUrl.value, '_blank', 'noopener,noreferrer') }
-async function copy() { try { await navigator.clipboard.writeText(authorization.value?.userCode || ''); copied.value = true } catch { ElMessage.info('复制失败，请手动选择上方授权码复制') } }
+async function copy() { try { await copyText(authorization.value?.userCode || ''); copied.value = true } catch { ElMessage.info('复制失败，请手动选择上方授权码复制') } }
 function restart() { copied.value = false; void start() }
 </script>
 

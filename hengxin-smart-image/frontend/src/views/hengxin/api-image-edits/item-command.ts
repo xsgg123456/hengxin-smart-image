@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { formatBeijingTime } from '@/utils/beijing-time'
 import { reactive } from 'vue'
 import { errorText, uncertainResponse } from '@/api/api-image-edits'
@@ -6,7 +7,7 @@ import type { ApiPicture, ApiRevisionInput } from '@/types/api-image-edits'
 export type ItemCommand = { kind: 'revise'; input: ApiRevisionInput; annotation?: ApiPicture; references?: RevisionReference[] } | { kind: 'restore'; version: number } | { kind: 'retry' } | { kind: 'stop' }
 export interface PendingCommand { key: string; command: ItemCommand; uncertain: boolean }
 export interface CommandStorage { load(): PendingCommand | null; save(value: PendingCommand | null): void }
-export function createItemCommand(storage?: CommandStorage, key = () => crypto.randomUUID()) {
+export function createItemCommand(storage?: CommandStorage, key = () => randomUUID()) {
   const state = reactive({ pending: storage?.load() || null as PendingCommand | null, busy: false, error: '' })
   async function submit(command: ItemCommand, send: (command: ItemCommand, key: string) => Promise<unknown>) {
     if (state.busy) return false

@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useUserStore } from '@/store/modules/user'
 import { apiImages, errorText, uncertainResponse } from '@/api/api-image-edits'
@@ -125,7 +126,7 @@ export function useRecords() {
   }
   async function retry(id: string) {
     await action(async () => {
-      const entry = savedRetry(retryId(id)) || { key: crypto.randomUUID(), uncertain: false }; saveRetry(retryId(id), entry)
+      const entry = savedRetry(retryId(id)) || { key: randomUUID(), uncertain: false }; saveRetry(retryId(id), entry)
       try { await apiImages.retry(id, entry.key); saveRetry(retryId(id)) }
       catch (e) { if (uncertainResponse(e)) entry.uncertain = true; else if (!entry.uncertain) saveRetry(retryId(id)); throw e }
     }, () => '操作未完成，请再试一次。')

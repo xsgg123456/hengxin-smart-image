@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../../utils/browser-crypto'
 import { reactive } from 'vue'
 import type { Asset, StudioPicture } from '@/api/overseas/studio'
 import { overseasImageCache } from '@/api/overseas/image-cache'
@@ -22,7 +23,7 @@ export function draftFor(key: string, seed: Seed[] = []): Draft {
     draft = reactive<Draft>({
       get marks() { return annotationDraft(key).marks },
       set marks(value) { annotationDraft(key).marks = value },
-      references: seed.map(s => ({ ...s, id: crypto.randomUUID(), name: s.asset.name, url: '', status: 'loading', error: '' }))
+      references: seed.map(s => ({ ...s, id: randomUUID(), name: s.asset.name, url: '', status: 'loading', error: '' }))
     })
     drafts.set(key, draft)
     draft.references.forEach(r => { void readReference(r) })
@@ -86,7 +87,7 @@ export async function readReference(item: Reference) {
 }
 export function addReferences(draft: Draft, files: File[]) {
   for (const file of files) {
-    draft.references.push({ id: crypto.randomUUID(), file, name: file.name, url: '', kind: '', customPurpose: '', note: '', status: 'loading', error: '' })
+    draft.references.push({ id: randomUUID(), file, name: file.name, url: '', kind: '', customPurpose: '', note: '', status: 'loading', error: '' })
     void readReference(draft.references[draft.references.length - 1])
   }
 }

@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import * as Vue from 'vue'
+import * as BrowserCrypto from '../src/utils/browser-crypto'
 import { uncertainResponse } from '../src/api/api-image-edits'
 import { ApiError } from '../src/api/hengxin/http'
 import { recordsDateRange } from '../src/views/hengxin/api-image-edits/records-filters'
@@ -32,6 +33,7 @@ test('真实记录逻辑隐藏停轮询，恢复等授权，终态详情低频�
   new Function('require', 'module', 'exports', 'document', 'setTimeout', 'clearTimeout', 'Date', code)(
     (name: string) => {
       if (name === 'vue') return Vue
+      if (name.endsWith('/utils/browser-crypto')) return BrowserCrypto
       if (name === './records-filters') return { recordsDateRange }
       if (name === '@/store/modules/user') return { useUserStore: () => ({ getUserInfo: { userId: 'u' } }) }
       if (name === '@/api/api-image-edits') return { apiImages, errorText: String, uncertainResponse }

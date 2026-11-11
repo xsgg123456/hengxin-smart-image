@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { parse, compileScript } from '@vue/compiler-sfc'
 import ts from 'typescript'
 import * as Vue from 'vue'
+import * as BrowserCrypto from '../src/utils/browser-crypto'
 import { IdentityError, type Member } from '../src/api/identity/auth'
 import { createOverseasRevalidator } from '../src/api/identity/revalidate'
 
@@ -39,6 +40,7 @@ for (const failure of [0,401,403,503]) test(`真实IdentityPortal组件重验：
   const module = { exports: {} as { default: Vue.Component } }
   const require = (name: string): unknown => {
     if (name === 'vue') return Vue
+    if (name.endsWith('/utils/browser-crypto')) return BrowserCrypto
     if (name === 'element-plus') return { ElMessage: { success: () => {} }, ElMessageBox: { confirm: async () => {}, close: () => {} } }
     if (name.endsWith('/revalidate')) return { createOverseasRevalidator }
     if (name.endsWith('/auth')) return { identityApi: api, IdentityError }

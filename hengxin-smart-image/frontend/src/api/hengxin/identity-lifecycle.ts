@@ -1,3 +1,4 @@
+import { randomUUID } from '../../utils/browser-crypto'
 import { identity } from './identity'
 
 /** 锁定同步发生在浏览器事件内，早于 Vue 下一次渲染及 bfcache 快照。 */
@@ -36,5 +37,5 @@ export function installIdentityLifecycle(options: {
 export function broadcastLogout() {
   identity.advance('invalid')
   // 接收端不再广播；只传随机通知，不持久化身份或业务数据。
-  try { localStorage.setItem('hengxin:logout', crypto.randomUUID()) } catch { /* 存储不可用时服务端仍重验 */ }
+  try { localStorage.setItem('hengxin:logout', randomUUID()) } catch { /* 存储不可用时服务端仍重验 */ }
 }

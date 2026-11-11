@@ -1,10 +1,30 @@
 from functools import lru_cache
+from ipaddress import IPv4Address, IPv4Network
 import os
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _is_intranet_http_origin(value: str) -> bool:
+    """Permit only literal RFC1918 IPv4 origins, not every non-global address."""
+    try:
+        origin = urlsplit(value)
+        if (not value.startswith('http://') or not origin.hostname or
+                origin.username is not None or origin.password is not None or
+                origin.query or origin.fragment or origin.path not in ('', '/') or
+                any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value) or
+                origin.netloc.endswith(':') or origin.port == 0):
+            return False
+        address = IPv4Address(origin.hostname)
+        return any(address in IPv4Network(network) for network in (
+            '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16',
+        ))
+    except ValueError:
+        return False
 
 
 class Settings(BaseSettings):
@@ -36,6 +56,7 @@ class Settings(BaseSettings):
     identity_service_url: str = ''
     identity_service_key: str = Field(default='', repr=False)
     identity_public_origin: str = ''
+    allow_intranet_http: bool = False
     dingtalk_corp_id: str = ''
     dingtalk_client_id: str = ''
     dingtalk_agent_id: str = ''
@@ -60,6 +81,10 @@ class Settings(BaseSettings):
     outbox_poll_seconds: float = Field(default=2, ge=0.1, le=60)
     outbox_redispatch_seconds: int = Field(default=30, ge=1, le=3600)
 
+    @property
+    def intranet_http_enabled(self) -> bool:
+        return self.allow_intranet_http and _is_intranet_http_origin(self.identity_public_origin)
+
     @model_validator(mode="after")
     def validate_environment(self):
         if bool(self.identity_service_url) != bool(self.identity_service_key):
@@ -67,15 +92,19 @@ class Settings(BaseSettings):
         if self.identity_service_key and len(self.identity_service_key) < 32:
             raise ValueError('Identity service key must have at least 32 characters')
         if self.identity_service_url:
-            from urllib.parse import urlsplit
             for value in (self.identity_service_url, self.identity_public_origin):
                 parsed = urlsplit(value)
                 if (parsed.scheme not in ('http', 'https') or not parsed.netloc
                         or parsed.username or parsed.password or parsed.query or parsed.fragment
                         or parsed.path not in ('', '/')):
                     raise ValueError('Identity service and public origins must be valid HTTP origins')
-            if self.app_env == 'production' and not self.identity_public_origin.startswith('https://'):
+            if (self.app_env == 'production' and
+                    not self.identity_public_origin.startswith('https://') and
+                    not self.intranet_http_enabled):
                 raise ValueError('Production identity public origin must use HTTPS')
+        if (self.allow_intranet_http and self.identity_public_origin.startswith('http://') and
+                not self.intranet_http_enabled):
+            raise ValueError('Intranet HTTP public origin must use a literal RFC1918 IPv4 address')
         if self.enable_codex_executor:
             if not self.codex_binary or not self.codex_auth_file:
                 raise ValueError('Codex binary and auth file are required')

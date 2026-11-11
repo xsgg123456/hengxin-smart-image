@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { computed, onScopeDispose, ref } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { createStudioApi, type Asset, type Studio, type StudioTranscript, type StudioPicture, type TurnInput } from '@/api/overseas/studio'
@@ -153,13 +154,13 @@ export function useStudio(task: () => TaskDetail, failure: (reason: unknown) => 
     if (!canSend.value) return
     const body: TurnInput = { ...(data.value?.conversationId ? { conversationId: data.value.conversationId } : {}), text: text.value, skillId: skill.value || null, attachmentIds: attachments.value.map(a => a.id), referencePictureIds: references.value.map(p => p.id) }
     if (revisions.value.length) body.imageEdits = revisions.value.map(r => ({ pictureId: r.base.id, annotationId: r.annotation?.id || null, text: r.text, ...(r.referenceImages?.length ? { references: r.referenceImages.map(ref => ({ attachmentId: ref.asset.id, kind: ref.kind, customPurpose: ref.kind === 'custom' ? ref.customPurpose : '', note: ref.note })) } : {}) }))
-    return run({ key: crypto.randomUUID(), kind: 'send', body, draftKeys: revisions.value.map(r => r.draftKey), draftConversationId: data.value?.conversationId || null })
+    return run({ key: randomUUID(), kind: 'send', body, draftKeys: revisions.value.map(r => r.draftKey), draftConversationId: data.value?.conversationId || null })
   }
-  function newConversation() { if (canNewConversation.value) return run({ key: crypto.randomUUID(), kind: 'conversation', draftConversationId: data.value?.conversationId || null }) }
+  function newConversation() { if (canNewConversation.value) return run({ key: randomUUID(), kind: 'conversation', draftConversationId: data.value?.conversationId || null }) }
   function retry() { if (pending.value) return run(pending.value) }
-  function archive(sku: string) { if (!locked.value && !data.value?.activeTurnId && selected.value.length) return run({ key: crypto.randomUUID(), kind: 'archive', body: { pictureIds: [...selected.value], sku, ...(conversationId ? { conversationId } : {}) }, draftConversationId: data.value?.conversationId }) }
-  function complete() { if (canComplete.value && data.value) return run({ key: crypto.randomUUID(), kind: 'complete', body: { version: data.value.taskVersion } }) }
-  function reopen() { if (canReopen.value && data.value) return run({ key: crypto.randomUUID(), kind: 'reopen', body: { version: data.value.taskVersion } }) }
+  function archive(sku: string) { if (!locked.value && !data.value?.activeTurnId && selected.value.length) return run({ key: randomUUID(), kind: 'archive', body: { pictureIds: [...selected.value], sku, ...(conversationId ? { conversationId } : {}) }, draftConversationId: data.value?.conversationId }) }
+  function complete() { if (canComplete.value && data.value) return run({ key: randomUUID(), kind: 'complete', body: { version: data.value.taskVersion } }) }
+  function reopen() { if (canReopen.value && data.value) return run({ key: randomUUID(), kind: 'reopen', body: { version: data.value.taskVersion } }) }
   async function stop() {
     if (!activeTurn.value || !editable.value || busy.value || uploading.value || pending.value) return
     ++operation; readController?.abort(); clearTimeout(timer); busy.value = true; error.value = ''

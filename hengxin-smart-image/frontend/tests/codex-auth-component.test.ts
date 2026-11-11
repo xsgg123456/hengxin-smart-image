@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { compileScript, parse } from '@vue/compiler-sfc'
 import ts from 'typescript'
 import * as Vue from 'vue'
+import * as Clipboard from '../src/utils/clipboard'
 import * as contract from '../src/api/codex-auth'
 import * as accountHook from '../src/views/codex-auth/use-account'
 import * as authorizationHook from '../src/views/codex-auth/use-authorization'
@@ -28,6 +29,7 @@ function compile(name: string) {
   const code = ts.transpileModule(content, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
   const module = { exports: {} as { default: Vue.Component } }
   new Function('require', 'module', 'exports', code)((key: string) => {
+    if (key === '../../utils/clipboard') return Clipboard
     if (key in dependencies) return dependencies[key]
     if (key === './AuthorizationDialog.vue') return { default: compile('AuthorizationDialog') }
     throw new Error(key)

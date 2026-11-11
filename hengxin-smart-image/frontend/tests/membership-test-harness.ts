@@ -1,4 +1,5 @@
 import * as BeijingTime from '../src/utils/beijing-time'
+import * as BrowserCrypto from '../src/utils/browser-crypto'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { compileScript, parse } from '@vue/compiler-sfc'
@@ -21,7 +22,7 @@ export function compile(path: string, deps: Record<string, unknown>) {
   const content = compileScript(parse(source).descriptor, { id: path, inlineTemplate: true }).content
   const code = ts.transpileModule(content, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
   const module = { exports: {} as { default: Vue.Component } }
-  new Function('require', 'module', 'exports', code)((name: string) => { if (name === 'vue') return Vue; if (name === '@/utils/beijing-time') return BeijingTime; if (name in deps) return deps[name]; throw new Error(`Unexpected test dependency ${name}`) }, module, module.exports)
+  new Function('require', 'module', 'exports', code)((name: string) => { if (name === 'vue') return Vue; if (name === '@/utils/beijing-time') return BeijingTime; if (name in deps) return deps[name]; if (name.endsWith('/utils/browser-crypto')) return BrowserCrypto; throw new Error(`Unexpected test dependency ${name}`) }, module, module.exports)
   return module.exports.default
 }
 export function mount(component: Vue.Component, props = {}) {

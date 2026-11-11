@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import * as Vue from 'vue'
+import * as BrowserCrypto from '../src/utils/browser-crypto'
 import { recordsDateRange } from '../src/views/hengxin/api-image-edits/records-filters'
 import { isTaskActive } from '../src/types/api-image-edits'
 
@@ -19,6 +20,7 @@ test('记录分页真实传参、切换回首页保留筛选、删除纠页、�
   new Function('require', 'module', 'exports', 'document', 'setTimeout', 'clearTimeout', code)(
     (name: string) => {
       if (name === 'vue') return Vue
+      if (name.endsWith('/utils/browser-crypto')) return BrowserCrypto
       if (name === './records-filters') return { recordsDateRange }
       if (name === '@/store/modules/user') return { useUserStore: () => ({ getUserInfo: { userId: 'u' } }) }
       if (name === '@/api/api-image-edits') return { apiImages, errorText: String }

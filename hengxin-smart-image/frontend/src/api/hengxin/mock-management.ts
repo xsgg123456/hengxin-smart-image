@@ -1,3 +1,4 @@
+import { randomUUID } from '../../utils/browser-crypto'
 import { validateSettings } from './settings-validation'
 import type { DemoState } from './demo-state'
 import type { ManagementScenario, ManagementService, ManagedSettings, ManagedUser } from '../../types/management'
@@ -56,7 +57,7 @@ export function createMockManagement(getUser: () => User | Promise<User>, option
       if (input.version !== settings.version) throw new ApiError('CONFLICT', '配置版本已变化，请刷新后重试', 409)
       validateSettings(input, settings)
       const fields = (['concurrency', 'timeoutSeconds', 'maxUploadBytes', 'dingtalk'] as const).filter(key => JSON.stringify(input[key]) !== JSON.stringify(key === 'dingtalk' ? { corpId: settings.dingtalk.corpId, appId: settings.dingtalk.appId, callbackDomain: settings.dingtalk.callbackDomain } : settings[key]))
-      settings = { ...copy(input), capacity: settings.capacity, timeoutCapacity: settings.timeoutCapacity, version: settings.version + 1, dingtalk: { ...settings.dingtalk }, audit: [{ id: crypto.randomUUID(), operatorId: user.id, operatorName: user.name, changedAt: new Date().toISOString(), version: settings.version + 1, fields }, ...settings.audit] }
+      settings = { ...copy(input), capacity: settings.capacity, timeoutCapacity: settings.timeoutCapacity, version: settings.version + 1, dingtalk: { ...settings.dingtalk }, audit: [{ id: randomUUID(), operatorId: user.id, operatorName: user.name, changedAt: new Date().toISOString(), version: settings.version + 1, fields }, ...settings.audit] }
       options.onSettingsChanged?.(copy(settings)); capture()
       return copy(settings)
     }

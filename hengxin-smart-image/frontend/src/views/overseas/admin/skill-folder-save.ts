@@ -63,6 +63,7 @@ async function assertRoot(save: FolderSave): Promise<void> {
   if (!root || !await sameEntry(save.root, root)) conflict(save.descriptor.rootName)
 }
 type PickerWindow = Window & { showDirectoryPicker?: (options: { mode: 'readwrite' }) => Promise<LocalDirectory> }
+export function supportsDirectorySave(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function' }
 export function chooseParent(): Promise<LocalDirectory> {
   const picker = (window as PickerWindow).showDirectoryPicker
   if (!picker) return Promise.reject(new Error('此浏览器不支持保存完整文件夹，请使用新版 Chrome 或 Edge'))

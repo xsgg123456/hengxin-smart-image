@@ -1,9 +1,10 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { reactive } from 'vue'
 import { errorText, uncertainResponse } from '@/api/api-image-edits'
 import type { EditTurnInput } from '@/types/api-image-conversation'
 export type ConversationAction = { kind: 'submit'; input: EditTurnInput } | { kind: 'adopt'; turnId: string; expectedVersion: number }
 export interface PendingConversationAction { key: string; action: ConversationAction; uncertain: boolean }
-export function createConversationCommand(storage?: { load(): PendingConversationAction | null; save(value: PendingConversationAction | null): void }, key = () => crypto.randomUUID()) {
+export function createConversationCommand(storage?: { load(): PendingConversationAction | null; save(value: PendingConversationAction | null): void }, key = () => randomUUID()) {
   const state = reactive({ pending: storage?.load() || null as PendingConversationAction | null, busy: false, error: '' })
   async function send<T>(action: ConversationAction, request: (action: ConversationAction, key: string) => Promise<T>): Promise<T | undefined> {
     if (state.busy) return

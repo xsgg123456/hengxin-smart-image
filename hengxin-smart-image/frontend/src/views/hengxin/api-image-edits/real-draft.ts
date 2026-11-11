@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { reactive } from 'vue'
 import { DEFAULT_WALLPAPER_PROMPT } from './default-wallpaper-prompt'
 import { identity } from '@/api/hengxin/identity'
@@ -7,7 +8,7 @@ export interface UploadPicture { id: string; name: string; url: string; fileId?:
 interface DraftApi { upload(file: File): Promise<ApiPicture>; deleteFile(id: string): Promise<unknown>; create(input: ApiTaskInput, key: string): Promise<{ taskId: string }> }
 interface Pending { key: string; input: ApiTaskInput; uncertain: boolean }
 interface Persistence { load(): Pending | null; save(value: Pending | null): void }
-export function createDraft(api: DraftApi, decode: (url: string) => Promise<void>, urls = URL, newKey = () => crypto.randomUUID(), persistence?: Persistence) {
+export function createDraft(api: DraftApi, decode: (url: string) => Promise<void>, urls = URL, newKey = () => randomUUID(), persistence?: Persistence) {
   const state = reactive({ images: [] as UploadPicture[], name: '', prompt: DEFAULT_WALLPAPER_PROMPT, error: '', busy: false, pending: null as Pending | null })
   state.pending = persistence?.load() || null
   if (state.pending) { state.name = state.pending.input.name; state.prompt = state.pending.input.prompt }
@@ -80,7 +81,7 @@ export function draftForUser(userId: string) {
   const image = new Image()
   image.onload = () => resolve(); image.onerror = () => reject(new Error('图片无法解码，请重新选择有效图片'))
   image.src = url
-}), URL, () => crypto.randomUUID(), pendingStorage(userId))
+}), URL, () => randomUUID(), pendingStorage(userId))
     drafts.set(userId, draft)
   }
   // 重建显示URL，原始文件及未确认写请求的幂等快照仍按用户隔离保留。

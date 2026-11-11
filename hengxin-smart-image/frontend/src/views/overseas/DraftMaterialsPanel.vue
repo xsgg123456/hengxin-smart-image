@@ -25,6 +25,7 @@
   </ElCard>
 </template>
 <script setup lang="ts">
+import { randomUUID } from '../../utils/browser-crypto'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { ElMessageBox, type UploadFile } from 'element-plus'
@@ -49,7 +50,7 @@ function failed(reason: unknown) { error.value = materialError(reason); if (reas
 async function selected(value: UploadFile, kind: MaterialKind) {
   if (!value.raw || props.disabled || changing.value) return
   try { validateFile(value.raw, kind); if (files.value.length + uploads.value.length >= 100) throw Error('单次最多 100 份资料，请先移除多余附件') } catch (reason) { failed(reason); return }
-  const upload = { id: crypto.randomUUID(), file: value.raw, kind, progress: 0, controller: new AbortController() }
+  const upload = { id: randomUUID(), file: value.raw, kind, progress: 0, controller: new AbortController() }
   uploads.value.push(upload); error.value = ''
   try {
     await props.api.upload(value.raw, kind, n => { const row = uploads.value.find(f => f.id === upload.id); if (row) row.progress = n }, upload.controller.signal, props.draft.id)

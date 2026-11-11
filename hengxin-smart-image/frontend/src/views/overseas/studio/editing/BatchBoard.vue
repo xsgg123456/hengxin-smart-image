@@ -21,6 +21,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { randomUUID } from '../../../../utils/browser-crypto'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import type { StudioPicture } from '@/api/overseas/studio'
 import AnnotationMarks from '@/views/hengxin/components/annotation/AnnotationMarks.vue'
@@ -63,7 +64,7 @@ function begin(e: PointerEvent) {
     if (tool.value === 'select' || !images[id!]?.url) return
     const p = props.pictures[index], dimensions = size(index), place = placement(index), local = { x: (start.x - place.x) / place.scale, y: (start.y - place.y) / place.scale }
     if (local.x < 0 || local.y < 0 || local.x > dimensions.width || local.y > dimensions.height) return
-    const mark: AnnotationMark = { id: crypto.randomUUID(), kind: tool.value === 'pen' ? 'pen' : 'rect', x: local.x, y: local.y, width: 0, height: 0, points: [local], note: '' }
+    const mark: AnnotationMark = { id: randomUUID(), kind: tool.value === 'pen' ? 'pen' : 'rect', x: local.x, y: local.y, width: 0, height: 0, points: [local], note: '' }
     const draft = draftFor(props.keyFor(p)); draft.marks.push(mark)
     gesture = { pointer: e.pointerId, start: local, camera: { ...camera }, index, mark: draft.marks[draft.marks.length - 1] }; emit('mark', mark.id)
   }

@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { reactive } from "vue";
 import type { Task } from "../types";
 import type { Skill } from "../../../api/overseas/management";
@@ -52,7 +53,7 @@ export function saveMember(input: Member) {
 }
 function upsert<T extends { id: string }>(list: T[], value: T) {
   if (!value.id) {
-    list.push({ ...value, id: crypto.randomUUID() });
+    list.push({ ...value, id: randomUUID() });
     return;
   }
   const index = list.findIndex((item) => item.id === value.id);

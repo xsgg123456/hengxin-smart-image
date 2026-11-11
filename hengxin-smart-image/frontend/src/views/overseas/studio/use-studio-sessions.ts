@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../utils/browser-crypto'
 import { computed, effectScope, onScopeDispose, ref, shallowRef, watch, type Ref, type EffectScope } from 'vue'
 import { IdentityError } from '@/api/identity/request'
 import { createStudioApi, type Studio, type StudioApi, type StudioConversation } from '@/api/overseas/studio'
@@ -145,15 +146,15 @@ export function useStudioSessions(task: () => TaskDetail, failure: (reason: unkn
       void current.value?.refresh(); return false
     } finally { sessionBusy.value = false }
   }
-  function newConversation() { if (canNewConversation.value) return manage({ kind: 'create', key: crypto.randomUUID() }) }
+  function newConversation() { if (canNewConversation.value) return manage({ kind: 'create', key: randomUUID() }) }
   function renameConversation(s: StudioConversation, name: string) {
     if (!canManage.value || s.deletionStatus) return
     if (!name.trim() || name.trim().length > 30) { sessionError.value = '请输入 1–30 个字'; return }
-    return manage({ kind: 'rename', id: s.id, version: s.version, name: name.trim(), key: crypto.randomUUID() })
+    return manage({ kind: 'rename', id: s.id, version: s.version, name: name.trim(), key: randomUUID() })
   }
   function deleteConversation(s: StudioConversation) {
     if (canManage.value && !s.activeTurnId && s.deletionStatus !== 'deleting' && !engines.get(s.id)?.controller.busy.value && !engines.get(s.id)?.controller.uploading.value && !engines.get(s.id)?.controller.pending.value)
-      return manage({ kind: 'delete', id: s.id, version: s.version, key: crypto.randomUUID() })
+      return manage({ kind: 'delete', id: s.id, version: s.version, key: randomUUID() })
   }
   function saveScroll(position: number, id = activeId.value) { if (id) { scrolls.value[id] = position; persist() } }
   onScopeDispose(() => { alive = false; for (const entry of engines.values()) entry.scope.stop() })

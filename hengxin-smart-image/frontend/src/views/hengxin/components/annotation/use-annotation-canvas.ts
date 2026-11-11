@@ -1,3 +1,4 @@
+import { randomUUID } from '../../../../utils/browser-crypto'
 import { computed, ref, watch, type Ref } from 'vue'
 import { useAnnotationShortcuts } from './use-annotation-shortcuts'
 import { useAnnotationViewport } from './use-annotation-viewport'
@@ -133,7 +134,7 @@ export function useAnnotationCanvas(
         choose(hit.id)
       } else {
         const mark: AnnotationMark = {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           kind: tool.value,
           x: p.x,
           y: p.y,

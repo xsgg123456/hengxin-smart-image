@@ -42,5 +42,6 @@ def require_identity_session(identity_session_id: str | None):
 def set_business_cookie(response: Response, name: str, token: str, path: str):
     settings = get_settings()
     response.set_cookie(name, token, httponly=True, samesite='lax', path=path,
-                        secure=settings.app_env == 'production' or settings.identity_public_origin.startswith('https://'),
+                        secure=(settings.app_env == 'production' and not settings.intranet_http_enabled)
+                        or settings.identity_public_origin.startswith('https://'),
                         max_age=settings.auth_session_ttl_seconds)

@@ -47,6 +47,9 @@ importers:
       element-plus:
         specifier: ^2.11.2
         version: 2.11.4(vue@3.5.22(typescript@5.6.3))
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       file-saver:
         specifier: ^2.0.5
         version: 2.0.5
@@ -2135,6 +2138,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   figures@3.2.0:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}
@@ -5944,6 +5950,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.3):
     optionalDependencies:
       picomatch: 4.0.3
+
+  fflate@0.8.3: {}
 
   figures@3.2.0:
     dependencies:

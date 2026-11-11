@@ -29,6 +29,7 @@
   </ElDialog>
 </template>
 <script setup lang="ts">
+import { randomUUID } from '../../../utils/browser-crypto'
 import { computed, ref } from 'vue'
 import { isDirectory, skillTransferError, type SkillTransfer, type SkillTransferApi } from '@/api/overseas/skill-transfers'
 import { droppedRoot, folderTree, scanFolder, type ScannedFolder } from './skill-folder-read'
@@ -62,7 +63,7 @@ async function drop(event: DragEvent) {
     // DataTransfer entries must be captured synchronously inside the drop event.
     const root = droppedRoot(event.dataTransfer), result = await scanFolder(root, count => { scanned.value = count })
     if (transfer.value && ['uploading', 'failed'].includes(transfer.value.status) && !matches(result, transfer.value)) throw new Error('重新拖入的文件夹与待续传清单不同。请先完成当前上传，或关闭后选择另一条记录；不会混合文件')
-    if (!transfer.value || ['installed', 'cancelled', 'validated'].includes(transfer.value.status)) { transfer.value = undefined; requestKey = crypto.randomUUID() }
+    if (!transfer.value || ['installed', 'cancelled', 'validated'].includes(transfer.value.status)) { transfer.value = undefined; requestKey = randomUUID() }
     folder.value = result
   } catch (reason) { folder.value = undefined; failed(reason) }
   finally { busy.value = false; scanning.value = false }

@@ -1,3 +1,4 @@
+import { randomUUID } from '../../utils/browser-crypto'
 import { isDraftFields, type RequirementDraft, type DraftFields } from '@/api/overseas/requirement-drafts'
 import { record } from '@/api/identity/request'
 import type { TaskDraft } from '@/api/overseas/tasks'
@@ -22,7 +23,7 @@ export function browserDraftStorage(actorId: string): DraftStorage {
   // sessionStorage isolates tabs while retaining the same key over reloads.
   const contextKey = 'hx:requirement-draft:tab'
   let context = sessionStorage.getItem(contextKey)
-  if (!context) { context = crypto.randomUUID(); sessionStorage.setItem(contextKey, context) }
+  if (!context) { context = randomUUID(); sessionStorage.setItem(contextKey, context) }
   return createDraftStorage(localStorage, draftStorageKey(actorId, context))
 }
 export function sameFields(a: DraftFields, b: DraftFields) { return JSON.stringify(a) === JSON.stringify(b) }
