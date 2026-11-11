@@ -9,6 +9,8 @@ import tarfile
 
 import engine
 import cleanup_history
+import catalog
+import artifact_gc
 from release import Release, retention_store
 from snapshot import RELEASES, sha
 
@@ -66,8 +68,20 @@ def main():
     store = retention_store(Path('/var/lib/hengxin-release'))
     engine.u.safe(store.root)
     with store.locked():
-        history = cleanup_history.known(engine.u, store, Release(store).load())
-        print(unpack(args.archive, args.name, engine.u, used=history))
+        tool = Release(store)
+        data = catalog.before(engine.u, store, tool.load())
+        if data.get('pending'):
+            raise RuntimeError('Pending deployment blocks staging')
+        history = cleanup_history.known(engine.u, store, data)
+        # Uploads are immutable and version-named; never overwrite a registered tar.
+        if str(args.archive) in data['retention']['artifacts']:
+            raise RuntimeError('Archive path already registered; use a new version-specific filename')
+        proof = artifact_gc.proof(engine.u, store, args.archive, 'package')
+        root = unpack(args.archive, args.name, engine.u, used=history)
+        artifact_gc.validate(engine.u, store, proof)
+        catalog.stage(engine.u, store, data, root, args.archive)
+        tool.save(data)
+        print(root)
 
 
 if __name__ == '__main__':

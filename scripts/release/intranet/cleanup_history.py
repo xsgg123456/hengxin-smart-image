@@ -12,6 +12,10 @@ def sources(state):
 def known(u, store, data):
     result = set(data.get('source_history', []))
     result.update(sources(data.get('current')) | sources(data.get('previous')))
+    if data.get('retention'):
+        # The catalog imported checksum-bound provenance before any transaction
+        # deletion. Reading partly deleted old transactions would break retries.
+        return result
     transactions = store.root / 'intranet-transactions'
     if not transactions.exists():
         return result

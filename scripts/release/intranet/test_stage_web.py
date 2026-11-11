@@ -63,6 +63,10 @@ def test_stage_cli_passes_locked_history_to_unpack(tmp_path, fake, monkeypatch):
     monkeypatch.setattr(stage.engine, 'u', fake)
     monkeypatch.setattr(stage, 'retention_store', lambda *a: store)
     monkeypatch.setattr(stage.Release, 'load', lambda self: {'current': {}})
+    monkeypatch.setattr(stage.catalog, 'before', lambda *a: {'retention': {'artifacts': {}}})
+    monkeypatch.setattr(stage.catalog, 'stage', lambda *a: None)
+    monkeypatch.setattr(stage.artifact_gc, 'proof', lambda *a: {})
+    monkeypatch.setattr(stage.artifact_gc, 'validate', lambda *a: None)
     def history(*args):
         with pytest.raises(OSError):
             with store.locked():

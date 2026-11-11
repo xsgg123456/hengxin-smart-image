@@ -23,15 +23,15 @@
 本地从明确 Git 提交打包（HEAD 先解析为完整提交；工作区未提交内容不会进入制品）：
 
 ```powershell
-python scripts/release/intranet/package_release.py --commit HEAD --output output/release/intranet.tar.gz
-scp -i ~/.ssh/hengxin_devhub_prod output/release/intranet.tar.gz root@192.168.1.245:/opt/hengxin-lan/intranet.tar.gz
+python scripts/release/intranet/package_release.py --commit HEAD --output output/release/lan-日期-提交号.tar.gz
+scp -i ~/.ssh/hengxin_devhub_prod output/release/lan-日期-提交号.tar.gz root@192.168.1.245:/opt/hengxin-lan/lan-日期-提交号.tar.gz
 ```
 
 登录内网服务器后，使用安装目录里的工具。以下 `lan-日期-提交号` 每次换一个新名称：
 
 ```sh
 TOOLS=/opt/hengxin-intranet-tools/current/scripts/release/intranet
-python3 -B "$TOOLS/stage.py" /opt/hengxin-lan/intranet.tar.gz --name lan-日期-提交号
+python3 -B "$TOOLS/stage.py" /opt/hengxin-lan/lan-日期-提交号.tar.gz --name lan-日期-提交号
 python3 -B "$TOOLS/release.py" prepare --release /opt/hengxin-unified-releases/lan-日期-提交号
 python3 -B "$TOOLS/release.py" deploy
 python3 -B "$TOOLS/release.py" verify
@@ -47,9 +47,11 @@ python3 -B "$TOOLS/release.py" verify
 
 发布使用旧 `release-retention-state.py` 的进程锁和原子写入，内网台账单独位于 `/var/lib/hengxin-release/intranet.json`，不改变旧镜像台账格式。事务及备份位于同目录 `intranet-transactions/`，权限 0700/0600；其中执行环境可能含凭据，不输出、不提交 Git。
 
-当前业务来源可能分别为 backend、frontend 两个发布目录，台账分别记录；保留两次发布状态涉及的目录，不按日期硬凑两个文件夹。清理仅限 `/opt/hengxin-unified-releases/` 下通过清单和路径验证的版本。历史 native/overseas/account 目录、venv、运行镜像、业务数据、上传包和备份不在自动删除范围，不运行旧公网的镜像清理入口。初次登记没有虚构“上一成功版”；第一次通过本入口正式发布后才建立 previous。
+当前业务来源可能分别为 backend、frontend 两个发布目录，台账分别记录；保留两次发布状态涉及的目录，不按日期硬凑两个文件夹。源码清理仅限 `/opt/hengxin-unified-releases/` 下通过清单和路径验证的版本。完整清理还包括下述已登记的旧镜像、上传包和发布备份；历史 native/overseas/account 目录、venv、业务数据仍受保护，不运行旧公网清理入口。初次登记没有虚构“上一成功版”；第一次通过本入口正式发布后才建立 previous。
 
 ## 2026-11-11 自动保留两版（用户批准实施）
+
+**范围纠正：用户要求还包括 Docker 镜像。下方“镜像不在源码清理范围”仅描述源码清理器，不能表示整个发布流程不清理镜像。镜像按独立的下述合同管理。**
 
 已安装启用并完成一次存量清理：保留 `0a1cee0` 与 `6501351`，删除初始统一版，扣除工具和回执后净释放约 34.6 MiB；业务服务未重启。测试、审查和实际证据见 [清理验收](INTRANET-RETENTION-DEPLOYED-20261111.md)。
 
@@ -75,4 +77,21 @@ python3 -B "$TOOLS/release.py" verify
 
 本地原始证据位于 Git 忽略的 `output/intranet-tools/`：`verification.log`、`postcheck-final.json`、`installation*.json`、`package/build-verified.log` 和验证包。服务器 `tools-manifest.json` 保存工具摘要，私有 `intranet.json` 保存运行版本与依赖/schema 摘要。
 
+## 完整发布保留两版（用户最终确认）
+
+以最近两次成功部署为唯一口径，不按镜像是否变化另算上一版：B成功保留B/A，C成功改为C/B；C失败仍为B/A。两版共用的代码、镜像与依赖只保留一份。前后端分离发布也以完整运行状态登记，不硬凑两个文件夹或两个Docker镜像。
+
+1. 在已有私有发布台账中增加完整发布记录，登记本次/上次成功部署的源码状态摘要、全部17容器所需镜像、发布事务/配置/数据库备份、对应上传包；成功验证后与current/previous同一次原子保存。失败不推进，重复清理不推进。
+2. 清理覆盖已登记且更早、无人引用的源码目录、Docker镜像、上传包和发布附带事务/配置/数据库备份。所有容器（含停止）、进程、挂载、systemd、保留版本、未完成/尚未发布候选的引用都保护；现有在用native/venv与业务数据库、图片、素材、账号数据不作为发布垃圾。归属未知的遗留资料明确列为未接管，不能冒称已经删除。
+3. 源码继续使用已审清理器。镜像只清理本项目完整成功发布历史登记的旧ID，保留最近两次部署所需ID并集和全部容器引用；用非强制删除及--no-prune，不全局prune、不删除容器或卷、不连带删除父镜像。临时Docker冲突保留并告警重试。
+4. stage记录上传包的绝对路径、身份和摘要，避免按日期/文件名猜归属；每次上传使用未登记过的版本专属包名，禁止覆盖已登记路径；任何保留/待发布源码引用均阻止删包。事务和备份按成功部署记录引用保护，共用后端源码不会拖住第三次以前的事务备份。发布成功记录事务目录清单；旧事务（包括data-backup）失去两个保留版本引用后才允许删除。删除前验证根目录边界、原始身份/摘要与实时引用；部分删除故障有持久凭据可安全续清，不复制待删资料。
+5. 首次升级从真实current/previous、摘要绑定的已应用事务及包内Git提交/文件清单建立关联，保存紧凑来源证据后才允许清理原事务。旧统一发布的备份/准备目录只有确认归属及无引用后纳入。迁移原始资料、独立业务备份、未知文件不按时间一刀切。
+6. cleanup默认仅预览；--apply完成当前版本复核后按资源类别独立清理。任何清理错误都不回退已验证成功业务；一类失败不掩盖其它类别结果。回执分别给出删除对象、保留原因、同范围前后占用和新增台账/回执/工具占用；Docker层按引擎去重口径统计，不把共享镜像体积相加当实际净释放。
+7. 实施顺序与验收：补统一记录/包及事务登记、镜像与文件清理；隔离验证A/B/C成功序列、代码更新但镜像不变、失败发布/失败清理、共享引用、部分删除恢复及归属拒绝；真实Docker隔离删除验证、Python编译和独立两阶段审查；最后安装内网工具、初始化和预览、处理已确认旧发布物、核验17容器/7原生服务/当前代码和业务配置未变。旧生产不操作。
+
+
 边界：恢复及失败路径通过隔离故障测试；此次未在生产制造停机/回退，也未重跑收费模型任务。实际 PPT 和图片模型链路沿用同日 [统一发布验收](INTRANET-UNIFIED-RELEASE-20261111.md) 的证据，业务和 CLI 版本未变。
+
+实施边界：普通发布沿用源码切换，不构建镜像、不升级依赖或数据库；镜像清理识别完整成功记录中的历史ID，不把未知/尚未发布镜像猜成垃圾。首次接管的旧统一发布备份需同时核对7个原生服务配置摘要、数据库容器身份、备份大小及摘要。失败/取消事务在核验恢复后登记，后续成功发布可清掉其无人使用的备份；未发布候选仍受保护。已清理条目的文件明细压缩为禁止名称复用的简短记录，避免清单自身不断保留大份文件摘要。
+
+完整清理已于2026-11-11安装启用，存量执行和最终验证通过。详见 [完整清理部署验收](INTRANET-COMPLETE-RETENTION-DEPLOYED-20261111.md)。

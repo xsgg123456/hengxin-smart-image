@@ -8,7 +8,8 @@ import socket
 import time
 
 import engine
-import cleanup
+import full_cleanup as cleanup
+import catalog
 import cleanup_history
 import operations
 import snapshot
@@ -56,6 +57,7 @@ class Release:
             raise RuntimeError('Pending release exists; recover or cancel it first')
         before = snapshot.capture(self.u)
         snapshot.same(data['current'], before)
+        data = catalog.before(self.u, self.store, data)
         release = snapshot.release_path(release)
         if str(release) in (before['backend'], before['frontend']):
             raise RuntimeError('Candidate must be a new immutable directory')
@@ -120,6 +122,7 @@ class Release:
             history.update(cleanup_history.sources(after))
             completed = dict(data, current=after, previous=item['before'], last=item.copy(),
                              pending=None, source_history=sorted(history))
+            catalog.advance(self.u, self.store, data, completed, item)
             self.save(completed)
         except BaseException:
             # Keep pending until restored state is independently verified. No DB rewind.
@@ -159,6 +162,8 @@ class Release:
         data.update(current=item['before'], pending=None)
         if item['phase'] == 'rollback':
             data.update(previous=None, last=None)
+        catalog.recover(data)
+        catalog.finished_attempt(self.u, self.store, data, item)
         self.save(data)
         return data
 
@@ -181,6 +186,7 @@ class Release:
             raise RuntimeError('Started transaction cannot be abandoned; use recover')
         snapshot.same(data['current'], snapshot.capture(self.u))
         data['pending'] = None
+        catalog.finished_attempt(self.u, self.store, data, item)
         self.save(data)
         return data
 
@@ -188,7 +194,7 @@ class Release:
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup'))
-    parser.add_argument('--apply', action='store_true', help='Delete eligible old sources (cleanup only)')
+    parser.add_argument('--apply', action='store_true', help='Delete eligible old deployment artifacts (cleanup only)')
     parser.add_argument('--release', type=Path)
     parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
     args = parser.parse_args(argv)
@@ -214,6 +220,7 @@ def main(argv=None):
             data = tool.load()
             if args.action == 'verify':
                 snapshot.same(data['current'], snapshot.capture(engine.u, runtime=True))
+                catalog.before(engine.u, store, data)
         else:
             if args.release is not None:
                 parser.error('--release is only valid for prepare')

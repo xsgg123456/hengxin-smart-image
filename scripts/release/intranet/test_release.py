@@ -26,6 +26,10 @@ def tool(tmp_path, monkeypatch):
     monkeypatch.setattr(snapshot, 'capture', lambda *a, **k: before.copy())
     monkeypatch.setattr(snapshot, 'schemas', lambda *a: {})
     monkeypatch.setattr(tool.u, 'data_identity', lambda: {})
+    # Existing state-machine tests stub the external full-fleet catalog boundary.
+    # test_catalog exercises its real A/B/C advancement and retention behavior.
+    monkeypatch.setattr(cli.catalog, 'before', lambda u, store, data: data)
+    monkeypatch.setattr(cli.catalog, 'advance', lambda u, store, old, new, item: new)
     return tool, before
 
 

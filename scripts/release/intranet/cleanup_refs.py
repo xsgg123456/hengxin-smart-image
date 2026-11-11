@@ -140,9 +140,8 @@ def mount_refs(refs, content):
             refs.path(str(refs.root), 'host-mount', parent_mount=True)
 
 
-def collect(u, data, root):
-    refs = References(root)
-    ledger_refs(refs, data)
+def scan_host(u, refs):
+    root = refs.root
     ids = u.run(['docker', 'ps', '-aq']).split()
     if ids:
         for info in json.loads(u.run(['docker', 'inspect', *ids])):
@@ -158,3 +157,13 @@ def collect(u, data, root):
                   'systemd-loaded')
     unit_configs(u, refs)
     return {p: sorted(reasons) for p, reasons in refs.reasons.items()}
+
+
+def host(u, root):
+    return scan_host(u, References(root))
+
+
+def collect(u, data, root):
+    refs = References(root)
+    ledger_refs(refs, data)
+    return scan_host(u, refs)

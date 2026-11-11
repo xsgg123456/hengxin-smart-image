@@ -73,6 +73,29 @@ class EngineTests(unittest.TestCase):
         for name in u.NATIVE:
             self.assertEqual(e._dropin(name).read_bytes(), self.old_dropin)
 
+    def test_complete_catalog_accepts_real_recovery_journal_but_rejects_backup_drift(self):
+        import catalog
+        from types import SimpleNamespace
+        def proof(_u, _store, path, kind):
+            return dict(path=str(path), kind=kind, identity=[1, 1], dirs=['.'],
+                        files={p.name: u.digest(p.read_bytes()) for p in path.iterdir() if p.is_file()})
+        self.assertEqual(e.apply(), 'applied')
+        current = {'backend': '/old', 'frontend': '/old'}
+        data = dict(current=current, previous=None, retention=dict(version=1,
+                    current=catalog.record(current, {}), previous=None, artifacts={}))
+        item = dict(work=str(self.work), mode='full')
+        store = SimpleNamespace()
+        with patch.object(catalog.artifact_gc, 'proof', side_effect=proof):
+            catalog.add_artifact(u, store, data['retention'], self.work, 'transaction', [str(self.work)])
+            self.assertEqual(e.recover(), 'rolled-back')
+            self.assert_original()
+            catalog.finished_attempt(u, store, data, item)
+            self.assertEqual(data['retention']['artifacts'][str(self.work)]['proof']['files']['started.json'],
+                             u.digest((self.work/'started.json').read_bytes()))
+            (self.work/'backup-0').write_bytes(b'tampered')
+            with self.assertRaisesRegex(RuntimeError, 'content drift'):
+                catalog.finished_attempt(u, store, data, item)
+
     def test_prepare_backs_up_existing_dropins_without_switching(self):
         for path in self.work.iterdir():
             path.unlink()
