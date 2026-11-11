@@ -28,6 +28,12 @@ export function redirectReleaseEntry(): boolean {
   if (!scope) return false
   const destination = entryDestination(scope, window.location)
   if (!destination) return false
+  const target = new URL(destination, window.location.href)
+  if (target.pathname === window.location.pathname && target.search === window.location.search) {
+    // A hash-only replace does not reload this document: let its entrypoint bootstrap.
+    window.history.replaceState(window.history.state, '', destination)
+    return false
+  }
   window.location.replace(destination)
   return true
 }

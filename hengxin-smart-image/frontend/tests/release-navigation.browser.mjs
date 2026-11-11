@@ -47,12 +47,43 @@ await context.route('**/api/**', async route => {
 const page = await context.newPage()
 page.setDefaultTimeout(20000)
 page.on('pageerror', error => errors.push(error.message))
-page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(request.url()) })
+page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame() && request.url().startsWith(base)) documents.push(request.url()) })
 const button = name => page.getByRole('button', { name, exact: true })
 const enter = async business => { await button(`${business}业务`).waitFor(); await button(`${business}业务`).click() }
 const reset = () => { authenticated = true; domesticValid = true; overseasValid = true; overseasDenied = false; configFailure = 0 }
+// A previous mounted app must never hide an entrypoint bootstrap failure.
+const freshEntry = async path => { await page.goto('about:blank'); await page.goto(`${base}${path}`) }
 try {
-  await page.goto(`${base}/?source=legacy#/auth/callback?auth=provider_error&state=%2F`)
+  for (const [scope, defaultHash] of [
+    ['domestic', '#/api-image-edits/create'],
+    ['overseas', '#/overseas/tasks'],
+    ['shared', '#/auth/business'],
+  ]) {
+    for (const entry of ['', '?entry=bare', '?entry=bare#/', defaultHash]) {
+      for (const signedIn of [true, false]) {
+        reset(); authenticated = signedIn
+        const beforeEntry = documents.length
+        await freshEntry(`/${scope}/${entry}`)
+        await button(signedIn ? scope === 'shared' ? '海外业务' : '切换业务' : '钉钉登录').waitFor()
+        const url = new URL(page.url())
+        assert.equal(url.pathname, signedIn ? `/${scope}/` : '/shared/')
+        if (signedIn) {
+          assert.equal(url.search, entry.startsWith('?') ? '?entry=bare' : '')
+          assert.equal(url.hash, defaultHash)
+          assert.equal(documents.length - beforeEntry, 1, 'hash normalization must bootstrap the current document')
+        } else {
+          // Shared identity displays login in place; business scopes redirect to its login route.
+          assert.equal(url.hash, scope === 'shared' ? defaultHash : '#/auth/login')
+          assert.ok(documents.length - beforeEntry <= 2, 'unauthenticated entry must not loop')
+        }
+        assert.deepEqual(errors, [])
+        console.log(`PASS fresh ${scope}/${entry || '(bare)'} authenticated=${signedIn}`)
+      }
+    }
+  }
+
+  reset()
+  await freshEntry('/?source=legacy#/auth/callback?auth=provider_error&state=%2F')
   await button('海外业务').waitFor()
   assert.equal(new URL(page.url()).pathname, '/shared/')
   assert.equal(new URL(page.url()).search, '?source=legacy')
@@ -73,7 +104,7 @@ try {
   console.log('PASS legacy callback query/hash; shared → overseas → domestic → overseas; unified logout')
 
   reset()
-  await page.goto(`${base}/?source=legacy#/api-image-edits/records?record=fixture`)
+  await freshEntry('/?source=legacy#/api-image-edits/records?record=fixture')
   await button('切换业务').waitFor()
   assert.equal(new URL(page.url()).pathname, '/domestic/')
   assert.equal(new URL(page.url()).search, '?source=legacy')
@@ -85,14 +116,14 @@ try {
 
   reset(); domesticValid = false
   const before = documents.length
-  await page.goto(`${base}/domestic/#/api-image-edits/create`)
+  await freshEntry('/domestic/#/api-image-edits/create')
   await button('海外业务').waitFor()
   assert.equal(new URL(page.url()).pathname, '/shared/')
   assert.ok(documents.length - before <= 2, 'invalid domestic session must not loop')
   console.log('PASS domestic expired session redirects once to shared identity')
 
   reset()
-  await page.goto(`${base}/?source=legacy#/overseas/admin/users?tab=fixture`)
+  await freshEntry('/?source=legacy#/overseas/admin/users?tab=fixture')
   await button('切换业务').waitFor()
   assert.equal(new URL(page.url()).hash, '#/overseas/admin/users?tab=fixture')
   assert.equal(new URL(page.url()).search, '?source=legacy')
@@ -103,7 +134,7 @@ try {
   console.log('PASS overseas deep link and active-page identity invalidation')
 
   reset()
-  await page.goto(`${base}/overseas/#/overseas/tasks`)
+  await freshEntry('/overseas/#/overseas/tasks')
   await button('切换业务').waitFor()
   overseasDenied = true
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
@@ -112,7 +143,7 @@ try {
   console.log('PASS active overseas permission revocation returns to shared business selection')
 
   reset(); configFailure = 503
-  await page.goto(`${base}/shared/?case=connection-failure#/auth/business`)
+  await freshEntry('/shared/?case=connection-failure#/auth/business')
   await page.getByRole('alert').waitFor()
   configFailure = 0
   await button('重新连接').click()
@@ -122,10 +153,11 @@ try {
   console.log('PASS shared connection failure/retry, no page errors; all APIs remain /api')
   configFailure = 404
   const beforeMissingIdentity = documents.length
-  await page.goto(`${base}/shared/#/auth/business`)
+  await freshEntry('/shared/#/auth/business')
   await page.getByRole('alert').waitFor()
   assert.equal(new URL(page.url()).pathname, '/shared/')
   assert.equal(documents.length - beforeMissingIdentity, 1)
+  assert.deepEqual(errors, [])
   console.log('PASS missing shared identity service stays retryable, no domestic/shared loop')
 } finally {
   await context.close()
