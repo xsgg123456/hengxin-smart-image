@@ -46,6 +46,36 @@ def test_stage_validates_and_refuses_overwrite(tmp_path, fake, monkeypatch):
         stage.unpack(package, 'candidate', fake)
 
 
+def test_stage_refuses_reusing_name_after_old_directory_was_cleaned(tmp_path, fake, monkeypatch):
+    monkeypatch.setattr(stage, 'RELEASES', tmp_path)
+    path = tmp_path/'previously-used'
+    assert not path.exists()
+    with pytest.raises(RuntimeError, match='already used'):
+        stage.unpack(tmp_path/'not-even-opened.tar.gz', path.name, fake, used={str(path)})
+    assert not path.exists()
+
+
+def test_stage_cli_passes_locked_history_to_unpack(tmp_path, fake, monkeypatch):
+    import release
+    store = release.retention_store(tmp_path/'state')
+    monkeypatch.setattr(stage.socket, 'gethostname', lambda: 'hengxin-ai-245')
+    monkeypatch.setattr(stage.os, 'geteuid', lambda: 0, raising=False)
+    monkeypatch.setattr(stage.engine, 'u', fake)
+    monkeypatch.setattr(stage, 'retention_store', lambda *a: store)
+    monkeypatch.setattr(stage.Release, 'load', lambda self: {'current': {}})
+    def history(*args):
+        with pytest.raises(OSError):
+            with store.locked():
+                pytest.fail('stage must hold lock')
+        return {'old-source'}
+    monkeypatch.setattr(stage.cleanup_history, 'known', history)
+    seen = []
+    monkeypatch.setattr(stage, 'unpack', lambda *a, **k: seen.append(k['used']))
+    monkeypatch.setattr(sys, 'argv', ['stage.py', 'input.tar.gz', '--name', 'new'])
+    stage.main()
+    assert seen == [{'old-source'}]
+
+
 @pytest.mark.parametrize('member', ['../escape', '/etc/escape', 'frontend/../../escape', 'frontend\\escape'])
 def test_stage_rejects_traversal_before_writing(tmp_path, fake, monkeypatch, member):
     monkeypatch.setattr(stage, 'RELEASES', tmp_path)

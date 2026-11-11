@@ -8,14 +8,17 @@ import socket
 import tarfile
 
 import engine
-from release import retention_store
+import cleanup_history
+from release import Release, retention_store
 from snapshot import RELEASES, sha
 
 
-def unpack(archive, name, u):
+def unpack(archive, name, u, used=()):
     if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}', name):
         raise RuntimeError('Invalid release name')
     root = RELEASES / name
+    if str(root) in used:
+        raise RuntimeError('Release name was already used; choose a new immutable name')
     u.safe(RELEASES)
     if root.exists():
         raise RuntimeError('Candidate directory already exists')
@@ -63,7 +66,8 @@ def main():
     store = retention_store(Path('/var/lib/hengxin-release'))
     engine.u.safe(store.root)
     with store.locked():
-        print(unpack(args.archive, args.name, engine.u))
+        history = cleanup_history.known(engine.u, store, Release(store).load())
+        print(unpack(args.archive, args.name, engine.u, used=history))
 
 
 if __name__ == '__main__':

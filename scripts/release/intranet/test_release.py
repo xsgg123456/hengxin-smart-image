@@ -109,8 +109,15 @@ def test_deploy_verifies_before_advancing(tool, monkeypatch):
     monkeypatch.setattr(snapshot, 'capture', lambda *a, **k: state['live'].copy())
     monkeypatch.setattr(operations, 'backup', lambda *a: None)
     monkeypatch.setattr(cli.engine, 'apply', lambda: state.update(live=after))
+    calls = []
+    def cleanup(data, automatic=False):
+        assert subject.load()['current'] == after and subject.load()['pending'] is None
+        assert automatic
+        calls.append('cleaned')
+    monkeypatch.setattr(subject, 'cleanup', cleanup)
     result = subject.deploy()
     assert result['current'] == after and result['previous'] == before and result['pending'] is None
+    assert calls == ['cleaned']
 
 
 def test_postcheck_failure_restores_and_keeps_recovery_receipt(tool, monkeypatch):
@@ -120,6 +127,7 @@ def test_postcheck_failure_restores_and_keeps_recovery_receipt(tool, monkeypatch
     monkeypatch.setattr(operations, 'backup', lambda *a: None)
     monkeypatch.setattr(cli.engine, 'apply', lambda: None)
     monkeypatch.setattr(subject, 'restore', lambda item: calls.append('restored'))
+    monkeypatch.setattr(subject, 'cleanup', lambda *a, **k: pytest.fail('failed release must not clean'))
     with pytest.raises(RuntimeError, match='did not switch'):
         subject.deploy()
     assert calls == ['restored']
@@ -202,3 +210,39 @@ def test_web_recovery_refuses_concurrent_compose(tmp_path):
     with pytest.raises(RuntimeError, match='Concurrent'):
         operations.recover_web(u)
     assert compose.read_bytes() == b'foreign'
+
+
+@pytest.mark.parametrize('mode', ['full', 'frontend'])
+def test_cleanup_failure_does_not_rollback_success(tool, monkeypatch, mode, capsys):
+    subject, before = tool
+    item = pending(subject, before, mode=mode)
+    after = dict(before, frontend=item['release'],
+                 backend=item['release'] if mode == 'full' else before['backend'])
+    state = {'live': before}
+    monkeypatch.setattr(snapshot, 'capture', lambda *a, **k: state['live'].copy())
+    monkeypatch.setattr(operations, 'backup', lambda *a: None)
+    monkeypatch.setattr(cli.engine, 'apply', lambda: state.update(live=after))
+    monkeypatch.setattr(operations, 'apply_web', lambda *a: state.update(live=after))
+    monkeypatch.setattr(subject, 'restore', lambda *a: pytest.fail('must not roll back'))
+    monkeypatch.setattr(cli.cleanup, 'execute', lambda *a, **k: (_ for _ in ()).throw(OSError('disk error')))
+    assert subject.deploy()['current'] == after
+    assert subject.load()['pending'] is None
+    assert 'warning' in capsys.readouterr().out
+
+
+def test_cleanup_defaults_to_preview_and_uses_release_lock(tool, monkeypatch):
+    subject, _ = tool
+    monkeypatch.setattr(cli.socket, 'gethostname', lambda: 'hengxin-ai-245')
+    monkeypatch.setattr(cli.os, 'geteuid', lambda: 0, raising=False)
+    monkeypatch.setattr(cli, 'retention_store', lambda *a: subject.store)
+    calls = []
+    def execute(u, store, data, apply=False):
+        with pytest.raises(OSError):
+            with cli.retention_store().locked():
+                pytest.fail('cleanup did not acquire release lock')
+        calls.append(apply)
+        return {'status': 'preview'}
+    monkeypatch.setattr(cli.cleanup, 'execute', execute)
+    cli.main(['cleanup'])
+    cli.main(['cleanup', '--apply'])
+    assert calls == [False, True]

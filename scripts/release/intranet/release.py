@@ -8,6 +8,8 @@ import socket
 import time
 
 import engine
+import cleanup
+import cleanup_history
 import operations
 import snapshot
 
@@ -113,7 +115,11 @@ class Release:
             snapshot.unchanged_runtime(item['before'], after)
             if after['frontend'] != item['release'] or (item['mode'] != 'frontend' and after['backend'] != item['release']):
                 raise RuntimeError('Running source did not switch to candidate')
-            completed = dict(data, current=after, previous=item['before'], last=item.copy(), pending=None)
+            history = set(data.get('source_history', []))
+            history.update(cleanup_history.sources(data['current']) | cleanup_history.sources(data['previous']))
+            history.update(cleanup_history.sources(after))
+            completed = dict(data, current=after, previous=item['before'], last=item.copy(),
+                             pending=None, source_history=sorted(history))
             self.save(completed)
         except BaseException:
             # Keep pending until restored state is independently verified. No DB rewind.
@@ -121,7 +127,25 @@ class Release:
             data['pending']['phase'] = 'recovered'
             self.save(data)
             raise
+        # Cleanup is outside the deployment recovery block: never undo a successful
+        # release because disk housekeeping failed after the new ledger was saved.
+        self.cleanup(completed, automatic=True)
         return completed
+
+    def cleanup(self, data=None, apply=True, automatic=False):
+        data = data or self.load()
+        try:
+            report = cleanup.execute(self.u, self.store, data, apply=apply)
+        except Exception as exc:
+            if not automatic:
+                raise
+            report = {'status': 'warning', 'error': type(exc).__name__, 'deleted': []}
+            try:
+                self.store.report('intranet-cleanup-warning.json', report)
+            except Exception:
+                pass  # Console warning survives even if the disk is full.
+        print('LAN_CLEANUP ' + json.dumps(report), flush=True)
+        return report
 
     def recover(self):
         data = self.load()
@@ -163,10 +187,13 @@ class Release:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'deploy', 'recover', 'rollback', 'cancel'))
+    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup'))
+    parser.add_argument('--apply', action='store_true', help='Delete eligible old sources (cleanup only)')
     parser.add_argument('--release', type=Path)
     parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
     args = parser.parse_args(argv)
+    if args.apply and args.action != 'cleanup':
+        parser.error('--apply is only valid for cleanup')
     if socket.gethostname() != 'hengxin-ai-245' or os.geteuid() != 0:
         raise RuntimeError('Only root on hengxin-ai-245 is supported')
     engine.u.safe(engine.u.ROOT)
@@ -174,7 +201,12 @@ def main(argv=None):
     engine.u.safe(store.root)
     with store.locked():
         tool = Release(store)
-        if args.action == 'prepare':
+        if args.action == 'cleanup':
+            if args.release is not None:
+                parser.error('--release is only valid for prepare')
+            tool.cleanup(apply=args.apply)
+            return
+        elif args.action == 'prepare':
             if args.release is None:
                 parser.error('prepare requires --release')
             data = tool.prepare(args.release, args.mode)
