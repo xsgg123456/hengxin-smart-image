@@ -176,6 +176,7 @@
     Windows/POSIX 共用 .codex/hooks/harness.py；hooks.json 是唯一注册源。
     具体安装、启用、自检和已知边界见 README.md。首次会话需通过 Codex 的项目与 hook 信任检查。
     既有 Git 仓库及 origin 直接复用，不创建嵌套仓库；需求、计划、设计规范纳入版本控制。
+    本项目统一直接在 main 分支开发，不主动创建或切换功能分支；除非用户另行明确要求。此约定不免除审查、测试或提交检查。
     自动推送仅在 git config --local harness.autoPush true 后启用，main/master 始终不自动推送。
     启动开发服务前检查端口，不批量终止不明进程。
     安装框架属于基础设施初始化，无需虚构产品 Spec 或启动产品访谈；按安装验收清单验证。

@@ -16,6 +16,7 @@ dist/
 dist-preview/
 dist-demo/
 dist-overseas/
+hengxin-smart-image/frontend/dist-lan-ip/
 output/
 output/playwright/
 .playwright-cli/
