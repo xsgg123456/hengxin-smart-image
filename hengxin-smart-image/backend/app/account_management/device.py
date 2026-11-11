@@ -18,6 +18,11 @@ def device_login(home, binary, cancelled, publish_code, expires):
         folder.write('config.toml', b'cli_auth_credentials_store = "file"\n')
     env = {'HOME': str(home), 'CODEX_HOME': str(config), 'PATH': '/usr/bin:/bin',
            'LANG': 'C.UTF-8', 'NO_COLOR': '1', 'TERM': 'dumb'}
+    # Preserve explicitly configured transport without copying host credentials.
+    for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+                'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'):
+        if key in os.environ:
+            env[key] = os.environ[key]
     logfile = home / 'login.log'
     with logfile.open('xb') as log:
         os.chmod(logfile, 0o600)
