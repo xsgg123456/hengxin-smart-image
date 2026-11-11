@@ -10,11 +10,14 @@ from snapshot import database, sha
 
 
 def keep_assets(u, previous, candidate):
-    """Retain old hashed assets for pages already open; never overwrite new assets."""
+    """Retain the prior build's assets, without recursively carrying older builds."""
     path = candidate / 'release-manifest.json'
     m = json.loads(path.read_bytes())
     m.setdefault('frontend_current_files', {n: h for n, h in m['files'].items() if n.startswith('frontend/')})
     compatibility = m.setdefault('compatibility_files', {})
+    prior = json.loads((previous / 'release-manifest.json').read_bytes())
+    prior_files = prior.get('frontend_current_files', {
+        n: h for n, h in prior['files'].items() if n not in prior.get('compatibility_files', {})})
     folder = previous / 'frontend/assets'
     if folder.exists():
         for source in folder.rglob('*'):
@@ -22,8 +25,12 @@ def keep_assets(u, previous, candidate):
             if not source.is_file():
                 continue
             name = source.relative_to(previous).as_posix()
+            if name not in prior_files:
+                continue
             target = candidate / name
             digest = sha(source.read_bytes())
+            if digest != prior_files[name]:
+                raise RuntimeError('Previous frontend asset differs from manifest: ' + name)
             if target.exists():
                 if sha(target.read_bytes()) != digest:
                     raise RuntimeError('Static asset filename collision: ' + name)
@@ -36,13 +43,13 @@ def keep_assets(u, previous, candidate):
     u.write(path, (json.dumps(m, indent=2) + '\n').encode(), mode=0o644)
 
 
-def backup(u, work):
+def backup(u, work, scope=None):
     folder = work / 'data-backup'
     if folder.exists():
         raise RuntimeError('Backup directory already exists; inspect transaction')
     folder.mkdir(mode=0o700)
     report = {}
-    for side in ('domestic', 'overseas'):
+    for side in (('domestic', 'overseas') if scope is None else () if scope == 'shared' else (scope,)):
         name, user, db = database(u, side)
         path = folder / (side + '.dump')
         with path.open('xb') as stream:
@@ -57,13 +64,14 @@ def backup(u, work):
         if result.returncode:
             raise RuntimeError('Database backup verification failed: ' + side)
         report[side] = {'bytes': path.stat().st_size, 'sha256': sha(path.read_bytes())}
-    path = folder / 'accounts-config.tar'
-    with path.open('xb') as stream:
-        os.fchmod(stream.fileno(), 0o600)
-        with tarfile.open(fileobj=stream, mode='w') as archive:
-            for name in ('/home/codex/account-management', '/home/codex/auth', '/etc/hengxin-lan'):
-                archive.add(name, arcname=name.lstrip('/'))
-    report['accounts_config'] = sha(path.read_bytes())
+    if scope in (None, 'shared'):
+        path = folder / 'accounts-config.tar'
+        with path.open('xb') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            with tarfile.open(fileobj=stream, mode='w') as archive:
+                for name in ('/home/codex/account-management', '/home/codex/auth', '/etc/hengxin-lan'):
+                    archive.add(name, arcname=name.lstrip('/'))
+        report['accounts_config'] = sha(path.read_bytes())
     u.write(folder / 'verified.json', json.dumps(report).encode(), exclusive=True)
 
 

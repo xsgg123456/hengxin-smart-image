@@ -63,10 +63,9 @@ class References:
 
 
 def ledger_refs(refs, data):
-    for key in ('current', 'previous'):
-        state = data.get(key)
-        if not state:
-            continue
+    import cleanup_history
+    for index, state in enumerate(cleanup_history.retained(data)):
+        key = 'retained:' + str(index) if data.get('version') == 2 else ('current', 'previous')[index]
         for field in ('backend', 'frontend'):
             path = Path(state[field])
             if path.parent != refs.root or path.name.startswith('.') or not path.is_dir():
@@ -76,6 +75,8 @@ def ledger_refs(refs, data):
         refs.text(json.dumps(state.get('binaries', {})), key + ':binary')
         for native in state.get('native', {}).values():
             refs.path(native['python'], key + ':interpreter')
+    for path in data.get('migration_pins', []):
+        refs.path(path, 'migration-rollback')
 
 
 def process_refs(refs, proc=Path('/proc')):

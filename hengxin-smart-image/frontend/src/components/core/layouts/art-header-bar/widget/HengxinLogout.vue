@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import { broadcastLogout } from '@/api/hengxin/identity-lifecycle'
 import { ref } from 'vue'
+import { releaseDestination } from '@/release/navigation'
 import { identityApi, IdentityError } from '@/api/identity/auth'
 import { ElMessage } from 'element-plus'
 import { isMockMode } from '@/api/hengxin/client'
@@ -14,7 +15,7 @@ import { useUserStore } from '@/store/modules/user'
 import { useWorktabStore } from '@/store/modules/worktab'
 
 const busy = ref(false)
-function switchBusiness() { window.location.assign('/?workspace=identity#/auth/business') }
+function switchBusiness() { window.location.assign(releaseDestination('shared', '/auth/business', '?workspace=identity')) }
 async function logout() {
   if (busy.value) return
   busy.value = true

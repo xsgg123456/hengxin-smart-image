@@ -42,6 +42,7 @@ for (const failure of [0,401,403,503]) test(`真实IdentityPortal组件重验：
     if (name === 'vue') return Vue
     if (name.endsWith('/utils/browser-crypto')) return BrowserCrypto
     if (name === 'element-plus') return { ElMessage: { success: () => {} }, ElMessageBox: { confirm: async () => {}, close: () => {} } }
+    if (name.endsWith('/release/navigation')) return { isIndependentRelease: () => false, redirectReleaseEntry: () => false }
     if (name.endsWith('/revalidate')) return { createOverseasRevalidator }
     if (name.endsWith('/auth')) return { identityApi: api, IdentityError }
     if (name.endsWith('/container-auth')) return { requestContainerAuthCode: async () => '' }
@@ -52,7 +53,7 @@ for (const failure of [0,401,403,503]) test(`真实IdentityPortal组件重验：
   }
   // Compile the actual SFC; only IO and child screens are substituted.
   new Function('require', 'module', 'exports', 'window', 'document', code)(require, module, module.exports, win, doc)
-  const app = renderer.createApp(module.exports.default)
+  const app = renderer.createApp(module.exports.default, { overseasComponent: child })
   for (const name of ['ElButton','ElAlert']) app.component(name, empty)
   app.mount(node()); await flush()
   assert.equal(mounted, 1); assert.equal(unmounted, 0)

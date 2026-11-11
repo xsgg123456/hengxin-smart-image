@@ -14,7 +14,11 @@ export class ComponentLoader {
 
   constructor() {
     // 动态导入 views 目录下所有 .vue 组件
-    this.modules = import.meta.glob('../../views/**/*.vue')
+    this.modules = import.meta.env.VITE_RELEASE_SCOPE === 'domestic'
+      ? import.meta.glob(['../../views/**/*.vue', '!../../views/overseas/**', '!../../views/auth/IdentityPortal.vue'])
+      : (import.meta.env.VITE_RELEASE_SCOPE === 'overseas' || import.meta.env.VITE_RELEASE_SCOPE === 'shared')
+        ? {}
+        : import.meta.glob('../../views/**/*.vue')
   }
 
   /**

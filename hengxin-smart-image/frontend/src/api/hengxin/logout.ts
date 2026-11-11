@@ -11,7 +11,7 @@ export async function logoutSession(baseUrl: string, fetcher: typeof fetch = fet
 export function logoutDestination(href: string): string {
   const url = new URL(href)
   const redirect = safeReturnPath(url.hash.slice(1))
-  url.pathname = '/'
+  url.pathname = /^\/(domestic|overseas|shared)(?:\/|$)/.test(url.pathname) ? '/shared/' : '/'
   url.search = ''
   url.hash = `/auth/login?redirect=${encodeURIComponent(redirect)}`
   return url.href

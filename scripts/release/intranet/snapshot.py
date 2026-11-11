@@ -129,6 +129,13 @@ def capture(u, runtime=False):
             'configs': {str(p): sha(p.read_bytes()) for p in u.config_paths()}}
 
 
+def capture_for(u, data, runtime=False):
+    if data.get('version') == 2:
+        from scope_snapshot import capture as scoped_capture
+        return scoped_capture(u, runtime=runtime)
+    return capture(u, runtime=runtime)
+
+
 def same(expected, actual):
     if expected != actual:
         changed = sorted(k for k in set(expected) | set(actual) if expected.get(k) != actual.get(k))

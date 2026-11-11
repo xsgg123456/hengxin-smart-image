@@ -1,6 +1,6 @@
 <template>
   <div v-if="overseas && member && !busy" :key="member.id" :inert="checking" :aria-busy="checking">
-    <OverseasPortal :member="member" @member="member = $event" @switch="switchBusiness" @logout="logout" @failure="businessFailure" />
+    <component :is="overseasComponent" :member="member" @member="member = $event" @switch="switchBusiness" @logout="logout" @failure="businessFailure" />
   </div>
   <div v-else class="flex w-full h-screen overflow-auto">
     <LoginLeftView />
@@ -31,7 +31,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import LoginLeftView from '@/components/core/views/login/LoginLeftView.vue'
 import AuthTopBar from '@/components/core/views/login/AuthTopBar.vue'
 import BusinessEntry from './BusinessEntry.vue'
-import OverseasPortal from '@/views/overseas/OverseasPortal.vue'
+import type { Component } from 'vue'
+import { releaseDestination, isIndependentRelease, redirectReleaseEntry } from '@/release/navigation'
+defineProps<{ overseasComponent?: Component }>()
 import { identityApi, IdentityError, type IdentityConfig, type AccessResult, type Member } from '@/api/identity/auth'
 import { requestContainerAuthCode } from '@/api/hengxin/container-auth'
 import type { Business } from '@/api/identity/access'
@@ -49,7 +51,8 @@ function businessFailure(reason: unknown) {
   revalidator.invalidate()
   ++generation; member.value = undefined; states.value = {}; busy.value = false
   error.value = reason instanceof Error ? reason.message : '业务连接失败，请重新连接'
-  if (reason instanceof IdentityError && reason.status === 401) { name.value = ''; overseas.value = false }
+  if (reason instanceof IdentityError && reason.status === 403 && isIndependentRelease()) window.location.replace(releaseDestination('shared', '/auth/business'))
+  if (reason instanceof IdentityError && reason.status === 401) { name.value = ''; overseas.value = false; if (isIndependentRelease()) window.location.replace(releaseDestination('shared', '/auth/login')) }
 }
 let generation = 0
 const revalidator = createOverseasRevalidator({
@@ -71,7 +74,7 @@ async function load() {
     try { config.value = await identityApi.config() }
     catch (reason) {
       if (epoch !== generation) return
-      if (reason instanceof IdentityError && reason.status === 404) { legacySession(); return }
+      if (reason instanceof IdentityError && reason.status === 404 && !isIndependentRelease()) { legacySession(); return }
       throw reason
     }
     if (epoch !== generation) return
@@ -98,14 +101,14 @@ async function load() {
       if (current.identitySessionId !== identity.sessionId || latest.sessionId !== identity.sessionId) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
       if (epoch === generation) member.value = current
     }
-    else overseas.value = false
+    else { overseas.value = false; if (isIndependentRelease() && window.location.pathname.startsWith('/overseas')) window.location.replace(releaseDestination('shared', '/auth/business')) }
   } catch (reason) {
     if (epoch !== generation) return
     error.value = !config.value?.configured && config.value ? '钉钉认证尚未配置，请联系管理员' : reason instanceof Error ? reason.message : '服务暂不可用，请重试'
-    if (reason instanceof IdentityError && reason.status === 401) { if (callbackError === 'provider_error') error.value = '钉钉授权失败，请重新授权'; name.value = ''; overseas.value = false; states.value = {} }
+    if (reason instanceof IdentityError && reason.status === 401) { if (callbackError === 'provider_error') error.value = '钉钉授权失败，请重新授权'; name.value = ''; overseas.value = false; states.value = {}; if (isIndependentRelease() && window.location.pathname.startsWith('/overseas')) window.location.replace(releaseDestination('shared', '/auth/login')) }
   } finally { if (epoch === generation) busy.value = false }
 }
-function legacySession() { window.location.assign('/?workspace=domestic#/api-image-edits/create') }
+function legacySession() { window.location.assign(releaseDestination('domestic', '/api-image-edits/create', '?workspace=domestic')) }
 async function authorize() {
   if (!config.value?.configured) return
   if (!/DingTalk/i.test(navigator.userAgent)) { window.location.assign('/api/identity/v1/dingtalk/authorize'); return }
@@ -131,6 +134,7 @@ async function enter(business: Business) {
     if (epoch !== generation) return
     if (current.identitySessionId !== identitySession.value || latest.sessionId !== identitySession.value) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
     if (business === 'domestic') { legacySession(); return }
+    if (isIndependentRelease()) { window.location.assign(releaseDestination('overseas', '/overseas/tasks')); return }
     member.value = current; overseas.value = true; window.location.hash = '/overseas/tasks'
   }
   catch (reason) { if (epoch === generation) businessFailure(reason) }
@@ -156,16 +160,17 @@ async function application(business: Business, withdraw: boolean) {
   } catch (reason) { if (epoch === generation) { if (reason instanceof IdentityError && reason.status === 401) businessFailure(reason); else error.value = reason instanceof Error ? reason.message : '申请操作失败，请重试' } }
   finally { if (epoch === generation) busy.value = false }
 }
-function switchBusiness() { revalidator.invalidate(); overseas.value = false; member.value = undefined; window.location.hash = '/auth/business'; void load() }
+function switchBusiness() { if (isIndependentRelease()) { window.location.assign(releaseDestination('shared', '/auth/business')); return }; revalidator.invalidate(); overseas.value = false; member.value = undefined; window.location.hash = '/auth/business'; void load() }
 async function logout() {
   revalidator.invalidate()
   const epoch = ++generation
   busy.value = true; error.value = ''; member.value = undefined; overseas.value = false; states.value = {}
-  try { await identityApi.logout(); if (epoch !== generation) return; try { localStorage.setItem('hengxin:logout', randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; window.location.hash = '/auth/business' }
+  try { await identityApi.logout(); if (epoch !== generation) return; try { localStorage.setItem('hengxin:logout', randomUUID()) } catch { /* 服务端已撤销 */ }; name.value = ''; states.value = {}; if (isIndependentRelease()) window.location.replace(releaseDestination('shared', '/auth/business')); else window.location.hash = '/auth/business' }
   catch (reason) { if (epoch === generation) error.value = reason instanceof Error ? reason.message : '退出失败，请重试' }
   finally { if (epoch === generation) busy.value = false }
 }
 function navigated() {
+  if (redirectReleaseEntry()) return
   const foreign = window.location.hash.startsWith('#/overseas')
   if (foreign !== overseas.value) { overseas.value = foreign; void load() }
 }

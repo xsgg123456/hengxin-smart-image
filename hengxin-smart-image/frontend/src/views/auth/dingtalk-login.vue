@@ -105,6 +105,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { releaseDestination, isIndependentRelease } from "@/release/navigation";
 import { identityApi, IdentityError } from '@/api/identity/auth';
 import { isMockMode } from "@/api/hengxin/client";
 import { bootstrap, retryBootstrap } from "@/api/hengxin/bootstrap";
@@ -192,7 +193,7 @@ function destination() {
 }
 function enterWorkspace() {
   const url = new URL(window.location.href);
-  url.pathname = "/";
+  url.pathname = isIndependentRelease() ? "/domestic/" : "/";
   url.searchParams.delete("auth");
   url.searchParams.delete("redirect");
   if (isMockMode) url.searchParams.set("role", role.value);
@@ -218,7 +219,7 @@ async function authorize() {
       const code = await requestContainerAuthCode(authConfig);
       if (unified.value) {
         await identityApi.container(code);
-        window.location.assign('/?workspace=identity#/auth/business');
+        window.location.assign(releaseDestination('shared', '/auth/business', '?workspace=identity'));
         return;
       }
       await loginByContainer(code);

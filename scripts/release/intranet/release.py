@@ -34,9 +34,20 @@ class Release:
             raise RuntimeError('Initialize verified live baseline first: init')
         self.u.safe(self.path)
         data = json.loads(self.path.read_bytes())
-        if data.get('version') != 1 or not isinstance(data.get('current'), dict):
+        if data.get('version') not in (1, 2) or not isinstance(data.get('current'), dict):
             raise RuntimeError('Invalid LAN release ledger')
         return data
+
+    def capture(self, data, runtime=False):
+        return snapshot.capture_for(self.u, data, runtime=runtime)
+
+    def phase(self, action, item):
+        if item.get('scope'):
+            import scope_release
+            return scope_release.phase(action, item)
+        if item['mode'] == 'frontend':
+            return getattr(operations, {'prepare': 'prepare_web', 'apply': 'apply_web', 'recover': 'recover_web'}[action])(self.u)
+        return getattr(engine, action)()
 
     def save(self, data):
         self.store.report('intranet.json', data)
@@ -44,37 +55,51 @@ class Release:
     def init(self):
         if self.path.exists():
             data = self.load()
-            snapshot.same(data['current'], snapshot.capture(self.u, runtime=True))
+            snapshot.same(data['current'], self.capture(data, runtime=True))
             return data
         data = {'version': 1, 'current': snapshot.capture(self.u, runtime=True),
                 'previous': None, 'pending': None, 'last': None}
         self.save(data)
         return data
 
-    def prepare(self, release, mode):
+    def prepare(self, release, mode, scope=None, rollback_target=None):
         data = self.load()
         if data['pending']:
             raise RuntimeError('Pending release exists; recover or cancel it first')
-        before = snapshot.capture(self.u)
+        if data.get('migration_pending'):
+            raise RuntimeError('Complete migration verification before publishing')
+        before = self.capture(data)
         snapshot.same(data['current'], before)
         data = catalog.before(self.u, self.store, data)
         release = snapshot.release_path(release)
-        if str(release) in (before['backend'], before['frontend']):
+        import scope_release
+        selected = scope_release.selection(data, before, scope)
+        if not rollback_target and str(release) in (selected['backend'], selected['frontend']):
             raise RuntimeError('Candidate must be a new immutable directory')
-        old = snapshot.manifest(self.u, before['backend'])
+        old = snapshot.manifest(self.u, selected['backend'])
         candidate = snapshot.manifest(self.u, release)
-        snapshot.compatible(old, candidate, mode)
-        operations.keep_assets(self.u, Path(before['frontend']), release)
+        if scope:
+            scope_release.candidate(self.u, data, before, release, mode, scope, bool(rollback_target))
+        else:
+            snapshot.compatible(old, candidate, mode)
+        if not rollback_target:
+            operations.keep_assets(self.u, Path(selected['frontend']), release)
         parent = self.store.root / 'intranet-transactions'
         parent.mkdir(mode=0o700, exist_ok=True)
         self.u.safe(parent)
         work = parent / (release.name + '-' + str(time.time_ns()))
         pending = {'release': str(release), 'work': str(work), 'mode': mode,
                    'phase': 'preparing', 'before': before}
+        if scope:
+            import scope_snapshot
+            pending.update(scope=scope, target_frontend=str(release),
+                           target_backend=rollback_target['backend'] if rollback_target else
+                           selected['backend'] if mode == 'frontend' else str(release),
+                           census=scope_snapshot.census(self.u), rollback=bool(rollback_target))
         data['pending'] = pending
         self.save(data)
         engine.configure(release, work)
-        (operations.prepare_web(self.u) if mode == 'frontend' else engine.prepare())
+        self.phase('prepare', pending)
         pending['phase'] = 'prepared'
         self.save(data)
         return data
@@ -92,13 +117,10 @@ class Release:
         if snapshot.schemas(self.u) != item['before']['schema'] or self.u.data_identity() != item['before']['data']:
             raise RuntimeError('Schema/data drift: automatic code recovery refused')
         if not (self.u.WORK / 'started.json').exists():
-            snapshot.same(item['before'], snapshot.capture(self.u, runtime=True))
+            snapshot.same(item['before'], self.capture(self.load(), runtime=True))
             return
-        if item['mode'] == 'frontend':
-            operations.recover_web(self.u)
-        else:
-            engine.recover()
-        snapshot.same(item['before'], snapshot.capture(self.u, runtime=True))
+        self.phase('recover', item)
+        snapshot.same(item['before'], self.capture(self.load(), runtime=True))
 
     def deploy(self):
         data = self.load()
@@ -106,16 +128,25 @@ class Release:
         if not item or item['phase'] != 'prepared':
             raise RuntimeError('No prepared release; interrupted releases require recover')
         self.configure(item)
-        snapshot.same(item['before'], snapshot.capture(self.u))
+        snapshot.same(item['before'], self.capture(data))
         if item['mode'] != 'frontend':
-            operations.backup(self.u, self.u.WORK)
+            if item.get('scope'):
+                operations.backup(self.u, self.u.WORK, scope=item['scope'])
+            else:
+                operations.backup(self.u, self.u.WORK)
         item['phase'] = 'deploying'
         self.save(data)
         try:
-            (operations.apply_web(self.u) if item['mode'] == 'frontend' else engine.apply())
-            after = snapshot.capture(self.u, runtime=True)
+            self.phase('apply', item)
+            after = self.capture(data, runtime=True)
             snapshot.unchanged_runtime(item['before'], after)
-            if after['frontend'] != item['release'] or (item['mode'] != 'frontend' and after['backend'] != item['release']):
+            if item.get('scope'):
+                import scope_release, scope_snapshot
+                actual = scope_snapshot.group(after, item['scope'])
+                scope_release.unaffected(item['census'], scope_snapshot.census(self.u), item['scope'], item['mode'])
+            else:
+                actual = after
+            if actual['frontend'] != item['release'] or (item['mode'] != 'frontend' and actual['backend'] != item.get('target_backend', item['release'])):
                 raise RuntimeError('Running source did not switch to candidate')
             history = set(data.get('source_history', []))
             history.update(cleanup_history.sources(data['current']) | cleanup_history.sources(data['previous']))
@@ -154,7 +185,7 @@ class Release:
         data = self.load()
         item = data['pending']
         if not item:
-            snapshot.same(data['current'], snapshot.capture(self.u))
+            snapshot.same(data['current'], self.capture(data))
             return data
         if item['phase'] in ('preparing', 'prepared') and not (Path(item['work']) / 'started.json').exists():
             raise RuntimeError('Unstarted release: use cancel after verifying live baseline')
@@ -167,11 +198,14 @@ class Release:
         self.save(data)
         return data
 
-    def rollback(self):
+    def rollback(self, scope=None):
         data = self.load()
+        if data.get('version') == 2:
+            import scope_release
+            return scope_release.rollback(self, scope)
         if data['pending'] or not data['previous'] or not data['last']:
             raise RuntimeError('No previous successful release or a transaction is pending')
-        snapshot.same(data['current'], snapshot.capture(self.u))
+        snapshot.same(data['current'], self.capture(data))
         item = dict(data['last'], phase='rollback')
         data['pending'] = item
         self.save(data)
@@ -184,7 +218,7 @@ class Release:
             return data
         if (Path(item['work']) / 'started.json').exists() or item['phase'] not in ('preparing', 'prepared'):
             raise RuntimeError('Started transaction cannot be abandoned; use recover')
-        snapshot.same(data['current'], snapshot.capture(self.u))
+        snapshot.same(data['current'], self.capture(data))
         data['pending'] = None
         catalog.finished_attempt(self.u, self.store, data, item)
         self.save(data)
@@ -192,42 +226,9 @@ class Release:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup'))
-    parser.add_argument('--apply', action='store_true', help='Delete eligible old deployment artifacts (cleanup only)')
-    parser.add_argument('--release', type=Path)
-    parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
-    args = parser.parse_args(argv)
-    if args.apply and args.action != 'cleanup':
-        parser.error('--apply is only valid for cleanup')
-    if socket.gethostname() != 'hengxin-ai-245' or os.geteuid() != 0:
-        raise RuntimeError('Only root on hengxin-ai-245 is supported')
-    engine.u.safe(engine.u.ROOT)
-    store = retention_store(Path('/var/lib/hengxin-release'))
-    engine.u.safe(store.root)
-    with store.locked():
-        tool = Release(store)
-        if args.action == 'cleanup':
-            if args.release is not None:
-                parser.error('--release is only valid for prepare')
-            tool.cleanup(apply=args.apply)
-            return
-        elif args.action == 'prepare':
-            if args.release is None:
-                parser.error('prepare requires --release')
-            data = tool.prepare(args.release, args.mode)
-        elif args.action in ('status', 'verify'):
-            data = tool.load()
-            if args.action == 'verify':
-                snapshot.same(data['current'], snapshot.capture(engine.u, runtime=True))
-                catalog.before(engine.u, store, data)
-        else:
-            if args.release is not None:
-                parser.error('--release is only valid for prepare')
-            data = getattr(tool, args.action)()
-        print(json.dumps({'action': args.action, 'backend_commit': data['current']['backend_commit'],
-              'frontend_commit': data['current']['frontend_commit'], 'previous': bool(data['previous']),
-              'pending': data['pending']['phase'] if data['pending'] else None}, indent=2))
+    import sys
+    from release_cli import run
+    return run(sys.modules[__name__], argv)
 
 
 if __name__ == '__main__':

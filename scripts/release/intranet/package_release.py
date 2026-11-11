@@ -118,7 +118,7 @@ def extract_sources(repo, commit, destination):
     return hashes, modes
 
 
-def build_environment(scratch, commit):
+def build_environment(scratch, commit, scope=None):
     # Explicit allowlist prevents host VITE_*, NODE_OPTIONS and registry tokens leaking in.
     allowed = {'PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'PROCESSOR_ARCHITECTURE'}
     env = {k: v for k, v in os.environ.items() if k.upper() in allowed}
@@ -135,10 +135,14 @@ def build_environment(scratch, commit):
         env['npm_config_' + name] = str(config)
     env.update({'npm_config_cache': str(scratch / 'npm-cache'), 'CI': 'true',
                 'COREPACK_ENABLE_PROJECT_SPEC': '1', 'VITE_VERSION': commit[:12], **LAN_ENV})
+    if scope:
+        if scope not in ('domestic', 'overseas', 'shared'):
+            raise RuntimeError('Unknown release scope')
+        env['VITE_RELEASE_SCOPE'] = scope
     return env
 
 
-def build_frontend(source, scratch, commit):
+def build_frontend(source, scratch, commit, scope=None):
     frontend = source / 'frontend'
     package = json.loads((frontend / 'package.json').read_text(encoding='utf-8'))
     manager = 'pnpm' if (frontend / 'pnpm-lock.yaml').is_file() else 'npm'
@@ -149,7 +153,7 @@ def build_frontend(source, scratch, commit):
     node = shutil.which('node')
     if not executable or not node:
         raise RuntimeError('Install the Node and package-manager versions declared in package.json')
-    env = build_environment(scratch, commit)
+    env = build_environment(scratch, commit, scope)
     def version(command):
         return subprocess.check_output(command, cwd=frontend, env=env).decode().strip()
     node_version, manager_version = version([node, '--version']).removeprefix('v'), version([executable, '--version'])
@@ -177,7 +181,7 @@ def build_frontend(source, scratch, commit):
         subprocess.run([executable, *command], cwd=frontend, env=env, check=True)
     return {'node': node_version, 'package_manager': manager + '@' + manager_version,
             'commands': [[manager, *cmd] if cmd is not install else [manager, *install[:2]]
-                         for cmd in commands], 'environment': {**LAN_ENV, 'VITE_VERSION': commit[:12]},
+                         for cmd in commands], 'environment': {**LAN_ENV, 'VITE_VERSION': commit[:12], **({'VITE_RELEASE_SCOPE': scope} if scope else {})},
             'lockfile': lock, 'lockfile_sha256': sha((frontend / lock).read_bytes())}
 
 
@@ -210,6 +214,8 @@ def write_package(source, output, commit, hashes, modes, build, runtime_inputs):
                                            if n.startswith('frontend/')},
                 'runtime_inputs': runtime_inputs,
                 'provenance': {'source_commit': commit, 'source_files': hashes, 'build': build}}
+    if build.get('environment', {}).get('VITE_RELEASE_SCOPE'):
+        manifest['scope'] = build['environment']['VITE_RELEASE_SCOPE']
     payload['release-manifest.json'] = (json.dumps(manifest, sort_keys=True, indent=2) + '\n').encode()
     # Exclusive creation prevents overwriting a previous release or leaving a partial final file.
     with tempfile.TemporaryDirectory(prefix='hx-package-', dir=output.parent) as stage:
@@ -225,7 +231,7 @@ def write_package(source, output, commit, hashes, modes, build, runtime_inputs):
     return manifest
 
 
-def package_release(repo, revision, output):
+def package_release(repo, revision, output, scope=None):
     repo, output = Path(repo).resolve(), Path(output).resolve()
     commit = resolve_commit(repo, revision)
     if output.exists():
@@ -234,7 +240,7 @@ def package_release(repo, revision, output):
     with workspace() as scratch:
         source = scratch / 'source'
         hashes, modes = extract_sources(repo, commit, source)
-        build = build_frontend(source, scratch, commit)
+        build = build_frontend(source, scratch, commit, scope) if scope else build_frontend(source, scratch, commit)
         lock = 'frontend/' + build['lockfile']
         if build['lockfile_sha256'] != hashes.get(lock):
             raise RuntimeError('Dependency lockfile changed during build')
@@ -248,9 +254,10 @@ def main():
     parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[3])
     parser.add_argument('--commit', required=True, help='HEAD or full 40-character commit')
     parser.add_argument('--output', required=True, type=Path, help='New .tar.gz output path')
+    parser.add_argument('--scope', choices=('domestic', 'overseas', 'shared'))
     args = parser.parse_args()
     try:
-        result = package_release(args.repo, args.commit, args.output)
+        result = package_release(args.repo, args.commit, args.output, args.scope)
     except (RuntimeError, OSError, subprocess.CalledProcessError) as exc:
         parser.exit(1, str(exc) + '\n')
     print(json.dumps({'commit': result['commit'], 'output': str(args.output.resolve()),

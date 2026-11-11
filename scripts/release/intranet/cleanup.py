@@ -86,7 +86,7 @@ def execute(u, store, data, apply=False):
     # A failed postcheck must prevent *all* deletion, including manual retries.
     if data.get('pending'):
         raise RuntimeError('Pending release blocks cleanup')
-    snapshot.same(data['current'], snapshot.capture(u, runtime=True))
+    snapshot.same(data['current'], snapshot.capture_for(u, data, runtime=True))
     report = dict(plan(u, store, data), status='preview', deleted=[], errors=[], time_ns=time.time_ns())
     if not apply:
         return report

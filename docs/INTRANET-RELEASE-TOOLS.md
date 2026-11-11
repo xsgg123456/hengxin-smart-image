@@ -1,53 +1,55 @@
 # 内网生产发布工具
 
-## 已确认范围
+## 国内、国外独立发布（本次批准方案）
 
-复用现有发布策略及已在 .245 验证的切换逻辑，提供内网专用入口；仅允许 `hengxin-ai-245`，旧公网脚本及环境不变。应用源码统一来自明确的 Git 提交，账号、业务数据、内网配置和 Codex 运行时保留。
+本节替代拆分前的全站发布命令。实现/验收合同见 [独立发布方案](INTRANET-INDEPENDENT-RELEASE-20261111.md)；生产是否完成以本次部署验收记录为准。只操作 `hengxin-ai-245 / 192.168.1.245`，旧公网不变。
 
-1. 固定 Git 提交、构建内网前端、生成文件摘要并上传独立目录；预检时业务继续运行。
-2. 复用旧发布锁、原子状态保存，登记当前、上一成功版和未完成事务。记录源码、静态文件、镜像、原生解释器及数据库版本，不能仅凭镜像认定版本一致。
-3. 普通发布先备份配置和数据库，再关闭接纳、排空任务、切换统一源码、验证健康及两侧 Codex 文档运行环境；失败恢复原入口。纯前端发布只切换 web。
-4. 恢复使用保存的事务及原始配置；状态不明保持阻断，不强杀任务、不自动恢复旧数据库。依赖清单或迁移文件变化阻止普通发布，要求单独准备兼容的依赖/数据库升级方案，禁止覆盖正在使用的 venv。
-5. 发布成功、运行验证通过并保存新台账后，自动清理统一源码发布根目录内的更早版本；保留当前、上一成功版的前后端目录并集，以及全部在用引用。清理失败只记录告警，不回退已经验证成功的业务版本。未完成或失败的发布不触发清理。
-
-此次只安装发布工具、只读验证和初始化现有版本台账，不为安装工具重启业务，不调用收费模型。恢复路径使用隔离故障测试验证，不在生产制造故障。后续正式功能发布使用同一入口。
-
-## 验收
-
-- 参数/目标隔离、并发锁、重复执行、摘要漂移、依赖/迁移变化阻断、正常发布及失败恢复有测试。
-- 内网最终安装路径可运行；实际服务源码/前端与当前清单匹配，国内/海外健康及真实 UID 运行环境检查通过。
-- 工具初始化前后应用进程与容器不重启、数据容器身份不变；旧公网无操作。
+- 国内、国外分别选组发布或回退；仅更新目标组，另一组及共享账号服务不重启。共享前端可单独发布；共享后端、跨业务公共代码、依赖或数据库升级须另行联合维护，普通命令明确拒绝。
+- 每组各记当前、上一成功的完整运行状态，包括该组前后端、镜像、事务和备份；成功验证后自动清理更早无人引用的源码、镜像、包和附带备份。发布失败不推进，清理失败不回退成功业务。
+- 原有进程、容器、挂载、systemd、venv及所有组两版的引用都保护。业务数据库、图片、素材、账号数据不属于发布垃圾。两次成功版本不等于两个文件夹或两个Docker镜像；普通代码发布复用现有镜像。
+- 完整后端发布只排空目标侧任务，不能排空就恢复接入退出，不强杀。纯前端发布只换该组静态服务。回退从当前全站配置合成目标变更，不倒灌数据库、不覆盖另一侧后来发布的版本。
+- 新包只兼容上一成功前端自身的assets，不逐代复制更早兼容资源。每组静态服务只读挂载切换前前端作为asset fallback，保证回退后旧页面仍可加载回退前资源；下一次切换更新该挂载，不永久保留旧来源。现有网关挂载的旧 `/assets/` 仍受实时引用保护，支持首次迁移前已打开页面。
 
 ## 日常使用
 
-本地从明确 Git 提交打包（HEAD 先解析为完整提交；工作区未提交内容不会进入制品）：
+本地先提交已审代码，从明确Git提交构建目标包；未提交工作区内容不会进入包。国内用 `domestic`，国外用 `overseas`，共享前端用 `shared`：
 
 ```powershell
-python scripts/release/intranet/package_release.py --commit HEAD --output output/release/lan-日期-提交号.tar.gz
-scp -i ~/.ssh/hengxin_devhub_prod output/release/lan-日期-提交号.tar.gz root@192.168.1.245:/opt/hengxin-lan/lan-日期-提交号.tar.gz
+python scripts/release/intranet/package_release.py --commit HEAD --scope domestic --output output/release/lan-domestic-日期-提交号.tar.gz
 ```
 
-登录内网服务器后，使用安装目录里的工具。以下 `lan-日期-提交号` 每次换一个新名称：
+用项目现有内网传输方式上传到 `/opt/hengxin-lan/` 的新版本专属文件名，核对SHA256，不覆盖以前的包。登录内网服务器执行：
 
 ```sh
 TOOLS=/opt/hengxin-intranet-tools/current/scripts/release/intranet
-python3 -B "$TOOLS/stage.py" /opt/hengxin-lan/lan-日期-提交号.tar.gz --name lan-日期-提交号
-python3 -B "$TOOLS/release.py" prepare --release /opt/hengxin-unified-releases/lan-日期-提交号
-python3 -B "$TOOLS/release.py" deploy
+python3 -B "$TOOLS/stage.py" /opt/hengxin-lan/lan-domestic-日期-提交号.tar.gz --name lan-domestic-日期-提交号
+python3 -B "$TOOLS/release.py" prepare --scope domestic --mode full --release /opt/hengxin-unified-releases/lan-domestic-日期-提交号
+python3 -B "$TOOLS/release.py" deploy --scope domestic
 python3 -B "$TOOLS/release.py" verify
 ```
 
-仅前端改动在 `prepare` 增加 `--mode frontend`。它仍校验后端应用代码、锁文件和迁移未变，只切换 web。普通发布复用原生 venv、容器镜像、CLI 和全部配置；不下载或升级运行时。
+仅前端改动用 `--mode frontend`；本组后端发生变化会拒绝。完整Git包中可包含其它业务已变更的独占Python文件，但必须在旧/新依赖图均证明目标业务不加载，仍只挂载/重启选中组。未知归属和跨业务公共变更拒绝。
 
-- `status`：查看当前前后端提交、有无上一成功版、有无未完成事务。
-- `recover`：发布中断后恢复该事务原版本并验证；失败时保留事务，不强行解除门禁。自动恢复成功但 deploy 报错时，也用此命令核验并清除 pending。
-- `rollback`：回到最近一次成功发布之前的版本；同样排空并验证。完成后不提供来回翻转，重新发版走新 prepare。
-- `cancel`：取消尚未开始切换的候选，核对当前服务未变后清除 pending；不删除候选或备份。
-- `init`：首次实查现有线上版本后登记。重复执行只核对，不覆盖已有台账。
+```sh
+python3 -B "$TOOLS/release.py" rollback --scope domestic
+python3 -B "$TOOLS/release.py" status
+python3 -B "$TOOLS/release.py" cleanup
+python3 -B "$TOOLS/release.py" cleanup --apply
+```
 
-发布使用旧 `release-retention-state.py` 的进程锁和原子写入，内网台账单独位于 `/var/lib/hengxin-release/intranet.json`，不改变旧镜像台账格式。事务及备份位于同目录 `intranet-transactions/`，权限 0700/0600；其中执行环境可能含凭据，不输出、不提交 Git。
+`rollback` 按一次新的目标组成功部署登记，保留回退后当前版和回退前上一版，自动清理；国外记录不变。`cleanup` 默认预览，`--apply` 执行或重试清理。
 
-当前业务来源可能分别为 backend、frontend 两个发布目录，台账分别记录；保留两次发布状态涉及的目录，不按日期硬凑两个文件夹。源码清理仅限 `/opt/hengxin-unified-releases/` 下通过清单和路径验证的版本。完整清理还包括下述已登记的旧镜像、上传包和发布备份；历史 native/overseas/account 目录、venv、业务数据仍受保护，不运行旧公网清理入口。初次登记没有虚构“上一成功版”；第一次通过本入口正式发布后才建立 previous。
+中断后用 `recover --scope domestic` 恢复当前事务并验证；仅准备未切换可用 `cancel --scope domestic`。有未解决事务则禁止新发布或清理。所有命令复用原发布锁，独立发布不等于并发改写同一compose。
+
+台账 `/var/lib/hengxin-release/intranet.json` 使用version 2，各组current/previous独立；事务及数据库备份在同目录 `intranet-transactions/`，私有权限，不输出凭据或提交Git。源码清理仅限已接管 `/opt/hengxin-unified-releases/`，未知遗留目录保守保留。
+
+## 首次拆分的恢复
+
+复用 `migrate_split.py prepare/apply/finish/rollback`；只新增三套静态服务并reload原网关。准备时保存原台账、compose、nginx及身份摘要，后端/worker/数据服务不重启。中断于静态服务启动或未确认网关切换时执行migration rollback；已确认网关切换后可finish继续核验。已有独立业务发布推进后禁止恢复整份迁移旧配置，改用分组rollback。
+
+## 拆分前历史记录
+
+以下保留当时真实实施证据。全站current/previous、无scope的命令和旧容器数量仅描述当时环境，当前以本页上方独立发布规则为准。
 
 ## 2026-11-11 自动保留两版（用户批准实施）
 

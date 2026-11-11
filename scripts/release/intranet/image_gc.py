@@ -2,6 +2,7 @@
 import json
 import re
 import time
+from types import SimpleNamespace
 
 
 IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
@@ -22,8 +23,13 @@ def image_id(value):
 
 def expected(u):
     names = set(u.APPS) | set(u.DATA) | {'https'}
-    require(len(names) == 17, 'Expected exactly 17 deployment services')
+    require(len(names) == (20 if getattr(u, 'scoped_images', False) else 17), 'Unexpected deployment service count')
     return names
+
+
+def scoped(u):
+    return SimpleNamespace(APPS=tuple(set(u.APPS) | {'domestic-ui', 'overseas-ui', 'shared-ui'}),
+                           DATA=u.DATA, run=u.run, scoped_images=True)
 
 
 def containers(u):
@@ -88,11 +94,12 @@ def checked(u, current, retained):
     return present, {item['Image'] for item in inventory}
 
 
-def execute(u, store, current, previous, known, apply=False):
+def execute(u, store, current, previous, known, apply=False, extra_retained=()):
     """No version advancement: maps come from the atomic full-deployment ledger."""
     retained = check_map(u, current)
     if previous is not None:
         retained |= check_map(u, previous)
+    retained.update(image_id(value) for value in extra_retained)
     require(isinstance(known, set), 'Known image history must be a set')
     known = {image_id(value) for value in known}
     present, referenced = checked(u, current, retained)

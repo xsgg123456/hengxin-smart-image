@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import { releaseScopePlugin, parseReleaseScope } from './release-scope.config'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -21,6 +22,7 @@ export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPrevi
     VITE_API_PROXY_URL: 'http://127.0.0.1:8008',
     ...loadEnv(mode, root)
   }
+  const releaseScope = isolatedPreview || ['mock', 'demo'].includes(mode) ? undefined : parseReleaseScope(process.env.VITE_RELEASE_SCOPE ?? env.VITE_RELEASE_SCOPE)
   const { VITE_VERSION, VITE_PORT, VITE_BASE_URL, VITE_API_URL, VITE_API_PROXY_URL } = env
 
   console.log(`🚀 API_URL = ${VITE_API_URL}`)
@@ -28,12 +30,13 @@ export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPrevi
 
   return defineConfig({
     define: {
+      'import.meta.env.VITE_RELEASE_SCOPE': JSON.stringify(releaseScope || ''),
       __APP_VERSION__: JSON.stringify(VITE_VERSION),
       'import.meta.env.VITE_ACCESS_MODE': JSON.stringify(env.VITE_ACCESS_MODE),
       'import.meta.env.VITE_API_URL': JSON.stringify(VITE_API_URL),
       'import.meta.env.VITE_VERSION': JSON.stringify(VITE_VERSION)
     },
-    base: VITE_BASE_URL,
+    base: releaseScope ? `/${releaseScope}/` : VITE_BASE_URL,
     server: {
       port: Number(VITE_PORT),
       watch: { ignored: ['**/dist-demo/**'] },
@@ -82,6 +85,7 @@ export default ({ mode, isolatedPreview = false }: { mode: string; isolatedPrevi
       }
     },
     plugins: [
+      releaseScopePlugin(releaseScope),
       vue(),
       tailwindcss(),
       // 自动按需导入 API

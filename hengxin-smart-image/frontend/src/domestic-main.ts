@@ -1,3 +1,4 @@
+import { isIndependentRelease, releaseDestination } from './release/navigation'
 import App from './App.vue'
 import { useUserStore } from './store/modules/user'
 import { bootstrapUser } from './api/hengxin/bootstrap-user'
@@ -78,6 +79,7 @@ identity.subscribe(reason => {
   }
   clearIdentity()
   bootstrap.authRequired = reason === 'invalid'
+  if (reason === 'invalid' && isIndependentRelease()) window.location.replace(releaseDestination('shared', '/auth/login'))
   if (reason === 'invalid') bootstrap.error = '会话已过期或账号无权访问，请重新登录'
 })
 window.addEventListener('hengxin:unauthorized', () => identity.invalidate(identity.epoch))

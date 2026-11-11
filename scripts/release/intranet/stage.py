@@ -69,8 +69,13 @@ def main():
     engine.u.safe(store.root)
     with store.locked():
         tool = Release(store)
+        marker = store.root/'intranet-split-migration.json'
+        if marker.exists():
+            engine.u.safe(marker)
+            if json.loads(marker.read_bytes())['phase'] not in ('complete', 'rolled-back'):
+                raise RuntimeError('Resolve split migration before staging')
         data = catalog.before(engine.u, store, tool.load())
-        if data.get('pending'):
+        if data.get('pending') or data.get('migration_pending'):
             raise RuntimeError('Pending deployment blocks staging')
         history = cleanup_history.known(engine.u, store, data)
         # Uploads are immutable and version-named; never overwrite a registered tar.

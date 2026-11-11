@@ -6,12 +6,23 @@ import snapshot
 
 
 def sources(state):
-    return {state[key] for key in ('backend', 'frontend')} if state else set()
+    if not state:
+        return set()
+    if 'groups' in state:
+        return set().union(*(sources(v) for v in state['groups'].values()))
+    return {state[key] for key in ('backend', 'frontend')}
+
+
+def retained(data):
+    if data.get('version') == 2:
+        return [v[k] for v in data['groups'].values() for k in ('current', 'previous') if v[k]]
+    return [data[k] for k in ('current', 'previous') if data.get(k)]
 
 
 def known(u, store, data):
     result = set(data.get('source_history', []))
-    result.update(sources(data.get('current')) | sources(data.get('previous')))
+    for state in retained(data):
+        result.update(sources(state))
     if data.get('retention'):
         # The catalog imported checksum-bound provenance before any transaction
         # deletion. Reading partly deleted old transactions would break retries.

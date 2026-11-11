@@ -195,6 +195,7 @@ def test_assets_preserve_old_hashes_but_not_old_index(tmp_path, monkeypatch):
         (root/'frontend/assets').mkdir(parents=True)
         (root/'frontend/index.html').write_text(root.name)
     (old/'frontend/assets/old-hash.js').write_text('old')
+    (old/'release-manifest.json').write_text(json.dumps({'files': {'frontend/assets/old-hash.js': snapshot.sha(b'old')}}))
     (new/'release-manifest.json').write_text(json.dumps({'files': {'frontend/index.html': 'new'}}))
     u = SimpleNamespace(safe=lambda *a, **k: None,
                         write=lambda path, data, **k: path.write_bytes(data))
@@ -202,6 +203,24 @@ def test_assets_preserve_old_hashes_but_not_old_index(tmp_path, monkeypatch):
     assert (new/'frontend/index.html').read_text() == 'new'
     assert (new/'frontend/assets/old-hash.js').read_text() == 'old'
     assert 'frontend/assets/old-hash.js' in json.loads((new/'release-manifest.json').read_text())['compatibility_files']
+
+
+def test_assets_do_not_accumulate_across_three_successes(tmp_path):
+    u = SimpleNamespace(safe=lambda *a, **k: None,
+                        write=lambda path, data, **k: path.write_bytes(data))
+    roots = [tmp_path/name for name in ('A', 'B', 'C')]
+    for root in roots:
+        (root/'frontend/assets').mkdir(parents=True)
+        name = 'frontend/assets/' + root.name + '.js'
+        (root/name).write_bytes(root.name.encode())
+        files = {name: snapshot.sha(root.name.encode())}
+        (root/'release-manifest.json').write_text(json.dumps({'files': files, 'frontend_current_files': files}))
+    operations.keep_assets(u, roots[0], roots[1])
+    operations.keep_assets(u, roots[1], roots[2])
+    assert sorted(p.name for p in (roots[2]/'frontend/assets').iterdir()) == ['B.js', 'C.js']
+    manifest = json.loads((roots[2]/'release-manifest.json').read_bytes())
+    assert set(manifest['compatibility_files']) == {'frontend/assets/B.js'}
+    assert set(manifest['frontend_current_files']) == {'frontend/assets/C.js'}
 
 
 def test_web_recovery_refuses_concurrent_compose(tmp_path):

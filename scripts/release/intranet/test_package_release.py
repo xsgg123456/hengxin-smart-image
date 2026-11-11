@@ -76,6 +76,17 @@ class PackageTests(unittest.TestCase):
         with patch.object(p, 'build_frontend', side_effect=build or self.fake_build):
             return p.package_release(self.repo, self.commit, self.output)
 
+    def test_scoped_package_records_exact_build_scope(self):
+        def scoped(source, scratch, commit, scope):
+            result = self.fake_build(source, scratch, commit)
+            self.assertEqual(scope, 'overseas')
+            result['environment'] = {'VITE_RELEASE_SCOPE': scope}
+            return result
+        with patch.object(p, 'build_frontend', side_effect=scoped):
+            manifest = p.package_release(self.repo, self.commit, self.output, 'overseas')
+        self.assertEqual(manifest['scope'], 'overseas')
+        self.assertEqual(manifest['provenance']['source_commit'], self.commit)
+
     def test_committed_bytes_manifest_filters_and_permissions(self):
         self.write(p.PREFIX + 'backend/app/main.py', b'dirty backend\r\n')
         self.write(p.PREFIX + 'frontend/src/main.ts', b'dirty frontend')

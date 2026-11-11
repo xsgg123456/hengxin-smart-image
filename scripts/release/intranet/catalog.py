@@ -19,6 +19,9 @@ def record(state, images, work=None):
 
 
 def check(data):
+    if data.get('version') == 2:
+        from scope_catalog import check as scoped_check
+        return scoped_check(data)
     value = data['retention']
     if value.get('version') != 1:
         raise RuntimeError('Unknown complete-deployment catalog')
@@ -96,7 +99,11 @@ def bootstrap(u, store, data):
 
 def before(u, store, data):
     data = bootstrap(u, store, data)
-    if image_gc.capture(u) != data['retention']['current']['images']:
+    if data.get('version') == 2:
+        fleet, expected = image_gc.scoped(u), data['current']['images']
+    else:
+        fleet, expected = u, data['retention']['current']['images']
+    if image_gc.capture(fleet) != expected:
         raise RuntimeError('Complete deployment image fleet drift')
     return data
 
@@ -109,6 +116,9 @@ def stage(u, store, data, source, archive):
 
 def advance(u, store, old, completed, item):
     """Called after runtime checks, inside the same atomic success-ledger update."""
+    if old.get('version') == 2:
+        from scope_catalog import advance as scoped_advance
+        return scoped_advance(u, store, old, completed, item)
     value = copy.deepcopy(check(old))
     images = image_gc.capture(u)
     # Ordinary source releases may not silently upgrade any of the 17 runtimes.
@@ -125,6 +135,9 @@ def advance(u, store, old, completed, item):
 def recover(data):
     """Match the saved before-state, without inventing a new success or losing ownership."""
     value = data.get('retention')
+    if data.get('version') == 2:
+        check(data)
+        return
     if not value:
         return
     if value['current']['state_sha256'] != state_sha(data['current']):
@@ -148,7 +161,7 @@ def finished_attempt(u, store, data, item):
         # Engine recovery journals phase/drain/socket progress in started.json.
         # Its prepared binding and original execution context remain immutable.
         mutable = set()
-        if item.get('mode') == 'full' and old.get('journal_identity'):
+        if (item.get('mode') == 'full' or item.get('scope')) and old.get('journal_identity'):
             journal = json.loads((Path(item['work'])/'started.json').read_bytes())
             if (journal_identity(item['work']) != old['journal_identity']
                     or journal.get('recovering') is not True
@@ -166,6 +179,9 @@ def finished_attempt(u, store, data, item):
 
 
 def protected(data):
+    if data.get('version') == 2:
+        from scope_catalog import protected as scoped_protected
+        return scoped_protected(data)
     value = check(data)
     sources = cleanup_history.sources(data['current']) | cleanup_history.sources(data['previous'])
     sources.update(value['staged'])
