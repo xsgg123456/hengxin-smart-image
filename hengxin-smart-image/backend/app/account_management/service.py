@@ -126,7 +126,8 @@ def main():
             managers[side] = manager
             stack.callback(manager.close)
             servers.append(stack.enter_context(ControlServer(args.runtime / side / 'control.sock', manager, args.api_uid)))
-        servers.append(stack.enter_context(BusinessBroker(args.runtime / 'worker.sock', managers)))
+        servers.append(stack.enter_context(BusinessBroker(args.runtime / 'worker.sock', managers,
+            overseas_uid=int(os.environ.get('HX_OVERSEAS_WORKER_UID', '999')))))
         stopped = threading.Event()
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *ignored: stopped.set())
