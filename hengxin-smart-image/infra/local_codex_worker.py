@@ -65,9 +65,12 @@ def main():
         from uuid import uuid4
         from app.execution.workspace import prepare_workspace,sandbox_command
         with tempfile.TemporaryDirectory(prefix='hx-preflight-') as root:
-            ws=prepare_workspace(root,uuid4(),uuid4(),settings.codex_auth_file)
-            result=subprocess.run(sandbox_command(ws,str(binary),['--version'],settings.codex_bwrap_binary),capture_output=True,text=True,timeout=15)
-            if result.returncode or result.stdout.strip()!=version.stdout.strip():
+            ws=prepare_workspace(root,uuid4(),uuid4(),None,copy_auth=False)
+            ws.use_skill=False
+            command=['sandbox','-c','sandbox_mode="workspace-write"','--','python3','-c',
+                     'from pathlib import Path; p=Path("/work/probe"); p.write_text("SANDBOX_OK"); print(p.read_text())']
+            result=subprocess.run(sandbox_command(ws,str(binary),command,settings.codex_bwrap_binary),capture_output=True,text=True,timeout=30)
+            if result.returncode or result.stdout.strip()!='SANDBOX_OK':
                 raise ValueError('Actual CLI sandbox preflight failed')
         print('PASS pinned CLI, authentication and actual task sandbox')
         return

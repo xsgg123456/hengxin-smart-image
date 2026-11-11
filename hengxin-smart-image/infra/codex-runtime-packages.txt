@@ -1,0 +1,17 @@
+# Ubuntu 24.04 execution host; installed by install_codex_runtime.py.
+bubblewrap
+libreoffice-impress
+libreoffice-writer
+libreoffice-calc
+poppler-utils
+python3-pil
+python3-openpyxl
+python3-docx
+python3-pypdf
+python-is-python3
+nodejs
+ripgrep
+unzip
+zip
+fonts-noto-cjk
+fonts-dejavu-core

@@ -66,17 +66,20 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
             '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--cap-drop', 'ALL',
             '--clearenv', '--setenv', 'HOME', '/home/runner',
             '--setenv', 'CODEX_HOME', '/home/runner/.codex',
-            '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'LANG', 'C.UTF-8',
+            '--setenv', 'PATH', '/opt/hx-tools:/usr/bin:/bin', '--setenv', 'LANG', 'C.UTF-8',
+            '--setenv', 'XDG_CACHE_HOME', '/tmp/.cache',
+            '--setenv', 'XDG_CONFIG_HOME', '/tmp/.config',
             '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp']
     proxy = os.environ.get('HENGXIN_CODEX_PROXY_URL', '')
     if proxy:
         parsed = urlsplit(proxy)
-        if (os.environ.get('APP_ENV') not in ('test', 'development')
+        if ((os.environ.get('APP_ENV') not in ('test', 'development')
+                and os.environ.get('HENGXIN_ALLOW_LOOPBACK_CODEX_PROXY') != '1')
                 or parsed.scheme not in ('http', 'https')
                 or parsed.hostname not in ('127.0.0.1', 'localhost', '::1')
                 or not parsed.port or parsed.username is not None or parsed.password is not None
                 or parsed.path not in ('', '/') or parsed.query or parsed.fragment
-                or any(c.isspace() for c in proxy)):
+                or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in proxy)):
             raise ValueError('Invalid local development proxy configuration')
         for key, value in [('HTTP_PROXY', proxy), ('HTTPS_PROXY', proxy),
                            ('NO_PROXY', 'localhost,127.0.0.1,::1')]:
@@ -84,7 +87,8 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
     for name in ('/usr', '/bin', '/lib', '/lib64'):
         if Path(name).exists():
             argv += ['--ro-bind', name, name]
-    for name in ('/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf'):
+    for name in ('/etc/ssl', '/etc/resolv.conf', '/etc/hosts', '/etc/nsswitch.conf',
+                 '/etc/fonts', '/etc/libreoffice', '/var/cache/fontconfig'):
         if Path(name).exists():
             argv += ['--ro-bind', name, name]
     argv += ['--bind', str(workspace.home), '/home/runner',
@@ -106,6 +110,22 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
                  '--ro-bind', str(skill), '/home/runner/.agents/skills/' + workspace.skill_name]
     if getattr(workspace, 'persistent', False):
         argv += ['--remount-ro', '/work/skills']
+    # New CLI distributions use this companion binary for their inner sandbox.
+    # Preserve its expected location even when the outer sandbox remaps the CLI.
+    for resources in (binary.parent / 'codex-resources', binary.parent.parent / 'codex-resources'):
+        nested = resources / 'bwrap'
+        if resources.is_symlink() or nested.is_symlink():
+            raise RuntimeError('Codex sandbox resource cannot be a symlink')
+        if nested.exists():
+            if not nested.is_file() or nested.stat().st_nlink != 1:
+                raise RuntimeError('Invalid Codex sandbox resource')
+            argv += ['--ro-bind', str(nested), '/opt/codex-resources/bwrap']
+            break
+    office = Path(__file__).with_name('office_render.py')
+    if not office.is_file() or office.is_symlink():
+        raise RuntimeError('Offline document renderer is required beside workspace.py')
+    for alias in ('libreoffice', 'soffice'):
+        argv += ['--ro-bind', str(office), '/opt/hx-tools/' + alias]
     argv += ['--ro-bind', str(binary), '/opt/codex',
              '--ro-bind', str(helper), '/opt/codex-code-mode-host',
              '--chdir', '/work', '--', '/opt/codex', *arguments]

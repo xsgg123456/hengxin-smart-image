@@ -48,3 +48,28 @@ def test_local_proxy_refused_in_production(command):
     env.update(APP_ENV='production', HENGXIN_CODEX_PROXY_URL='http://127.0.0.1:7890')
     with pytest.raises(ValueError):
         build()
+
+
+@pytest.mark.parametrize('app_env', ['production', None])
+def test_explicit_loopback_opt_in_for_service(command, app_env):
+    env, build = command
+    if app_env is None:
+        env.pop('APP_ENV')
+    else:
+        env['APP_ENV'] = app_env
+    env.update(HENGXIN_ALLOW_LOOPBACK_CODEX_PROXY='1',
+               HENGXIN_CODEX_PROXY_URL='http://127.0.0.1:7890')
+    argv = build()
+    assert '--clearenv' in argv and 'private' not in argv
+    values = {argv[i+1]: argv[i+2] for i, v in enumerate(argv) if v == '--setenv'}
+    assert values['HTTPS_PROXY'] == 'http://127.0.0.1:7890'
+
+
+@pytest.mark.parametrize('proxy', ['http://remote:7890', 'http://user:pass@localhost:7890',
+    'http://localhost:7890/\x00', 'http://localhost:7890/\x7f'])
+def test_opt_in_does_not_relax_proxy_validation(command, proxy):
+    env, build = command
+    env.update(APP_ENV='production', HENGXIN_ALLOW_LOOPBACK_CODEX_PROXY='1',
+               HENGXIN_CODEX_PROXY_URL=proxy)
+    with pytest.raises(ValueError):
+        build()
