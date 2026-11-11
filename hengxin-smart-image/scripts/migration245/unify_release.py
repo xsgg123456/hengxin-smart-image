@@ -22,6 +22,7 @@ import urllib.request
 ROOT = Path('/opt/hengxin-lan')
 RELEASE = Path('/opt/hengxin-unified-releases/unified-20261111')
 WORK = ROOT / 'unify-20261111'
+REUSABLE = False
 COMPOSE = ROOT / 'compose.json'
 SYSTEMD = Path('/etc/systemd/system')
 PYTHON_SERVICES = {
@@ -282,7 +283,7 @@ def prepare():
     original = COMPOSE.read_bytes()
     candidate = candidate_compose(json.loads(original))
     for name in NATIVE:
-        for filename in (DROPIN, '91-unify-stop.conf'):
+        for filename in (('91-unify-stop.conf',) if REUSABLE else (DROPIN, '91-unify-stop.conf')):
             target = SYSTEMD / (name + '.service.d') / filename
             if target.exists():
                 raise RuntimeError('Existing maintenance drop-in; rerun refused')
@@ -302,7 +303,13 @@ def prepare():
         else:
             write(path, data, exclusive=True)
     records = []
-    for index, path in enumerate(config_paths()):
+    paths = config_paths()
+    if REUSABLE:
+        for name in NATIVE:
+            path = SYSTEMD / (name + '.service.d') / DROPIN
+            if path.exists() and path not in paths:
+                paths.append(path)
+    for index, path in enumerate(paths):
         safe(path)
         data = path.read_bytes()
         retained(WORK / ('backup-' + str(index)), data)

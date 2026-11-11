@@ -1,5 +1,7 @@
 # hengxin-smart-image
 
+内网生产入口为 `http://192.168.1.245:8080`。后续发布使用 [内网专用发布工具](docs/INTRANET-RELEASE-TOOLS.md)，当前运行版本见 [内网统一发布记录](docs/INTRANET-UNIFIED-RELEASE-20261111.md)。下方公网版本信息为历史记录；内网工具不操作旧公网。
+
 最新前端热修：`ui-20260922-b086a49`，图片处理菜单每次进入新任务表单，历史任务统一在任务中心查看。验证及回滚见 [菜单修复发布记录](hengxin-smart-image/docs/NEW-TASK-MENU-20260922.md)。下方UI整批发布仍为此次热修的基础版本。
 
 本仓库用于开发前海恒鑫「恒鑫智图」。截至 2026-09-21，最近已验证的 VPS 业务发布为 `light-skills-20260921-f02b1e0`，迁移 `0014`，见 [发布记录](hengxin-smart-image/docs/LIGHT-SKILLS-DEPLOYMENT.md)。2026-09-22 前端 UI 已部署为 `ui-20260922-c837abf`，见 [UI 发布记录](hengxin-smart-image/docs/UI-RELEASE-20260922.md)；后端与数据库保持该基线。Phase 1–11A 已按历史范围验收；12.1 已实现并审查通过；12.2 双端授权代码及钉钉容器免登修复已部署，真实双端业务验收未完成；13.1–13.3 管理统计/监控/配置已部署，真实角色联调待验收；14.1 VPS 与 HTTPS 已部署，三类真实 Skill、恢复演练和容量验收未完成。 接手先读 [开发交接](hengxin-smart-image/docs/HANDOVER.md)，进度以 [DEV-PLAN.md](DEV-PLAN.md) 为准。
