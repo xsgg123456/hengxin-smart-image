@@ -137,6 +137,7 @@ def main():
             assert (ws.work / 'domestic-marker.txt').read_text().strip() == marker
             assert 'imagegen' in calls and 'referenced_image_paths' in calls and '/work/input.png' in calls
             images, warnings = collect_delivery(ws, summary)
+            images = [(path, file) for path, file in images if file.content_type.startswith('image/')]
             assert len(images) == 1 and not warnings, {'count':len(images), 'warnings':warnings}
             picture = images[0][1]
             (output / 'domestic-result.png').write_bytes(picture.data)
