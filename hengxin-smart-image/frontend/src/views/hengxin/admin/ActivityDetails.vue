@@ -11,26 +11,11 @@
       <p v-if="selected.images === null" class="hx-footnote">该请求与图片产出没有可靠关联，不能把请求成功次数当成生成图片数。</p>
     </template>
   </ElDrawer>
-  <ElDrawer :model-value="serviceOpen" title="执行服务详情" size="min(620px, 100vw)" @close="$emit('close-service')">
-    <p class="hx-footnote">服务状态来自心跳，不代表上游模型已验证可用。</p>
-    <section v-for="channel in monitor?.channels || []" :key="channel.channel" class="service-detail">
-      <div class="activity-top"><h2>{{ channel.channel === 'api' ? 'API 生图' : 'CLI 图片修改' }}</h2><ElTag :type="channel.state === 'available' ? 'success' : 'warning'">{{ states[channel.state] }}</ElTag></div>
-      <ElAlert v-if="!channel.enabled" title="此执行渠道未启用。" type="warning" :closable="false" /><ElAlert v-if="channel.paused" :title="channel.pauseReason || 'API 通道暂停'" type="error" :closable="false" />
-      <ElAlert v-if="channel.queueState === 'unknown'" title="队列采集失败，数量未知。" type="warning" :closable="false" />
-      <p class="hx-footnote">{{ channel.channel === 'api' ? `任务准入 ${count(channel.concurrencyLimit)} 套 · 每批 ${count(channel.imagesPerBatch)} 张` : `最多并行 ${count(channel.concurrencyLimit)} 个修改轮次 · 同图会话串行` }}</p>
-      <ElTable :data="channel.metrics"><ElTableColumn label="阶段"><template #default="{row}">{{ statuses[row.phase] || row.phase }}</template></ElTableColumn><ElTableColumn label="关联任务（套）"><template #default="{row}">{{ count(row.tasks) }}</template></ElTableColumn><ElTableColumn label="涉及图片（张）"><template #default="{row}">{{ count(row.images) }}</template></ElTableColumn><ElTableColumn v-if="channel.channel === 'cli'" label="修改轮次"><template #default="{row}">{{ count(row.turns) }}</template></ElTableColumn></ElTable>
-      <p v-if="!channel.workers.length" class="hx-footnote">尚无有效心跳，无法确认节点是否在线。</p><p v-for="worker in channel.workers" :key="worker.id" class="hx-footnote">{{ worker.id }} · {{ time(worker.checkedAt) }} · {{ states[worker.state] }} · 容量 {{ count(worker.capacity) }}</p>
-      <p class="hx-footnote">同套任务可能跨阶段出现，任务套数不能直接相加。</p>
-    </section>
-  </ElDrawer>
 </template>
 <script setup lang="ts">
 import { formatBeijingTime } from '@/utils/beijing-time'
 import { activityStatuses as statuses, generationKinds as kinds, type ActivityRecord } from '@/types/activity'
-import type { ApiMonitorReport } from '@/types/execution-management'
-defineProps<{ selected: ActivityRecord | null; serviceOpen: boolean; monitor?: ApiMonitorReport }>()
-defineEmits<{ 'close-record': []; 'close-service': [] }>()
+defineProps<{ selected: ActivityRecord | null }>()
+defineEmits<{ 'close-record': [] }>()
 const time = (value: string | null) => value ? formatBeijingTime(value) : '未记录 / 尚未发生'
-const count = (value: number | null) => value === null ? '未知' : value
-const states = {available:'在线',unavailable:'不可用',unknown:'未知'}
 </script>

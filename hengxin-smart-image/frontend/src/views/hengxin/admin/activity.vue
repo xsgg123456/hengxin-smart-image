@@ -3,9 +3,6 @@
     <div class="hx-heading"><div><span class="hx-eyebrow">EXECUTION INSIGHTS</span><h1>调用与执行</h1><p>查看人员使用情况，跟进当前执行进度。</p></div><ElButton :loading="loading" @click="refresh">刷新数据</ElButton></div>
     <ElCard class="art-card hx-section" shadow="never">
       <div class="execution-strip"><span>当前执行</span><ElButton v-for="item in liveStates" :key="item.key" :aria-label="`查看${item.label}记录`" text :class="{ selected: view === 'jobs' && status === item.key }" :disabled="loading || !!error" @click="showStatus(item.key)"><span class="status-dot" :class="item.key" />{{ item.label }}<strong>{{ loading || !!error ? '—' : countState(item.key) }}</strong></ElButton><small>全部人员 · 全部时间 · 条执行</small></div>
-      <div class="service-strip"><span v-for="channel in ['api','cli']" :key="channel">{{ channel === 'api' ? 'API 生图' : 'CLI 修改' }} <ElTag size="small" :type="serviceState(channel) === 'available' ? 'success' : 'warning'">{{ serviceLabel(channel) }}</ElTag></span><small>{{ monitor ? `更新于 ${time(monitor.checkedAt)}（北京时间）` : '服务状态尚未获取' }}</small><ElButton text type="primary" :disabled="monitorLoading || !monitor" @click="serviceOpen = true">服务详情 ›</ElButton></div>
-      <ElAlert v-if="monitorError" :title="monitorError" type="error" :closable="false" class="hx-gap"><ElButton text @click="loadMonitor">重试服务状态</ElButton></ElAlert>
-      <ElAlert v-else-if="monitor?.channels.some(c => c.state !== 'available' || !c.enabled || c.paused || c.queueState === 'unknown')" title="执行服务状态需要关注，请查看服务详情。队列数量不能证明服务在线。" type="warning" :closable="false" class="hx-gap" />
     </ElCard>
     <ElCard class="art-card hx-section activity-card" shadow="never">
       <div class="activity-top"><ElRadioGroup v-model="view" aria-label="统计视图"><ElRadioButton value="people">按人员统计</ElRadioButton><ElRadioButton value="jobs">执行记录</ElRadioButton></ElRadioGroup><ElPopover placement="bottom-end" :width="320" trigger="click"><template #reference><ElButton text>统计说明 ⓘ</ElButton></template><p>生成图片＝首次生成＋修改生成，采用或恢复已有图片不重复计数。</p><p>API 请求包含重试；CLI 修改轮次只统计已证实启动的轮次，两者不相加为模型调用次数。</p><p>历史API请求与图片产出缺少可靠关联时显示“未关联”，人员图片汇总仍按真实产出统计。</p><p>日期按统计发生时间：API 请求、已启动 CLI 轮次按启动时间，未启动按发起时间；图片按产出时间。发起时间与开始时间在详情中分别展示。</p><p>当前执行按执行记录计数；执行中包含等待重试、收图、取消中。当前失败不等于历史失败请求总数。</p></ElPopover></div>
@@ -37,7 +34,7 @@
         <div class="activity-pagination"><span>{{ view === 'people' ? `共 ${personRows.length} 人 · 点击人员查看执行记录` : `共 ${report.total} 条记录 · 每页 20 条` }}</span><ElPagination v-if="view === 'jobs' && report.total" v-model:current-page="page" :total="report.total" :page-size="20" layout="prev, pager, next" aria-label="执行记录分页" /></div>
       </template>
     </ElCard>
-    <ActivityDetails :selected="selected" :service-open="serviceOpen" :monitor="monitor" @close-record="selected = null" @close-service="serviceOpen = false" />
+    <ActivityDetails :selected="selected" @close-record="selected = null" />
   </div>
 </template>
 <script setup lang="ts">
@@ -47,7 +44,7 @@ import { activityStatuses as statuses, generationKinds as kinds, type Generation
 import { useActivity } from './use-activity'
 import ActivityDetails from './ActivityDetails.vue'
 import './activity.css'
-const { users,view,person,dates,kind,status,keyword,page,currentOnly,report,monitor,loading,monitorLoading,error,monitorError,selected,serviceOpen,scope,load,loadMonitor,reset,showPerson,showStatus,refresh } = useActivity()
+const { users,view,person,dates,kind,status,keyword,page,currentOnly,report,loading,error,selected,scope,load,reset,showPerson,showStatus,refresh } = useActivity()
 const liveStates = [{ key:'queued', label:'排队中' },{ key:'running', label:'执行中' },{ key:'uncertain', label:'待核实' },{ key:'failed', label:'当前失败' }]
 const statusFilters: Record<string,string> = {queued:'排队中',running:'执行中（含收图、重试、取消中）',uncertain:'待核实',failed:'失败',succeeded:'已完成',cancelled:'已取消',unknown:'历史状态未记录'}
 const sums = computed(() => report.value?.summary || {images:null,api:0,cli:0})
@@ -55,8 +52,6 @@ const personRows = computed(() => report.value?.people || []), pageRows = comput
 const time = (value: string | null) => value ? formatBeijingTime(value) : '未记录'
 const duration = (row: ActivityRecord) => row.seconds !== null ? `${Math.round(row.seconds)} 秒` : row.status === 'queued' ? '未开始' : ['running','retry_wait','collecting','cancelling'].includes(row.status) ? '进行中' : '未记录'
 const countState = (key: string) => report.value?.live[key as keyof NonNullable<typeof report.value>['live']] ?? '—'
-const serviceState = (key: string) => monitor.value?.channels.find(c=>c.channel===key)?.state
-const serviceLabel = (key: string) => monitorLoading.value ? '更新中' : !monitor.value ? '未获取' : ({available:'在线',unavailable:'不可用',unknown:'未知'}[serviceState(key) || 'unknown'])
 const day = () => formatBeijingTime(new Date().toISOString()).slice(0,10)
 const shortcuts = [{text:'今天',value:()=>[new Date(`${day()}T00:00:00+08:00`),new Date(`${day()}T00:00:00+08:00`)]},{text:'近7天',value:()=>[new Date(Date.parse(`${day()}T00:00:00+08:00`)-6*86400000),new Date(`${day()}T00:00:00+08:00`)]}]
 </script>
