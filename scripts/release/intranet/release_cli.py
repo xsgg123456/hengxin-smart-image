@@ -6,7 +6,7 @@ from pathlib import Path
 
 def run(cli, argv=None):
     parser = argparse.ArgumentParser(description=cli.__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup'))
+    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress'))
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--release', type=Path)
     parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
@@ -43,6 +43,9 @@ def run(cli, argv=None):
             if args.action == 'verify':
                 cli.snapshot.same(data['current'], tool.capture(data, runtime=True))
                 cli.catalog.before(cli.engine.u, store, data)
+        elif args.action == 'restore-ingress':
+            from restore_ingress import restore
+            data = restore(tool)
         elif args.action == 'rollback':
             data = tool.rollback(args.scope)
         else:

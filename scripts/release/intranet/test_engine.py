@@ -47,6 +47,8 @@ class EngineTests(unittest.TestCase):
         (self.work / 'prepared.json').write_text(json.dumps(baseline))
         self.baseline = baseline
         def write(path, data, mode=0o600, exclusive=False):
+            if not path.resolve().is_relative_to(root):
+                raise AssertionError('Test write escaped its temporary directory')
             if exclusive and path.exists():
                 raise FileExistsError(path)
             path.write_bytes(data)

@@ -152,6 +152,13 @@ def test_invalid_phase_is_rejected_before_runtime_mutation(interrupted):
 class BeforeMigrationRecoveryTests(unittest.TestCase):
     def setUp(self):
         test_engine.EngineTests.setUp(self)
+        self.gates = {'ingress': True, 'workers': True}
+        for name, replacement in (
+                ('gate_state', lambda u, name: self.gates[name]),
+                ('set_gate', lambda u, name, opened: self.gates.update({name: opened}))):
+            patcher = patch.object(joint.paths, name, replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_original_recovery_does_not_repeat_failed_migration_or_start_publisher(self):
         u = engine.u
