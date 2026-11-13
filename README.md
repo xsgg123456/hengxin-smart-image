@@ -1,6 +1,6 @@
 # hengxin-smart-image
 
-内网生产入口为 `http://192.168.1.245:8080`。后续发布使用 [内网专用发布工具](docs/INTRANET-RELEASE-TOOLS.md)，当前运行版本见 [内网统一发布记录](docs/INTRANET-UNIFIED-RELEASE-20261111.md)。下方公网版本信息为历史记录；内网工具不操作旧公网。
+内网生产入口为 `http://192.168.1.245:8080`。后续发布使用 [内网专用发布工具](docs/INTRANET-RELEASE-TOOLS.md)，当前运行版本见 [发布工具首页链接的最新验收记录](docs/INTRANET-RELEASE-TOOLS.md)。旧公网专用发布工具已从当前仓库退役，规则与范围见 [退役合同](docs/PUBLIC-RELEASE-RETIREMENT-20261113.md)。下方公网版本信息仅为历史证据，禁止据此发布；本地开发与隔离测试仍在本地执行。
 
 最新前端热修：`ui-20260922-b086a49`，图片处理菜单每次进入新任务表单，历史任务统一在任务中心查看。验证及回滚见 [菜单修复发布记录](hengxin-smart-image/docs/NEW-TASK-MENU-20260922.md)。下方UI整批发布仍为此次热修的基础版本。
 

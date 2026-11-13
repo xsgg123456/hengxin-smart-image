@@ -72,38 +72,7 @@ def api_control(mode, wait):
 
 
 def main():
-    mode, wait = sys.argv[1:3]
-    if mode.startswith('run-native-'):
-        native_run(mode.removeprefix('run-'), wait)
-    elif mode.startswith('api-'):
-        api_control(mode, wait)
-    else:
-        from app.worker.maintenance import drain_restart, inspect_one
-        from app.worker.celery_app import celery_app
-        from app.db.session import session_factory
-        node = 'hx-vps-codex@racknerd-058889d'
-        if mode == 'native-stop':
-            drain_restart(celery_app.control, session_factory(), node,
-                          lambda: subprocess.run(['systemctl', 'stop', SERVICE], check=True), int(wait))
-            print('NATIVE_DRAINED_STOPPED')
-        elif mode in ('native-verify', 'native-materials-verify'):
-            from app.execution import prompts  # noqa: F401
-            import app.image_revision_prompt  # noqa: F401
-            if mode == 'native-materials-verify':
-                from app.execution import material_capture, material_backfill, codex_runner  # noqa: F401
-            deadline = time.monotonic() + int(wait)
-            while True:
-                try:
-                    assert {q['name'] for q in inspect_one(celery_app.control, node, 'active_queues')} == {'celery'}
-                    assert celery_app.control.inspect(destination=[node], timeout=5).ping()[node]['ok'] == 'pong'
-                    print('NATIVE_WORKER_READY')
-                    return
-                except (AssertionError, RuntimeError, KeyError, TypeError):
-                    if time.monotonic() >= deadline:
-                        raise
-                    time.sleep(3)
-        else:
-            raise ValueError('Unknown action')
+    raise SystemExit("旧公网发布入口已退役；使用 scripts/release/intranet/release.py 并明确 --scope。")
 
 
 if __name__ == '__main__':

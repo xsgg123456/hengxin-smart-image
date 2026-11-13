@@ -1,18 +1,14 @@
-""".245-only immutable source release. prepare is read-only to running applications.
+"""Reusable .245 release primitives for scripts/release/intranet/engine.py.
 
-Upload a Git archive to RELEASE/backend and the LAN build to RELEASE/frontend.
-release-manifest.json contains {commit: <40 hex>, files: {relative_path: sha256}}.
-Run prepare, review its private transaction directory, then explicitly run apply.
-No images are built, no migrations run, no data containers are stopped/recreated.
+The original whole-site command is retired. Use the scoped intranet release CLI.
+Importing this module does not connect or mutate deployment state.
 """
-import argparse
 import copy
 import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
-import socket
 import stat
 import subprocess
 import tempfile
@@ -627,13 +623,7 @@ def apply():
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('preflight', 'prepare', 'apply'))
-    args = parser.parse_args()
-    if socket.gethostname() != 'hengxin-ai-245' or os.geteuid() != 0:
-        raise RuntimeError('Only authorized .245 host/root supported')
-    safe(ROOT)
-    {'preflight': preflight, 'prepare': prepare, 'apply': apply}[args.action]()
+    raise RuntimeError('Whole-site command is retired; use scripts/release/intranet/release.py --scope')
 
 
 if __name__ == '__main__':

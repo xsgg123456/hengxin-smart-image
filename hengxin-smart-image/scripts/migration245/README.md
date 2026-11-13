@@ -1,10 +1,12 @@
 # .245 内网迁移与维护工具
 
+日常发布只走 [内网发布指南](../../../docs/INTRANET-RELEASE-TOOLS.md)；unify_release.py 仅保留供内网引擎导入的底层函数，直接整站命令已停用。
+
 这些工具记录2026-11-10至11-11的已授权迁移和修复，包含特定主机、原生版本路径和基线摘要。不是可以在任意生产机一键重复运行的安装器；源或目标不符合保护条件时应停止，不能删备份或放宽校验强行重跑。
 
 | 文件组 | 职责 |
 |---|---|
-| collect_runtime / transport | 受控只读采集与既有SSH身份连接，敏感运行配置仅在私有通道传递 |
+| collect_runtime / transport | collect_runtime 为历史迁移采集代码及测试输入；transport 只保留内网 SSH 连接，旧公网连接和传输入口已退役 |
 | build_compose / build_native / build_edge / build_sandbox_proxy | 生成隔离容器、原生服务、入口及当时基线所需的代理适配 |
 | data_copy / data_policy / install_files | 指定用户权限与Skills选择性迁移、文件摘要与路径校验，不复制旧业务历史 |
 | ip_access / build_lan_frontend / hengxin-lan.tmpfiles.conf | 内网IP访问、正确前端菜单模式、重启后通信目录恢复 |
