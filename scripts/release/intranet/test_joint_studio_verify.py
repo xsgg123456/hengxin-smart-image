@@ -39,8 +39,20 @@ def contexts():
     return result
 
 
-def test_accepts_exact_new_runtime_configuration():
-    verify.configuration(live(), contexts())
+@pytest.mark.parametrize('capability', ['CHOWN', 'CAP_CHOWN'])
+def test_accepts_exact_new_runtime_configuration(capability):
+    containers = live()
+    containers[wiring.PUBLISHER]['HostConfig']['CapAdd'] = [capability]
+    verify.configuration(containers, contexts())
+
+
+@pytest.mark.parametrize('capabilities', [[], ['CAP_SYS_ADMIN'], ['CAP_CHOWN', 'CAP_SYS_ADMIN'],
+                                         ['CAP_CAP_CHOWN'], ['CHOWN', 'CAP_CHOWN']])
+def test_rejects_any_other_capability_set(capabilities):
+    containers = live()
+    containers[wiring.PUBLISHER]['HostConfig']['CapAdd'] = capabilities
+    with pytest.raises(RuntimeError, match='publisher privileges'):
+        verify.configuration(containers, contexts())
 
 
 @pytest.mark.parametrize('case', ['api_flag', 'worker_flag', 'wrong_group', 'api_mount', 'publisher_mount',

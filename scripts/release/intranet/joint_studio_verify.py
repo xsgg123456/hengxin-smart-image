@@ -59,7 +59,7 @@ def configuration(live, ctx):
     host = publisher['HostConfig']
     if (publisher['Config'].get('User') != '0:0' or host.get('Privileged')
             or not host.get('ReadonlyRootfs') or set(host.get('CapDrop') or []) != {'ALL'}
-            or set(host.get('CapAdd') or []) != {'CHOWN'}
+            or set(host.get('CapAdd') or []) not in ({'CHOWN'}, {'CAP_CHOWN'})
             or not ({'no-new-privileges:true', 'no-new-privileges=true'} & set(host.get('SecurityOpt') or []))
             or host.get('PortBindings') or host.get('NetworkMode') == 'host'):
         raise RuntimeError('Domestic publisher privileges differ')

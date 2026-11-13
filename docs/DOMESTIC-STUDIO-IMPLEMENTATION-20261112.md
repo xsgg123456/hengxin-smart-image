@@ -12,6 +12,7 @@
 
 ## 当前进度
 
+- 修复后候选全部原生导入与 runtime_check 通过，正式迁移至 0043；开放前配置核验发现 Docker inspect 将唯一 CHOWN capability 返回为 CAP_CHOWN，校验器仅接受 CHOWN 而拒绝。实际 publisher 为只读根目录、非 privileged、CapDrop=ALL、仅 CAP_CHOWN、no-new-privileges。当前事务 forward-required、入口封控。只修正校验器接受两个等价名称，保留额外 capability 拒绝；独立增量审查和工具提交后，使用新版本工具对既有 2bc8acc 应用候选执行原前向恢复，不改运行镜像、配置或迁移记录，不恢复旧 schema。
 - 首次正式 prepare 在数据库迁移与服务切换之前发现系统 Python 的账号服务缺少 starlette：共用 release_gate 模块顶层导入 Web 响应类，误扩大了原生凭据服务依赖。其它六个原生服务实际身份导入通过。修复将 Web 响应依赖限制在 HTTP 维护响应分支，补充无 site-packages 的原生模块导入测试；取消未启动切换的准备事务后，修复需独立增量复审、中文提交并重新构建同提交发布包。不得给系统 Python 临时安装 Web 包绕过问题。
 - R14 对候选 `a8b3f0852b8446b4d4b41ed10b7da6bb8167dfe29d69d226689214a0fbcc4075` 完成 Stage 1 PASS、Stage 2 PASS，无阻断项；R13 凭据恢复问题闭环。独立重跑发布套件 401 项、9 项子测试，后端两组 76/37 项，前端 564 项、类型检查、国内和海外构建通过；六宽度视觉、五入口空白及教程、独立 Docker 网络与发布标记验证通过。原始测试环境遗漏和跳过补测已在报告披露。已登记同快照审查凭据；此条不是生产上线声明，后续以正式部署记录为准。
 - R13 独立复现账号服务异常退出后遗留 000 socket 导致非 root 重启失败，Stage 1 FAIL。生产只读核对确认 accounts 保留运行目录，auth 正常停止由 systemd 清理目录；不能将独立进程的 SIGTERM 试验误称正常首次生产发布必失败。现由发布协调器在启动前确认服务及 cgroup 全停、原固定路径和 UID、root 探测无监听者及 inode 不变后清理死 socket。真实非 root SIGTERM/SIGKILL、重复恢复、活监听及未知身份拒绝等 30 项定向测试通过；正在重跑完整发布回归，仍需新的两阶段独立审查。
