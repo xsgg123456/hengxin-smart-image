@@ -62,7 +62,9 @@ class Release:
         self.save(data)
         return data
 
-    def prepare(self, release, mode, scope=None, rollback_target=None):
+    def prepare(self, release, mode, scope=None, rollback_target=None, fast_maintenance=False):
+        if fast_maintenance and (scope not in ('domestic', 'overseas') or mode != 'full' or rollback_target):
+            raise RuntimeError('Fast maintenance requires a full business release')
         data = self.load()
         if data['pending']:
             raise RuntimeError('Pending release exists; recover or cancel it first')
@@ -79,7 +81,8 @@ class Release:
         old = snapshot.manifest(self.u, selected['backend'])
         candidate = snapshot.manifest(self.u, release)
         if scope:
-            scope_release.candidate(self.u, data, before, release, mode, scope, bool(rollback_target))
+            scope_release.candidate(self.u, data, before, release, mode, scope, bool(rollback_target),
+                                    fast_maintenance=fast_maintenance)
         else:
             snapshot.compatible(old, candidate, mode)
         if not rollback_target:
@@ -90,6 +93,8 @@ class Release:
         work = parent / (release.name + '-' + str(time.time_ns()))
         pending = {'release': str(release), 'work': str(work), 'mode': mode,
                    'phase': 'preparing', 'before': before}
+        if fast_maintenance:
+            pending['maintenance'] = 'codex-fast-20261113'
         if scope:
             import scope_snapshot
             import scopes

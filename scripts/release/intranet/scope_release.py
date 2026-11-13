@@ -19,13 +19,14 @@ def selection(data, state, scope):
     return scope_snapshot.group(state, scope)
 
 
-def candidate(u, data, before, release, mode, scope, rollback=False):
+def candidate(u, data, before, release, mode, scope, rollback=False, fast_maintenance=False):
     selected = selection(data, before, scope)
     manifest = snapshot.manifest(u, release)
     if not rollback:
         if manifest.get('scope') != scope:
             raise RuntimeError('Package does not match selected business scope')
-        scope_changes.check(u, Path(selected['backend']), release, scope, mode)
+        scope_changes.check(u, Path(selected['backend']), release, scope, mode,
+                            fast_maintenance=fast_maintenance)
     return selected
 
 

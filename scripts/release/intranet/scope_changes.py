@@ -138,12 +138,15 @@ class Imports:
         return owners
 
 
-def check(u, before_root, candidate_root, scope, mode):
+def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False):
     """Validate before any single-scope drain or mutation; return changed paths."""
     if scope not in ENTRYPOINTS or mode not in ('frontend', 'full'):
         raise RuntimeError('Invalid independent release scope or mode')
     before = snapshot.manifest(u, before_root)
     candidate = snapshot.manifest(u, candidate_root)
+    if fast_maintenance:
+        from fast_maintenance import validate_candidate
+        validate_candidate(candidate, scope, mode)
     # A complete Git snapshot can include an independently advanced other side.
     # Keep dependency/schema checks global; evaluate frontend backend ownership
     # below rather than requiring the entire app tree to match the selected side.
@@ -168,6 +171,12 @@ def check(u, before_root, candidate_root, scope, mode):
             denied[name] = []
         elif owners == {scope}:
             target_changes.append(name)
+        elif fast_maintenance and owners == {'domestic', 'overseas'}:
+            from fast_maintenance import approved_change
+            if approved_change(name, old_files.get(name), new_files.get(name)):
+                target_changes.append(name)
+            else:
+                denied[name] = sorted(owners)
         elif len(owners) != 1 or not owners <= {'domestic', 'overseas'}:
             denied[name] = sorted(owners)
         # Otherwise this is a proven exclusive other-business source, loaded by

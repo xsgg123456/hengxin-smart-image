@@ -18,6 +18,8 @@
 
 ## 日常使用
 
+2026-11-13 Fast 维护使用 `release.py prepare-fast --scope domestic|overseas --mode full --release <已暂存包>`，随后仍用普通 `deploy --scope ...`、`verify` 及 `recover/cancel/rollback`。这是已审双业务参数维护：只允许业务提交 `3b38a2c445149d4a0d12c4145cc90f9e173ab4aa` 的国外 runner 从固定旧摘要变为固定新摘要（一行 Fast 参数），其余跨业务、共享账号、未知归属、依赖和迁移变化仍拒绝。国内、国外按序独立排空和切换，短暂混合 Fast/原速度兼容，无数据库迁移；每组的 `maintenance` 台账标识可追溯，失败仅恢复目标组。普通 `prepare` 的限制不变，不可将该入口用于其它提交。
+
 独立发布生成原生服务配置时，只替换既有 `90-unified-source.conf` 的 `WorkingDirectory`，逐字保留发布门禁和国内工作台目录等其它配置。原配置结构异常时在准备阶段拒绝；候选摘要、原配置备份和恢复校验保持启用。2026-11-13 显式 Skill 发布首次尝试暴露旧工具覆盖这些配置的问题，已先经 `recover --scope domestic` 恢复原版本，修复验证后重新准备发布。
 
 已完成联合升级且普通发布空闲时，若仅 HTTP 标记意外关闭，可执行 `release.py restore-ingress`：沿用全局锁，要求后台标记已开放、联合升级 complete、无 pending；完整核验当前台账的源码、配置、运行环境和健康后再次核对状态，再恢复 HTTP 入口并留回执。不能用于未完成迁移或绕过核验。安装测试的文件写入必须限制到测试临时目录，原生恢复测试的门禁必须使用测试内存状态。
