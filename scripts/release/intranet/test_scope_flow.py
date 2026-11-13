@@ -32,6 +32,7 @@ def world(tmp_path, monkeypatch):
                         PYTHON_SERVICES=real.PYTHON_SERVICES.copy(), WORKERS=real.WORKERS,
                         ENTRIES=real.ENTRIES, ROOT=tmp_path, COMPOSE=tmp_path / 'compose.json',
                         RELEASE=roots / 'initial', WORK=tmp_path / 'unused', REUSABLE=True,
+                        SYSTEMD=tmp_path / 'systemd', DROPIN=real.DROPIN,
                         candidate_compose=None, digest=snapshot.sha)
     u.safe = lambda *a, **k: None
     u.write = lambda p, b, **k: Path(p).write_bytes(b)
@@ -115,7 +116,7 @@ def world(tmp_path, monkeypatch):
         (u.WORK / 'before.json').write_bytes(old)
         candidate = u.candidate_compose(json.loads(old))
         (u.WORK / 'compose.candidate.json').write_text(json.dumps(candidate))
-        (u.WORK / 'prepared.json').write_text('{}')
+        (u.WORK / 'prepared.json').write_text(json.dumps({'configs': [], 'dropins': {}}))
     def apply():
         (u.WORK / 'started.json').write_text('{}')
         w.transitions.append((tuple(u.APPS), tuple(u.NATIVE)))

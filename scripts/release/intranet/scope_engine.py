@@ -2,11 +2,26 @@
 from contextlib import contextmanager, ExitStack
 import copy
 import json
+import re
 from pathlib import Path
 
 import engine
 import scopes
 from scope_actions import Actions
+
+
+def native_dropin(original, backend):
+    """Change only the source directory; retain the verified service settings."""
+    sections = re.findall(rb'^\s*(\[[^\r\n]+\])\s*$', original, re.MULTILINE)
+    pattern = rb'^WorkingDirectory=[^\r\n]*(?:\r?\n|$)'
+    assignments = re.findall(rb'^[ \t]*WorkingDirectory[ \t]*=', original, re.MULTILINE)
+    if (not original.startswith((b'[Service]\n', b'[Service]\r\n'))
+            or sections != [b'[Service]'] or len(assignments) != 1
+            or len(re.findall(pattern, original, re.MULTILINE)) != 1
+            or re.search(rb'\\\r?\n', original)):
+        raise RuntimeError('Unexpected native source drop-in structure')
+    replacement = ('WorkingDirectory=' + str(backend / 'backend') + '\n').encode()
+    return re.sub(pattern, lambda _: replacement, original, flags=re.MULTILINE)
 
 
 def candidate(original, u, scope, mode, backend, frontend, domestic_publisher=False):
@@ -83,6 +98,13 @@ def context(scope, mode='full', backend=None, frontend=None, domestic_publisher=
     def prepare_scoped():
         result = prepare()
         baseline = engine._read('prepared.json')
+        originals = {row['path']: row for row in baseline['configs']}
+        for name in u.NATIVE:
+            row = originals.get(str(engine._dropin(name)))
+            if row:
+                data = native_dropin((u.WORK / row['backup']).read_bytes(), backend)
+                u.write(u.WORK / (name + '.conf'), data)
+                baseline['dropins'][name] = u.digest(data)
         baseline['scope_binding'] = binding
         engine._save('prepared.json', baseline)
         return result

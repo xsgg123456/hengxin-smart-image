@@ -113,6 +113,36 @@ class ScopeEngineTests(unittest.TestCase):
                     self.assert_boundaries(scope)
                     self.mocks['run'].side_effect = original_run
 
+    def test_release_preserves_native_settings_and_recovery_restores_original(self):
+        settings = (b'Environment=HX_RELEASE_GATE_DIR=/var/lib/hengxin-domestic/release-gate\n'
+                    b'Environment=DOMESTIC_STUDIO_ROOT=/var/lib/hengxin-domestic/studio\n'
+                    b'Environment="EXISTING_SETTING=keep this value"\n')
+        original = self.old_dropin + settings
+        for name in u.NATIVE:
+            e._dropin(name).write_bytes(original)
+        with scope_engine.context('domestic'):
+            self.prepare('domestic')
+            for name in u.NATIVE:
+                candidate = (self.work / (name + '.conf')).read_bytes()
+                self.assertEqual(candidate, ('[Service]\nWorkingDirectory=' + str(u.RELEASE / 'backend') + '\n').encode() + settings)
+            self.assertEqual(e.apply(), 'applied')
+            for name in u.NATIVE:
+                self.assertTrue(e._dropin(name).read_bytes().endswith(settings))
+            self.assertEqual(e.recover(), 'rolled-back')
+            for name in u.NATIVE:
+                self.assertEqual(e._dropin(name).read_bytes(), original)
+            self.assert_boundaries('domestic')
+
+    def test_unrecognized_native_settings_refused_before_service_changes(self):
+        for original in (b'[Service]\nEnvironment=X=Y\n',
+                         self.old_dropin + b'WorkingDirectory=/another\n',
+                         self.old_dropin + b' WorkingDirectory = /another\n',
+                         b'WorkingDirectory=/outside\n[Service]\n',
+                         self.old_dropin.replace(b'/backend\n', b'/backend\\\n'),
+                         self.old_dropin + b'[Install]\nWantedBy=default.target\n'):
+            with self.subTest(original=original), self.assertRaisesRegex(RuntimeError, 'drop-in structure'):
+                scope_engine.native_dropin(original, u.RELEASE)
+
     def test_frontend_failure_uses_real_engine_recovery_without_backend_actions(self):
         with scope_engine.context('domestic', 'frontend'):
             self.prepare('domestic', 'frontend')
