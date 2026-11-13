@@ -2,8 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createSkillTransferApi, isTransfer, type SkillPackage } from '../src/api/overseas/skill-transfers'
 import { IdentityError } from '../src/api/identity/request'
-import { droppedRoot, scanFolder, folderTree } from '../src/views/overseas/admin/skill-folder-read'
-import { prepareFolderSave, verifyFolder, writeFolder } from '../src/views/overseas/admin/skill-folder-save'
+import { droppedRoot, scanFolder, folderTree } from '../src/views/shared/skills/skill-folder-read'
+import { prepareFolderSave, verifyFolder, writeFolder } from '../src/views/shared/skills/skill-folder-save'
 import { dirNode, fileNode, MemoryDirectory, skillSource } from './skill-folders-fixture'
 async function fixture() {
   const binary = new Uint8Array([0, 255, 128, 13, 10, 0])
@@ -90,6 +90,14 @@ test('传输API保留二进制、幂等键、原目录和固定release；拒绝�
   assert.equal(isTransfer({ ...state, error: null }), true)
   assert.equal(isTransfer({ ...state, change: 'unknown' }), false)
   await assert.rejects(createSkillTransferApi(async () => new Response('{}', { status: 409 })).remove('id', 'release', 'checksum', 4), (e: unknown) => e instanceof IdentityError && e.status === 409)
+})
+
+test('Skill 传输客户端可复用到国内地址，海外默认地址保持不变', async () => {
+  const urls: string[] = []
+  const fetcher: typeof fetch = async url => { urls.push(String(url)); return Response.json({ items: [] }) }
+  await createSkillTransferApi(fetcher).list()
+  await createSkillTransferApi(fetcher, '/api/v1/management/domestic-studio').list()
+  assert.deepEqual(urls, ['/api/overseas/v1/management/skill-transfers', '/api/v1/management/domestic-studio/skill-transfers'])
 })
 
 test('YAML预览支持引号键、注释、转义和折叠标量，原始文件不变', async () => {

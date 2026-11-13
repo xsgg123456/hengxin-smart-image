@@ -18,8 +18,9 @@ BINARY = ("from app.core.config import get_settings; import pathlib,hashlib,json
           "print(json.dumps({str(p):hashlib.file_digest(p.open('rb'),'sha256').hexdigest() for p in paths}))")
 
 
-def containers(u):
-    with scopes.replace(u, APPS=tuple(dict.fromkeys((*u.APPS, *scopes.UI.values())))):
+def containers(u, domestic_publisher=False):
+    apps = (*u.APPS, *scopes.UI.values(), *((scopes.DOMESTIC_PUBLISHER,) if domestic_publisher else ()))
+    with scopes.replace(u, APPS=tuple(dict.fromkeys(apps))):
         return u.containers()
 
 
@@ -46,6 +47,9 @@ def config_paths(u, live=None):
                             paths.add(path)
                 else:
                     paths.add(root)
+    if scopes.DOMESTIC_PUBLISHER in live:
+        from joint_studio_paths import TMPFILES
+        paths.add(TMPFILES)
     for path in paths:
         u.safe(path)
     return sorted(paths)
@@ -57,11 +61,14 @@ def verify_frontend(scope, manifest):
             raise RuntimeError('Served frontend differs from release: ' + scope)
 
 
-def capture(u, runtime=False):
-    live, ctx = containers(u), u.contexts()
+def capture(u, runtime=False, domestic_publisher=False):
+    live, ctx = containers(u, domestic_publisher), u.contexts()
+    if domestic_publisher:
+        from joint_studio_verify import runtime as verify_studio
+        verify_studio(u, live, ctx)
     groups, identities, binaries, fallbacks = {}, {}, {}, {}
     for scope in scopes.GROUPS:
-        backends = {snapshot.mounted(live[n], '/app/app').parent.parent for n in scopes.APPS[scope]}
+        backends = {snapshot.mounted(live[n], '/app/app').parent.parent for n in scopes.apps(scope, domestic_publisher)}
         if len(backends) != 1:
             raise RuntimeError('Group containers run mixed sources: ' + scope)
         backend = snapshot.release_path(backends.pop())
@@ -76,7 +83,7 @@ def capture(u, runtime=False):
         snapshot.manifest(u, prior)
         fallbacks[scope] = {'source': str(prior), 'manifest': snapshot.sha((prior/'release-manifest.json').read_bytes())}
         expected = {n.removeprefix('backend/'): h for n, h in bm['files'].items() if n.startswith('backend/app/')}
-        for name in scopes.APPS[scope]:
+        for name in scopes.apps(scope, domestic_publisher):
             actual = json.loads(u.run(['docker', 'exec', 'hengxin-lan-' + name, 'python', '-B', '-c', CODE]))
             if actual != expected:
                 raise RuntimeError('Live source mismatch: ' + name)
@@ -100,7 +107,8 @@ def capture(u, runtime=False):
         info = live[name]
         if not info['State']['Running'] or info['State'].get('Health', {}).get('Status', 'healthy') != 'healthy':
             raise RuntimeError('Static service not healthy: ' + name)
-    return {'groups': groups, 'asset_fallbacks': fallbacks, 'images': image_gc.capture(image_gc.scoped(u)),
+    return {'groups': groups, 'asset_fallbacks': fallbacks,
+            'images': image_gc.capture(image_gc.scoped(u, domestic_publisher)),
             'native': identities, 'binaries': binaries, 'schema': snapshot.schemas(u), 'data': u.data_identity(),
             'configs': {str(p): snapshot.sha(p.read_bytes()) for p in config_paths(u, live)}}
 
@@ -108,16 +116,16 @@ def capture(u, runtime=False):
 def group(state, scope):
     scopes.validate(scope)
     result = dict(state['groups'][scope])
-    result.update(images={n: state['images'][n] for n in (*scopes.APPS[scope], scopes.UI[scope])},
+    result.update(images={n: state['images'][n] for n in (*scopes.apps(scope, scopes.has_domestic_publisher(state)), scopes.UI[scope])},
                   native={n: state['native'][n] for n in scopes.NATIVE[scope]},
                   binaries={n: state['binaries'][n] for n in scopes.WORKERS[scope] if n in state['binaries']},
                   schema={scope: state['schema'][scope]} if scope != 'shared' else {})
     return result
 
 
-def census(u, independent=True):
+def census(u, independent=True, domestic_publisher=False):
     """Read-only identity/start-time evidence; includes gateway, static and DATA."""
-    adapter = image_gc.scoped(u) if independent else u
+    adapter = image_gc.scoped(u, domestic_publisher) if independent else u
     inventory = image_gc.containers(adapter)
     names = image_gc.live(adapter, inventory)
     live = {v['Config']['Labels']['com.docker.compose.service']: v for v in inventory
@@ -130,7 +138,8 @@ def census(u, independent=True):
 def unchanged_other(before, after, scope, mode='full'):
     """Prove service identities, not just source/mount equality, stayed stable."""
     scopes.validate(scope, mode)
-    excluded_apps = set(scopes.APPS[scope]) if mode == 'full' else set()
+    publisher = scopes.DOMESTIC_PUBLISHER in before['containers']
+    excluded_apps = set(scopes.apps(scope, publisher)) if mode == 'full' else set()
     excluded_apps.add(scopes.UI[scope])
     excluded_native = set(scopes.NATIVE[scope]) if mode == 'full' else set()
     for section, excluded in (('containers', excluded_apps), ('native', excluded_native)):

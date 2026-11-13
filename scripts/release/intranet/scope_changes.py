@@ -19,6 +19,7 @@ ENTRYPOINTS = {
     'shared': ('app.identity.main', 'app.account_management.service',
                'app.execution.credential_broker'),
 }
+OPTIONAL_ENTRYPOINTS = {'domestic': ('app.modules.domestic_studio.skill_publisher',)}
 
 
 def backend_files(manifest):
@@ -124,6 +125,9 @@ class Imports:
             pending, visited = set(), set()
             for module in entries:
                 pending.update(self.resolve(module, required=True))
+            for module in OPTIONAL_ENTRYPOINTS.get(scope, ()):
+                if module in self.modules:
+                    pending.update(self.resolve(module, required=True))
             while pending:
                 name = pending.pop()
                 if name in visited:

@@ -1,29 +1,65 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as Transfers from '../src/api/overseas/skill-transfers'
-import * as Read from '../src/views/overseas/admin/skill-folder-read'
-import * as Save from '../src/views/overseas/admin/skill-folder-save'
-import * as Zip from '../src/views/overseas/admin/skill-folder-zip'
+import * as Read from '../src/views/shared/skills/skill-folder-read'
+import * as Save from '../src/views/shared/skills/skill-folder-save'
+import * as Zip from '../src/views/shared/skills/skill-folder-zip'
 import * as Management from '../src/api/overseas/management'
 import { formatAttachmentSize } from '../src/api/overseas/attachment-download'
 import { OVERSEAS_PLATFORMS } from '../src/views/overseas/platforms'
 import { IdentityError } from '../src/api/identity/request'
 import { all, click, compile, flush, mount, simple, table, text, type Node } from './membership-test-harness'
 import { dirNode, fileNode, MemoryDirectory } from './skill-folders-fixture'
-const uploadComponent = compile('views/overseas/admin/SkillFolderUpload.vue', { '@/api/overseas/skill-transfers': Transfers, './skill-folder-read': Read })
+const uploadComponent = compile('views/shared/skills/SkillFolderUpload.vue', { '@/api/shared/skill-transfers': Transfers, './skill-folder-read': Read })
 Object.assign(uploadComponent, { components: { ElTree: simple('ElTree'), ElProgress: simple('ElProgress') } })
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 let accept = true, chosen = 0, cancelled = false, confirmMessage = '', confirmOptions: Record<string, unknown> | undefined
 const parent = new MemoryDirectory('Downloads')
-const actions = compile('views/overseas/admin/SkillFolderActions.vue', {
-  '@/api/overseas/skill-transfers': Transfers, '@/api/identity/request': { IdentityError },
-  '@/api/overseas/attachment-download': { formatAttachmentSize },
+const actions = compile('views/shared/skills/SkillFolderActions.vue', {
+  '@/api/shared/skill-transfers': Transfers, '@/api/identity/request': { IdentityError },
+  '@/utils/attachment-size': { formatAttachmentSize },
   './skill-folder-save': { ...Save, supportsDirectorySave: () => true, chooseParent: () => { chosen++; if (cancelled) return Promise.reject(new DOMException('cancel', 'AbortError')); return Promise.resolve(parent) } },
   './skill-folder-zip': Zip,
   'element-plus': { ElMessageBox: { confirm: async (message: string, _title: string, options: Record<string, unknown>) => { confirmMessage = message; confirmOptions = options; if (!accept) throw Error('cancel') } } }
 })
 const skill = { id: 'fixture', name: 'fixture', displayName: '测试技能', description: '说明', version: 7, enabled: false, platforms: [] }
 const baseApi = () => Transfers.createSkillTransferApi(async () => { throw Error('不应请求真实API') })
+
+test('国内上传复用真实弹窗并提示绑定工作台，海外原文不变', () => {
+  const domestic = mount(uploadComponent, { open: true, api: baseApi(), domestic: true })
+  const overseas = mount(uploadComponent, { open: true, api: baseApi() })
+  try {
+    assert.match(text(domestic.root), /新增默认关闭且未绑定工作台/)
+    assert.doesNotMatch(text(domestic.root), /未分配平台/)
+    assert.match(text(overseas.root), /新增默认关闭且未分配平台/)
+  } finally { domestic.close(); overseas.close() }
+})
+
+test('国内目录的真实操作组件显示并触发启用或停用，保存时禁用', async () => {
+  const catalog = compile('views/shared/skills/OverseasSkillCatalog.vue', {
+    '@/components/core/tables/art-table/index.vue': { default: table, __esModule: true },
+    './SkillFolderActions.vue': { default: actions, __esModule: true },
+    './platforms': { OVERSEAS_PLATFORMS }, './OverseasSkillPlatformsDialog.vue': { default: simple('Dialog'), __esModule: true },
+    'element-plus': { ElMessageBox: {} }
+  })
+  for (const enabled of [true, false]) {
+    const events: string[] = []
+    const view = mount(catalog, { skills: [{ ...skill, enabled }], managed: true, domestic: true,
+      transferApi: baseApi(), canToggle: true, onToggle: (id: string) => events.push(id) })
+    try {
+      await runClick(view.root, enabled ? '停用' : '启用')
+      assert.deepEqual(events, ['fixture'])
+      assert.match(text(view.root), /下载 ZIP/)
+      assert.match(text(view.root), /删除/)
+    } finally { view.close() }
+  }
+  const saving = mount(catalog, { skills: [skill], managed: true, domestic: true,
+    transferApi: baseApi(), canToggle: true, savingId: 'fixture' })
+  try {
+    const toggle = all(saving.root).find(n => n.tag === 'ElButton' && text(n) === '启用')
+    assert.equal(toggle?.props.disabled, true)
+  } finally { saving.close() }
+})
 async function drop(root: Node, node = dirNode('root', [fileNode('SKILL.md'), dirNode('empty', [])])) {
   const target = all(root).find(n => n.props.class === 'folder-drop')!
   await (target.props.onDrop as (e: unknown) => Promise<void>)({ preventDefault() {}, dataTransfer: { items: [{ kind: 'file', webkitGetAsEntry: () => node }] } }); await flush()
@@ -120,15 +156,15 @@ test('删除API仅接受已完成且回收字节为非负安全整数的响应',
 })
 
 test('清理失败后目录503保留真实行与原删除请求，重试成功后目录移除仍显示回收量', async () => {
-  const catalog = compile('views/overseas/admin/OverseasSkillCatalog.vue', {
+  const catalog = compile('views/shared/skills/OverseasSkillCatalog.vue', {
     '@/components/core/tables/art-table/index.vue': { default: table, __esModule: true },
     './SkillFolderActions.vue': { default: actions, __esModule: true },
-    '../platforms': { OVERSEAS_PLATFORMS }, './OverseasSkillPlatformsDialog.vue': { default: simple('Dialog'), __esModule: true },
+    './platforms': { OVERSEAS_PLATFORMS }, './OverseasSkillPlatformsDialog.vue': { default: simple('Dialog'), __esModule: true },
     'element-plus': { ElMessageBox: {} }
   })
-  const live = compile('views/overseas/admin/OverseasLiveSkills.vue', {
-    '@/api/overseas/skill-transfers': Transfers, './SkillFolderUpload.vue': { default: simple('Upload'), __esModule: true },
-    '@/api/overseas/management': Management, '@/api/identity/request': { IdentityError },
+  const live = compile('views/shared/skills/OverseasLiveSkills.vue', {
+    '@/api/shared/skill-transfers': Transfers, './SkillFolderUpload.vue': { default: simple('Upload'), __esModule: true },
+    '@/api/shared/skill-types': Management, '@/api/identity/request': { IdentityError },
     './OverseasSkillCatalog.vue': { default: catalog, __esModule: true }
   })
   let pending = false, removed = false, reads = 0, deletes = 0

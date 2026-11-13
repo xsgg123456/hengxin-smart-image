@@ -9,16 +9,16 @@ function paths(routes: AppRouteRecord[], parent = ''): string[] {
 }
 const businessPaths = new Set(paths(routeModules))
 
-/** 退役模块对所有角色回收；普通角色继续仅使用API工作区。 */
+/** 退役模块对所有角色回收；国内工作台对业务成员开放。 */
 export function isRetiredBusinessPath(path: string) {
-  return /^\/(?:image-processing|tasks|templates|archive|wallpaper|product|text)(?:\/|$)/.test(path) || /^\/management\/skills(?:\/|$)/.test(path)
+  return /^\/(?:image-processing|tasks|templates|archive|wallpaper|product|text)(?:\/|$)/.test(path)
 }
 
 export function apiWorkspaceRedirect(path: string, roles: string[] = []) {
   if (isRetiredBusinessPath(path.split(/[?#]/)[0])) return '/api-image-edits/create'
   const limited = roles.length === 1 && ['designer', 'operator'].includes(roles[0])
   const target = path.replace(/\/$/, '')
-  return limited && businessPaths.has(target) && !target.startsWith('/api-image-edits')
+  return limited && businessPaths.has(target) && !['/api-image-edits', '/new-product', '/product-replace', '/product-library'].some(prefix => target === prefix || target.startsWith(prefix + '/'))
     ? '/api-image-edits/create' : undefined
 }
 

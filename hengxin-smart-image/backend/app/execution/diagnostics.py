@@ -5,6 +5,7 @@ import os
 import re
 import stat
 from pathlib import Path
+from app.execution.bounded_read import read_bounded
 
 STAGES = frozenset(('queued', 'preparing', 'starting', 'generating', 'validating',
                     'storing', 'publishing', 'completed', 'failed', 'cancelled', 'uncertain'))
@@ -101,7 +102,7 @@ def _safe_read(path: Path, limit: int, *, tail: bool = False,
         with path.open('rb') as stream:
             if tail:
                 stream.seek(max(0, before.st_size - limit))
-            raw = stream.read(limit if tail else limit + 1)
+            raw = stream.read(limit) if tail else read_bounded(stream, limit)
         after = path.stat()
         if (len(raw) > limit or after.st_nlink != 1
                 or (before.st_size, before.st_mtime_ns, before.st_ctime_ns)
@@ -125,7 +126,7 @@ def _safe_read(path: Path, limit: int, *, tail: bool = False,
                 raise ValueError('unsafe manifest')
             if tail:
                 stream.seek(max(0, before.st_size - limit))
-            raw = stream.read(limit if tail else limit + 1)
+            raw = stream.read(limit) if tail else read_bounded(stream, limit)
             after = os.fstat(stream.fileno())
             if (len(raw) > limit or after.st_nlink != 1
                     or (before.st_size, before.st_mtime_ns, before.st_ctime_ns)

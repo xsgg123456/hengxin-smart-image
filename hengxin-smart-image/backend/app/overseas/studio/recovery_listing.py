@@ -6,6 +6,7 @@ import re
 from uuid import uuid5
 
 from sqlalchemy import select
+from app.execution.bounded_read import read_bounded
 from app.core.config import get_settings
 from app.execution.final_delivery import _PROTECTED
 from app.overseas.execution.models import Job, TERMINAL
@@ -166,7 +167,7 @@ def read(item, version):
     if size > MAX_BYTES:
         raise RecoveryError('单个文件不能超过 500 MB')
     with fs.reader(item.path) as stream:
-        data = stream.read(MAX_BYTES + 1)
+        data = read_bounded(stream, MAX_BYTES)
     after, _ = stamp(item.path)
     if before != after or len(data) != size:
         raise RecoveryError('文件在读取时发生变化，请刷新后重试')

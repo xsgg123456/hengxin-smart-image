@@ -2,6 +2,7 @@
 from sqlalchemy import select
 from app.core.config import get_settings
 from app.execution.process import same_process
+from app.execution.process_group import group_alive
 from app.overseas.db import require_overseas_context
 from . import claims
 from .models import Job
@@ -17,24 +18,20 @@ def reconcile_once(factory):
         session.expunge_all()
     count = 0
     for old in rows:
-        if not old.process_exited:
-            if not all((old.process_id, old.process_boot, old.process_started)):
+        if old.process_id:
+            if not all((old.process_boot, old.process_started)):
                 continue
             try:
-                if same_process(old.process_id, old.process_boot, old.process_started):
+                if (same_process(old.process_id, old.process_boot, old.process_started)
+                        or group_alive(old.process_id, old.process_boot)):
                     continue
             except (OSError, ValueError):
                 continue
+        elif not old.process_exited:
+            continue
         if old.kind == 'studio':
             # Do not release the workspace to later turns until a stopped,
             # successful invocation has durably saved all its final images.
-            from app.overseas.tasks.cleanup_process import group_alive
-            if old.process_id:
-                try:
-                    if group_alive(old):
-                        continue
-                except (OSError, ValueError):
-                    continue
             from app.overseas.studio.delivery_recovery import recover
             if recover(factory, old):
                 continue

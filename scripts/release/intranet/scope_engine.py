@@ -9,13 +9,15 @@ import scopes
 from scope_actions import Actions
 
 
-def candidate(original, u, scope, mode, backend, frontend):
+def candidate(original, u, scope, mode, backend, frontend, domestic_publisher=False):
     scopes.validate(scope, mode)
     result = copy.deepcopy(original)
     expected = {n for names in scopes.APPS.values() for n in names} | set(scopes.UI.values()) | {'domestic-web'} | u.DATA
+    if domestic_publisher:
+        expected.add(scopes.DOMESTIC_PUBLISHER)
     if result.get('name') != 'hengxin-lan' or set(result['services']) != expected:
         raise RuntimeError('Independent compose inventory changed')
-    for name in scopes.APPS[scope] if mode == 'full' else ():
+    for name in scopes.apps(scope, domestic_publisher) if mode == 'full' else ():
         service = result['services'][name]
         mounts = service.get('volumes', [])
         if any(not isinstance(v, dict) or 'target' not in v for v in mounts):
@@ -45,7 +47,7 @@ def candidate(original, u, scope, mode, backend, frontend):
 
 
 @contextmanager
-def context(scope, mode='full', backend=None, frontend=None):
+def context(scope, mode='full', backend=None, frontend=None, domestic_publisher=False):
     """No I/O on entry; prepare persists scope identity in release_manifest.
 
     backend/frontend are release roots, not backend/frontend subdirectories.
@@ -62,10 +64,13 @@ def context(scope, mode='full', backend=None, frontend=None):
              'probe_candidate', 'app_command', 'remove_stop_overrides', 'validate_release')
     original = {n: getattr(u, n) for n in names}
     prepare, check = engine.prepare, engine._check
-    binding = {'scope': scope, 'mode': mode, 'backend': str(backend), 'frontend': str(frontend)}
+    binding = {'scope': scope, 'mode': mode, 'backend': str(backend), 'frontend': str(frontend),
+               'domestic_publisher': domestic_publisher}
     actions = Actions(u, scope, mode, original, all_native, backend)
     native = {n: all_native[n] for n in scopes.NATIVE[scope]} if mode == 'full' else {}
-    python = {n: u.PYTHON_SERVICES[n] for n in scopes.APPS[scope]} if mode == 'full' else {}
+    modules = dict(u.PYTHON_SERVICES)
+    modules[scopes.DOMESTIC_PUBLISHER] = 'app.modules.domestic_studio.skill_publisher'
+    python = {n: modules[n] for n in scopes.apps(scope, domestic_publisher)} if mode == 'full' else {}
 
     def validate_release():
         manifests = {}
@@ -91,7 +96,7 @@ def context(scope, mode='full', backend=None, frontend=None):
     values.update(NATIVE=native, PYTHON_SERVICES=python, APPS=(*python, scopes.UI[scope]),
                   ENTRIES=tuple(n for n in python if n.endswith('-api')) + (scopes.UI[scope],),
                   RELEASE=backend, validate_release=validate_release,
-                  candidate_compose=lambda c: candidate(c, u, scope, mode, backend, frontend))
+                  candidate_compose=lambda c: candidate(c, u, scope, mode, backend, frontend, domestic_publisher))
     with ExitStack() as stack:
         stack.enter_context(scopes.replace(u, **values))
         stack.enter_context(scopes.replace(engine, _quiesce=actions.quiesce,

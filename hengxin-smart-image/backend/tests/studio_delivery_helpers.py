@@ -23,6 +23,7 @@ class DeliveryCase:
         self.commands = fake_runtime(fixture, monkeypatch, tmp_path, image_count=count)
         monkeypatch.setattr(cleanup_process, 'group_alive', lambda _job: False)
         monkeypatch.setattr(reconcile, 'same_process', lambda *_args: False)
+        monkeypatch.setattr(reconcile, 'group_alive', lambda *_args: False)
         monkeypatch.setattr(delivery_recovery, 'get_store', lambda: self.store)
         self.root = ROOT + '/tasks/' + self.task['id'] + '/studio'
         self.turn = send(self.client, self.task).json()['turns'][0]

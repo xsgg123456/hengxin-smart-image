@@ -8,8 +8,8 @@ import type { StudioTranscript, StudioTurn } from '../src/api/overseas/studio'
 import { historicalRevisions } from '../src/views/overseas/studio/studio-revisions'
 
 const markdown = defineComponent({ props: ['text'], setup: p => () => h('markdown', p.text) })
-const transcript = compile('views/overseas/studio/StudioTranscript.vue', { './StudioMarkdown.vue': { default: markdown } })
-const process = compile('views/overseas/studio/StudioProcess.vue', {
+const transcript = compile('views/shared/studio/StudioTranscript.vue', { './StudioMarkdown.vue': { default: markdown } })
+const process = compile('views/shared/studio/StudioProcess.vue', {
   './StudioMarkdown.vue': { default: markdown }, './StudioTranscript.vue': { default: transcript }, './studio-process': { splitStudioReply }
 })
 const entry = (id: number, kind: StudioTranscript['kind'], value: string): StudioTranscript => ({ id, turnId: 'turn', itemId: String(id), kind, text: value, state: 'completed', createdAt: '' })
@@ -78,7 +78,7 @@ test('归档确认与成品详情共用六字段，真实值及历史缺失一�
 
 test('正式StudioTurns将正式图片置于折叠组之外并保留图片选择事件', () => {
   const image = defineComponent({ props: ['asset'], setup: p => () => h('picture', { id: p.asset.id }) })
-  const turns = compile('views/overseas/studio/StudioTurns.vue', {
+  const turns = compile('views/shared/studio/StudioTurns.vue', {
     './studio-revisions': { historicalRevisions },
     './StudioRevisionDetails.vue': { default: simple('StudioRevisionDetails') },
     './StudioOutputs.vue': { default: simple('StudioOutputs') },
@@ -105,5 +105,33 @@ test('正式StudioTurns将正式图片置于折叠组之外并保留图片选择
     ;(batch.props.onClick as () => void)()
     assert.deepEqual(batches, [pictures], '批量入口传递完整原组，不受归档勾选影响')
     assert.deepEqual(selected, ['real-picture'], '打开标注不改变归档勾选')
+  } finally { view.close() }
+})
+
+test('国内简洁结果区保留单图和整组标注，不显示归档勾选', () => {
+  const image = defineComponent({ props: ['asset'], setup: p => () => h('picture', { id: p.asset.id }) })
+  const turns = compile('views/shared/studio/StudioTurns.vue', {
+    './studio-revisions': { historicalRevisions },
+    './StudioRevisionDetails.vue': { default: simple('StudioRevisionDetails') },
+    './StudioOutputs.vue': { default: simple('StudioOutputs') },
+    './StudioProcess.vue': { default: process },
+    './StudioAttachments.vue': { default: defineComponent({ render: () => null }) },
+    './StudioAssetImage.vue': { default: image }
+  })
+  Object.assign(turns, { components: { ElCheckbox: simple('ElCheckbox') } })
+  const picture = { id: 'one', name: '一.png', turnId: 'turn', url: '/one', width: 800, height: 800, archived: false, sku: null }
+  const pictures = [picture, { ...picture, id: 'two', name: '二.png' }]
+  const singles: unknown[] = [], batches: unknown[] = []
+  const view = mount(turns, { turns: [{ ...turn('succeeded', '完成'), pictures }], transcript: [],
+    selected: [], disabled: false, simplePictures: true, batchAnnotation: true,
+    onModify: (item: unknown) => singles.push(item), onBatchModify: (items: unknown) => batches.push(items) })
+  try {
+    const batch = all(view.root).find(n => n.tag === 'ElButton' && text(n) === '批量标注')!
+    ;(batch.props.onClick as () => void)()
+    const single = all(view.root).find(n => n.tag === 'ElButton' && text(n) === '修改这张')!
+    ;(single.props.onClick as () => void)()
+    assert.deepEqual(batches, [pictures])
+    assert.deepEqual(singles, [picture])
+    assert.equal(all(view.root).filter(n => n.tag === 'ElCheckbox').length, 0)
   } finally { view.close() }
 })

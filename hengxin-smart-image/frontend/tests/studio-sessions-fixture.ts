@@ -28,14 +28,15 @@ export function fixture() {
     renameConversation: async (_task, id, name, _version, key) => { calls.push({ kind: 'rename', id, key }); rows.find(r => r.id === id)!.name = name; return snapshot(id) },
     deleteConversation: async (_task, id, _version, key) => { calls.push({ kind: 'delete', id, key }); rows.find(r => r.id === id)!.deletionStatus = 'deleting'; return snapshot(id) },
     cancel: async (_task, turn) => { calls.push({ kind: 'cancel', id: turn.conversationId }); return snapshot(turn.conversationId) },
+    recoverTurn: async (_task, turn) => { calls.push({ kind: 'recover', id: turn.conversationId }); return snapshot(turn.conversationId) },
     archive: async (_task, _pictures, _sku, _key, id) => { archiveId = 'archive'; return snapshot(id) },
     complete: async () => { version++; completed = true; return snapshot() }, reopen: async () => { version++; completed = false; return snapshot() }
   }
-  function mount(actor = 'designer', caps = ['task.design']) {
+  function mount(actor = 'designer', caps = ['task.design'], autoCreate = false) {
     const task = { ...emptyTaskDraft(), id: 't', version: 1, capabilities: caps } as TaskDetail
     let state!: ReturnType<typeof useStudioSessions>
     const failures: unknown[] = []
-    const app = renderer.createApp(defineComponent({ setup() { state = useStudioSessions(() => task, e => failures.push(e), () => {}, api, actor); return () => null } })); app.mount({})
+    const app = renderer.createApp(defineComponent({ setup() { state = useStudioSessions(() => task, e => failures.push(e), () => {}, api, actor, autoCreate); return () => null } })); app.mount({})
     return { state, failures, close: () => app.unmount() }
   }
   return { api, rows, snapshot, calls, mount }

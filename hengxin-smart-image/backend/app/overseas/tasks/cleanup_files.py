@@ -83,7 +83,7 @@ def cli_tool_link(path, workspace):
         and os.readlink(path) == '/opt/codex' and not path.is_dir())
 
 
-def validate_directories(manifest):
+def validate_directories(manifest, *, namespaces=('studio',)):
     root = Path(manifest['root'])
     if root != Path(get_settings().codex_execution_root).absolute():
         raise ValueError('Execution root changed; cleanup requires original worker')
@@ -93,7 +93,7 @@ def validate_directories(manifest):
     targets = []
     for relative in manifest['directories']:
         parts = PurePosixPath(relative).parts
-        if len(parts) not in (1, 2) or (len(parts) == 2 and parts[0] != 'studio'):
+        if len(parts) not in (1, 2) or (len(parts) == 2 and parts[0] not in namespaces):
             raise ValueError('Invalid owned workspace')
         if str(UUID(parts[-1])) != parts[-1]:
             raise ValueError('Invalid owned workspace identity')
@@ -128,8 +128,8 @@ def remove_object(store, data):
         raise OSError('Object still exists after erasure')
 
 
-def erase(store, manifest):
-    targets = validate_directories(manifest)
+def erase(store, manifest, *, namespaces=('studio',)):
+    targets = validate_directories(manifest, namespaces=namespaces)
     for row in manifest['objects']:
         remove_object(store, row)
     for target in targets:

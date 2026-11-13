@@ -5,7 +5,7 @@ import { compile, mount, all, text, simple } from './membership-test-harness'
 import { isStudio, type StudioTurn, type StudioTranscript } from '../src/api/overseas/studio'
 import { historicalRevisions } from '../src/views/overseas/studio/studio-revisions'
 
-const component = compile('views/overseas/studio/StudioTurns.vue', {
+const component = compile('views/shared/studio/StudioTurns.vue', {
   './studio-revisions': { historicalRevisions },
   ...Object.fromEntries(['StudioProcess', 'StudioOutputs', 'StudioAttachments', 'StudioAssetImage', 'StudioRevisionDetails'].map(name => [`./${name}.vue`, { default: simple(name) }]))
 })
@@ -14,6 +14,21 @@ const turn = (extra: Partial<StudioTurn> = {}): StudioTurn => ({ id: 'turn', tex
 const entry = (extra: Partial<StudioTranscript> = {}): StudioTranscript => ({ id: 1, turnId: 'turn', itemId: 'message', kind: 'message', text: '流式回复', state: 'completed', createdAt: '2026-11-02T02:03:04Z', ...extra })
 const headers = (root: Parameters<typeof all>[0]) => all(root).filter(n => n.props.class === 'studio-message-name').map(text)
 const snapshot = (item: unknown) => ({ taskId: 't', taskVersion: 1, archiveId: null, reopened: false, completed: false, activeTurnId: null, materials: [], skills: [], turns: [item] })
+
+test('国内复用消息组件可隐藏空态引导与 Skill 名称，海外默认不变', () => {
+  const emptyProps = { turns: [], transcript: [], selected: [], disabled: false }
+  const overseas = mount(component, emptyProps)
+  const domestic = mount(component, { ...emptyProps, hideEmptyGuide: true })
+  const defaultMessage = mount(component, { ...emptyProps, turns: [turn({ skillName: '已有 Skill' })] })
+  const domesticMessage = mount(component, { ...emptyProps, turns: [turn({ skillName: '已有 Skill' })], hideSkillLabels: true })
+  try {
+    assert.equal(all(overseas.root).some(node => node.props.class === 'studio-empty'), true)
+    assert.equal(all(domestic.root).some(node => node.props.class === 'studio-empty'), false)
+    assert.equal(all(defaultMessage.root).some(node => node.tag === 'ElTag' && text(node) === '已有 Skill'), true)
+    assert.equal(all(domesticMessage.root).some(node => node.tag === 'ElTag' && text(node) === '已有 Skill'), false)
+    assert.deepEqual(headers(domesticMessage.root), headers(defaultMessage.root))
+  } finally { overseas.close(); domestic.close(); defaultMessage.close(); domesticMessage.close() }
+})
 
 test('真实消息组件分别署名实际发送人，缺失姓名和时间诚实降级', () => {
   const view = mount(component, { turns: [

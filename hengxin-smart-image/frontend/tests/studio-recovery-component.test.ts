@@ -12,8 +12,9 @@ type Api = ReturnType<typeof createStudioOutputsApi>
 function setup(api: Api, overrides = {}) {
   const props = reactive({ taskId: 'task', conversationId: 'one', readonly: false, busy: false, ...overrides })
   let saves = 0; const failures: unknown[] = []
-  const component = compile('views/overseas/studio/StudioRecoveryDialog.vue', {
-    '@/api/overseas/attachment-download': { formatAttachmentSize },
+  const component = compile('views/shared/studio/StudioRecoveryDialog.vue', {
+    '@/api/shared/attachment-download': { formatAttachmentSize },
+    '@/api/shared/studio-outputs': { createStudioOutputsApi: () => api },
     './use-studio-recovery': { useStudioRecovery: (context: Parameters<typeof useStudioRecovery>[0]) => useStudioRecovery(context, () => saves++, reason => failures.push(reason), api) }
   })
   Object.assign(component, { components: { ElCheckbox: simple('ElCheckbox') } })

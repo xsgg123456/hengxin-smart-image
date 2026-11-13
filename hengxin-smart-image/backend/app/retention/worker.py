@@ -1,7 +1,8 @@
 """Run on the owning native CLI worker: --once, or hourly with --loop."""
 import argparse
 import json
-import time
+import signal
+import threading
 from pathlib import Path
 from sqlalchemy import exists, select
 from app.core.config import get_settings
@@ -14,6 +15,7 @@ from .models import RetentionEntry
 from .state import touch, aware, CACHE_AGE, HISTORY_AGE
 from .objects import retry_objects
 from app.execution.cleanup_diagnostics import report
+from app.execution.release_gate import wait_for_workers
 
 
 def register_existing(factory, limit, now):
@@ -111,24 +113,44 @@ def main():
     args = parser.parse_args()
     if args.interval < 1:
         parser.error('--interval must be positive')
+    stopped = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stopped.set())
+    if not wait_for_workers(stopped):
+        return
     try:
         if not args.deletions_only and get_settings().cli_retention_enabled:
             from .service import beating
             with beating(session_factory()):
-                execute_loop(args)
+                execute_loop(args, stopped)
         else:
-            execute_loop(args)
+            execute_loop(args, stopped)
     except Exception as error:
         report(error, stage='worker_lifecycle', resource_id=None)
         raise SystemExit(1) from None
 
 
-def execute_loop(args):
-    while True:
+def execute_loop(args, stopped=None):
+    stopped = stopped or threading.Event()
+    while not stopped.is_set():
+        if not wait_for_workers(stopped):
+            break
         try:
             if args.deletions_only:
                 from app.modules.api_image_edits.deletion import run_pending
                 result = run_pending(session_factory(), get_store())
+                # This native service shares the execution worker's PID and filesystem view.
+                # Keep new cleanup failures separate from existing API deletions.
+                try:
+                    from app.modules.domestic_studio.conversation_cleanup import cleanup_once
+                    from app.modules.domestic_studio.archive_deletion import cleanup_once as cleanup_archives
+                    factory, store = session_factory(), get_store()
+                    cleanup_once(factory, store)
+                    cleanup_archives(factory, store)
+                    from app.modules.domestic_studio.recovery_transport import consume_once
+                    consume_once(factory)
+                except Exception as error:
+                    report(error, stage='domestic_studio_deletions', resource_id=None)
             else:
                 result = run_once()
             print(json.dumps(result, ensure_ascii=False), flush=True)
@@ -139,7 +161,7 @@ def execute_loop(args):
             print(json.dumps({'status': 'unavailable'}), flush=True)
         if args.once:
             return
-        time.sleep(args.interval if args.deletions_only else 3600)
+        stopped.wait(args.interval if args.deletions_only else 3600)
 
 
 if __name__ == '__main__':

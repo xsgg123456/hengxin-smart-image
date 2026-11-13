@@ -25,7 +25,7 @@ test('保存进度DTO兼容旧响应并接收真实数量，拒绝未知状态�
     { state: 'saving', expected: '8', saved: 3 }]) assert.equal(isStudio(snapshot(deliveryStatus), 'task'), false)
 })
 
-const turns = compile('views/overseas/studio/StudioTurns.vue', {
+const turns = compile('views/shared/studio/StudioTurns.vue', {
   './studio-revisions': { historicalRevisions },
   './StudioRevisionDetails.vue': { default: simple('StudioRevisionDetails') },
   './StudioOutputs.vue': { default: simple('StudioOutputs') },

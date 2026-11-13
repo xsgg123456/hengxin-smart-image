@@ -9,6 +9,8 @@ import snapshot
 
 
 def execute(u, store, data, apply=False):
+    import joint_studio_marker
+    joint_studio_marker.guard(u, store)
     if data.get('pending'):
         raise RuntimeError('Pending release blocks cleanup')
     if data.get('migration_pending'):
@@ -23,7 +25,8 @@ def execute(u, store, data, apply=False):
     sources, paths = catalog.protected(data)
     if data.get('version') == 2:
         from scope_catalog import image_references
-        fleet, current, previous = image_gc.scoped(u), data['current']['images'], None
+        from scopes import has_domestic_publisher
+        fleet, current, previous = image_gc.scoped(u, has_domestic_publisher(data['current'])), data['current']['images'], None
         extra = {'extra_retained': image_references(data)}
     else:
         fleet, current = u, value['current']['images']

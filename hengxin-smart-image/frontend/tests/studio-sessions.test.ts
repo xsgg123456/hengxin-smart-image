@@ -5,6 +5,53 @@ import { IdentityError } from '../src/api/identity/request'
 import { sessionPreferenceKey } from '../src/views/overseas/studio/studio-session-state'
 import { fixture, flush, deferred, asset, row, local } from './studio-sessions-fixture'
 
+test('国内自动建首会话等待过期选择恢复，且不会重复创建', async () => {
+  const f = fixture(); f.rows.splice(0)
+  local.set(sessionPreferenceKey('designer', 't'), JSON.stringify({ activeId: 'deleted', scrolls: {}, seen: {} }))
+  const original = f.api.get
+  f.api.get = async (task, signal, id) => { if (id === 'deleted') throw new IdentityError(404, '会话已删除'); return original(task, signal, id) }
+  const view = f.mount('designer', ['task.design'], true)
+  try {
+    await flush(); await flush()
+    assert.equal(view.state.sessions.value.length, 1)
+    assert.equal(f.calls.filter(call => call.kind === 'create').length, 1)
+    await view.state.refresh(); await flush()
+    assert.equal(f.calls.filter(call => call.kind === 'create').length, 1)
+  } finally { view.close() }
+})
+
+test('国内收取重试遇到 503 或响应丢失时只核实原轮次，不发送新消息', async () => {
+  const f = fixture(); f.rows[0].activeTurnId = 'turn'; f.rows[0].status = 'running'
+  let attempts = 0, requested = false
+  const originalGet = f.api.get
+  f.api.get = async (...args) => {
+    const value = await originalGet(...args)
+    if (value.conversationId === 'a') {
+      value.taskVersion = requested ? 2 : 1
+      value.turns = [{ id: 'turn', conversationId: 'a', text: '原消息', skillName: null, status: 'uncertain',
+        reply: null, error: null, jobId: 'job', jobVersion: 1, attachments: [], pictures: [], referencePictures: [],
+        createdAt: '', canRecover: true, recoveryRequested: requested }]
+    }
+    return value
+  }
+  f.api.recoverTurn = async (_task, turn) => {
+    assert.equal(turn.id, 'turn'); attempts++
+    if (attempts === 1) throw new IdentityError(503, '服务暂不可用')
+    requested = true
+    throw new IdentityError(0, '响应丢失')
+  }
+  const v = f.mount(); await flush()
+  try {
+    await v.state.recoverTurn(); await v.state.refresh()
+    assert.equal(v.state.activeTurn.value?.recoveryRequested, false)
+    await v.state.recoverTurn(); await v.state.refresh(); await flush()
+    assert.equal(v.state.activeTurn.value?.recoveryRequested, true)
+    await v.state.recoverTurn()
+    assert.equal(attempts, 2)
+    assert.equal(f.calls.filter(call => call.kind === 'send').length, 0)
+  } finally { v.close() }
+})
+
 test('选择按身份任务恢复，草稿、Skill、附件、滚动独立，新建保留原草稿', async () => {
   const f = fixture(), v = f.mount(); await flush(); const s = v.state
   try {

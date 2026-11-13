@@ -6,12 +6,13 @@ import { IdentityError } from '../src/api/identity/request'
 import { skillCatalogComponent as catalog } from './skill-platforms-components'
 import { compile, table, simple, mount, all, text, find, click, flush } from './membership-test-harness'
 
-const component = compile('views/overseas/admin/OverseasLiveSkills.vue', {
-  '@/api/overseas/skill-transfers': Transfers, './SkillFolderUpload.vue': { default: simple('SkillFolderUpload'), __esModule: true },
-  '@/api/overseas/management': Management, '@/api/identity/request': { IdentityError },
+const component = compile('views/shared/skills/OverseasLiveSkills.vue', {
+  '@/api/shared/skill-transfers': Transfers, './SkillFolderUpload.vue': { default: simple('SkillFolderUpload'), __esModule: true },
+  '@/api/shared/skill-types': Management, '@/api/identity/request': { IdentityError },
   './OverseasSkillCatalog.vue': { default: catalog, __esModule: true }
 })
 const skill = { id: 's', name: 'test', displayName: '真实 Skill', description: '完整说明', enabled: true, version: 1, platforms: ['Amazon'] }
+const mountSkills = (props: Record<string, unknown>) => mount(component, { transferApi: Transfers.createSkillTransferApi(), ...props })
 const button = (root: Parameters<typeof all>[0], label: string) => all(root).find(n => n.tag === 'ElButton' && text(n) === label)
 const rows = (root: Parameters<typeof all>[0]) => find(root, 'ArtTable').props.data as Management.ManagedSkill[]
 const notice = (root: Parameters<typeof all>[0]) => String(find(root, 'ElAlert').props.title)
@@ -21,7 +22,7 @@ test('所有者切换真实SFC：请求前状态不变、禁止重入、按服�
   const writes: unknown[] = []
   const api = { skills: async () => { reads++; return { items: [{ ...skill }], canToggle: true, canManagePlatforms: true } },
     setSkillAvailability: async (...args: unknown[]) => { writes.push(args); return new Promise<Management.SkillCatalog>(r => { resolve = r }) } }
-  const view = mount(component, { api }); await flush()
+  const view = mountSkills({ api }); await flush()
   try {
     assert.equal(rows(view.root)[0].enabled, true)
     const handler = button(view.root, '关闭')!.props.onClick as () => void
@@ -37,7 +38,7 @@ test('所有者切换真实SFC：请求前状态不变、禁止重入、按服�
 
 test('非所有者只读，Demo保留原两列且不伪造开关', async () => {
   let writes = 0
-  const view = mount(component, { api: { skills: async () => ({ items: [skill], canToggle: false, canManagePlatforms: false }), setSkillAvailability: async () => { writes++; throw Error('unexpected') } } })
+  const view = mountSkills({ api: { skills: async () => ({ items: [skill], canToggle: false, canManagePlatforms: false }), setSkillAvailability: async () => { writes++; throw Error('unexpected') } } })
   await flush()
   try { assert.equal(button(view.root, '关闭'), undefined); assert.equal(writes, 0); assert.match(text(view.root), /仅指定账号可调整/); assert.equal(rows(view.root)[0].enabled, true) } finally { view.close() }
   const demo = mount(catalog, { skills: [{ id: 'd', name: 'demo', displayName: '预览', description: '预览描述' }] })
@@ -52,7 +53,7 @@ test('409冲突刷新最新状态和版本；只在用户再次操作时提交',
       assert.equal(enabled, true); assert.equal(version, 2)
       return { items: [{ ...skill, enabled, version: 3 }], canToggle: true, canManagePlatforms: true }
     } }
-  const view = mount(component, { api }); await flush()
+  const view = mountSkills({ api }); await flush()
   try {
     click(view.root, '关闭'); await flush(); assert.equal(reads, 2); assert.equal(writes, 1)
     assert.equal(rows(view.root)[0].version, 2); assert.match(notice(view.root), /已刷新最新状态/)
@@ -63,12 +64,12 @@ test('409冲突刷新最新状态和版本；只在用户再次操作时提交',
 test('403降级只读、401收起目录；未知结果读回失败阻止再次写入，刷新可恢复', async () => {
   for (const status of [401, 403]) {
     const failures: unknown[] = []
-    const view = mount(component, { api: { skills: async () => ({ items: [skill], canToggle: true, canManagePlatforms: true }), setSkillAvailability: async () => { throw new IdentityError(status, '权限变化') } }, onFailure: (e: unknown) => failures.push(e) })
+    const view = mountSkills({ api: { skills: async () => ({ items: [skill], canToggle: true, canManagePlatforms: true }), setSkillAvailability: async () => { throw new IdentityError(status, '权限变化') } }, onFailure: (e: unknown) => failures.push(e) })
     await flush(); click(view.root, '关闭'); await flush()
     try { assert.equal(button(view.root, '关闭'), undefined); assert.equal(failures.length, status === 401 ? 1 : 0); assert.match(notice(view.root), status === 401 ? /权限变化/ : /没有切换权限/) } finally { view.close() }
   }
   let reads = 0, failRefresh = true, writes = 0
-  const view = mount(component, { api: { skills: async () => { if (++reads > 1 && failRefresh) throw Error('服务离线'); return { items: [skill], canToggle: true, canManagePlatforms: true } }, setSkillAvailability: async () => { writes++; throw new IdentityError(0, '网络中断') } } })
+  const view = mountSkills({ api: { skills: async () => { if (++reads > 1 && failRefresh) throw Error('服务离线'); return { items: [skill], canToggle: true, canManagePlatforms: true } }, setSkillAvailability: async () => { writes++; throw new IdentityError(0, '网络中断') } } })
   await flush(); click(view.root, '关闭'); await flush()
   try {
     assert.match(notice(view.root), /无法确认最新 Skill 状态/); assert.equal(button(view.root, '关闭'), undefined); assert.equal(writes, 1)
@@ -79,9 +80,9 @@ test('403降级只读、401收起目录；未知结果读回失败阻止再次�
 test('写入响应丢失按服务器结果恢复，卸载后迟到回包不产生反馈', async () => {
   let enabled = true, resolve!: (v: Management.SkillCatalog) => void
   const api = { skills: async () => ({ items: [{ ...skill, enabled }], canToggle: true, canManagePlatforms: true }), setSkillAvailability: async () => { enabled = false; throw new IdentityError(500, '丢失响应') } }
-  const view = mount(component, { api }); await flush(); click(view.root, '关闭'); await flush()
+  const view = mountSkills({ api }); await flush(); click(view.root, '关闭'); await flush()
   try { assert.equal(rows(view.root)[0].enabled, false); assert.match(notice(view.root), /已刷新服务端状态/); assert.doesNotMatch(notice(view.root), /状态已更新/) } finally { view.close() }
-  const late = mount(component, { api: { ...api, setSkillAvailability: () => new Promise<Management.SkillCatalog>(r => { resolve = r }) } })
+  const late = mountSkills({ api: { ...api, setSkillAvailability: () => new Promise<Management.SkillCatalog>(r => { resolve = r }) } })
   await flush(); click(late.root, '开启'); late.close(); resolve({ items: [skill], canToggle: true, canManagePlatforms: true }); await flush()
   assert.equal(all(late.root).filter(n => n.tag === 'ElAlert').length, 0)
 })

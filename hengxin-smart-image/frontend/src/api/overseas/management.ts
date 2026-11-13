@@ -1,4 +1,7 @@
-import { createIdentityRequest, IdentityError, record } from '../identity/request'
+import { createIdentityRequest, record } from '../identity/request'
+import { isSkillCatalog, type SkillPlatformUpdate } from '../shared/skill-types'
+export { isSkill, isManagedSkill, isSkillCatalog, managementError } from '../shared/skill-types'
+export type { Skill, ManagedSkill, SkillCatalog, SkillPlatformUpdate } from '../shared/skill-types'
 export const stages = { analysis: '整套分析', generation: '按 SKU 生图', revision: '单图返工' }
 export type Stage = keyof typeof stages
 export const managementPages = { activity: '调用与执行', usage: '调用统计', monitor: '执行监控', users: '用户与角色', skills: 'Skill 管理', settings: '系统配置', 'codex-auth': 'Codex 账号' }
@@ -10,18 +13,11 @@ export interface Job { id: string; taskId: string; taskName: string; kind: strin
 export interface Operator { id: string; name: string }
 export interface PersonUsage extends Operator { calls: number; images: number; lastCall: string }
 export interface Jobs { items: Job[]; total: number; page: number; pageSize: number }
-export interface Skill { id: string; name: string; displayName: string; description: string }
-export interface ManagedSkill extends Skill { enabled: boolean; version: number; platforms: string[] }
-export interface SkillCatalog { items: ManagedSkill[]; canToggle: boolean; canManagePlatforms: boolean }
-export interface SkillPlatformUpdate { id: string; version: number; platforms: string[] }
 export interface Settings { version: number; paused: boolean; concurrency: number; timeoutSeconds: number; defaults: Record<Stage,string | null>; autoCleanup: false }
 const count = (v: unknown) => Number.isInteger(v) && Number(v) >= 0
 const positive = (v: unknown) => count(v) && Number(v) > 0
 export function isUsage(v: unknown): v is Usage { return record(v) && ['jobs','queued','running','uncertain','succeeded','failed','cancelled','generationImages','revisionImages'].every(k => count(v[k])) }
 export function isJobs(v: unknown): v is Jobs { return record(v) && count(v.total) && positive(v.page) && positive(v.pageSize) && Array.isArray(v.items) && v.items.every(j => record(j) && ['id','taskId','taskName','kind','status','createdAt'].every(k => typeof j[k] === 'string') && ['startedAt','completedAt','error','operatorId','operatorName'].every(k => j[k] === null || typeof j[k] === 'string') && count(j.executionCount) && count(j.imageCount)) }
-export function isSkill(v: unknown): v is Skill { return record(v) && ['id', 'name', 'displayName', 'description'].every(k => typeof v[k] === 'string') && String(v.id).length > 0 && String(v.name).trim().length > 0 && String(v.displayName).trim().length > 0 }
-export function isManagedSkill(v: unknown): v is ManagedSkill { return record(v) && isSkill(v) && typeof v.enabled === 'boolean' && positive(v.version) && Array.isArray(v.platforms) && v.platforms.every(p => typeof p === 'string') }
-export function isSkillCatalog(v: unknown): v is SkillCatalog { return record(v) && typeof v.canToggle === 'boolean' && typeof v.canManagePlatforms === 'boolean' && Array.isArray(v.items) && v.items.every(isManagedSkill) }
 export function isSettings(v: unknown): v is Settings { return record(v) && positive(v.version) && typeof v.paused === 'boolean' && positive(v.concurrency) && Number(v.concurrency) <= 5 && count(v.timeoutSeconds) && Number(v.timeoutSeconds) >= 10 && Number(v.timeoutSeconds) <= 7200 && v.autoCleanup === false && record(v.defaults) && Object.keys(stages).every(k => record(v.defaults) && (v.defaults[k] === null || typeof v.defaults[k] === 'string')) }
 export function createManagementApi(fetcher: typeof fetch = fetch) {
   const request = createIdentityRequest(fetcher), base = '/api/overseas/v1/management'
@@ -38,4 +34,3 @@ export function createManagementApi(fetcher: typeof fetch = fetch) {
   }
 }
 export type ManagementApi = ReturnType<typeof createManagementApi>
-export const managementError = (e: unknown) => e instanceof IdentityError && e.status === 409 ? '记录已变化，请刷新最新版本；你的草稿已保留' : e instanceof IdentityError && e.status === 422 ? '配置不符合要求，请检查名称、指令内容及默认阶段绑定' : e instanceof Error ? e.message : '服务暂不可用，请重试'

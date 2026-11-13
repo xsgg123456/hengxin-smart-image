@@ -93,6 +93,27 @@ def test_failed_store_or_checksum_does_not_commit_initial_layout(tmp_path):
     assert ws.persistent
 
 
+def test_failed_stream_verification_closes_source_and_keeps_no_partial_file(tmp_path):
+    class Source:
+        closed = released = False
+        def read(self, _size):
+            if self.closed:
+                raise AssertionError('read after close')
+            self.closed = True
+            return b'wrong'
+        def close(self):
+            self.closed = True
+        def release_conn(self):
+            self.released = True
+    source = Source()
+    ws = workspace(tmp_path)
+    with pytest.raises(ValueError, match='恢复校验'):
+        context.prepare(ws, [], [asset()], lambda _: source)
+    assert source.closed and source.released
+    assert not (ws.home.parent / 'persistent').exists()
+    assert not list(ws.home.parent.glob('.context-stage-*'))
+
+
 def test_new_conversation_has_no_old_inputs_or_work(tmp_path):
     first = workspace(tmp_path)
     context.prepare(first, [], [asset()], lambda _: b'original')

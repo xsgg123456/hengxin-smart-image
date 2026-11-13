@@ -51,7 +51,8 @@ def append(session, turn, value):
     session.flush()
 
 
-def consume(session, turn, channel, stream, final):
+def consume(session, turn, channel, stream, final, *, append_entry=None):
+    append_entry = append_entry or append
     stream.seek(0, os.SEEK_END)
     if stream.tell() < turn.event_offset:
         turn.event_invalid = True
@@ -84,7 +85,7 @@ def consume(session, turn, channel, stream, final):
         elif turn.event_session_id:
             value = public_item(event, offset)
             if value:
-                append(session, turn, value)
+                append_entry(session, turn, value)
 
 
 def poll(factory, job, token, workspace, final=False):

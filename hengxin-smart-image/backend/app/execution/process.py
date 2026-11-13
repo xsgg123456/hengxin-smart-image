@@ -5,6 +5,7 @@ import signal
 import subprocess
 import time
 from pathlib import Path
+from app.execution.process_group import group_alive
 
 
 def process_identity(pid):
@@ -59,6 +60,10 @@ def execute(argv, prompt, control, timeout, should_stop, on_start):
                 time.sleep(.2)
         finally:
             stop_process(process)
+    # A leader can exit before another process in its group. Never publish an
+    # exit receipt or release execution capacity until the group is gone.
+    if group_alive(process.pid, boot):
+        raise RuntimeError('Execution process group has not exited')
     receipt = {'exit_code': process.returncode, 'reason': reason,
                'elapsed_seconds': round(time.monotonic() - started, 3)}
     temporary = control / 'exit.tmp'

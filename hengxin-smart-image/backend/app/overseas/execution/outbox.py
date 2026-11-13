@@ -3,6 +3,7 @@ import logging
 import signal
 import threading
 from app.core.config import get_settings
+from app.execution.release_gate import wait_for_workers
 from app.overseas.db import require_overseas_context, session_factory
 from .queue import dispatch_once
 from .reconcile import reconcile_once
@@ -14,6 +15,8 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())
     while not stopped.is_set():
+        if not wait_for_workers(stopped):
+            break
         try:
             factory = session_factory()
             reconcile_once(factory)

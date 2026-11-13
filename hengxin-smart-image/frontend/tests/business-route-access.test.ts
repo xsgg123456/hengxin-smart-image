@@ -21,6 +21,15 @@ test('超管菜单和规范化后的绝对子菜单保持可访问', () => {
   assert.equal(isDeniedBusinessRoute('/management/skills', menus), false)
 })
 
+test('Skill 管理只对超管加入管理中心菜单', () => {
+  const management = routeModules.find(route => route.path === '/management')!
+  const skills = management.children!.find(route => route.path === 'skills')!
+  assert.equal(skills.component, '/hengxin/admin/skills')
+  assert.deepEqual(skills.meta.roles, ['super_admin'])
+  const managerMenus = routeModules.map(route => ({ ...route, children: route.children?.filter(child => !child.meta.roles || child.meta.roles.includes('design_manager')) }))
+  assert.equal(isDeniedBusinessRoute('/management/skills', managerMenus), true)
+})
+
 test('合并页旧入口保留组件使菜单处理器注册兼容跳转', () => {
   const management = routeModules.find(route => route.path === '/management')!
   for (const path of ['usage', 'monitor']) {

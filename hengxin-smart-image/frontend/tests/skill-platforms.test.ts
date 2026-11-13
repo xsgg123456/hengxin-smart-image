@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createManagementApi, isSkillCatalog, type ManagedSkill, type SkillPlatformUpdate } from '../src/api/overseas/management'
+import { createSkillTransferApi } from '../src/api/overseas/skill-transfers'
 import { IdentityError } from '../src/api/identity/request'
 import { liveSkillsComponent, confirmation } from './skill-platforms-components'
 import { all, click, find, flush, mount, text, update } from './membership-test-harness'
@@ -25,7 +26,7 @@ function fixture() {
       return catalog()
     }
   }
-  const view = mount(liveSkillsComponent, { api })
+  const view = mount(liveSkillsComponent, { api, transferApi: createSkillTransferApi() })
   return { ...view, writes, reads: () => reads, setMode: (value: string) => { mode = value }, readonly: () => { manage = false }, skills: () => skills }
 }
 const rows = (root: Parameters<typeof find>[0]) => find(root, 'ArtTable').props.data as ManagedSkill[]

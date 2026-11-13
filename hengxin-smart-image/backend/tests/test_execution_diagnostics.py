@@ -259,9 +259,13 @@ def test_read_errors_do_not_escape(tmp_path, monkeypatch):
     def denied(*args, **kwargs):
         raise PermissionError('private sensitive error')
 
-    monkeypatch.setattr(os, 'fstat', denied)
-    assert manifest_failure(path, 1) is None
-    assert cli_failure_code(path, 'turn_failed') == 'turn_failed'
+    # Restore the process-wide function before pytest's own reporting runs.
+    with monkeypatch.context() as patched:
+        patched.setattr(os, 'fstat', denied)
+        manifest = manifest_failure(path, 1)
+        code = cli_failure_code(path, 'turn_failed')
+    assert manifest is None
+    assert code == 'turn_failed'
 
 
 @requires_safe_open

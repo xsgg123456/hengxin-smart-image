@@ -5,7 +5,9 @@ class OwnedStreamResponse(StreamingResponse):
     """Own the HTTP connection even if the client disconnects before iteration starts."""
     def __init__(self, stream, **kwargs):
         self.stream = stream
-        super().__init__(stream.stream(64 * 1024), **kwargs)
+        chunks = (stream.stream(64 * 1024) if callable(getattr(stream, 'stream', None))
+                  else iter(lambda: stream.read(64 * 1024), b''))
+        super().__init__(chunks, **kwargs)
 
     async def __call__(self, scope, receive, send):
         try:
@@ -14,4 +16,6 @@ class OwnedStreamResponse(StreamingResponse):
             try:
                 self.stream.close()
             finally:
-                self.stream.release_conn()
+                release = getattr(self.stream, 'release_conn', None)
+                if callable(release):
+                    release()

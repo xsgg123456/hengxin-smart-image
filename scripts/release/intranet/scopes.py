@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 
 GROUPS = ('domestic', 'overseas', 'shared')
+DOMESTIC_PUBLISHER = 'domestic-skill-publisher'
 APPS = {
     'domestic': ('domestic-api', 'domestic-api-image-worker', 'domestic-api-image-outbox',
                  'domestic-image-variants', 'domestic-outbox'),
@@ -23,6 +24,15 @@ QUEUES = {'hengxin-vps-codex-worker': 'celery', 'hengxin-overseas-worker': 'over
 READY = {'domestic': (18008, '/api/v1/health/ready'),
          'overseas': (18018, '/api/overseas/v1/health/ready'),
          'shared': (18012, '/api/identity/v1/config')}
+
+
+def has_domestic_publisher(state):
+    return DOMESTIC_PUBLISHER in state.get('images', {})
+
+
+def apps(scope, publisher=False):
+    validate(scope)
+    return APPS[scope] + ((DOMESTIC_PUBLISHER,) if scope == 'domestic' and publisher else ())
 
 
 def validate(scope, mode='full'):

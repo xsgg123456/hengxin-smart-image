@@ -27,6 +27,9 @@ def run(cli, argv=None):
             cli.engine.u.safe(marker)
             if json.loads(marker.read_bytes())['phase'] not in ('complete', 'rolled-back') and args.action != 'status':
                 raise RuntimeError('Resolve the recorded split migration before publishing')
+        if args.action != 'status':
+            import joint_studio_marker
+            joint_studio_marker.guard(cli.engine.u, store)
         tool = cli.Release(store)
         if args.action == 'cleanup':
             tool.cleanup(apply=args.apply)

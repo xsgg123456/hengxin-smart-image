@@ -23,6 +23,7 @@ from test_overseas_tasks import overseas, ROOT
 def historical(missed, monkeypatch):
     (missed.events.parents[2] / 'persistent/work').mkdir(parents=True)
     monkeypatch.setattr(cleanup_process, 'group_alive', lambda _job: False)
+    monkeypatch.setattr(reconcile, 'group_alive', lambda *_args: False)
     monkeypatch.setattr(delivery_repair, 'group_alive', lambda _job: False)
     monkeypatch.setattr(delivery_recovery, 'get_store', lambda: missed.store)
     monkeypatch.setattr(runner, 'execute', lambda *_args: pytest.fail('Repair must not invoke the model'))

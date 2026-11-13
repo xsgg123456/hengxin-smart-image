@@ -9,12 +9,17 @@ from app.core.skill_package import MAX_TOTAL, MAX_ZIP
 from app.storage.minio_store import get_store
 
 
-def prepare(job, workspace):
+def write_input(payload, workspace):
     # Queue copies JSON transactionally. Keep the exact input for later audit.
-    encoded = json.dumps(job.payload, ensure_ascii=False, allow_nan=False)
+    encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False)
     (workspace.control / 'input.json').write_text(encoded, encoding='utf-8')
     work = getattr(workspace, 'round_work', workspace.work)
     (work / 'input.json').write_text(encoded, encoding='utf-8')
+    return work
+
+
+def prepare(job, workspace):
+    work = write_input(job.payload, workspace)
     skill = job.payload.get('skill')
     workspace.use_skill = skill is not None
     if skill is None:

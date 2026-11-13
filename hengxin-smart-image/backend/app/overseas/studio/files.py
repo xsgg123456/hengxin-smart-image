@@ -6,6 +6,7 @@ import re
 from uuid import uuid4
 from fastapi import HTTPException
 from sqlalchemy import select
+from app.execution.bounded_read import copy_verified, read_bounded
 from app.core.config import get_settings
 from app.modules.files.validation import safe_name
 from app.modules.files.delivery import FileDelivery
@@ -26,23 +27,37 @@ TYPES = {**CONTENT_TYPES, '.txt': 'text/plain', '.pptx':
          '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
 
 
-def validate(data, filename):
+class _KeepOpen:
+    """Pillow may close its input; the caller owns the upload stream."""
+    def __init__(self, stream):
+        self.stream = stream
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+    def close(self):
+        pass
+
+
+def validate_stream(stream, size, filename):
     extension = Path((filename or '').replace(chr(92), '/')).suffix.lower()
-    if not data:
+    if size <= 0:
         raise HTTPException(422, '文件不能为空')
-    if len(data) > MAX_BYTES:
+    if size > MAX_BYTES:
         raise HTTPException(413, '单个附件不能超过 500 MB')
     content_type = TYPES.get(extension, 'application/octet-stream')
     # Validation controls preview eligibility, never acceptance of original files.
     if content_type.startswith('image/'):
         from PIL import Image
         try:
-            with Image.open(BytesIO(data)) as image:
+            stream.seek(0)
+            with Image.open(_KeepOpen(stream)) as image:
                 expected = {'.jpg': 'JPEG', '.jpeg': 'JPEG', '.png': 'PNG', '.webp': 'WEBP'}[extension]
                 if image.format != expected or image.width * image.height > 60000000:
                     raise ValueError()
                 image.verify()
-            with Image.open(BytesIO(data)) as image:
+            stream.seek(0)
+            with Image.open(_KeepOpen(stream)) as image:
                 if image.width * image.height * getattr(image, 'n_frames', 1) > 60000000:
                     raise ValueError()
                 for frame in range(getattr(image, 'n_frames', 1)):
@@ -50,15 +65,23 @@ def validate(data, filename):
                     image.load()
         except Exception:
             content_type = 'application/octet-stream'
+        finally:
+            stream.seek(0)
     extension = re.sub(r'[\x00-\x1f\x7f<>:"|?*]', '_', extension)[:30]
     return safe_name(filename, extension), content_type
+
+
+def validate(data, filename):
+    if not data:
+        raise HTTPException(422, '文件不能为空')
+    return validate_stream(BytesIO(data), len(data), filename)
 
 
 def read(store, row):
     stream = None
     try:
         stream = store.open(row)
-        data = stream.read(MAX_BYTES + 1)
+        data = read_bounded(stream, MAX_BYTES)
         if len(data) != row.size_bytes or sha256(data).hexdigest() != row.checksum:
             raise ValueError()
         return data
@@ -70,6 +93,28 @@ def read(store, row):
                 stream.close()
             finally:
                 stream.release_conn()
+
+
+def copy_to(store, row, output):
+    """Copy or verify a stored object without buffering the complete file."""
+    stream = None
+    try:
+        stream = store.open(row)
+        if not 0 <= row.size_bytes <= MAX_BYTES:
+            raise ValueError('Stored object exceeds limit')
+        copy_verified(stream, output, row.size_bytes, row.checksum)
+    except Exception:
+        raise HTTPException(503, '文件读取或完整性校验失败') from None
+    finally:
+        if stream is not None:
+            try:
+                stream.close()
+            finally:
+                stream.release_conn()
+
+
+def verify(store, row):
+    copy_to(store, row, None)
 
 
 def upload(session, store, actor, task_id, data, filename, conversation_id=None):

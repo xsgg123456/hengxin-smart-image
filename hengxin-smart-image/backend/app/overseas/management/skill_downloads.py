@@ -6,9 +6,9 @@ from . import installed_catalog as catalog
 from .installed_tree import read_file, safe_directory
 
 
-def package(skill_id):
-    release, items = catalog.catalog()
-    item = next((row for row in items if catalog.identity(row['name']) == str(skill_id)), None)
+def package(skill_id, catalog_provider=catalog):
+    release, items = catalog_provider.catalog()
+    item = next((row for row in items if catalog_provider.identity(row['name']) == str(skill_id)), None)
     if item is None:
         raise HTTPException(404, 'Skill 不在当前安装目录中')
     return dict(name=item['name'], displayName=item['displayName'], description=item['description'],
@@ -16,17 +16,17 @@ def package(skill_id):
                 checksum=item['checksum'], entries=item['entries'])
 
 
-def file(skill_id, release, path):
+def file(skill_id, release, path, catalog_provider=catalog):
     try:
-        root, protected = catalog.root_config()
-        directory, manifest = catalog.release_manifest(root, release, protected)
-        item = next((row for row in manifest['items'] if catalog.identity(row['name']) == str(skill_id)), None)
+        root, protected = catalog_provider.root_config()
+        directory, manifest = catalog_provider.release_manifest(root, release, protected)
+        item = next((row for row in manifest['items'] if catalog_provider.identity(row['name']) == str(skill_id)), None)
         if not item or path not in item['entries'] or item['entries'][path].get('directory'):
             raise HTTPException(404, '文件不在固定发布版本中')
         # The pinned manifest is content-addressed; verify this file without rereading
         # the whole 256 MiB package once per downloaded resource.
         try:
-            package_root = catalog.package_directory(directory, item, protected)
+            package_root = catalog_provider.package_directory(directory, item, protected)
         except FileNotFoundError:
             raise HTTPException(410, '此 Skill 固定版本已回收，无法下载') from None
         source = package_root / path

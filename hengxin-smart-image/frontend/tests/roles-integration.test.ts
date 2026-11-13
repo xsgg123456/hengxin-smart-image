@@ -9,7 +9,8 @@ test('四角色保留身份，退役入口回API，管理维护权限独立', as
     const user = getPreviewUser(`?role=${role}`), service = createMockService({ user, delayMs: 0 })
     try {
       assert.deepEqual(await service.getUser(), user)
-      for (const path of ['/image-processing/wallpaper', '/tasks/index', '/templates/index', '/archive/index', '/management/skills']) assert.equal(apiWorkspaceRedirect(path, [role]), '/api-image-edits/create')
+      for (const path of ['/image-processing/wallpaper', '/tasks/index', '/templates/index', '/archive/index']) assert.equal(apiWorkspaceRedirect(path, [role]), '/api-image-edits/create')
+      assert.equal(apiWorkspaceRedirect('/management/skills', [role]), ['designer', 'operator'].includes(role) ? '/api-image-edits/create' : undefined)
       assert.equal(apiWorkspaceRedirect('/api-image-edits/records', [role]), undefined)
       if (role === 'super_admin') {
         assert.ok((await service.listUsers({ page: 1, pageSize: 20 })).total)

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from redis import Redis
 from redis.exceptions import RedisError
 from app.errors import error_response, register_errors
+from app.execution.release_gate import ReleaseGateMiddleware
 from app.identity.config import IdentitySettings
 from app.identity.router import router
 from app.identity.store import IdentityStore
@@ -39,6 +40,7 @@ def create_app(settings=None, redis_client=None):
         return response
 
     application.include_router(router)
+    application.add_middleware(ReleaseGateMiddleware)
     return application
 
 

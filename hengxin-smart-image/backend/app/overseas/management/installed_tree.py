@@ -56,7 +56,9 @@ def read_file(path, *, protected=False):
         before = os.fstat(stream.fileno())
         if (before.st_dev, before.st_ino) != (info.st_dev, info.st_ino):
             raise ValueError('Skill changed during validation')
-        data = stream.read(MAX_FILE + 1)
+        # The size was bounded by the lstat above; avoid allocating the full
+        # 64 MiB limit when the Skill file is only a few bytes long.
+        data = stream.read(info.st_size + 1)
         after = os.fstat(stream.fileno())
     if len(data) != info.st_size or (before.st_mtime_ns, before.st_ctime_ns) != (after.st_mtime_ns, after.st_ctime_ns):
         raise ValueError('Skill changed during validation')

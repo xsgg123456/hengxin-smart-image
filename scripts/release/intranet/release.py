@@ -92,10 +92,12 @@ class Release:
                    'phase': 'preparing', 'before': before}
         if scope:
             import scope_snapshot
+            import scopes
             pending.update(scope=scope, target_frontend=str(release),
                            target_backend=rollback_target['backend'] if rollback_target else
                            selected['backend'] if mode == 'frontend' else str(release),
-                           census=scope_snapshot.census(self.u), rollback=bool(rollback_target))
+                           census=scope_snapshot.census(self.u, domestic_publisher=scopes.has_domestic_publisher(before)),
+                           rollback=bool(rollback_target))
         data['pending'] = pending
         self.save(data)
         engine.configure(release, work)
@@ -141,9 +143,10 @@ class Release:
             after = self.capture(data, runtime=True)
             snapshot.unchanged_runtime(item['before'], after)
             if item.get('scope'):
-                import scope_release, scope_snapshot
+                import scope_release, scope_snapshot, scopes
                 actual = scope_snapshot.group(after, item['scope'])
-                scope_release.unaffected(item['census'], scope_snapshot.census(self.u), item['scope'], item['mode'])
+                scope_release.unaffected(item['census'], scope_snapshot.census(
+                    self.u, domestic_publisher=scopes.has_domestic_publisher(after)), item['scope'], item['mode'])
             else:
                 actual = after
             if actual['frontend'] != item['release'] or (item['mode'] != 'frontend' and actual['backend'] != item.get('target_backend', item['release'])):

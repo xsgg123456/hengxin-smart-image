@@ -23,13 +23,17 @@ def image_id(value):
 
 def expected(u):
     names = set(u.APPS) | set(u.DATA) | {'https'}
-    require(len(names) == (20 if getattr(u, 'scoped_images', False) else 17), 'Unexpected deployment service count')
+    count = 21 if getattr(u, 'domestic_publisher', False) else 20 if getattr(u, 'scoped_images', False) else 17
+    require(len(names) == count, 'Unexpected deployment service count')
     return names
 
 
-def scoped(u):
-    return SimpleNamespace(APPS=tuple(set(u.APPS) | {'domestic-ui', 'overseas-ui', 'shared-ui'}),
-                           DATA=u.DATA, run=u.run, scoped_images=True)
+def scoped(u, domestic_publisher=False):
+    names = set(u.APPS) | {'domestic-ui', 'overseas-ui', 'shared-ui'}
+    if domestic_publisher:
+        names.add('domestic-skill-publisher')
+    return SimpleNamespace(APPS=tuple(names), DATA=u.DATA, run=u.run,
+                           scoped_images=True, domestic_publisher=domestic_publisher)
 
 
 def containers(u):

@@ -12,7 +12,7 @@ const renderer = Vue.createRenderer<N, N>({ createElement: t => node('', t), cre
 const flatten = (e: N): N[] => [e, ...e.children.flatMap(flatten)], text = (e: N): string => e.text + e.children.map(text).join('')
 const flush = async () => { for (let i = 0; i < 10; i++) { await Promise.resolve(); await Vue.nextTick() } }
 function mount(fetcher: typeof fetch) {
-  const descriptor = parse(readFileSync(new URL('../src/views/overseas/AttachmentDownload.vue', import.meta.url), 'utf8')).descriptor
+  const descriptor = parse(readFileSync(new URL('../src/views/shared/AttachmentDownload.vue', import.meta.url), 'utf8')).descriptor
   const code = ts.transpileModule(compileScript(descriptor, { id: 'download-test', inlineTemplate: true }).content, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   const module = { exports: {} as { default: Vue.Component } }, errors: unknown[] = []
   const require = (path: string) => path === 'vue' ? Vue : path.endsWith('/request') ? { IdentityError } : { downloadAttachment: (url: string, name: string, signal: AbortSignal) => downloadAttachment(url, name, signal, fetcher) }

@@ -13,6 +13,7 @@ from pathlib import Path
 from .credential_broker_client import MAX_REQUEST, MAX_RESPONSE, receive, send, timeout_value
 from .managed_credentials import CredentialsError, access_credentials
 from .managed_credentials_files import directory
+from .release_gate import ENVIRONMENT as RELEASE_GATE_ENVIRONMENT, marker_open
 
 DEFAULT_SOURCE = '/home/codex/auth/auth.json'
 DEFAULT_SOCKET = '/run/hengxin-codex-auth/broker.sock'
@@ -68,8 +69,16 @@ class BrokerServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
             if info.st_uid != os.geteuid() or info.st_mode & 0o027:
                 raise ValueError('unsafe broker directory')
             self._remove_stale()
-            super().__init__(str(self.path), Handler)
-            os.chmod(self.path, 0o660)
+            # Bind with no permissions from the first instant during a joint
+            # release; chmod after bind alone leaves a connectable window.
+            gated = bool(os.environ.get(RELEASE_GATE_ENVIRONMENT)) and not marker_open('workers')
+            previous_mask = os.umask(0o777) if gated else None
+            try:
+                super().__init__(str(self.path), Handler)
+            finally:
+                if previous_mask is not None:
+                    os.umask(previous_mask)
+            os.chmod(self.path, 0 if gated else 0o660)
             info = self.path.lstat()
             self.socket_identity = info.st_dev, info.st_ino
 

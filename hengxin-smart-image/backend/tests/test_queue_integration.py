@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import get_settings
 from app.jobs import TestJobInput as JobInput, create_job
 from app.models import Base, Job, Outbox, utcnow
+from app.modules.api_image_edits import models as api_models, conversation_models as api_conversation_models  # noqa: F401
 from app.worker.outbox import dispatch_once
 from app.worker.tasks import run_job
 
@@ -80,6 +81,22 @@ def test_publish_failure_rolls_back_and_lost_message_is_redispatched(factory):
     with factory.begin() as session:
         session.get(Outbox, job.id).next_dispatch_at = utcnow() - timedelta(seconds=1)
     assert dispatch_once(factory, sent.append) == 0
+
+
+def test_domestic_uncertain_job_dispatches_only_when_outbox_reopened(factory):
+    queued_id, uncertain_id = uuid4(), uuid4()
+    with factory.begin() as session:
+        for identity, state in ((queued_id, 'queued'), (uncertain_id, 'uncertain')):
+            session.add(Job(id=identity, kind='domestic_studio', value=str(identity), payload_hash='f' * 64,
+                            idempotency_key=str(identity), status=state))
+            session.add(Outbox(job_id=identity, completed_at=utcnow() if state == 'uncertain' else None))
+    sent = []
+    assert dispatch_once(factory, sent.append) == 1 and sent == [queued_id]
+    with factory.begin() as session:
+        session.get(Outbox, queued_id).completed_at = utcnow()
+        session.get(Outbox, uncertain_id).completed_at = None
+    sent.clear()
+    assert dispatch_once(factory, sent.append) == 1 and sent == [uncertain_id]
 
 
 def test_concurrent_delivery_only_commits_one_result(factory):

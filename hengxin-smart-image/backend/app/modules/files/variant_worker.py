@@ -14,6 +14,7 @@ from PIL import Image, ImageOps
 from sqlalchemy import or_, select
 
 from app.models import utcnow
+from app.execution.release_gate import wait_for_workers
 from .delivery import FileDelivery
 from .variants import ImageVariants, SIZES, backfill
 
@@ -114,6 +115,8 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())
     while not stopped.is_set():
+        if not wait_for_workers(stopped):
+            break
         try:
             if args.backfill:
                 backfill(factory, 20)

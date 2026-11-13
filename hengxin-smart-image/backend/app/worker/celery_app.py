@@ -1,10 +1,12 @@
 from celery import Celery
 
 from app.core.config import get_settings
+from app.execution.release_gate import guard_celery
 from app.db import worker_budget  # noqa: F401 - register prefork/budget signals
 
 celery_app = Celery("hengxin", broker=get_settings().redis_url,
                     include=["app.worker.tasks", "app.worker.health"])
+guard_celery(celery_app)
 celery_app.conf.update(
     task_acks_late=True, task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1, task_ignore_result=True,

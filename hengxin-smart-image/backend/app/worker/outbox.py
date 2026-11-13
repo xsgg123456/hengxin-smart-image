@@ -6,6 +6,7 @@ from datetime import timedelta
 from sqlalchemy import and_, or_, select
 
 from app.core.config import get_settings
+from app.execution.release_gate import wait_for_workers
 from app.db.session import session_factory
 from app.models import Job, Outbox, utcnow
 from app.worker.celery_app import celery_app
@@ -22,13 +23,16 @@ def dispatch_once(factory=None, sender=publish):
     factory = factory or session_factory()
     from app.modules.api_image_edits.conversation_runtime import sweep
     from app.modules.api_image_edits.conversation_models import ConversationTurn
+    from app.modules.domestic_studio.runtime import sweep as sweep_domestic_studio
     sweep(factory)
+    sweep_domestic_studio(factory)
     with factory.begin() as session:
         rows = session.scalars(select(Outbox).join(Job, Job.id == Outbox.job_id).where(
             Outbox.completed_at.is_(None), Outbox.next_dispatch_at <= utcnow(),
             or_(Job.status == 'queued', and_(Job.kind == 'test', Job.status == 'running'),
                 and_(Job.kind == 'api_cli_edit', Job.status == 'uncertain', select(ConversationTurn.id).where(
-                    ConversationTurn.job_id == Job.id, ConversationTurn.cancel_requested.is_(True)).exists())),
+                    ConversationTurn.job_id == Job.id, ConversationTurn.cancel_requested.is_(True)).exists()),
+                and_(Job.kind == 'domestic_studio', Job.status == 'uncertain')),
             or_(Job.lease_until.is_(None), Job.lease_until <= utcnow()),
         ).order_by(Outbox.next_dispatch_at).limit(100).with_for_update(of=Outbox, skip_locked=True)).all()
         for row in rows:
@@ -47,6 +51,8 @@ def main():
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stopped.set())
     while not stopped.is_set():
+        if not wait_for_workers(stopped):
+            break
         try:
             dispatch_once()
         except Exception:

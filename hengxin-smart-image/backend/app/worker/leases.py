@@ -12,7 +12,13 @@ TERMINAL = ('succeeded', 'partial', 'failed', 'cancelled')
 
 
 def lease_active(job):
-    return bool(job.lease_until and job.lease_until.replace(tzinfo=timezone.utc) > utcnow())
+    deadline = job.lease_until
+    if deadline is None:
+        return False
+    # SQLite may return a naive UTC value; PostgreSQL can return any aware
+    # session timezone. Replacing an existing offset would extend the lease.
+    deadline = deadline.replace(tzinfo=timezone.utc) if deadline.tzinfo is None else deadline.astimezone(timezone.utc)
+    return deadline > utcnow()
 
 
 def claim(factory, job_id):

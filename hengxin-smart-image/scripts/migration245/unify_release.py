@@ -45,6 +45,9 @@ NATIVE = {
 }
 WORKERS = ('hengxin-vps-codex-worker', 'hengxin-overseas-worker', 'domestic-api-image-worker')
 ENTRIES = ('domestic-web', 'domestic-api', 'overseas-api', 'identity-api')
+ACCOUNT_SOCKETS = ('/run/hengxin-codex-accounts/domestic/control.sock',
+                   '/run/hengxin-codex-accounts/overseas/control.sock',
+                   '/run/hengxin-codex-accounts/worker.sock', '/run/hengxin-codex-auth/broker.sock')
 APPS = (*PYTHON_SERVICES, 'domestic-web')
 DATA = {'domestic-postgres', 'domestic-redis', 'domestic-minio',
         'overseas-postgres', 'overseas-redis', 'overseas-minio', 'identity-redis'}
@@ -158,10 +161,11 @@ def contexts():
     return result
 
 
-def native_run(ctx, code=None, module=None, cwd=None, args=(), timeout=120):
+def native_run(ctx, code=None, module=None, cwd=None, args=(), timeout=120, pass_fds=()):
     argv = [ctx['python'], '-B', '-c', code] if code is not None else [ctx['python'], '-B', '-m', module]
+    extra = {'pass_fds': pass_fds} if pass_fds else {}
     return run([*argv, *args], cwd=cwd or ctx['cwd'], env=ctx['env'], timeout=timeout,
-               **{k: ctx[k] for k in ('user', 'group', 'extra_groups')})
+               **{k: ctx[k] for k in ('user', 'group', 'extra_groups')}, **extra)
 
 
 def validate_release():
@@ -416,9 +420,7 @@ def drain(ctx, paused, live=WORKERS):
 
 
 def gate_accounts(sockets):
-    for name in ('/run/hengxin-codex-accounts/domestic/control.sock',
-                 '/run/hengxin-codex-accounts/overseas/control.sock',
-                 '/run/hengxin-codex-accounts/worker.sock', '/run/hengxin-codex-auth/broker.sock'):
+    for name in ACCOUNT_SOCKETS:
         path = Path(name)
         info = path.lstat()
         if not stat.S_ISSOCK(info.st_mode):
@@ -498,9 +500,13 @@ def health(ctx, frontend=False):
             time.sleep(2)
 
 
-def start_apps(ctx):
+def start_apps(ctx, after_credentials=None, before_credentials=None):
     remove_stop_overrides()
+    if before_credentials is not None:
+        before_credentials()
     run(['systemctl', 'start', 'hengxin-codex-accounts', 'hengxin-codex-auth'], timeout=120)
+    if after_credentials is not None:
+        after_credentials()
     run(['systemctl', 'start', *NATIVE_AUX, *WORKERS[:2]], timeout=180)
     app_command('up', tuple(n for n in APPS if n != 'domestic-web'))
     health(ctx)

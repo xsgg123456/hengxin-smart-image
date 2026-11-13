@@ -74,6 +74,11 @@ class MinioStore:
         self.client.put_object(record.bucket, record.object_key, BytesIO(data), len(data),
                                content_type=record.content_type)
 
+    def put_stream(self, record, stream, size):
+        self.ensure_private(record.bucket, force=False)
+        self.client.put_object(record.bucket, record.object_key, stream, size,
+                               content_type=record.content_type)
+
     def remove(self, record):
         self.client.remove_object(record.bucket, record.object_key)
 

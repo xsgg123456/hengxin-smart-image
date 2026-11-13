@@ -34,6 +34,7 @@ def test_competing_reconcilers_claim_one_collector_and_one_object(ready, monkeyp
     commands = fake_runtime((None, factory, actor_id, {'id': str(task_id)}, None, store),
                             monkeypatch, tmp_path, image_count=1)
     monkeypatch.setattr(cleanup_process, 'group_alive', lambda _job: False)
+    monkeypatch.setattr(reconcile, 'group_alive', lambda *_args: False)
     monkeypatch.setattr(delivery_recovery, 'get_store', lambda: store)
     original_put = store.put
 

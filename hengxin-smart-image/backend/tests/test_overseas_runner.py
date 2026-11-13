@@ -137,6 +137,9 @@ def test_unknown_process_retains_slot_until_confirmed(execution, monkeypatch):
         assert session.get(Job, job_id).status == 'uncertain'
         assert not session.get(Job, job_id).process_exited
     monkeypatch.setattr(reconcile, 'same_process', lambda *args: False)
+    monkeypatch.setattr(reconcile, 'group_alive', lambda *args: True)
+    assert reconcile.reconcile_once(factory) == 0
+    monkeypatch.setattr(reconcile, 'group_alive', lambda *args: False)
     assert reconcile.reconcile_once(factory) == 1
     with factory() as session:
         assert session.get(Job, job_id).status == 'failed'

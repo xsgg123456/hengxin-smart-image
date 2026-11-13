@@ -6,26 +6,14 @@ from pathlib import Path
 from sqlalchemy import select
 from app.core.config import get_settings
 from app.execution.process import same_process
+from app.execution.process_group import group_alive as live_group
 from app.db.timestamps import utcnow
 from app.overseas.execution.models import Job, TERMINAL
 from .models import TaskDeletion
 
 
 def group_alive(job):
-    if os.name != 'posix' or not Path('/proc/sys/kernel/random/boot_id').is_file():
-        raise OSError('Process verification unavailable')
-    if Path('/proc/sys/kernel/random/boot_id').read_text().strip() != job.process_boot:
-        return False
-    for entry in Path('/proc').iterdir():
-        if not entry.name.isdecimal():
-            continue
-        try:
-            fields = (entry / 'stat').read_text().rsplit(')', 1)[1].split()
-        except (FileNotFoundError, ProcessLookupError):
-            continue
-        if fields[0] != 'Z' and int(fields[2]) == job.process_id:
-            return True
-    return False
+    return live_group(job.process_id, job.process_boot)
 
 
 def confirmed(session, task_id):

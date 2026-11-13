@@ -52,9 +52,9 @@ def verify(root, entries):
         raise ValueError('Skill cache is incomplete')
 
 
-def prepare(skill, workspace, get_store):
+def prepare(skill, workspace, get_store, *, describe_content=describe):
     root = owner(workspace)
-    name, entries, read = describe(skill, get_store, workspace)
+    name, entries, read = describe_content(skill, get_store, workspace)
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,99}', name) or 'SKILL.md' not in entries:
         raise ValueError('Invalid frozen Skill identity')
     identity = hashlib.sha256(json.dumps([name, entries], sort_keys=True,

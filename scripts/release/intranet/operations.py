@@ -1,5 +1,6 @@
 """Small LAN adapters for backups, static compatibility and web-only switching."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -7,6 +8,11 @@ import subprocess
 import tarfile
 
 from snapshot import database, sha
+
+
+def file_sha(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
 def keep_assets(u, previous, candidate):
@@ -43,27 +49,28 @@ def keep_assets(u, previous, candidate):
     u.write(path, (json.dumps(m, indent=2) + '\n').encode(), mode=0o644)
 
 
-def backup(u, work, scope=None):
+def backup(u, work, scope=None, pass_fds=()):
     folder = work / 'data-backup'
     if folder.exists():
         raise RuntimeError('Backup directory already exists; inspect transaction')
     folder.mkdir(mode=0o700)
     report = {}
+    inherit = {'pass_fds': pass_fds} if pass_fds else {}
     for side in (('domestic', 'overseas') if scope is None else () if scope == 'shared' else (scope,)):
         name, user, db = database(u, side)
         path = folder / (side + '.dump')
         with path.open('xb') as stream:
             os.chmod(path, 0o600)
             result = subprocess.run(['docker', 'exec', name, 'pg_dump', '-U', user, '-d', db, '-Fc'],
-                                    stdout=stream, stderr=subprocess.PIPE, timeout=300)
+                                    stdout=stream, stderr=subprocess.PIPE, timeout=300, **inherit)
         if result.returncode:
             raise RuntimeError('Database backup failed: ' + side)
         with path.open('rb') as stream:
             result = subprocess.run(['docker', 'exec', '-i', name, 'pg_restore', '--list'],
-                                    stdin=stream, capture_output=True, timeout=120)
+                                    stdin=stream, capture_output=True, timeout=120, **inherit)
         if result.returncode:
             raise RuntimeError('Database backup verification failed: ' + side)
-        report[side] = {'bytes': path.stat().st_size, 'sha256': sha(path.read_bytes())}
+        report[side] = {'bytes': path.stat().st_size, 'sha256': file_sha(path)}
     if scope in (None, 'shared'):
         path = folder / 'accounts-config.tar'
         with path.open('xb') as stream:
@@ -71,7 +78,7 @@ def backup(u, work, scope=None):
             with tarfile.open(fileobj=stream, mode='w') as archive:
                 for name in ('/home/codex/account-management', '/home/codex/auth', '/etc/hengxin-lan'):
                     archive.add(name, arcname=name.lstrip('/'))
-        report['accounts_config'] = sha(path.read_bytes())
+        report['accounts_config'] = file_sha(path)
     u.write(folder / 'verified.json', json.dumps(report).encode(), exclusive=True)
 
 

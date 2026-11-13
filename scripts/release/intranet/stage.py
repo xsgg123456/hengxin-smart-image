@@ -68,6 +68,8 @@ def main():
     store = retention_store(Path('/var/lib/hengxin-release'))
     engine.u.safe(store.root)
     with store.locked():
+        import joint_studio_marker
+        joint_studio_marker.guard(engine.u, store)
         tool = Release(store)
         marker = store.root/'intranet-split-migration.json'
         if marker.exists():

@@ -14,7 +14,6 @@ from app.overseas.execution.models import Job, TERMINAL
 from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.models import Task, TaskDeletion
 from app.storage.minio_store import get_store
-from .files import read
 from .models import Conversation, Turn
 
 
@@ -63,7 +62,7 @@ def recover(factory, conversation_id, *, expected_digest=None, apply=False):
             if not expected_digest or expected_digest != plan['digest']:
                 raise ValueError('Recovery source digest changed; inspect again')
             workspace.maintenance_recovery = True
-            prepare(workspace, history, [], lambda data: read(get_store(), SimpleNamespace(**data)))
+            prepare(workspace, history, [], lambda data: get_store().open(SimpleNamespace(**data)))
         return dict(status='restored' if apply else 'inspected', taskId=str(task.id),
             conversationId=str(channel.id), sessionId=channel.session_id, plan=plan)
 

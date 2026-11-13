@@ -1,10 +1,12 @@
 """Run with python -m app.modules.api_image_edits.outbox; no CLI queue dependencies."""
 from datetime import timedelta
-import time
+import signal
+import threading
 
 from sqlalchemy import select
 
 from app.models import utcnow
+from app.execution.release_gate import wait_for_workers
 from .config import get_api_settings
 from .models import ApiDispatch, ApiTask
 
@@ -30,13 +32,18 @@ def dispatch_once(factory, publish):
 def main():
     from app.db.session import session_factory
     from .celery_app import execute
-    while True:
+    stopped = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stopped.set())
+    while not stopped.is_set():
+        if not wait_for_workers(stopped):
+            break
         try:
             dispatch_once(session_factory(), lambda: execute.delay())
         except Exception:
             # No raw broker/DB exceptions: URLs can contain passwords.
             pass
-        time.sleep(1)
+        stopped.wait(1)
 
 
 if __name__ == '__main__':

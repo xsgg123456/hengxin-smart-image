@@ -1,0 +1,12 @@
+/* Match the overseas StudioTurns / studio.css message layout, within this preview. */
+.domestic-chat-message{display:block;margin:0 0 16px;min-width:0;max-width:100%}
+.domestic-message-name{font-size:13px;font-weight:600;margin-bottom:6px;overflow-wrap:anywhere;line-height:1.7}
+.domestic-message-name small,.domestic-message-name time{display:inline-block;max-width:100%;margin-left:8px;color:var(--art-gray-500);font-size:11px;font-weight:400}
+.domestic-message-bubble{font-size:14px;line-height:1.8;overflow-wrap:anywhere}
+.domestic-message-bubble>p{margin:4px 0;white-space:pre-wrap}
+.domestic-chat-message.user{margin-left:auto;max-width:85%;width:fit-content}
+.domestic-chat-message.user .domestic-message-name{text-align:right}
+.domestic-chat-message.user .domestic-message-bubble{background:var(--el-color-primary-light-9);padding:10px 14px;border-radius:10px}
+.domestic-chat-message.assistant{margin-right:auto}
+.domestic-chat-message .message-assets{margin-top:10px}
+@media(max-width:760px){.domestic-chat-message.user{max-width:100%}}

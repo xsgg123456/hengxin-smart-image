@@ -38,7 +38,7 @@ class Selection(BaseModel):
 class NativeRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     id: UUID
-    operation: Literal['available', 'receive']
+    operation: Literal['available', 'receive', 'archive']
     actor_id: UUID
     task_id: UUID
     conversation_id: UUID
@@ -57,16 +57,16 @@ def connection():
         socket_connect_timeout=1, socket_timeout=1, retry=Retry(NoBackoff(), 0))
 
 
-def request(operation, actor_id, task_id, conversation_id, files=()):
+def request(operation, actor_id, task_id, conversation_id, files=(), *, prefix=PREFIX):
     """No DB transaction or filesystem access is retained while waiting."""
     message = NativeRequest(id=uuid4(), operation=operation, actor_id=actor_id,
         task_id=task_id, conversation_id=conversation_id,
         expires_at=time.time() + WAIT_SECONDS,
         files=[item.model_dump() for item in files])
-    request_key, response_key = PREFIX + 'request:' + str(message.id), PREFIX + 'response:' + str(message.id)
+    request_key, response_key = prefix + 'request:' + str(message.id), prefix + 'response:' + str(message.id)
     try:
         with connection() as client:
-            if not client.eval(ENQUEUE, 2, QUEUE, request_key, str(message.id),
+            if not client.eval(ENQUEUE, 2, prefix + 'pending', request_key, str(message.id),
                                message.model_dump_json(), MAX_PENDING, TTL):
                 raise HTTPException(503, UNAVAILABLE)
             deadline = time.monotonic() + WAIT_SECONDS
@@ -98,6 +98,8 @@ def handle_native(factory, message, store=None):
         with factory.begin() as session:
             return recovery_files.available(session, SimpleNamespace(id=message.actor_id),
                 message.task_id, message.conversation_id)
+    if message.operation != 'receive':
+        raise HTTPException(422, '不支持的文件取回操作')
     if store is None:
         from app.storage.minio_store import get_store
         store = get_store()
@@ -105,15 +107,16 @@ def handle_native(factory, message, store=None):
         message.conversation_id, message.files, store)
 
 
-def consume_once(factory):
+def consume_once(factory, *, prefix=PREFIX, handler=None):
     """At most one request per maintenance pass; broken requests never stop outbox."""
+    handler = handler or handle_native
     try:
         with connection() as client:
-            identity = client.lpop(QUEUE)
+            identity = client.lpop(prefix + 'pending')
             if identity is None:
                 return False
             identity = str(UUID(identity))
-            key = PREFIX + 'request:' + identity
+            key = prefix + 'request:' + identity
             raw = client.get(key)
             client.delete(key)
             if raw is None:
@@ -122,12 +125,12 @@ def consume_once(factory):
             if str(message.id) != identity or message.expires_at <= time.time():
                 return False
             try:
-                response = dict(status=200, result=handle_native(factory, message))
+                response = dict(status=200, result=handler(factory, message))
             except HTTPException as exc:
                 response = dict(status=exc.status_code, detail=exc.detail)
             except Exception:
                 response = dict(status=503, detail=UNAVAILABLE)
-            client.set(PREFIX + 'response:' + identity, json.dumps(response), ex=TTL)
+            client.set(prefix + 'response:' + identity, json.dumps(response), ex=TTL)
             return True
     except Exception:
         logging.warning('Native file recovery unavailable; refresh to retry')

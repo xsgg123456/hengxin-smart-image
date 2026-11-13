@@ -52,7 +52,7 @@ class StudioProtocol:
         workspace.baseline = snapshot_outputs(home, previous) if previous else {}
         from .context_workspace import prepare
         workspace.input_paths = prepare(workspace, history, job.payload['inputs'],
-            lambda data: read(get_store(), SimpleNamespace(**data)))
+            lambda data: get_store().open(SimpleNamespace(**data)))
         from .native_images import snapshot
         workspace.native_cursor = snapshot(workspace.home, previous)
         workspace.delivered_images = delivered

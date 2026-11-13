@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from app.core.config import get_business_context, get_settings
 from app.errors import register_errors
 from app.http_timing import HttpTimingMiddleware
+from app.execution.release_gate import ReleaseGateMiddleware
 
 if get_business_context() != 'overseas':
     raise RuntimeError('Overseas entry requires HX_BUSINESS_CONTEXT=overseas')
@@ -21,6 +22,7 @@ from app.overseas.drafts.worker import lifespan
 app = FastAPI(title='恒鑫智图 · 海外业务 API', version='0.1.0', lifespan=lifespan)
 register_errors(app)
 app.add_middleware(HttpTimingMiddleware)
+app.add_middleware(ReleaseGateMiddleware)
 
 
 app.include_router(router)

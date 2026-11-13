@@ -96,13 +96,19 @@ def enumerate_delivery(workspace, summary):
     return selected, proven, warnings
 
 
-def collect_reference(workspace, summary, target, logical, proven):
-    """Read one selected file; callers can persist successes and retry failures."""
+def reference_path(workspace, summary, logical):
+    """Resolve one explicitly selected, conversation-owned local file."""
     if not summary.turn_completed or summary.error:
         raise OutputCollectionError('final_delivery_uncertain')
     canonical = _canonical(logical, summary.session_id)
     root = _root(workspace.home / '.codex', summary.session_id)
     path, _ = _local_file(canonical, workspace.work, workspace.home / '.codex', root, {})
+    return canonical, path
+
+
+def collect_reference(workspace, summary, target, logical, proven):
+    """Read one selected file; callers can persist successes and retry failures."""
+    canonical, path = reference_path(workspace, summary, logical)
     data = _safe_read(path, MAX_UPLOAD_BYTES, allow_windows_fallback=True)
     image = validated(data, path.name)
     if canonical in proven and image.checksum != proven[canonical]:

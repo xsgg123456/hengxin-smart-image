@@ -2,13 +2,15 @@
 import hashlib
 import json
 import re
+from dataclasses import asdict
+from app.execution.bounded_read import read_bounded
 from pathlib import Path, PurePosixPath
 from uuid import NAMESPACE_URL, uuid5
 
 from app.overseas.upload_limits import MAX_UPLOAD_BYTES
 from . import context_fs as fs
 from .native_images import MAX_IMAGES
-from .output_files import validated
+from .output_files import FileMetadata, FileRef, inspect_stream, validated
 
 MAX_MANIFEST_BYTES = 32 * 1024 * 1024
 IDENTITY_KEYS = {'jobId', 'taskId', 'turnId', 'conversationId', 'sessionId'}
@@ -48,8 +50,9 @@ def picture_id(identity, target):
 
 
 def metadata(identity, target, image):
+    size = image.size_bytes if isinstance(image, FileMetadata) else len(image.data)
     return dict(pictureId=picture_id(identity, target), checksum=image.checksum,
-                sizeBytes=len(image.data), name=image.name, contentType=image.content_type,
+                sizeBytes=size, name=image.name, contentType=image.content_type,
                 width=image.width, height=image.height)
 
 
@@ -104,10 +107,7 @@ def check_manifest(value):
 
 def read_bytes(path, limit):
     with fs.reader(path) as stream:
-        data = stream.read(limit + 1)
-    if len(data) > limit:
-        raise ValueError('Delivery snapshot exceeds resource limit')
-    return data
+        return read_bounded(stream, limit)
 
 
 def read_manifest(root):
@@ -143,6 +143,18 @@ def read_image(root, row):
             or image.height != row['height']):
         raise ValueError('Delivery snapshot metadata mismatch')
     return image
+
+
+def verify_file(root, row):
+    """Validate an immutable snapshot while keeping memory independent of its size."""
+    path = snapshot_path(root, row)
+    with fs.reader(path) as stream:
+        value = inspect_stream(stream, row['sizeBytes'], row['name'])
+    if (value.checksum != row['checksum'] or value.name != row['name']
+            or value.content_type != row['contentType'] or value.width != row['width']
+            or value.height != row['height']):
+        raise ValueError('Delivery snapshot metadata mismatch')
+    return FileRef(path=path, **asdict(value))
 
 
 def root_path(control, *, create=False):

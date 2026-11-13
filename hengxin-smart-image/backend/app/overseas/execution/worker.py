@@ -1,12 +1,14 @@
 """Separate broker context and queue; never imports the domestic worker."""
 from celery import Celery
 from app.core.config import get_settings
+from app.execution.release_gate import guard_celery
 from app.overseas.db import require_overseas_context, session_factory
 from .runner import run
 
 require_overseas_context()
 settings = get_settings()
 celery_app = Celery('hengxin-overseas', broker=settings.redis_url)
+guard_celery(celery_app)
 celery_app.conf.update(
     task_default_queue='overseas.cli', task_acks_late=True,
     task_reject_on_worker_lost=True, worker_prefetch_multiplier=1,

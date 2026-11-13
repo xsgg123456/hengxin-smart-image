@@ -28,8 +28,8 @@ async def parse_body(request, model):
         raise HTTPException(422, '文件夹清单或操作参数无效，请检查路径、数量、大小及校验值') from None
 
 
-async def request(method, path, actor, *, body=None, content=None, params=None, key=None):
-    transport = httpx.AsyncHTTPTransport(uds=os.environ.get('HX_SKILL_PUBLISH_SOCKET', SOCKET_DEFAULT))
+async def request(method, path, actor, *, body=None, content=None, params=None, key=None, socket_path=None):
+    transport = httpx.AsyncHTTPTransport(uds=socket_path or os.environ.get('HX_SKILL_PUBLISH_SOCKET', SOCKET_DEFAULT))
     try:
         async with httpx.AsyncClient(transport=transport, timeout=180, trust_env=False) as client:
             response = await client.request(method, 'http://publisher' + path,

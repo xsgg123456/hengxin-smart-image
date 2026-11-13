@@ -14,12 +14,12 @@ test('缩略图预览检查失败后，实际图片组件仍按原件地址独�
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { body: { appendChild() {} }, createElement: () => ({ href: '', download: '', click() { downloads.push(this.href) }, remove() {} }) } })
   const asset = { id: 'upload:a', name: '损坏预览.jpg', contentType: 'image/jpeg', sizeBytes: 100, url: '/api/overseas/v1/tasks/task/studio/files/a/content', source: 'upload' }
   const fetcher: typeof fetch = async (url, options) => { requests.push(String(url)); assert.equal(options?.method, 'HEAD'); return new Response(null, { status: String(url).includes('preview=true') ? 503 : 200 }) }
-  const component = compile('views/overseas/studio/StudioAssetImage.vue', {
+  const component = compile('views/shared/studio/StudioAssetImage.vue', {
     './studio-images': { imageUrl, thumbnailUrl, isImage, checkImage: (...args: Parameters<typeof checkImage>) => checkImage(args[0], args[1], fetcher) },
     './use-image-viewer': { useImageViewer },
     '@/api/identity/request': { IdentityError },
-    '@/api/overseas/image-cache': { overseasImageCache },
-    '@/api/overseas/attachment-download': { downloadAttachment: (...args: Parameters<typeof downloadAttachment>) => downloadAttachment(args[0], args[1], args[2], fetcher) }
+    '@/api/shared/image-cache': { overseasImageCache },
+    '@/api/shared/attachment-download': { downloadAttachment: (...args: Parameters<typeof downloadAttachment>) => downloadAttachment(args[0], args[1], args[2], fetcher) }
   })
   Object.assign(component, { components: { ElImage: defineComponent({ setup(_props, { attrs, slots }) { return () => h('image', attrs, slots.error?.()) } }) } })
   const view = mount(component, { asset, group: [asset], title: '图片' })

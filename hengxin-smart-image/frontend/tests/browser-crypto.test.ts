@@ -4,8 +4,8 @@ import { createHash, webcrypto } from 'node:crypto'
 import { randomUUID, sha256 } from '../src/utils/browser-crypto'
 import { createRequestKeys } from '../src/api/overseas/tasks'
 import { broadcastLogout } from '../src/api/hengxin/identity-lifecycle'
-import { scanFolder } from '../src/views/overseas/admin/skill-folder-read'
-import { prepareFolderSave, verifyFolder, writeFolder } from '../src/views/overseas/admin/skill-folder-save'
+import { scanFolder } from '../src/views/shared/skills/skill-folder-read'
+import { prepareFolderSave, verifyFolder, writeFolder } from '../src/views/shared/skills/skill-folder-save'
 import { dirNode, fileNode, MemoryDirectory } from './skill-folders-fixture'
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/

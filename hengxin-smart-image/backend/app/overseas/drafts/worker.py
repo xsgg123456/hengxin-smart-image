@@ -6,6 +6,7 @@ from threading import Event, Thread
 from types import SimpleNamespace
 from uuid import uuid4
 from app.core.config import get_settings
+from app.execution.release_gate import ENVIRONMENT, wait_for_workers
 from app.overseas.db import session_factory
 from app.storage.minio_store import get_store
 from . import queue
@@ -64,6 +65,8 @@ def run_job(factory, store, job):
 
 def loop(stop):
     while not stop.is_set():
+        if not wait_for_workers(stop):
+            break
         try:
             factory = session_factory()
             job = queue.claim(factory)
@@ -91,4 +94,4 @@ async def lifespan(app):
         # In-flight jobs keep heartbeating until process exit; a new process can
         # reclaim after the bounded lease, never while the original lease is live.
         for thread in threads:
-            thread.join(timeout=1)
+            thread.join(timeout=None if os.environ.get(ENVIRONMENT) else 1)

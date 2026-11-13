@@ -1,10 +1,14 @@
 """Authenticated image representations; callers authorize and capture records first."""
 from hashlib import sha256
+from tempfile import SpooledTemporaryFile
 from urllib.parse import quote
 from fastapi import HTTPException, Response
+from app.execution.bounded_read import copy_verified, read_bounded
+from app.modules.files.streaming import OwnedStreamResponse
 from app.overseas.upload_limits import MAX_UPLOAD_BYTES
 
 IMAGE_TYPES = ('image/jpeg', 'image/png', 'image/webp')
+MEMORY_ORIGINAL_LIMIT = 8 * 1024 * 1024
 
 
 def original_bytes(store, record, limit=MAX_UPLOAD_BYTES):
@@ -13,7 +17,7 @@ def original_bytes(store, record, limit=MAX_UPLOAD_BYTES):
         if record.size_bytes > limit:
             raise HTTPException(413, '图片超过处理大小限制')
         stream = store.open(record)
-        data = stream.read(limit + 1)
+        data = read_bounded(stream, record.size_bytes)
         if len(data) != record.size_bytes or sha256(data).hexdigest() != record.checksum:
             raise ValueError('Image integrity failure')
         return data
@@ -27,6 +31,27 @@ def original_bytes(store, record, limit=MAX_UPLOAD_BYTES):
                 stream.close()
             finally:
                 stream.release_conn()
+
+
+def original_file(store, record):
+    """Verify a large original before responding, using bounded memory."""
+    if record.size_bytes > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, '图片超过处理大小限制')
+    output = SpooledTemporaryFile(max_size=MEMORY_ORIGINAL_LIMIT)
+    try:
+        stream = store.open(record)
+        try:
+            copy_verified(stream, output, record.size_bytes, record.checksum)
+        finally:
+            try:
+                stream.close()
+            finally:
+                stream.release_conn()
+        output.seek(0)
+    except Exception:
+        output.close()
+        raise HTTPException(503, '图片读取或完整性校验失败') from None
+    return output
 
 
 def matches(value, etag):
@@ -62,5 +87,7 @@ def deliver(store, record, *, head=False, preview=False, thumbnail=False, if_non
     if head:
         return Response(media_type=content_type, headers=headers)
     if data is None:
+        if size > MEMORY_ORIGINAL_LIMIT:
+            return OwnedStreamResponse(original_file(store, record), media_type=content_type, headers=headers)
         data = original_bytes(store, record)
     return Response(data, media_type=content_type, headers=headers)

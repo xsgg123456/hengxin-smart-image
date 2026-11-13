@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { SkillPackage } from '../src/api/overseas/skill-transfers'
-import { scanFolder } from '../src/views/overseas/admin/skill-folder-read'
-import { prepareFolderSave, verifyFolder, writeFolder, type LocalFile } from '../src/views/overseas/admin/skill-folder-save'
+import { scanFolder } from '../src/views/shared/skills/skill-folder-read'
+import { prepareFolderSave, verifyFolder, writeFolder, type LocalFile } from '../src/views/shared/skills/skill-folder-save'
 import { dirNode, fileNode, MemoryDirectory, MemoryFile } from './skill-folders-fixture'
 
 async function fixture() {

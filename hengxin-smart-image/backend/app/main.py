@@ -10,6 +10,7 @@ if get_business_context() != 'domestic':
 from app.contracts.business import ApiErrorBody
 from app.errors import register_errors
 from app.http_timing import HttpTimingMiddleware
+from app.execution.release_gate import ReleaseGateMiddleware
 from app.health import router as health_router
 from app.jobs import router as jobs_router
 from app.modules.auth.dev_identity import seed_dev_identity
@@ -25,6 +26,9 @@ from app.modules.management.settings_router import router as settings_router
 from app.modules.management.retention_router import router as retention_router
 from app.modules.api_image_edits.router import router as api_image_router
 from app.modules.api_image_edits.conversation_router import router as conversation_router
+from app.modules.domestic_studio.management_router import router as domestic_studio_management_router
+from app.modules.domestic_studio.router import router as domestic_studio_router
+from app.modules.domestic_studio.archive_router import router as domestic_studio_archive_router
 from app.account_management.router import router as codex_account_router
 
 
@@ -40,6 +44,7 @@ app = FastAPI(title="恒信智能影像 API", version="0.1.0", lifespan=lifespan
 })
 register_errors(app)
 app.add_middleware(HttpTimingMiddleware)
+app.add_middleware(ReleaseGateMiddleware)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
@@ -54,4 +59,7 @@ app.include_router(settings_router, prefix="/api/v1")
 app.include_router(retention_router, prefix="/api/v1")
 app.include_router(api_image_router, prefix="/api/v1")
 app.include_router(conversation_router, prefix="/api/v1")
+app.include_router(domestic_studio_management_router, prefix="/api/v1")
+app.include_router(domestic_studio_router, prefix="/api/v1")
+app.include_router(domestic_studio_archive_router, prefix="/api/v1")
 app.include_router(codex_account_router, prefix="/api/v1")

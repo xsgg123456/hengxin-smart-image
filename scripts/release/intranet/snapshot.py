@@ -132,6 +132,9 @@ def capture(u, runtime=False):
 def capture_for(u, data, runtime=False):
     if data.get('version') == 2:
         from scope_snapshot import capture as scoped_capture
+        from scopes import has_domestic_publisher
+        if has_domestic_publisher(data['current']):
+            return scoped_capture(u, runtime=runtime, domestic_publisher=True)
         return scoped_capture(u, runtime=runtime)
     return capture(u, runtime=runtime)
 

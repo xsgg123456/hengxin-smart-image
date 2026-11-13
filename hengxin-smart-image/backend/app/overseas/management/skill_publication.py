@@ -44,14 +44,18 @@ def finish(store, session, pending, audit):
     sync_directory(store.installed_root)
 
 
-def recover(store, session):
+def recover(store, session, *, audit_model=Audit, gate=lock_gate):
     """Caller holds the publisher lock; DB gate excludes new round admission."""
     journal = store.installed_root / '.pending.json'
     if not journal.exists():
+        from .skill_initialization import needs_recovery, recover as recover_initialization
+        if needs_recovery(store.installed_root):
+            gate(session)
+            recover_initialization(store.installed_root, store.protected)
         return
-    lock_gate(session)
+    gate(session)
     pending = json.loads(read_file(journal, protected=store.protected))
-    audit = session.get(Audit, UUID(pending['audit']))
+    audit = session.get(audit_model, UUID(pending['audit']))
     release = pending['after'] if audit else pending['before']
     pointer = store.installed_root / 'current.json'
     if release:
@@ -73,26 +77,27 @@ def recover(store, session):
     session.commit()
 
 
-def committed_transfer(session, actor_id, transfer_id):
-    rows = session.scalars(select(Audit).where(Audit.actor_id == actor_id,
-        Audit.action.in_(['skill.install', 'skill.update'])).order_by(Audit.created_at.desc()))
+def committed_transfer(session, actor_id, transfer_id, *, audit_model=Audit):
+    rows = session.scalars(select(audit_model).where(audit_model.actor_id == actor_id,
+        audit_model.action.in_(['skill.install', 'skill.update'])).order_by(audit_model.created_at.desc()))
     return next((row for row in rows if row.after.get('transferId') == transfer_id), None)
 
 
-def transfer_status(store, session, state):
+def transfer_status(store, session, state, *, audit_model=Audit):
     if state['status'] != 'installed':
-        prior = committed_transfer(session, UUID(state['actor']), state['id'])
+        prior = committed_transfer(session, UUID(state['actor']), state['id'], audit_model=audit_model)
         if prior:
             state.update(status='installed', release=prior.after['release'], error=None)
             store.save(state)
     return state
 
 
-def switch(store, session, actor, action, name, before, after, release, cleanup_plan=None):
+def switch(store, session, actor, action, name, before, after, release, cleanup_plan=None, *,
+           audit_model=Audit, gate=lock_gate):
     identifier = uuid4()
     root = store.installed_root
     previous, _ = catalog.read_catalog(root, store.protected)
-    audit = Audit(id=identifier, actor_id=actor.id, action=action, target=name, before=before, after=after)
+    audit = audit_model(id=identifier, actor_id=actor.id, action=action, target=name, before=before, after=after)
     session.add(audit)
     session.flush()
     pending = dict(audit=str(identifier), before=previous, after=release, cleanup=cleanup_plan)
@@ -102,7 +107,7 @@ def switch(store, session, actor, action, name, before, after, release, cleanup_
         session.commit()
     except BaseException:
         session.rollback()
-        recover(store, session)
+        recover(store, session, audit_model=audit_model, gate=gate)
         raise
     finish(store, session, pending, audit)
     return audit.after

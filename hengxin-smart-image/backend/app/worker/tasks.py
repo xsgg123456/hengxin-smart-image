@@ -46,6 +46,9 @@ def execute_job(job_id: str):
     elif kind == 'api_cli_edit':
         from app.modules.api_image_edits.conversation_runner import run_turn
         run_turn(job_id, factory)
+    elif kind == 'domestic_studio':
+        from app.modules.domestic_studio.runner import run_turn
+        run_turn(job_id, factory)
     elif kind is not None:
         from app.worker.leases import finish_job
         with factory.begin() as session:

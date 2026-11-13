@@ -18,7 +18,7 @@ from .skill_transfer_store import TransferStore
 RECOVERY_INTERVAL = 5
 
 
-def create_app(store, factory):
+def create_app(store, factory, *, publication=publication, allow_maintenance=True):
     lock = asyncio.Lock()
 
     @asynccontextmanager
@@ -80,6 +80,7 @@ def create_app(store, factory):
             with factory() as session:
                 publication.authorize(session, actor)
                 publication.recover(store, session)
+                publication.authorize(session, actor)  # Recovery may have committed and released its locks.
                 if body:
                     return store.create(body, actor, request.headers.get('Idempotency-Key'))
                 result = store.list(actor)
@@ -93,6 +94,7 @@ def create_app(store, factory):
             with factory() as session:
                 publication.authorize(session, actor)
                 publication.recover(store, session)
+                publication.authorize(session, actor)
                 state = publication.transfer_status(store, session, store.load(transfer_id, actor))
                 if request.method == 'DELETE':
                     return store.cancel(transfer_id, actor)
@@ -105,6 +107,7 @@ def create_app(store, factory):
             with factory() as session:
                 publication.authorize(session, actor)
                 publication.recover(store, session)
+                publication.authorize(session, actor)
                 publication.transfer_status(store, session, store.load(transfer_id, actor))
                 # Release the permission lock before streaming; installation rechecks authorization.
                 session.rollback()
@@ -118,6 +121,7 @@ def create_app(store, factory):
             with factory() as session:
                 publication.authorize(session, actor)
                 publication.recover(store, session)
+                publication.authorize(session, actor)
                 publication.transfer_status(store, session, store.load(transfer_id, actor))
                 return store.validate(transfer_id, actor)
 
@@ -128,6 +132,7 @@ def create_app(store, factory):
         async with lock:
             try:
                 with factory() as session:
+                    publication.authorize(session, actor)
                     publication.recover(store, session)
                     return publication.install(store, session, actor, str(transfer_id), body.baseRelease)
             except (ValueError, OSError, HTTPException) as error:
@@ -147,12 +152,15 @@ def create_app(store, factory):
         body = await parse_body(request, SkillDelete)
         async with lock:
             with factory() as session:
+                publication.authorize(session, actor)
                 publication.recover(store, session)
                 return publication.delete(store, session, actor, str(skill_id), body)
 
     @app.post('/maintenance/reclaim')
     async def reclaim(request: Request):
         # This private UDS route has no corresponding public API/proxy route.
+        if not allow_maintenance:
+            raise HTTPException(404, '操作不可用')
         from .skill_maintenance import reclaim as run
         actor = actor_id(request)
         body = await parse_body(request, SkillReclaim)
@@ -164,20 +172,18 @@ def create_app(store, factory):
     return app
 
 
-def main():
+def serve(store, app, path):
+    """Run one root-owned publisher on its approved local socket."""
     import fcntl
     import stat
     import uvicorn
     if os.geteuid() != 0:
         raise RuntimeError('Skill publisher must run as root')
     os.umask(0o022)
-    root, protected = root_config()
-    store = TransferStore(os.environ.get('HX_SKILL_TRANSFER_ROOT',
-                          '/var/lib/hengxin-overseas/skill-transfers'), root, protected)
     # A process-wide advisory lock prevents multiple services publishing simultaneously.
     with (store.path / '.publisher.lock').open('a') as process_lock:
         fcntl.flock(process_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        path = Path(os.environ.get('HX_SKILL_PUBLISH_SOCKET', SOCKET_DEFAULT))
+        path = Path(path)
         if not path.is_absolute():
             raise ValueError('Publisher socket must be absolute')
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
@@ -195,12 +201,22 @@ def main():
         os.chmod(path, 0o660)
         listener.listen(128)
         try:
-            server = uvicorn.Server(uvicorn.Config(create_app(store, session_factory()),
+            server = uvicorn.Server(uvicorn.Config(app,
                 access_log=False, log_level='info', timeout_keep_alive=5))
             server.run(sockets=[listener])
         finally:
             listener.close()
             path.unlink(missing_ok=True)
+
+
+def main():
+    if os.geteuid() != 0:
+        raise RuntimeError('Skill publisher must run as root')
+    os.umask(0o022)
+    root, protected = root_config()
+    store = TransferStore(os.environ.get('HX_SKILL_TRANSFER_ROOT',
+                          '/var/lib/hengxin-overseas/skill-transfers'), root, protected)
+    serve(store, create_app(store, session_factory()), os.environ.get('HX_SKILL_PUBLISH_SOCKET', SOCKET_DEFAULT))
 
 
 if __name__ == '__main__':

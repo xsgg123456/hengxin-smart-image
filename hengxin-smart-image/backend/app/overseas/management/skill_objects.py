@@ -87,6 +87,8 @@ def copy_object(root, item, source, protected):
 def prepare_release(root, items, replacement_sources=None, *, protected=False):
     """Caller serializes publication and owns pointer/DB transactions and GC."""
     root = safe_directory(Path(root), protected=protected)
+    from .skill_initialization import recover
+    recover(root, protected)
     previous, old_items = catalog.read_catalog(root, protected)
     if previous is None:
         # Any later copy failure still leaves a valid, explicitly empty catalog.

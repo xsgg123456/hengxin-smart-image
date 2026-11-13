@@ -1,5 +1,5 @@
-import { type FolderNode } from '../src/views/overseas/admin/skill-folder-read'
-import { type LocalDirectory, type LocalFile } from '../src/views/overseas/admin/skill-folder-save'
+import { type FolderNode } from '../src/views/shared/skills/skill-folder-read'
+import { type LocalDirectory, type LocalFile } from '../src/views/shared/skills/skill-folder-save'
 export const skillSource = '---\nname: fixture\ndescription: 完整目录测试\n---\n# 测试技能\n'
 export function fileNode(name: string, bytes: BlobPart = skillSource): FolderNode {
   return { name, isDirectory: false, isFile: true, file: resolve => resolve(new File([bytes], name)) }

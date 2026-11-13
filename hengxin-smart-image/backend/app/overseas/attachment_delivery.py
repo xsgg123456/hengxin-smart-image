@@ -5,7 +5,7 @@ from app.modules.files.streaming import OwnedStreamResponse
 from app.overseas import image_delivery
 
 
-def deliver(store, record, *, head=False, preview=False, thumbnail=False, if_none_match=None):
+def deliver(store, record, *, head=False, preview=False, thumbnail=False, if_none_match=None, verify_content=False):
     if record.content_type in image_delivery.IMAGE_TYPES or thumbnail:
         return image_delivery.deliver(store, record, head=head, preview=preview,
                                       thumbnail=thumbnail, if_none_match=if_none_match)
@@ -22,7 +22,14 @@ def deliver(store, record, *, head=False, preview=False, thumbnail=False, if_non
             raise ValueError('Original size mismatch')
         if head:
             return Response(media_type=record.content_type, headers=headers)
-        stream = store.open(record)
+        stream = None if verify_content else store.open(record)
     except Exception:
         raise HTTPException(503, '原件不存在或存储暂时不可用，请稍后重试') from None
+    if verify_content:
+        try:
+            stream = image_delivery.original_file(store, record)
+        except HTTPException as error:
+            if error.status_code == 413:
+                raise
+            raise HTTPException(503, '归档附件读取或完整性校验失败，请联系管理员') from None
     return OwnedStreamResponse(stream, media_type=record.content_type, headers=headers)

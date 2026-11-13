@@ -53,3 +53,22 @@ def test_disconnect_before_and_during_iteration_closes_all(fail_after):
     assert source.closed
 
 
+@pytest.mark.parametrize('fail_after', [0, 2])
+def test_disconnect_closes_plain_file_stream(fail_after):
+    source = BytesIO(b'a' * 1024 * 1024)
+    response = OwnedStreamResponse(source, media_type='application/octet-stream')
+    sent = 0
+    async def send(_message):
+        nonlocal sent
+        sent += 1
+        if sent > fail_after:
+            raise OSError('client disconnected')
+    async def receive():
+        return {'type': 'http.disconnect'}
+    async def run():
+        with pytest.raises(Exception):
+            await response({'type': 'http', 'asgi': {'spec_version': '2.4'}}, receive, send)
+    asyncio.run(run())
+    assert source.closed
+
+

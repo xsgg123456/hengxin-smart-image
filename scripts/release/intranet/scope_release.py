@@ -5,6 +5,7 @@ import engine
 import scope_changes
 import scope_engine
 import scope_snapshot
+import scopes
 import snapshot
 
 
@@ -30,7 +31,8 @@ def candidate(u, data, before, release, mode, scope, rollback=False):
 
 def phase(action, item):
     with scope_engine.context(item['scope'], item['mode'],
-                              backend=Path(item['target_backend']), frontend=Path(item['target_frontend'])):
+                              backend=Path(item['target_backend']), frontend=Path(item['target_frontend']),
+                              domestic_publisher=scopes.has_domestic_publisher(item['before'])):
         return getattr(engine, action)()
 
 

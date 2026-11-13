@@ -3,8 +3,10 @@ import hashlib
 import json
 import os
 import re
+from io import BytesIO
 from pathlib import Path
 
+from app.execution.bounded_read import copy_verified
 from . import context_fs as fs
 
 FIELDS = ('id', 'name', 'bucket', 'object_key', 'content_type', 'size_bytes', 'checksum')
@@ -96,10 +98,19 @@ def restore(root, manifest, candidates, read_source, *, reserve=0):
                 content = read_source(dict(item))
             except Exception as exc:
                 raise ValueError('原件恢复失败：' + item['name']) from exc
-            if (not isinstance(content, bytes) or len(content) != item['size_bytes']
-                    or hashlib.sha256(content).hexdigest() != item['checksum']):
-                raise ValueError('原件恢复校验失败：' + item['name'])
-            fs.write(target, content)
+            stream = BytesIO(content) if isinstance(content, bytes) else content
+            try:
+                with fs.writer(target) as output:
+                    copy_verified(stream, output, item['size_bytes'], item['checksum'])
+            except Exception as exc:
+                raise ValueError('原件恢复校验失败：' + item['name']) from exc
+            finally:
+                if callable(getattr(stream, 'close', None)):
+                    try:
+                        stream.close()
+                    finally:
+                        if callable(getattr(stream, 'release_conn', None)):
+                            stream.release_conn()
     for target, entry in aliases:
         if entry is None:
             if os.path.lexists(target):

@@ -2,9 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
 import { unzipSync } from 'fflate'
-import { buildSkillZip } from '../src/views/overseas/admin/skill-folder-zip'
-import { scanFolder } from '../src/views/overseas/admin/skill-folder-read'
-import * as Save from '../src/views/overseas/admin/skill-folder-save'
+import { buildSkillZip } from '../src/views/shared/skills/skill-folder-zip'
+import { scanFolder } from '../src/views/shared/skills/skill-folder-read'
+import * as Save from '../src/views/shared/skills/skill-folder-save'
 import * as Transfers from '../src/api/overseas/skill-transfers'
 import { IdentityError } from '../src/api/identity/request'
 import { formatAttachmentSize } from '../src/api/overseas/attachment-download'
@@ -48,8 +48,8 @@ test('ZIP 拒绝损坏内容、网络中断、危险路径和过量数据，不�
 
 test('HTTP 真实保存组件使用 ZIP，成功仅告知已发起下载，失败不误报和不删除远端', async () => {
   const f = await fixture(); let fail = true, downloads = 0, packages = 0
-  const component = compile('views/overseas/admin/SkillFolderActions.vue', {
-    '@/api/overseas/skill-transfers': Transfers, '@/api/identity/request': { IdentityError }, '@/api/overseas/attachment-download': { formatAttachmentSize },
+  const component = compile('views/shared/skills/SkillFolderActions.vue', {
+    '@/api/shared/skill-transfers': Transfers, '@/api/identity/request': { IdentityError }, '@/utils/attachment-size': { formatAttachmentSize },
     './skill-folder-save': { ...Save, supportsDirectorySave: () => false, chooseParent: () => { throw Error('不应打开目录选择器') } },
     './skill-folder-zip': { downloadSkillZip: async (...args: Parameters<typeof buildSkillZip>) => { if (fail) throw Error('连接中断'); await buildSkillZip(...args); downloads++ } },
     'element-plus': { ElMessageBox: { confirm: () => { throw Error('不应删除远端') } } }
@@ -62,5 +62,22 @@ test('HTTP 真实保存组件使用 ZIP，成功仅告知已发起下载，失�
     fail = false; await clickSave(view.root)
     assert.equal(downloads, 1); assert.equal(packages, 2)
     assert.match(text(view.root), /已发起完整文件夹 ZIP 下载/); assert.doesNotMatch(text(view.root), /全部目录和文件已读回核验/)
+  } finally { view.close() }
+})
+
+test('国内模式即使浏览器支持目录选择也只提供 ZIP 下载', async () => {
+  const f = await fixture(); let downloads = 0
+  const component = compile('views/shared/skills/SkillFolderActions.vue', {
+    '@/api/shared/skill-transfers': Transfers, '@/api/identity/request': { IdentityError }, '@/utils/attachment-size': { formatAttachmentSize },
+    './skill-folder-save': { ...Save, supportsDirectorySave: () => true, chooseParent: () => { throw Error('国内不应打开目录选择器') } },
+    './skill-folder-zip': { downloadSkillZip: async (...args: Parameters<typeof buildSkillZip>) => { await buildSkillZip(...args); downloads++ } },
+    'element-plus': { ElMessageBox: { confirm: () => { throw Error('不应删除') } } }
+  })
+  const api = { ...f.api, package: async () => f.descriptor }
+  const view = mount(component, { skill: { id: 'skill' }, api, canManage: false, zipOnly: true })
+  try {
+    const button = all(view.root).find(n => n.tag === 'ElButton' && text(n) === '下载 ZIP')!
+    assert.ok(button); await (button.props.onClick as () => Promise<void>)(); await flush()
+    assert.equal(downloads, 1); assert.doesNotMatch(text(view.root), /保存为文件夹/)
   } finally { view.close() }
 })

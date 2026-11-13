@@ -226,6 +226,7 @@ def test_uncertain_stop_requires_worker_process_proof(files_env, monkeypatch, cl
     sweep(factory)
     post(client, path + '/conversation/turns/' + turn['id'] + '/stop')
     monkeypatch.setattr(conversation_stop, 'same_process', lambda *args: False)
+    monkeypatch.setattr(conversation_stop, 'group_alive', lambda *args: False)
     cli_enabled.enable_codex_executor = False
     runner.run_turn(job_id, factory, store)
     assert client.get(path + '/conversation').json()['turns'][0]['status'] == 'cancelled'
@@ -239,12 +240,13 @@ def test_cli_and_api_modes_share_item_mutex_in_both_directions(files_env):
     assert result.status_code == 409
 
 
-def test_cli_capacity_counts_existing_api_conversation_jobs(files_env):
+@pytest.mark.parametrize('kind', ['api_cli_edit', 'domestic_studio'])
+def test_cli_capacity_counts_existing_domestic_cli_jobs(files_env, kind):
     client, factory, _, _ = files_env
     _, _, path = setup_result(client, factory)
     turn = submit(client, path)
     with factory.begin() as session:
-        session.add(Job(id=uuid4(), kind='api_cli_edit', value='other-conversation', payload_hash='x' * 64,
+        session.add(Job(id=uuid4(), kind=kind, value='other-conversation', payload_hash='x' * 64,
                         idempotency_key='batch', status='running'))
         job_id = session.get(ConversationTurn, UUID(turn['id'])).job_id
     assert claim(factory, job_id) is None

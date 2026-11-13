@@ -1,9 +1,10 @@
 """Resolve uncertain cancellation on the owning worker, never on the API host."""
 import os
-import signal
 import time
 from app.core.config import get_settings
 from app.execution.process import same_process
+from app.execution.process_group import group_alive
+from app.execution.verified_stop import stopped
 from app.capacity.admission import published
 from .conversation_runtime import finish, locked
 
@@ -16,18 +17,8 @@ def stop_uncertain(factory, job_id):
         identity = turn.process_identity
         if not identity or identity.get('node') != get_settings().worker_node_name:
             return True  # No proof; retain fence for administrator investigation.
-    try:
-        args = (identity['pid'], identity['boot'], identity['birth'])
-        if same_process(*args):
-            os.killpg(identity['pid'], signal.SIGTERM)
-            for _ in range(25):
-                if not same_process(*args):
-                    break
-                time.sleep(.2)
-            if same_process(*args):
-                os.killpg(identity['pid'], signal.SIGKILL)
-                return True  # Next delivery verifies death before releasing capacity.
-    except (OSError, KeyError):
+    if not stopped(identity, get_settings().worker_node_name, inspect=same_process,
+                   group_alive=group_alive, kill=lambda pid, sig: os.killpg(pid, sig), sleep=time.sleep):
         return True
     with factory.begin() as session:
         _, _, conversation, turn, job = locked(session, job_id)

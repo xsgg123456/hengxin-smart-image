@@ -100,7 +100,8 @@ def bootstrap(u, store, data):
 def before(u, store, data):
     data = bootstrap(u, store, data)
     if data.get('version') == 2:
-        fleet, expected = image_gc.scoped(u), data['current']['images']
+        from scopes import has_domestic_publisher
+        fleet, expected = image_gc.scoped(u, has_domestic_publisher(data['current'])), data['current']['images']
     else:
         fleet, expected = u, data['retention']['current']['images']
     if image_gc.capture(fleet) != expected:

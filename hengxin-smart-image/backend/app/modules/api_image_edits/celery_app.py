@@ -2,11 +2,13 @@ import logging
 
 from celery import Celery
 from app.db import worker_budget  # noqa: F401 - register prefork/budget signals
+from app.execution.release_gate import guard_celery
 
 from .config import get_api_settings
 from . import worker_health  # noqa: F401 - API-only consumer heartbeat
 
 celery_app = Celery('api_image_edits', broker=get_api_settings().broker_url)
+guard_celery(celery_app)
 celery_app.conf.update(
     task_default_queue='api_image_edits', task_serializer='json', accept_content=['json'],
     task_ignore_result=True, task_acks_late=True, task_reject_on_worker_lost=True,

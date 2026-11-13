@@ -1,3 +1,4 @@
+import os
 from alembic import context
 from sqlalchemy import inspect
 
@@ -22,6 +23,11 @@ from app.modules.api_image_edits import conversation_models  # noqa: F401
 from app.retention import models as retention_models  # noqa: F401
 from app.modules.management.api_stats import models as api_usage_models  # noqa: F401
 from app.modules.api_image_edits import heartbeat_models  # noqa: F401
+from app.modules.domestic_studio import models as domestic_studio_models  # noqa: F401
+from app.modules.domestic_studio import skill_state as domestic_studio_skill_state  # noqa: F401
+from app.modules.domestic_studio import conversation_models as domestic_conversation_models  # noqa: F401
+from app.modules.domestic_studio import turn_models as domestic_turn_models  # noqa: F401
+from app.modules.domestic_studio import archive_models as domestic_archive_models  # noqa: F401
 
 if context.is_offline_mode():
     from app.core.config import get_settings
@@ -33,6 +39,9 @@ else:
     with get_engine().begin() as connection:
         if inspect(connection).has_table('overseas_alembic_version', schema='public'):
             raise RuntimeError('Overseas migration marker found; domestic migration refused')
+        if os.environ.get('DOMESTIC_STUDIO_MIGRATION_FENCE') == '1':
+            from app.modules.domestic_studio.migration_barrier import acquire
+            acquire(connection)
         context.configure(connection=connection, target_metadata=Base.metadata)
         with context.begin_transaction():
             context.run_migrations()

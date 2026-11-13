@@ -2,12 +2,13 @@
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 from fastapi import HTTPException
 
 from app.modules.files.validation import ValidatedImage
-from .files import MAX_BYTES, validate
+from .files import MAX_BYTES, _KeepOpen, validate, validate_stream
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,51 @@ class DeliveredFile:
     checksum: str
     width: int | None = None
     height: int | None = None
+
+
+@dataclass(frozen=True)
+class FileMetadata:
+    name: str
+    content_type: str
+    checksum: str
+    size_bytes: int
+    width: int | None = None
+    height: int | None = None
+
+
+@dataclass(frozen=True)
+class FileRef:
+    path: Path
+    name: str
+    content_type: str
+    checksum: str
+    size_bytes: int
+    width: int | None = None
+    height: int | None = None
+
+
+def inspect_stream(stream, size, name):
+    """Inspect a seekable original without retaining its full bytes in memory."""
+    if type(size) is not int or not 0 <= size <= MAX_BYTES:
+        raise HTTPException(413, '单个文件不能超过 500 MB')
+    digest, read = sha256(), 0
+    stream.seek(0)
+    while chunk := stream.read(1024 * 1024):
+        read += len(chunk)
+        if read > size:
+            raise ValueError('Output grew while reading')
+        digest.update(chunk)
+    if read != size:
+        raise ValueError('Output size changed while reading')
+    stream.seek(0)
+    name, kind = validate_stream(stream if size else BytesIO(b'\0'), size or 1, name)
+    width = height = None
+    if size and kind in ('image/png', 'image/jpeg', 'image/webp'):
+        stream.seek(0)
+        with Image.open(_KeepOpen(stream)) as image:
+            width, height = image.size
+    stream.seek(0)
+    return FileMetadata(name, kind, digest.hexdigest(), size, width, height)
 
 
 def validated(data, name, content_type=None):
