@@ -1,5 +1,7 @@
 # 内网生产发布工具
 
+2026-11-13：国内工作台联合升级已完成，实际国内 schema 为 0043，三组应用版本为 `2bc8acc7ecf412626a6a635a9413b1644b55417e`，当前工具版本为 `290f3a7a25e263cb`（Git `6c7b6af6bca4e7a1cc6f3ce57345bc786e3ae77b`）。部署与前向恢复证据见 [验收记录](DOMESTIC-STUDIO-DEPLOYED-20261113.md)。下文一次性 0032→0043 方案保留作历史参考，不应再次执行 prepare；后续使用已支持国内 publisher 的独立发布流程。
+
 ## 国内、国外独立发布（本次批准方案）
 
 本节替代拆分前的全站发布命令。实现/验收合同见 [独立发布方案](INTRANET-INDEPENDENT-RELEASE-20261111.md)；已完成部署、正式入口验收及清理后复核，见 [最终验收](INTRANET-INDEPENDENT-RELEASE-DEPLOYED-20261111.md)。只操作 `hengxin-ai-245 / 192.168.1.245`，旧公网不变。
