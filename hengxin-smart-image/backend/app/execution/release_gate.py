@@ -4,9 +4,6 @@ from pathlib import Path
 import stat
 import time
 
-from starlette.responses import JSONResponse
-
-
 DIRECTORY = '/var/lib/hengxin-domestic/release-gate'
 ENVIRONMENT = 'HX_RELEASE_GATE_DIR'
 READY_PATHS = frozenset(('/api/v1/health/ready', '/api/overseas/v1/health/ready',
@@ -69,6 +66,7 @@ class ReleaseGateMiddleware:
                 await send({'type': 'websocket.close', 'code': 1013})
                 return
             if scope.get('method') != 'GET' or scope.get('path') not in READY_PATHS:
+                from starlette.responses import JSONResponse
                 response = JSONResponse({'detail': '系统维护中，请稍后重试'}, status_code=503,
                                         headers={'Cache-Control': 'no-store'})
                 await response(scope, receive, send)

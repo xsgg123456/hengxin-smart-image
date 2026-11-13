@@ -21,6 +21,18 @@ pytestmark = pytest.mark.skipif(sys.platform != 'linux' or os.geteuid() != 0,
                                 reason='requires isolated root Linux filesystem identities')
 
 
+def test_native_credential_imports_require_only_standard_library():
+    code = ('import sys; import app.account_management.service; '
+            'import app.execution.credential_broker; '
+            'from app.execution.release_gate import marker_open; '
+            'assert not any(name.startswith("starlette") for name in sys.modules); '
+            'assert marker_open("workers")')
+    environment = {key: value for key, value in os.environ.items() if key != release_gate.ENVIRONMENT}
+    subprocess.run([sys.executable, '-S', '-B', '-c', code],
+                   cwd=Path(__file__).resolve().parents[1], env=environment,
+                   capture_output=True, text=True, check=True, timeout=20)
+
+
 @pytest.fixture
 def gates(tmp_path, monkeypatch):
     root = tmp_path / 'gate'
