@@ -1,6 +1,6 @@
 <template>
   <section class="hx-page">
-    <div class="hx-heading"><div><span class="hx-admin-kicker">WORKFLOW SKILLS</span><h1>Skills 管理</h1><p>管理国内工作台的 Skill，用户进入工作台后自动使用绑定能力。</p></div><ElTag>仅超级管理员</ElTag></div>
+    <div class="hx-heading"><div><span class="hx-admin-kicker">WORKFLOW SKILLS</span><h1>Skills 管理</h1><p>管理国内工作台的 Skill，用户在每轮发送前按需选择使用。</p></div><ElTag>仅超级管理员</ElTag></div>
     <ElCard shadow="never" class="art-card domestic-skills-card">
       <ElTabs v-model="tab"><ElTabPane label="Skill 目录" name="catalog" :disabled="bindingSaving" /><ElTabPane label="工作台绑定" name="bindings" /></ElTabs>
       <ElAlert v-if="tab === 'catalog' && bindingsError" :title="bindingsError" type="error" :closable="false"><ElButton @click="refreshBindings">重试</ElButton></ElAlert>

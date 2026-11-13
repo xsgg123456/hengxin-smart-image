@@ -18,6 +18,8 @@ def freeze_and_pin(session, job, workspace, installed, requested_skill_id=None):
         raise ValueError('Invalid domestic Studio job')
     snapshot = freeze_for_send(session, workspace, requested_skill_id,
         lambda identity: freeze_enabled(session, installed, identity))
+    if snapshot == {'skillSelection': 'none', 'skill': None}:
+        return snapshot
     skill = snapshot.get('skill') if isinstance(snapshot, dict) else None
     if (not isinstance(skill, dict)
             or not isinstance(skill.get('name'), str) or not catalog.NAME.fullmatch(skill['name'])
@@ -32,13 +34,32 @@ def freeze_and_pin(session, job, workspace, installed, requested_skill_id=None):
     return snapshot
 
 
+def explicit_no_skill(job, turn, channel):
+    """Missing pins are valid only for a new, explicitly unselected owned turn."""
+    if (not turn or not channel or job.kind != JOB_KIND or turn.job_id != job.id
+            or turn.conversation_id != channel.id or turn.actor_id != channel.owner_id
+            or job.value != str(turn.id)):
+        return False
+    payload = turn.snapshot
+    return (isinstance(payload, dict) and payload.get('skillSelection') == 'none'
+            and 'skill' in payload and payload['skill'] is None
+            and payload.get('turnId') == str(turn.id)
+            and payload.get('conversationId') == str(channel.id))
+
+
 def pinned(session, store, names):
     """Recheck all ownership before cleanup; never guess when a job lacks a pin."""
-    missing = session.scalar(select(Job.id).outerjoin(SkillExecutionReference,
+    from .conversation_models import Conversation
+    from .turn_models import Turn
+
+    missing = session.scalars(select(Job).outerjoin(SkillExecutionReference,
         SkillExecutionReference.job_id == Job.id).where(Job.kind == JOB_KIND,
-        SkillExecutionReference.job_id.is_(None)).limit(1))
-    if missing is not None:
-        raise HTTPException(503, '存在未核实的工作台 Skill 引用，请联系管理员')
+        SkillExecutionReference.job_id.is_(None)))
+    for job in missing:
+        turn = session.scalar(select(Turn).where(Turn.job_id == job.id))
+        channel = session.get(Conversation, turn.conversation_id) if turn else None
+        if not explicit_no_skill(job, turn, channel):
+            raise HTTPException(503, '存在未核实的工作台 Skill 引用，请联系管理员')
     rows = session.execute(select(SkillExecutionReference, Job).join(
         Job, Job.id == SkillExecutionReference.job_id).where(SkillExecutionReference.name.in_(names))).all()
     retained, busy = set(), False

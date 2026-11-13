@@ -5,17 +5,16 @@
       <header class="domestic-toolbar"><div class="domestic-identity"><span class="domestic-ai"><ElIcon><MagicStick /></ElIcon></span><strong>AI 设计工作台</strong><small>{{ runningCount ? `${runningCount} 个会话处理中` : '准备就绪' }}</small></div><div class="domestic-tools"><ElButton size="small" :type="sessionsOpen ? 'primary' : 'default'" plain :icon="ChatDotRound" @click="sessionsOpen = !sessionsOpen">会话 · {{ sessions.length }}</ElButton><ElButton size="small" :type="materialsOpen ? 'primary' : 'default'" plain :icon="FolderOpened" @click="materialsOpen = !materialsOpen">素材</ElButton><ElButton size="small" :icon="FullScreen" @click="expanded = !expanded">{{ expanded ? '退出展开' : '展开' }}</ElButton></div></header>
       <ElAlert v-if="sessionError || preferenceNotice" :title="sessionError || preferenceNotice" type="warning" :closable="false" />
       <ElAlert v-if="sessionPending && !sessionBusy" title="会话操作结果尚未确认，请使用原请求重试。" type="warning" :closable="false"><ElButton @click="retrySession">核实会话操作</ElButton></ElAlert>
-      <ElAlert v-if="error || limitError" :title="limitError || error" type="error" :closable="false" />
+      <ElAlert v-if="error || limitError || skillError" :title="limitError || skillError || error" type="error" :closable="false" />
       <ElAlert v-if="pending && !busy" title="上次操作结果尚未确认，请使用原请求重试。" type="warning" :closable="false"><ElButton @click="retry">核实并重试</ElButton></ElAlert>
       <ElAlert v-if="activeTurn?.canRecover" :title="activeTurn.recoveryRequested ? '正在核实原执行并收取结果，不会重新生成。' : '本轮结果尚未收取完成，可核实原执行并重试收取。'" type="warning" :closable="false"><ElButton v-if="!activeTurn.recoveryRequested" :disabled="busy || uploading || !!pending" @click="recoverTurn">核实并收取结果</ElButton></ElAlert>
       <div class="studio-workspace">
         <StudioSessionList v-if="sessionsOpen && !mobile" :sessions="sessions" :active-id="activeId" :disabled="!canManage" :can-create="canNewConversation" domestic @select="chooseSession" @create="createSession" @close="sessionsOpen = false" @action="sessionAction" />
         <section class="studio-conversation">
           <header class="session-current"><div><strong>{{ currentSession?.name || '正在准备会话…' }}</strong><small>{{ currentSession?.deletionStatus ? currentSession.deletionError || '正在清理会话文件' : '独立会话 · 切换会保留附件和草稿' }}</small></div><div class="domestic-tools"><ElButton size="small" :disabled="!currentSession || !!currentSession.deletionStatus || data?.conversationId !== activeId" @click="recoveryOpen = true">取回文件</ElButton><template v-if="canArchiveWorkspace"><ElButton size="small" :disabled="!canArchive" @click="archiveOpen = true">归档到成品库</ElButton><ElButton size="small" text @click="router.push('/product-library')">查看成品库</ElButton></template></div></header>
-          <StudioTurns v-if="data?.conversationId === activeId" :key="activeId" :turns="data.turns" :transcript="transcript" :conversation-id="activeId" :selected="selected" :disabled="locked" :scroll-position="scrollPosition" hide-empty-guide hide-skill-labels simple-pictures batch-annotation @scroll-position="(position, id) => saveScroll(position, id || undefined)" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" @batch-modify="openBatchAnnotation" />
+          <StudioTurns v-if="data?.conversationId === activeId" :key="activeId" :turns="data.turns" :transcript="transcript" :conversation-id="activeId" :selected="selected" :disabled="locked" :scroll-position="scrollPosition" hide-empty-guide simple-pictures batch-annotation @scroll-position="(position, id) => saveScroll(position, id || undefined)" @failure="fail" @group="toggleGroup" @toggle="toggle" @modify="openAnnotation" @batch-modify="openBatchAnnotation" />
           <div v-else class="studio-messages" />
           <div class="studio-composer" @dragover.prevent @drop.prevent="drop" @paste="paste">
-            <ElAlert v-if="data && !data.fixedSkillReady" title="该工作台暂不可用，请联系管理员配置。" type="warning" :closable="false" />
             <ElAlert v-if="draftNotice" :title="draftNotice" type="warning" :closable="false" />
             <div v-if="ordinaryAttachments.length || revisions.length || plainReferences.length" class="composer-files">
               <StudioAttachments :assets="[...ordinaryAttachments, ...plainReferences]" title="本轮附件" compact removable :disabled="locked" @remove="removeAttachment" @failure="fail" />
@@ -23,7 +22,7 @@
             </div>
             <small v-if="revisionError" class="studio-revision-hint">{{ revisionError }}</small>
             <ElInput v-model="text" type="textarea" :rows="3" resize="none" :disabled="locked" aria-label="设计要求" placeholder="描述你的要求，或继续提出修改意见…" @keydown="handleStudioSendKey($event, send)" />
-            <div class="studio-compose-tools"><div><ElButton text :icon="Paperclip" :disabled="locked" @click="input?.click()">上传附件</ElButton><small>拖拽或粘贴图片到这里</small></div><div class="studio-send-tools"><StudioTextEditor v-model="text" :disabled="locked" :session-name="currentSession?.name || '会话'" domestic /><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || !!pending || uploading" @click="stop">停止</ElButton><ElButton v-else type="primary" :icon="Promotion" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div></div>
+            <div class="studio-compose-tools"><div><ElCheckbox v-if="boundSkill" v-model="useSkill" class="domestic-skill-choice" :disabled="locked" :title="boundSkill.description || '选中后仅本轮使用'">{{ boundSkill.displayName }}<span v-if="useSkill"> · 本轮使用</span></ElCheckbox><span v-else class="domestic-skill-empty">暂无可选 Skill</span><ElButton v-if="skill && skill !== boundSkill?.id" text :disabled="locked" @click="skill = ''">取消失效 Skill</ElButton><ElButton text :icon="Paperclip" :disabled="locked" @click="input?.click()">上传附件</ElButton><small>拖拽或粘贴图片到这里</small></div><div class="studio-send-tools"><StudioTextEditor v-model="text" :disabled="locked" :session-name="currentSession?.name || '会话'" domestic /><ElButton v-if="data?.activeTurnId" :loading="busy" :disabled="!editable || !!pending || uploading" @click="stop">停止</ElButton><ElButton v-else type="primary" :icon="Promotion" :loading="busy" :disabled="!canSend" @click="send">发送</ElButton></div></div>
             <input ref="input" hidden type="file" multiple @change="upload">
           </div>
           <p class="studio-compose-note">发送到：{{ currentSession?.name || '请先新建会话' }} · Enter 发送，Shift + Enter 换行</p>
@@ -68,9 +67,12 @@ overseasImageCache.setIdentity(`domestic:${props.actor}`)
 const failure = (reason: unknown) => { if (reason instanceof Error) ElMessage.error(reason.message) }
 const { data, sessions, activeId, currentSession, runningCount, canManage, canNewConversation, newConversation,
   renameConversation, deleteConversation, selectSession, sessionBusy, sessionError, sessionPending, retrySession,
-  preferenceNotice, scrollPosition, saveScroll, text, attachments, references, revisions, revisionError, draftKey, confirmRevisions, removeRevision, selected, transcript, error, limitError,
+  preferenceNotice, scrollPosition, saveScroll, text, skill, skillError, attachments, references, revisions, revisionError, draftKey, confirmRevisions, removeRevision, selected, transcript, error, limitError,
   busy, uploading, pending, editable, activeTurn, locked, canSend, send, retry, stop, recoverTurn, refresh, add, receive, toggle, toggleGroup,
   fail, draftNotice } = useStudioSessions(() => ({ id: props.config.key, version: 1, capabilities: ['task.design'] }), failure, () => {}, api, props.actor, true)
+const boundSkill = computed(() => data.value?.skills[0])
+const useSkill = computed({ get: () => !!boundSkill.value && skill.value === boundSkill.value.id,
+  set: (checked: boolean) => { skill.value = checked ? boundSkill.value?.id || '' : '' } })
 const { width } = useWindowSize()
 const mobile = computed(() => width.value < 800)
 const sessionsOpen = ref(!mobile.value), materialsOpen = ref(false), expanded = ref(false), tutorialOpen = ref(false), archiveOpen = ref(false), recoveryOpen = ref(false)

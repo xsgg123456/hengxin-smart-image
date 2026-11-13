@@ -47,7 +47,8 @@ def test_http_sessions_and_files_are_private_with_no_default_skill(client_env):
     assert response.json()['turns'] == []
     missing = client.post(root + '/turns', headers={'X-HX-Request': '1', 'Idempotency-Key': 'send'},
                           json={'conversationId': str(channel), 'text': '我的要求', 'skillId': None})
-    assert missing.status_code == 409
+    assert missing.status_code == 200
+    assert missing.json()['turns'][0]['skillName'] is None
     with factory.begin() as session:
         bind(session, skill['id'])
     headers = {'X-HX-Request': '1', 'Idempotency-Key': 'send'}
@@ -55,6 +56,7 @@ def test_http_sessions_and_files_are_private_with_no_default_skill(client_env):
                          json={'conversationId': str(channel), 'text': '我的要求', 'skillId': None})
     assert result.status_code == 200 and result.json()['turns'][0]['text'] == '我的要求'
     assert result.json()['fixedSkillReady'] is True
+    assert result.json()['skills'][0]['id'] == skill['id']
     uploaded = client.post(root + f'/files?conversationId={channel}', headers={'X-HX-Request': '1'},
                            files={'file': ('test.txt', b'private bytes', 'text/plain')})
     assert uploaded.status_code == 200

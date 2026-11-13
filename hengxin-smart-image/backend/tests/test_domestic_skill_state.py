@@ -46,7 +46,7 @@ def test_bound_skill_cannot_be_disabled_and_freezes_verified_package(setup):
     set_availability(session, catalog, item['id'], True, 1)
     save_bindings(session, dict.fromkeys(WORKSPACES) | {'camera': item['id']},
                   lambda identity: freeze_enabled(session, catalog, identity), expected=read_bindings(session))
-    result = freeze_for_send(session, 'camera', None, lambda identity: freeze_enabled(session, catalog, identity))
+    result = freeze_for_send(session, 'camera', item['id'], lambda identity: freeze_enabled(session, catalog, identity))
     assert result['skill']['id'] == item['id']
     with pytest.raises(HTTPException) as error:
         set_availability(session, catalog, item['id'], False, 2)

@@ -45,8 +45,6 @@ def send(session, actor_id, workspace, conversation_id, body, key, catalog):
     channel = owned(session, actor_id, workspace, conversation_id, lock=True)
     if body.conversationId is not None and body.conversationId != channel.id:
         raise HTTPException(409, '请求会话与当前会话不一致')
-    if body.skillId is not None:
-        raise HTTPException(422, '当前工作台自动使用已绑定的 Skill')
     old, digest = _receipt(session, actor_id, 'send', str(channel.id), key, body.model_dump(mode='json'))
     if old:
         if old.conversation_id != channel.id:
@@ -69,7 +67,8 @@ def send(session, actor_id, workspace, conversation_id, body, key, catalog):
               payload_hash=digest, value=str(turn_id), status='queued')
     session.add(job)
     session.flush()
-    frozen = freeze_and_pin(session, job, workspace, catalog)
+    frozen = freeze_and_pin(session, job, workspace, catalog,
+                            str(body.skillId) if body.skillId is not None else None)
     config = values(session)
     snapshot = {**frozen, 'turnId': str(turn_id), 'conversationId': str(channel.id),
                 'text': body.text, 'inputs': inputs, 'imageEdits': edits,

@@ -27,7 +27,7 @@ def test_workspace_reads_only_owners_messages_with_real_name_and_time(context, d
     with factory.begin() as session:
         session.get(UserRecord, first).name = '张三'
         bind(session, skill['id'])
-        turn_service.send(session, first, 'camera', channel, Send(text='原始要求'), 'send', catalog)
+        turn_service.send(session, first, 'camera', channel, Send(skillId=skill['id'], text='原始要求'), 'send', catalog)
         turn = session.scalar(select(Turn))
         turn.reply = '真实回复'
         session.get(Job, turn.job_id).status = 'succeeded'

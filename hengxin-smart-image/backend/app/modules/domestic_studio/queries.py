@@ -54,15 +54,16 @@ def channel_rows(session, actor_id, workspace):
     return channels, result
 
 
-def skill_ready(session, workspace, catalog):
+def available_skills(session, workspace, catalog):
     identity = read_bindings(session)[workspace]
     if not identity:
-        return False
+        return []
     try:
-        freeze_enabled(session, catalog, identity)
-        return True
+        frozen = freeze_enabled(session, catalog, identity)['skill']
+        item = next((item for item in catalog.list() if item['id'] == frozen['id']), None)
+        return [{**item, 'enabled': True, 'platforms': []}] if item else []
     except HTTPException:
-        return False
+        return []
 
 
 def view(session, actor_id, workspace, conversation_id=None, *, catalog):
@@ -84,7 +85,9 @@ def view(session, actor_id, workspace, conversation_id=None, *, catalog):
             message = session.scalar(select(Transcript).where(Transcript.turn_id == turn.id,
                 Transcript.kind == 'message', Transcript.text == turn.reply).order_by(Transcript.id.desc()).limit(1)) if turn.reply else None
             reply_time = message.created_at if message else turn.finished_at if turn.reply else None
-            results.append(dict(id=str(turn.id), conversationId=str(channel.id), text=turn.text, skillName=None,
+            skill = turn.snapshot.get('skill') or {}
+            results.append(dict(id=str(turn.id), conversationId=str(channel.id), text=turn.text,
+                skillName=skill.get('displayName') or skill.get('name'),
                 status=job.status, reply=turn.reply, error=turn.error or job.error, jobId=str(job.id), jobVersion=turn.version,
                 canRecover=(job.status == 'uncertain' and turn.dispatched and bool(turn.process_identity)
                             and not turn.cancel_requested), recoveryRequested=turn.recovery_requested,
@@ -99,13 +102,14 @@ def view(session, actor_id, workspace, conversation_id=None, *, catalog):
                 outputs=[output_dto(row, workspace) for row in session.scalars(select(OutputFile)
                     .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))]))
     state = session.get(Workspace, (actor_id, workspace))
+    skills = available_skills(session, workspace, catalog)
     return dict(taskId=workspace, taskVersion=state.version if state else 1,
         conversationId=str(channel.id) if channel else None, conversations=summaries, maxConversations=10,
         activeConversationCount=sum(bool(row['activeTurnId']) for row in summaries), completed=False,
-        reopened=False, archiveId=None, turns=results, activeTurnId=active, skills=[],
+        reopened=False, archiveId=None, turns=results, activeTurnId=active, skills=skills,
         materials=[asset(row, workspace) for row in session.scalars(select(Upload).where(
             Upload.conversation_id == channel.id, Upload.status == 'ready').order_by(Upload.created_at, Upload.id))] if channel and not deleting else [],
-        fixedSkillReady=skill_ready(session, workspace, catalog))
+        fixedSkillReady=bool(skills))
 
 
 def transcript(session, actor_id, workspace, conversation_id, after):

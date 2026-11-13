@@ -1,10 +1,10 @@
 <template>
   <ElCard shadow="never" class="art-card hx-section domestic-bindings">
-    <div class="hx-admin-section-head"><div><h2>工作台默认 Skill</h2><p>每个工作台自动使用已绑定的 Skill，用户无需选择。</p></div><ElButton type="primary" :loading="saving" :disabled="loading || !!error || !dirty" @click="save">保存绑定</ElButton></div>
+    <div class="hx-admin-section-head"><div><h2>工作台可选 Skill</h2><p>绑定后供用户选择，仅在本轮勾选时使用。</p></div><ElButton type="primary" :loading="saving" :disabled="loading || !!error || !dirty" @click="save">保存绑定</ElButton></div>
     <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton :loading="loading" @click="load">重试</ElButton></ElAlert>
     <p v-if="loading" role="status">正在加载工作台绑定…</p>
-    <div v-if="!loading && !error" class="domestic-binding-list"><div v-for="workspace in workspaces" :key="workspace.key" class="domestic-binding-row"><div><small>{{ workspace.group }}</small><strong>{{ workspace.title }}</strong></div><ElSelect v-model="draft[workspace.key]" clearable filterable :disabled="saving" :aria-label="`${workspace.title}绑定 Skill`" placeholder="未绑定" @clear="draft[workspace.key] = null"><ElOption v-for="skill in enabledSkills" :key="skill.id" :value="skill.id" :label="skill.displayName" /><ElOption v-if="missing(workspace.key)" :value="draft[workspace.key]!" label="已绑定 Skill 不可用，请重新选择" disabled /></ElSelect><ElTag :type="draft[workspace.key] && !missing(workspace.key) ? 'success' : 'warning'" size="small">{{ missing(workspace.key) ? '不可用' : draft[workspace.key] ? '自动使用' : '未配置' }}</ElTag></div></div>
-    <p class="hx-footnote">未绑定或 Skill 不可用时，该工作台不能发送新请求。</p>
+    <div v-if="!loading && !error" class="domestic-binding-list"><div v-for="workspace in workspaces" :key="workspace.key" class="domestic-binding-row"><div><small>{{ workspace.group }}</small><strong>{{ workspace.title }}</strong></div><ElSelect v-model="draft[workspace.key]" clearable filterable :disabled="saving" :aria-label="`${workspace.title}绑定 Skill`" placeholder="未绑定" @clear="draft[workspace.key] = null"><ElOption v-for="skill in enabledSkills" :key="skill.id" :value="skill.id" :label="skill.displayName" /><ElOption v-if="missing(workspace.key)" :value="draft[workspace.key]!" label="已绑定 Skill 不可用，请重新选择" disabled /></ElSelect><ElTag :type="draft[workspace.key] && !missing(workspace.key) ? 'success' : 'warning'" size="small">{{ missing(workspace.key) ? '不可用' : draft[workspace.key] ? '用户选用' : '未配置' }}</ElTag></div></div>
+    <p class="hx-footnote">未绑定或 Skill 不可用时，仍可正常对话和改图。</p>
   </ElCard>
 </template>
 <script setup lang="ts">

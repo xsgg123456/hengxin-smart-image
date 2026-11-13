@@ -1,4 +1,4 @@
-"""Domestic member-scoped Studio endpoints; no client-selected Skill."""
+"""Domestic member-scoped Studio endpoints with optional bound Skill selection."""
 from typing import Annotated
 from uuid import UUID
 

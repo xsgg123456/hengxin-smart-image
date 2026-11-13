@@ -16,7 +16,7 @@ from app.overseas.studio.native_images import snapshot as native_snapshot
 from .conversation_models import Conversation
 from .models import SkillExecutionReference
 from .skill_material import prepare as prepare_skill
-from .skill_references import JOB_KIND
+from .skill_references import JOB_KIND, explicit_no_skill
 from .turn_models import Picture, Turn
 
 
@@ -26,11 +26,13 @@ def prepare(factory, job_id, settings, catalog, store):
         turn = session.scalar(select(Turn).where(Turn.job_id == job_id))
         channel = session.get(Conversation, turn.conversation_id) if turn else None
         pin = session.get(SkillExecutionReference, job_id)
-        if not job or job.kind != JOB_KIND or not turn or not channel or turn.actor_id != channel.owner_id or not pin:
+        if not job or job.kind != JOB_KIND or not turn or not channel or turn.actor_id != channel.owner_id:
             raise ValueError('Domestic Studio ownership or Skill reference missing')
         payload = turn.snapshot
         skill = payload.get('skill')
-        if (not isinstance(skill, dict) or pin.name != skill.get('name')
+        no_skill = pin is None and explicit_no_skill(job, turn, channel)
+        if not no_skill and (not pin or not isinstance(skill, dict)
+                or payload.get('skillSelection') not in (None, 'explicit') or pin.name != skill.get('name')
                 or pin.release != skill.get('installedRelease') or pin.checksum != skill.get('checksum')
                 or payload.get('turnId') != str(turn.id) or payload.get('conversationId') != str(channel.id)):
             raise ValueError('Domestic Studio snapshot identity mismatch')
@@ -60,12 +62,16 @@ def prepare(factory, job_id, settings, catalog, store):
     workspace.native_cursor = native_snapshot(workspace.home, previous)
     workspace.delivered_images = delivered
     write_input(payload, workspace)
-    prepare_skill(skill, workspace, catalog)
+    workspace.use_skill = not no_skill
+    if workspace.use_skill:
+        prepare_skill(skill, workspace, catalog)
     return workspace, payload
 
 
 def prompt(workspace, payload):
-    parts = ['$' + workspace.skill_name]
+    parts = ['$' + workspace.skill_name] if workspace.use_skill else []
+    if not workspace.use_skill and workspace.previous_session:
+        parts.append('本轮未选择 Skill。沿用当前会话与图片上下文，仅处理本轮请求，不主动重启历史 Skill 流程。')
     if payload['text']:
         parts.append(payload['text'])
     edits = prompt_edits(payload, workspace.input_paths)

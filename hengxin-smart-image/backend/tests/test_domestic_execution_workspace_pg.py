@@ -26,7 +26,7 @@ def test_workspace_uses_frozen_domestic_skill_and_only_owned_inputs(context, tmp
     with factory.begin() as session:
         bind(session, skill['id'])
         turn_service.send(session, actor, 'camera', channel,
-                          Send(text='用户的实际要求', attachmentIds=[attachment['id']]), 'send', catalog)
+                          Send(skillId=skill['id'], text='用户的实际要求', attachmentIds=[attachment['id']]), 'send', catalog)
         job_id = session.scalar(select(Turn.job_id))
     settings = SimpleNamespace(codex_execution_root=str(tmp_path / 'execution'), codex_auth_file=None)
     workspace, payload = execution_workspace.prepare(factory, job_id, settings, catalog, store)
@@ -43,7 +43,7 @@ def test_workspace_refuses_changed_skill_pin_before_creating_files(context, tmp_
     factory, catalog, skill, actor, _, channel, _ = context
     with factory.begin() as session:
         bind(session, skill['id'])
-        turn_service.send(session, actor, 'camera', channel, Send(text='处理'), 'send', catalog)
+        turn_service.send(session, actor, 'camera', channel, Send(skillId=skill['id'], text='处理'), 'send', catalog)
         job_id = session.scalar(select(Turn.job_id))
         session.get(SkillExecutionReference, job_id).checksum = '0' * 64
     settings = SimpleNamespace(codex_execution_root=str(tmp_path / 'execution'), codex_auth_file=None)
@@ -67,7 +67,7 @@ def test_workspace_streams_multiple_large_inputs_with_bounded_memory(context, tm
                 bucket='private', object_key=f'test/{identity}', status='ready'))
         session.flush()
         turn_service.send(session, actor, 'camera', channel,
-            Send(text='处理', attachmentIds=['upload:' + str(identity) for identity in identities]), 'large', catalog)
+            Send(skillId=skill['id'], text='处理', attachmentIds=['upload:' + str(identity) for identity in identities]), 'large', catalog)
         job_id = session.scalar(select(Turn.job_id))
 
     class Source:

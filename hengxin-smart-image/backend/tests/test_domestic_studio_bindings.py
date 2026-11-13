@@ -41,8 +41,8 @@ def test_bind_and_freeze_exact_installed_skill(session):
     checks = []
     assert save_bindings(session, values, checks.append) == values
     assert checks == ['installed-a', 'installed-a']
-    assert freeze_for_send(session, 'camera', None, lambda key: {'skill': {'id': key}}) == {
-        'skill': {'id': 'installed-a'}}
+    assert freeze_for_send(session, 'camera', 'installed-a', lambda key: {'skill': {'id': key}}) == {
+        'skill': {'id': 'installed-a'}, 'skillSelection': 'explicit'}
 
 
 def test_invalid_catalog_entry_does_not_partially_change_bindings(session):
@@ -62,7 +62,7 @@ def test_client_skill_override_cannot_change_server_selection(session):
     save_bindings(session, empty_bindings() | {'camera': 'trusted'}, lambda _: None)
     with pytest.raises(HTTPException) as error:
         freeze_for_send(session, 'camera', 'other', lambda _: pytest.fail('must not freeze'))
-    assert error.value.status_code == 422
+    assert error.value.status_code == 409
 
 
 def test_bound_skill_cannot_be_disabled_or_removed_until_unbound(session):
@@ -97,8 +97,8 @@ def test_cached_binding_is_refreshed_after_another_session_changes_it(session):
         save_bindings(other, empty_bindings() | {'camera': 'new'}, lambda _: None)
         other.commit()
     assert cached.skill_id == 'old'  # The identity map really is stale.
-    assert freeze_for_send(session, 'camera', None, lambda value: {'skill': {'id': value}}) == {
-        'skill': {'id': 'new'}}
+    assert freeze_for_send(session, 'camera', 'new', lambda value: {'skill': {'id': value}}) == {
+        'skill': {'id': 'new'}, 'skillSelection': 'explicit'}
 
 
 def test_saving_refreshes_a_previously_cached_binding(session):

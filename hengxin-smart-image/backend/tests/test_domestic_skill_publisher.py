@@ -105,7 +105,8 @@ def test_upload_update_binding_delete_and_old_snapshot_remains_readable(service)
                   kind=skill_references.JOB_KIND, status='running')
         session.add(job)
         session.flush()
-        assert skill_references.freeze_and_pin(session, job, 'camera', catalog) == {'skill': frozen}
+        assert skill_references.freeze_and_pin(session, job, 'camera', catalog, item['id']) == {
+            'skill': frozen, 'skillSelection': 'explicit'}
     item = client.get(ROOT + '/skills').json()['items'][0]
     assert deletion(client, item, package).status_code == 409
     second = stage(client, DOCUMENT + b'updated\n')

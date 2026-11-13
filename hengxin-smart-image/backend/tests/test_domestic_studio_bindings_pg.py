@@ -63,7 +63,7 @@ def test_read_committed_refreshes_after_another_connection_commits(database):
             save_bindings(second, config('new'), lambda _: None)
             second.commit()
         assert cached.skill_id == 'old'
-        assert freeze_for_send(first, 'camera', None, frozen) == frozen('new')
+        assert freeze_for_send(first, 'camera', 'new', frozen) == {**frozen('new'), 'skillSelection': 'explicit'}
 
 
 def test_gate_serializes_bindings_and_execution(database):

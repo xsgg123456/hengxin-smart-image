@@ -57,14 +57,14 @@ def count(session, model):
     return session.scalar(select(func.count()).select_from(model))
 
 
-def test_unbound_and_client_override_never_enqueue(context):
-    factory, catalog, _, actor, _, channel, _ = context
-    for body, expected in ((Send(conversationId=channel, text='用户输入'), 409),
-                           (Send(conversationId=channel, text='用户输入', skillId=uuid4()), 422)):
+def test_unbound_explicit_selection_never_enqueues(context):
+    factory, catalog, skill, actor, _, channel, _ = context
+    for identity in (skill['id'], uuid4()):
         with pytest.raises(HTTPException) as error:
             with factory.begin() as session:
-                turn_service.send(session, actor, 'camera', channel, body, str(uuid4()), catalog)
-        assert error.value.status_code == expected
+                turn_service.send(session, actor, 'camera', channel,
+                    Send(text='用户输入', skillId=identity), str(uuid4()), catalog)
+        assert error.value.status_code == 409
     with factory() as session:
         assert [count(session, model) for model in (Job, Outbox, Turn, SkillExecutionReference)] == [0, 0, 0, 0]
 
@@ -73,7 +73,7 @@ def test_enqueue_freezes_skill_with_job_and_retry_creates_no_duplicate(context):
     factory, catalog, skill, actor, _, channel, _ = context
     with factory.begin() as session:
         bind(session, skill['id'])
-    body = Send(conversationId=channel, text='实际用户要求')
+    body = Send(conversationId=channel, text='实际用户要求', skillId=skill['id'])
     with factory.begin() as session:
         turn_service.send(session, actor, 'camera', channel, body, 'request', catalog)
         turn_service.send(session, actor, 'camera', channel, body, 'request', catalog)

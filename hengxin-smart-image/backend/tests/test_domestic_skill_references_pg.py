@@ -46,7 +46,8 @@ def test_real_postgres_pins_inflight_job_before_catalog_delete(database, tmp_pat
                   kind=skill_references.JOB_KIND, status='running')
         first.add(job)
         first.flush()
-        assert skill_references.freeze_and_pin(first, job, 'camera', installed) == {'skill': original}
+        assert skill_references.freeze_and_pin(first, job, 'camera', installed, skill['id']) == {
+            'skill': original, 'skillSelection': 'explicit'}
         second.execute(text("SET LOCAL lock_timeout = '250ms'"))
         with pytest.raises(OperationalError) as error:
             skill_publication.delete(store, second, actor_id, skill['id'], body)

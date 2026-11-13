@@ -42,12 +42,12 @@ def freeze_bound_skill(
     keep the returned immutable snapshot in the submitted execution payload.
     """
     require_workspace(workspace)
-    if requested_skill_id is not None:
-        raise HTTPException(422, '当前工作台自动使用已绑定的 Skill')
-    if not binding_id or not binding_id.strip():
-        raise HTTPException(409, '该工作台暂不可用，请联系管理员配置')
+    if requested_skill_id is None:
+        return {'skillSelection': 'none', 'skill': None}
+    if not binding_id or requested_skill_id != binding_id:
+        raise HTTPException(409, '可选 Skill 已变化，请刷新后重新选择或取消选择')
     snapshot = freeze(binding_id)
     skill = snapshot.get('skill') if isinstance(snapshot, Mapping) else None
     if not isinstance(skill, Mapping) or skill.get('id') != binding_id:
         raise HTTPException(409, '该工作台的 Skill 不可用，请联系管理员配置')
-    return snapshot
+    return {**snapshot, 'skillSelection': 'explicit'}

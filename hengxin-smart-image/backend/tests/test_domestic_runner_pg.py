@@ -32,7 +32,7 @@ def prepare(context, database, tmp_path, monkeypatch):
     monkeypatch.setattr(runner.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout='codex-cli test'))
     with factory.begin() as session:
         bind(session, skill['id'])
-        turn_service.send(session, actor, 'camera', channel, Send(text='真实输入'), 'send', catalog)
+        turn_service.send(session, actor, 'camera', channel, Send(skillId=skill['id'], text='真实输入'), 'send', catalog)
         identity = session.scalar(select(Turn.job_id))
     return factory, catalog, identity
 
