@@ -153,7 +153,8 @@ def run_turn(job_id, factory=None, store=None):
                                                 'node': settings.worker_node_name}
                     from app.modules.management.api_stats.facts import record_turn
                     record_turn(session, task, current, spawned=True)
-            args = ['exec', '--sandbox', 'workspace-write']
+            args = ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true',
+                    'exec', '--sandbox', 'workspace-write']
             args += (['resume', '--skip-git-repo-check', '--json', previous] if previous
                      else ['--skip-git-repo-check', '--json'])
             args += ['--model', CLI_MODEL, '-c', f'model_reasoning_effort="{CLI_REASONING_EFFORT}"', '-']

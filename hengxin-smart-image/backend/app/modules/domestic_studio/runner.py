@@ -121,7 +121,8 @@ def run_turn(job_id, factory, store=None, catalog=None):
                 settle(factory, job_id, token, 'cancelled', stopped=True)
                 return
             delivery_context.remember(workspace, owner)
-            args = ['exec', '--model', CLI_MODEL, '-c', f'model_reasoning_effort="{CLI_REASONING_EFFORT}"',
+            args = ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true',
+                    'exec', '--model', CLI_MODEL, '-c', f'model_reasoning_effort="{CLI_REASONING_EFFORT}"',
                     '--sandbox', 'workspace-write']
             args += (['resume', '--skip-git-repo-check', '--json', workspace.previous_session]
                      if workspace.previous_session else ['--skip-git-repo-check', '--json'])

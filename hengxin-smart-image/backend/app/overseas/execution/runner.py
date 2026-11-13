@@ -103,6 +103,7 @@ def run(factory, job_id):
                 handler.prepare_collection(job, workspace)
             args = (handler.arguments(workspace) if hasattr(handler, 'arguments') else
                     ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '-'])
+            args = ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true', *args]
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
             with factory.begin() as session:
                 current = claims.locked_job(session, job_id)

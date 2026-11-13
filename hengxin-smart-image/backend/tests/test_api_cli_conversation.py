@@ -55,6 +55,9 @@ def submit(client, path, **kwargs):
 def fake_executor(monkeypatch, text='请确认颜色', image=False, reason=None, exit_code=0):
     calls = []
     def execute(args, prompt, control, timeout, monitor, started):
+        assert args[:4] == ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true']
+        assert args[args.index('--model') + 1] == 'gpt-6-astra'
+        assert 'model_reasoning_effort="high"' in args
         calls.append((args, prompt))
         sid = 'session-single-image'
         sessions = control.parents[1] / 'home' / '.codex' / 'sessions'

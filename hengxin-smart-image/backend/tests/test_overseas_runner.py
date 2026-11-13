@@ -76,6 +76,29 @@ def test_success_duplicate_and_private_home(execution, monkeypatch):
     assert len(homes) == 2 and homes[0].parent != homes[1].parent
 
 
+@pytest.mark.parametrize('previous', [None, 'original-session', 'legacy'])
+def test_all_protocols_request_fast_including_resumed_studio(execution, monkeypatch, previous):
+    from app.overseas.studio.execution import StudioProtocol
+    factory, new, _ = execution
+    if previous != 'legacy':
+        class StudioArguments(Handler):
+            def arguments(self, workspace):
+                workspace.previous_session = previous
+                return StudioProtocol().arguments(workspace)
+        protocols._handlers['analysis'] = StudioArguments()
+    captured = []
+    monkeypatch.setattr(runner, 'sandbox_command', lambda ws, binary, args, bwrap: captured.append(args) or args)
+    monkeypatch.setattr(runner, 'execute', fake_execute())
+    runner.run(factory, new())
+    assert len(captured) == 1
+    args = captured[0]
+    assert args[:4] == ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true']
+    if previous != 'legacy':
+        assert args[args.index('--model') + 1] == 'gpt-6-astra'
+        assert 'model_reasoning_effort="high"' in args
+        assert ('resume' in args) == bool(previous)
+
+
 def test_missing_protocol_fails_before_model(execution, monkeypatch):
     factory, new, _ = execution
     monkeypatch.setattr(protocols, '_handlers', {})

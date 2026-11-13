@@ -39,6 +39,9 @@ def prepare(context, database, tmp_path, monkeypatch):
 
 def fake_cli(calls):
     def run(_command, prompt, control, _timeout, monitor, started):
+        assert _command[:4] == ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true']
+        assert _command[_command.index('--model') + 1] == 'gpt-6-astra'
+        assert 'model_reasoning_effort="high"' in _command
         calls.append(prompt)
         started(123, 'boot-id', 'birth-id')
         work = control.parents[1] / 'persistent' / 'work'

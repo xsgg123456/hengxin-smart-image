@@ -1,3 +1,8 @@
+# 2026-11-13 · 双业务 Codex Fast（最小迭代）
+
+1. 三个业务启动入口统一加 Fast 参数；以真实 runner 隔离测试验证国内工作台、CLI 图片修改、国外协议，首轮/续聊均携带参数，原模型/强度不变。
+2. 独立两阶段审查、中文提交；从提交构建 domestic/overseas 包，逐组排空、发布，验证版本、入口门禁和另一组服务身份；不改共享业务或数据库。
+
 # 2026-11-13 · 国内每轮显式 Skill（最小迭代）
 
 1. 国内 `modules/domestic_studio/{turn_service,policy,queries,execution_workspace,skill_references}.py` 支持显式选择和无技能轮次；验收：实际选择冻结、当前绑定校验、未选无挂载/无技能提示、原会话续接和历史引用保护，隔离后端回归通过。
