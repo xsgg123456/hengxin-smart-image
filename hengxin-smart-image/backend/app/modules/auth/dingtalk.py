@@ -21,7 +21,7 @@ ALLOWED_RETURN_PATHS = (
     '/product-replace/product-only', '/product-replace/scene-model-product-size',
     '/product-replace/phone-wallpaper-film', '/product-library',
     '/management/activity', '/management/usage', '/management/monitor', '/management/users', '/management/settings',
-    '/management/skills',
+    '/management/skills', '/management/task-center', '/management/workspace-sessions',
 )
 
 

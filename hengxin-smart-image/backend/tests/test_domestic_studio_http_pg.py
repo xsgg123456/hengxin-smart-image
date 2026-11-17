@@ -11,6 +11,7 @@ from app.modules.auth.dependencies import get_identity_id
 from app.modules.domestic_studio.management_router import get_catalog
 from app.modules.domestic_studio.turn_models import OutputFile, Transcript, Turn
 from app.storage.minio_store import get_store
+from app.modules.domestic_studio.archive_models import Archive, ArchiveDeletion, ArchiveFile, ArchiveRequest
 from test_domestic_files_pg import Store
 from test_domestic_studio_bindings_pg import database
 from test_domestic_turns_pg import bind, context
@@ -19,7 +20,7 @@ from test_domestic_turns_pg import bind, context
 @pytest.fixture
 def client_env(context, database):
     factory, catalog, skill, first, second, channel, other_channel = context
-    for model in (OutputFile, Transcript):
+    for model in (OutputFile, Transcript, Archive, ArchiveDeletion, ArchiveFile, ArchiveRequest):
         model.__table__.create(database)
     class ObjectStore(Store):
         def stat(self, row):
@@ -75,7 +76,10 @@ def test_http_sessions_and_files_are_private_with_no_default_skill(client_env):
 
 def test_http_create_rename_and_idempotency(client_env):
     client, _, _, _, _, _, _, _ = client_env
-    root = '/api/v1/domestic-studio/workspaces/case'
+    task = client.post('/api/v1/domestic-studio/tasks',
+        headers={'X-HX-Request': '1', 'Idempotency-Key': 'task'},
+        json={'workspace': 'case', 'name': '手机壳任务'}).json()
+    root = '/api/v1/domestic-studio/tasks/' + task['id'] + '/studio'
     headers = {'X-HX-Request': '1', 'Idempotency-Key': 'new'}
     first = client.post(root + '/conversations', headers=headers, json={'name': '手机壳'})
     repeat = client.post(root + '/conversations', headers=headers, json={'name': '手机壳'})

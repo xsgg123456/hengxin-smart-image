@@ -6,7 +6,7 @@ from pathlib import Path
 
 def run(cli, argv=None):
     parser = argparse.ArgumentParser(description=cli.__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress'))
+    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status'))
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--release', type=Path)
     parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
@@ -14,7 +14,7 @@ def run(cli, argv=None):
     args = parser.parse_args(argv)
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
-    if args.release is not None and args.action not in ('prepare', 'prepare-fast'):
+    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'tasks-prepare'):
         parser.error('--release is only valid for prepare or prepare-fast')
     if args.action == 'prepare-fast' and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
         parser.error('prepare-fast requires --scope domestic/overseas and --mode full')
@@ -32,6 +32,13 @@ def run(cli, argv=None):
         if args.action != 'status':
             import joint_studio_marker
             joint_studio_marker.guard(cli.engine.u, store)
+        if args.action.startswith('tasks-'):
+            from domestic_tasks_release import run as tasks_run
+            print(json.dumps(tasks_run(store, args), indent=2))
+            return
+        if args.action != 'status':
+            import domestic_tasks_marker
+            domestic_tasks_marker.guard(cli.engine.u, store)
         tool = cli.Release(store)
         if args.action == 'cleanup':
             tool.cleanup(apply=args.apply)

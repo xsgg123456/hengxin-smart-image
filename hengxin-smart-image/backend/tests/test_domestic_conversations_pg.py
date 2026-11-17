@@ -10,15 +10,17 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.modules.auth.member_policy import lock_permissions
 from app.modules.domestic_studio.conversation_models import Conversation, ConversationDeletion, ConversationRequest, Workspace
-from app.modules.domestic_studio.conversation_service import create, owned, rename
+from app.modules.domestic_studio.conversation_service import owned, rename
+from domestic_task_fixtures import create
 from app.overseas.studio.schemas import NewConversation, RenameConversation
 from app.resource_models import UserRecord
+from app.modules.domestic_studio.task_models import Task, TaskRequest
 from test_domestic_studio_bindings_pg import database
 
 
 @pytest.fixture
 def context(database):
-    for model in (UserRecord, Workspace, Conversation, ConversationDeletion, ConversationRequest):
+    for model in (UserRecord, Workspace, Task, TaskRequest, Conversation, ConversationDeletion, ConversationRequest):
         model.__table__.create(database)
     factory = sessionmaker(database, expire_on_commit=False)
     first, second = uuid4(), uuid4()

@@ -11,6 +11,8 @@ import snapshot
 def execute(u, store, data, apply=False):
     import joint_studio_marker
     joint_studio_marker.guard(u, store)
+    import domestic_tasks_marker
+    domestic_tasks_marker.guard(u, store)
     if data.get('pending'):
         raise RuntimeError('Pending release blocks cleanup')
     if data.get('migration_pending'):

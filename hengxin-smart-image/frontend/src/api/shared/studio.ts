@@ -20,6 +20,7 @@ const domesticBase = (id: string) => {
   if (!['camera', 'case', 'product', 'scene', 'phone'].includes(id)) throw Error('工作台入口无效')
   return `/api/v1/domestic-studio/workspaces/${id}`
 }
+export const domesticTaskBase = (id: string) => `/api/v1/domestic-studio/tasks/${encodeURIComponent(id)}/studio`
 const string = (v: unknown): v is string => typeof v === 'string'
 const integer = (v: unknown) => Number.isInteger(v) && Number(v) >= 0
 export function isEditReference(v: unknown): v is EditReference {
@@ -44,7 +45,7 @@ export function isAsset(v: unknown, taskId: string, contentBase = overseasBase(t
     : source === 'upload' && id.startsWith('upload:') && v.url === `${contentBase}/files/${encodeURIComponent(id.slice(7))}/content`
 }
 export function isDomesticAsset(v: unknown, workspace: string): v is Asset {
-  try { return isAsset(v, workspace, domesticBase(workspace), true) } catch { return false }
+  try { return isAsset(v, workspace, ['camera', 'case', 'product', 'scene', 'phone'].includes(workspace) ? domesticBase(workspace) : domesticTaskBase(workspace), true) } catch { return false }
 }
 export function isConversation(v: unknown): v is StudioConversation {
   return record(v) && ['id', 'name', 'createdAt', 'updatedAt'].every(k => string(v[k])) && integer(v.version) && Number(v.version) > 0
@@ -89,11 +90,11 @@ export function isTranscriptPage(v: unknown): v is TranscriptPage {
 export function validateStudioFile(file: Pick<File, 'name' | 'size'>) {
   if (!file.size || file.size > MAX_UPLOAD_BYTES) throw Error('请选择非空文件，单个最大 500 MB')
 }
-export function createStudioApi(fetcher: typeof fetch = fetch, scope: 'overseas' | 'domestic' = 'overseas') {
-  const base = scope === 'domestic' ? domesticBase : overseasBase
+export function createStudioApi(fetcher: typeof fetch = fetch, scope: 'overseas' | 'domestic' | 'domestic-task' = 'overseas') {
+  const base = scope === 'domestic' ? domesticBase : scope === 'domestic-task' ? domesticTaskBase : overseasBase
   const request = createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store' }))
   const read = (signal?: AbortSignal) => signal ? createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store', signal: options?.signal ? AbortSignal.any([signal, options.signal]) : signal })) : request
-  const guard = (id: string) => (v: unknown): v is Studio => isStudio(v, id, base(id), scope === 'domestic')
+  const guard = (id: string) => (v: unknown): v is Studio => isStudio(v, id, base(id), scope !== 'overseas')
   return {
     get: (id: string, signal?: AbortSignal, conversationId?: string) => read(signal)(base(id), guard(id), undefined, { params: conversationId ? { conversationId } : {} }),
     removeMaterial: (id: string, assetId: string, conversationId?: string) => request(`${base(id)}/materials/${encodeURIComponent(assetId)}`, guard(id), {}, { method: 'DELETE', params: conversationId ? { conversationId } : {} }),
@@ -113,7 +114,7 @@ export function createStudioApi(fetcher: typeof fetch = fetch, scope: 'overseas'
       const response = await fetcher(`${base(id)}/files${conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ''}`, { method: 'POST', body, credentials: 'include', headers: { 'X-HX-Request': '1' }, signal })
       if (!response.ok) throw new IdentityError(response.status, response.status === 413 ? '单个附件不能超过 500 MB' : '文件上传失败，请重试')
       const value: unknown = await response.json()
-      if (!isAsset(value, id, base(id), scope === 'domestic') || (record(value) && value.materialState !== undefined && !['added', 'existing', 'restored'].includes(String(value.materialState)))) throw Error('文件响应格式错误')
+      if (!isAsset(value, id, base(id), scope !== 'overseas') || (record(value) && value.materialState !== undefined && !['added', 'existing', 'restored'].includes(String(value.materialState)))) throw Error('文件响应格式错误')
       return value as UploadedAsset
     },
 

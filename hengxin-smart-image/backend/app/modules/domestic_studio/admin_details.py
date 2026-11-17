@@ -8,6 +8,7 @@ from app.models import Job
 from app.overseas.studio.image_edit_history import public_edits
 from app.resource_models import UserRecord
 from . import admin_queries
+from .task_models import Task
 from .queries import timestamp
 from .turn_models import OutputFile, Picture, Transcript, Turn, Upload
 
@@ -70,7 +71,7 @@ def references(session, channel, identities, kind):
 
 def detail(session, channel):
     owner = session.get(UserRecord, channel.owner_id)
-    summaries = admin_queries.siblings(session, channel.owner_id)
+    summaries = admin_queries.siblings(session, channel.owner_id, task_id=channel.task_id)
     summary = next(row for row in summaries if row['id'] == str(channel.id))
     turns = []
     for turn in session.scalars(select(Turn).where(Turn.conversation_id == channel.id)
@@ -95,10 +96,10 @@ def detail(session, channel):
                 .where(Picture.turn_id == turn.id).order_by(Picture.created_at, Picture.id))],
             outputs=[file_dto(row, channel.id, 'outputs') for row in session.scalars(select(OutputFile)
                 .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))]))
-    workspace = dict(taskId=channel.workspace, taskVersion=channel.version, conversationId=str(channel.id),
+    workspace = dict(taskId=str(channel.task_id), taskVersion=channel.version, conversationId=str(channel.id),
         maxConversations=10,
         activeConversationCount=sum(bool(row['activeTurnId']) for row in summaries if row['workspace'] == channel.workspace),
-        completed=False, reopened=False, archiveId=None, turns=turns, activeTurnId=summary['activeTurnId'],
+        completed=session.get(Task, channel.task_id).completed, reopened=False, archiveId=None, turns=turns, activeTurnId=summary['activeTurnId'],
         skills=[], fixedSkillReady=False, materials=[file_dto(row, channel.id, 'files')
             for row in session.scalars(select(Upload).where(Upload.conversation_id == channel.id,
                 Upload.id.in_(submitted_upload_ids(session, channel.id)),

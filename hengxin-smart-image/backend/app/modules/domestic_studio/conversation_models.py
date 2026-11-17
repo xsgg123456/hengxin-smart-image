@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.timestamps import Timestamps
 from app.models import Base
+from .task_models import Task, TaskRequest  # Register task foreign-key targets.
 
 
 WORKSPACE_CHECK = "workspace IN ('camera','case','product','scene','phone')"
@@ -25,10 +26,14 @@ class Conversation(Timestamps, Base):
     __table_args__ = (
         ForeignKeyConstraint(['owner_id', 'workspace'],
                              ['domestic_studio_workspaces.owner_id', 'domestic_studio_workspaces.workspace']),
+        ForeignKeyConstraint(['task_id', 'owner_id', 'workspace'],
+            ['domestic_studio_tasks.id', 'domestic_studio_tasks.owner_id', 'domestic_studio_tasks.workspace'],
+            name='fk_domestic_conversation_task_owner_workspace'),
         CheckConstraint(WORKSPACE_CHECK),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(Uuid, nullable=False, index=True)
     owner_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     workspace: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(30))
@@ -54,6 +59,7 @@ class ConversationDeletion(Timestamps, Base):
     """Durable ownership proof and retry state for deleting a private session."""
     __tablename__ = 'domestic_studio_conversation_deletions'
     conversation_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    task_id: Mapped[UUID | None] = mapped_column(ForeignKey('domestic_studio_tasks.id'), nullable=True)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'), index=True)
     workspace: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), index=True)

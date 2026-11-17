@@ -46,6 +46,9 @@ def test_return_path_rejects_external_redirects():
     assert dingtalk.safe_return_path('https://attacker.example') == '/api-image-edits/create'
     assert dingtalk.safe_return_path('//attacker.example') == '/api-image-edits/create'
     assert dingtalk.safe_return_path('/api-image-edits/records?task=abc') == '/api-image-edits/records?task=abc'
+    assert dingtalk.safe_return_path('/management/task-center?task=abc') == '/management/task-center?task=abc'
+    assert dingtalk.safe_return_path('/management/workspace-sessions?session=abc') == '/management/workspace-sessions?session=abc'
+    assert dingtalk.safe_return_path('/management/task-center-evil') == '/api-image-edits/create'
 
 
 def test_login_state_is_one_time_and_expires(files_env):

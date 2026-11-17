@@ -27,7 +27,7 @@ import { computed, ref, watch } from 'vue'
 import { formatAttachmentSize } from '@/api/shared/attachment-download'
 import { createStudioOutputsApi } from '@/api/shared/studio-outputs'
 import { useStudioRecovery } from './use-studio-recovery'
-const props = defineProps<{ taskId: string; conversationId: string; readonly: boolean; busy: boolean; scope?: 'overseas' | 'domestic' }>()
+const props = defineProps<{ taskId: string; conversationId: string; readonly: boolean; busy: boolean; scope?: 'overseas' | 'domestic' | 'domestic-task' }>()
 const emit = defineEmits<{ close: []; saved: []; failure: [reason: unknown] }>()
 const { items, selected, loading, saving, serverBusy, error, result, loaded, blocked, canSave, load, recover, toggle } = useStudioRecovery(() => props, () => emit('saved'), reason => emit('failure', reason), createStudioOutputsApi(fetch, props.scope || 'overseas'))
 const search = ref('')

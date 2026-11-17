@@ -30,7 +30,7 @@ const workspaces = Object.fromEntries(entries.map(([key]) => [key, {
 let failure = false, holdSend, releaseSend
 const state = (key, id) => {
   const w = workspaces[key], selected = id || w.rows[0].id
-  return { taskId: key, taskVersion: 1, archiveId: null, completed: false, reopened: false,
+  return { taskId: `${key}-task`, taskVersion: 1, archiveId: null, completed: false, reopened: false,
     conversationId: selected, conversations: w.rows, maxConversations: 10, activeConversationCount: 0,
     turns: w.turns[selected] || [], materials: [], skills: w.skills, fixedSkillReady: !!w.skills.length, activeTurnId: null }
 }
@@ -73,7 +73,9 @@ await context.route('**/*', async route => {
   if (!path.startsWith('/api/')) return route.continue()
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
   if (path.endsWith('/auth/me')) return json({ id: 'isolated-domestic-user', name: '隔离验收用户', role: 'super_admin', status: 'active' })
-  const match = path.match(/^\/api\/v1\/domestic-studio\/workspaces\/(camera|case|product|scene|phone)(.*)$/)
+  const taskMatch = path.match(/^\/api\/v1\/domestic-studio\/tasks\/(camera|case|product|scene|phone)-task$/)
+  if (taskMatch) { const key = taskMatch[1], entry = entries.find(item => item[0] === key); return json({ id: `${key}-task`, name: entry[2], workspace: key, ownerId: 'isolated-domestic-user', ownerName: '隔离验收用户', version: 1, completed: false, conversationCount: workspaces[key].rows.length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }) }
+  const match = path.match(/^\/api\/v1\/domestic-studio\/tasks\/(camera|case|product|scene|phone)-task\/studio(.*)$/)
   if (!match) { unexpected.push(path); return json({}, 501) }
   const [, key, suffix] = match, w = workspaces[key]
   if (suffix === '/transcript') return json({ items: [], cursor: 0, hasMore: false })
@@ -96,7 +98,7 @@ await context.route('**/*', async route => {
 })
 try {
   for (const [key, path, title] of entries) {
-    await page.goto(`${base}/#${path}`); await ready()
+    await page.goto(`${base}/#${path}?task=${key}-task`); await ready()
     await page.getByRole('heading', { name: title, exact: true }).waitFor(); await ready()
     assert.equal(await input.inputValue(), ''); assert.equal(await choice().isChecked(), false)
     assert.equal(await page.locator('.studio-empty').count(), 0)
@@ -109,7 +111,7 @@ try {
     assert.equal(sends.at(-1).body.conversationId, `${key}-a`)
     checks.push(`${key}: 默认空白；选中发送；成功清空；下一轮null；历史真实技能标签`)
   }
-  await page.goto(`${base}/#${entries[0][1]}`); await page.getByRole('heading', { name: entries[0][2], exact: true }).waitFor(); await ready()
+  await page.goto(`${base}/#${entries[0][1]}?task=camera-task`); await page.getByRole('heading', { name: entries[0][2], exact: true }).waitFor(); await ready()
   await input.fill('甲草稿'); await page.locator('.domestic-skill-choice').click(); await choose('方案乙'); await ready()
   assert.equal(await choice().isChecked(), false); await input.fill('乙草稿')
   await choose('方案甲'); await ready(); assert.equal(await input.inputValue(), '甲草稿'); assert.equal(await choice().isChecked(), true)

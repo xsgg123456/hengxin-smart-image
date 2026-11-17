@@ -20,11 +20,12 @@ export function isRecoveryResult(value: unknown): value is RecoveryResult {
     && value.saved.every(item => record(item) && strings(item, ['id']) && ['picture', 'file'].includes(String(item.kind)))
     && value.errors.every(item => record(item) && strings(item, ['id', 'name', 'message']))
 }
-export function createStudioOutputsApi(fetcher: typeof fetch = fetch, scope: 'overseas' | 'domestic' = 'overseas') {
+export function createStudioOutputsApi(fetcher: typeof fetch = fetch, scope: 'overseas' | 'domestic' | 'domestic-task' = 'overseas') {
   function request(signal?: AbortSignal) {
     return createIdentityRequest((url, options) => fetcher(url, { ...options, cache: 'no-store', signal: signal && options?.signal ? AbortSignal.any([signal, options.signal]) : signal || options?.signal }))
   }
   const base = (taskId: string, conversationId: string) => {
+    if (scope === 'domestic-task') return `/api/v1/domestic-studio/tasks/${encodeURIComponent(taskId)}/studio/conversations/${encodeURIComponent(conversationId)}`
     if (scope === 'domestic') {
       if (!['camera', 'case', 'product', 'scene', 'phone'].includes(taskId)) throw Error('工作台入口无效')
       return `/api/v1/domestic-studio/workspaces/${taskId}/conversations/${encodeURIComponent(conversationId)}`

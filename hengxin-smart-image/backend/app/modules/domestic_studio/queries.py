@@ -38,7 +38,8 @@ def output_dto(row, workspace):
 
 def channel_rows(session, actor_id, workspace):
     channels = list(session.scalars(select(Conversation).where(Conversation.owner_id == actor_id,
-        Conversation.workspace == workspace).order_by(Conversation.created_at, Conversation.id)))
+        Conversation.workspace == workspace,
+        *([Conversation.task_id == session.info['domestic_task_id']] if session.info.get('domestic_task_id') else [])).order_by(Conversation.created_at, Conversation.id)))
     result = []
     for channel in channels:
         jobs = session.execute(select(Turn.id, Job.status).join(Job, Job.id == Turn.job_id)
@@ -103,13 +104,15 @@ def view(session, actor_id, workspace, conversation_id=None, *, catalog):
                     .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))]))
     state = session.get(Workspace, (actor_id, workspace))
     skills = available_skills(session, workspace, catalog)
-    return dict(taskId=workspace, taskVersion=state.version if state else 1,
+    result = dict(taskId=workspace, taskVersion=state.version if state else 1,
         conversationId=str(channel.id) if channel else None, conversations=summaries, maxConversations=10,
         activeConversationCount=sum(bool(row['activeTurnId']) for row in summaries), completed=False,
         reopened=False, archiveId=None, turns=results, activeTurnId=active, skills=skills,
         materials=[asset(row, workspace) for row in session.scalars(select(Upload).where(
             Upload.conversation_id == channel.id, Upload.status == 'ready').order_by(Upload.created_at, Upload.id))] if channel and not deleting else [],
         fixedSkillReady=bool(skills))
+    from .task_scope import project_view
+    return project_view(session, result, channel)
 
 
 def transcript(session, actor_id, workspace, conversation_id, after):

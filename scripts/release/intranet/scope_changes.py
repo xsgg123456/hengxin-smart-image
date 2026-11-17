@@ -138,7 +138,7 @@ class Imports:
         return owners
 
 
-def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False):
+def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False, tasks_maintenance=False):
     """Validate before any single-scope drain or mutation; return changed paths."""
     if scope not in ENTRYPOINTS or mode not in ('frontend', 'full'):
         raise RuntimeError('Invalid independent release scope or mode')
@@ -171,6 +171,12 @@ def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False):
             denied[name] = []
         elif owners == {scope}:
             target_changes.append(name)
+        elif tasks_maintenance and scope == 'domestic' and mode == 'full':
+            from domestic_tasks_policy import approved_change
+            if approved_change(name, old_files.get(name), new_files.get(name)):
+                target_changes.append(name)
+            elif len(owners) != 1 or not owners <= {'domestic', 'overseas'}:
+                denied[name] = sorted(owners)
         elif fast_maintenance and owners == {'domestic', 'overseas'}:
             from fast_maintenance import approved_change
             if approved_change(name, old_files.get(name), new_files.get(name)):

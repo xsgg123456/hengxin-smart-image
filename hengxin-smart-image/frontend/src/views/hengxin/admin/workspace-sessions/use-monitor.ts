@@ -4,7 +4,7 @@ import { createWorkspaceSessionsApi, type SessionDetail, type SessionFilters, ty
 import type { StudioTranscript } from '../../../../api/shared/studio'
 import { identity } from '../../../../api/hengxin/identity'
 
-export function useMonitor(api = createWorkspaceSessionsApi()) {
+export function useMonitor(api = createWorkspaceSessionsApi(), listEnabled = true) {
   const filters = reactive<SessionFilters>({ ownerId: '', workspace: '', status: '', search: '', page: 1, pageSize: 10 })
   const list = shallowRef<SessionList>(), detail = shallowRef<SessionDetail>()
   const transcript = shallowRef<StudioTranscript[]>([])
@@ -19,7 +19,7 @@ export function useMonitor(api = createWorkspaceSessionsApi()) {
     } else error.value = reason instanceof Error ? reason.message : '同步失败，请重试'
   }
   async function refresh() {
-    if (denied.value) return
+    if (denied.value || (!listEnabled && !selectedId.value)) return
     const token = ++epoch, id = selectedId.value
     controller?.abort(); controller = new AbortController()
     const signal = controller.signal

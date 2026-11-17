@@ -7,6 +7,7 @@ from app.resource_models import UserRecord
 from app.worker.leases import TERMINAL
 from .conversation_models import Conversation, ConversationDeletion
 from .policy import WORKSPACES
+from .task_models import Task
 from .queries import timestamp
 from .turn_models import Turn
 
@@ -38,18 +39,18 @@ def projection():
         (ranked.c.status.in_(('uncertain', 'collecting', 'cancelling', 'retry_wait')), 'running'),
         (ranked.c.status == 'partial', 'succeeded'),
         (ranked.c.status.in_(STATUSES), ranked.c.status), else_='unknown')
-    return select(Conversation.id, Conversation.owner_id, UserRecord.name.label('owner_name'),
+    return select(Conversation.id, Conversation.task_id, Task.name.label('task_name'), Conversation.owner_id, UserRecord.name.label('owner_name'),
         Conversation.name, Conversation.workspace, Conversation.version, Conversation.created_at,
         func.greatest(Conversation.updated_at, ranked.c.turn_updated, ranked.c.job_updated).label('updated_at'),
         status.label('status'), func.coalesce(ranked.c.turn_count, 0).label('turn_count'),
         case((ranked.c.status.not_in(TERMINAL), ranked.c.turn_id), else_=None).label('active_turn_id')
-        ).join(UserRecord, UserRecord.id == Conversation.owner_id).outerjoin(ranked,
+        ).join(Task, Task.id == Conversation.task_id).join(UserRecord, UserRecord.id == Conversation.owner_id).outerjoin(ranked,
             (ranked.c.conversation_id == Conversation.id) & (ranked.c.rank == 1)).where(*readable()).subquery()
 
 
 def dto(row):
     return dict(id=str(row.id), name=row.name, ownerId=str(row.owner_id), ownerName=row.owner_name,
-        workspace=row.workspace, version=row.version, status=row.status, turnCount=row.turn_count,
+        workspace=row.workspace, taskId=str(row.task_id), taskName=row.task_name, version=row.version, status=row.status, turnCount=row.turn_count,
         activeTurnId=str(row.active_turn_id) if row.active_turn_id else None,
         createdAt=timestamp(row.created_at), updatedAt=timestamp(row.updated_at))
 
@@ -77,7 +78,7 @@ def listing(session, *, owner_id=None, workspace=None, status=None, search='', p
         members=[dict(id=str(row.id), name=row.name) for row in members])
 
 
-def siblings(session, owner_id):
+def siblings(session, owner_id, *, task_id):
     source = projection()
-    return [dto(row) for row in session.execute(select(source).where(source.c.owner_id == owner_id)
+    return [dto(row) for row in session.execute(select(source).where(source.c.owner_id == owner_id, source.c.task_id == task_id)
             .order_by(source.c.updated_at.desc(), source.c.id.desc()))]

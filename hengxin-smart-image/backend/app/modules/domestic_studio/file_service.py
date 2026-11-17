@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.overseas.studio.files import MAX_BYTES, read, validate_stream
 from . import maintenance_lock
 from .conversation_models import Conversation, ConversationDeletion
-from .conversation_service import lock_actor, owned
+from .conversation_service import lock_actor, owned, workspace_state
 from .turn_models import OutputFile, Picture, Turn, Upload
 
 
@@ -23,7 +23,7 @@ def asset(row, workspace):
 def authorize_upload(factory, actor_id, workspace, conversation_id):
     with factory.begin() as session:
         lock_actor(session, actor_id)
-        owned(session, actor_id, workspace, conversation_id)
+        owned(session, actor_id, workspace, conversation_id, write=True)
 
 
 def upload(factory, store, actor_id, workspace, conversation_id, data, filename):
@@ -68,6 +68,7 @@ def upload(factory, store, actor_id, workspace, conversation_id, data, filename)
             if session.get(ConversationDeletion, channel.id):
                 raise HTTPException(409, '会话正在删除，不能上传附件')
             row.status = 'ready'
+            workspace_state(session, actor_id, workspace).version += 1
             session.flush()
             return asset(row, workspace)
 
@@ -79,6 +80,9 @@ def find(session, actor_id, workspace, identity):
             ConversationDeletion.conversation_id == Conversation.id).exists()))
     if row is None:
         raise HTTPException(404, '附件不存在或不可访问')
+    from .task_service import channel_task
+    channel_id = row.conversation_id if isinstance(row, Upload) else session.get(Turn, row.turn_id).conversation_id
+    channel_task(session, session.get(Conversation, channel_id))
     return row
 
 
@@ -95,4 +99,7 @@ def find_output(session, actor_id, workspace, identity, *, picture=False):
                 ConversationDeletion.conversation_id == Conversation.id).exists()))
     if row is None:
         raise HTTPException(404, '文件不存在或不可访问')
+    from .task_service import channel_task
+    channel_id = row.conversation_id if isinstance(row, Upload) else session.get(Turn, row.turn_id).conversation_id
+    channel_task(session, session.get(Conversation, channel_id))
     return row

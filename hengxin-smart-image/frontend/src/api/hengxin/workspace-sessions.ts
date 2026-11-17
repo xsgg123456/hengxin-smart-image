@@ -7,7 +7,7 @@ export type SessionStatus = typeof sessionStatuses[number]
 export interface ManagedSession {
   id: string; name: string; ownerId: string; ownerName: string; workspace: WorkspaceKey
   status: SessionStatus; turnCount: number; createdAt: string; updatedAt: string
-  activeTurnId: string | null; version: number
+  activeTurnId: string | null; version: number; taskId?: string; taskName?: string
 }
 export interface SessionFilters { ownerId: string; workspace: string; status: string; search: string; page: number; pageSize: number }
 export interface SessionList {
@@ -22,6 +22,7 @@ export function isManagedSession(value: unknown): value is ManagedSession {
   return record(value) && ['id', 'name', 'ownerId', 'ownerName', 'createdAt', 'updatedAt'].every(key => typeof value[key] === 'string')
     && ['camera', 'case', 'product', 'scene', 'phone'].includes(String(value.workspace))
     && sessionStatuses.includes(value.status as SessionStatus) && integer(value.turnCount) && integer(value.version)
+    && (value.taskId === undefined || typeof value.taskId === 'string') && (value.taskName === undefined || typeof value.taskName === 'string')
     && (value.activeTurnId === null || typeof value.activeTurnId === 'string')
 }
 export function isSessionList(value: unknown): value is SessionList {
@@ -35,8 +36,8 @@ export function isSessionList(value: unknown): value is SessionList {
 export function isSessionDetail(value: unknown, id: string): value is SessionDetail {
   if (!record(value) || !isManagedSession(value.session) || value.session.id !== id) return false
   const session = value.session
-  return Array.isArray(value.siblingSessions) && value.siblingSessions.every(item => isManagedSession(item) && item.ownerId === session.ownerId)
-    && isStudio(value.workspace, session.workspace, sessionBase(id), true)
+  return Array.isArray(value.siblingSessions) && value.siblingSessions.every(item => isManagedSession(item) && item.ownerId === session.ownerId && (!session.taskId || item.taskId === session.taskId))
+    && isStudio(value.workspace, session.taskId || session.workspace, sessionBase(id), true)
     && value.workspace.conversationId === id
 }
 export function createWorkspaceSessionsApi(fetcher: typeof fetch = fetch) {

@@ -123,6 +123,7 @@ export function useStudioSessions(task: () => StudioTask, failure: (reason: unkn
   const runningCount = computed(() => summaries.value.filter(s => !!s.activeTurnId).length)
   const canManage = computed(() => !!forwarded.data.value && !taskState?.completed && task().capabilities.includes('task.design') && !sessionBusy.value && !sessionPending.value)
   const canNewConversation = computed(() => canManage.value && summaries.value.length < 10)
+  const canMutateTask = computed(() => canManage.value && !legacy.unresolved.value && !runningCount.value && !summaries.value.some(s => s.deletionStatus) && ![...engines.values()].some(e => e.controller.busy.value || e.controller.uploading.value || e.controller.pending.value))
   const canComplete = computed(() => canManage.value && !legacy.unresolved.value && !!forwarded.data.value?.archiveId && !runningCount.value && ![...engines.values()].some(e => e.controller.busy.value || e.controller.uploading.value || e.controller.pending.value))
   watch([canNewConversation, () => summaries.value.length, () => !!forwarded.data.value], ([canCreate, count, loaded]) => {
     if (!autoCreate || !alive) return
@@ -162,7 +163,7 @@ export function useStudioSessions(task: () => StudioTask, failure: (reason: unkn
   }
   function saveScroll(position: number, id = activeId.value) { if (id) { scrolls.value[id] = position; persist() } }
   onScopeDispose(() => { alive = false; for (const entry of engines.values()) entry.scope.stop() })
-  return { ...forwarded, sessions, activeId, currentSession, runningCount, canManage, canComplete, canNewConversation, newConversation, renameConversation, deleteConversation, selectSession,
+  return { ...forwarded, sessions, activeId, currentSession, runningCount, canManage, canComplete, canMutateTask, canNewConversation, newConversation, renameConversation, deleteConversation, selectSession,
     sessionBusy, sessionError, sessionPending, retrySession: () => sessionPending.value && manage(sessionPending.value), preferenceNotice, saveScroll,
     scrollPosition: computed(() => scrolls.value[activeId.value] ?? null) }
 }

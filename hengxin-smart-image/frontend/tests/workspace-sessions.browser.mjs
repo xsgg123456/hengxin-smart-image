@@ -16,7 +16,9 @@ page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeou
 const stamp = '2026-11-17T02:00:00Z', root = '/api/v1/management/domestic-studio/sessions'
 const keys = ['camera', 'case', 'product', 'scene', 'phone']
 const states = ['running', 'queued', 'succeeded', 'failed', 'empty', 'cancelled', 'unknown']
-const rows = Array.from({ length: 21 }, (_, index) => ({ id: `session-${index}`, name: `验收会话 ${index}`, ownerId: index < 15 ? 'member-a' : 'member-b', ownerName: index < 15 ? '真实成员甲' : '真实成员乙', workspace: keys[index % 5], status: states[index % 7], turnCount: index === 4 ? 0 : 1, createdAt: stamp, updatedAt: stamp, version: 1, activeTurnId: null }))
+const rows = Array.from({ length: 21 }, (_, index) => ({ id: `session-${index}`, name: `验收会话 ${index}`, ownerId: index < 15 ? 'member-a' : 'member-b', ownerName: index < 15 ? '真实成员甲' : '真实成员乙', workspace: [0, 1, 4].includes(index) ? 'camera' : keys[index % 5], taskId: `task-${[1, 4].includes(index) ? 0 : index}`, taskName: `验收任务 ${[1, 4].includes(index) ? 0 : index}`, status: states[index % 7], turnCount: index === 4 ? 0 : 1, createdAt: stamp, updatedAt: stamp, version: 1, activeTurnId: null }))
+const taskRoot = '/api/v1/management/domestic-studio/tasks'
+const tasks = Array.from({ length: 21 }, (_, index) => ({ id: `task-${index}`, name: `验收任务 ${index}`, ownerId: rows[index].ownerId, ownerName: rows[index].ownerName, workspace: rows[index].workspace, version: 1, completed: index % 3 === 0, conversationCount: rows.filter(row => row.taskId === `task-${index}`).length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }))
 const file = (id, kind, name, type) => ({ id: `${kind === 'files' ? 'upload:' : ''}${id}`, name, contentType: type, sizeBytes: 12, url: `${root}/session-0/${kind}/${id}/content`, ...(kind === 'files' ? { source: 'upload' } : {}) })
 const picture = { ...file('picture-a', 'pictures', '已保存图片.png', 'image/png'), width: 1, height: 1, turnId: 'turn-session-0', sku: null, archived: false }
 let failure = 0, revision = 0, held, release, deleted = false
@@ -24,7 +26,7 @@ const members = [{ id: 'member-a', name: '真实成员甲' }, { id: 'member-b', 
 function snapshot(id) {
   const row = rows.find(item => item.id === id)
   const turn = { id: `turn-${id}`, text: `完整已提交需求 ${id}`, skillName: '本轮实际技能', status: row.status, reply: revision ? '同步后新回复' : '已收到完整需求', error: row.status === 'failed' ? '执行失败原因' : null, jobId: 'job-a', jobVersion: 1, createdAt: stamp, actor: { id: row.ownerId, name: row.ownerName }, replyAt: stamp, replyTimeSource: 'message', conversationId: id, attachments: id === 'session-0' ? [file('input-a', 'files', '图需说明.txt', 'text/plain'), file('vector-a', 'files', '矢量附件.svg', 'image/svg+xml')] : [], pictures: id === 'session-0' ? [picture] : [], referencePictures: [], outputs: id === 'session-0' ? [file('output-a', 'outputs', '正式输出.txt', 'text/plain')] : [] }
-  return { session: row, siblingSessions: rows.filter(item => item.ownerId === row.ownerId), workspace: { taskId: row.workspace, taskVersion: 1, conversationId: id, archiveId: null, completed: false, reopened: false, fixedSkillReady: false, skills: [], materials: [], activeTurnId: null, turns: row.turnCount ? [turn] : [] } }
+  return { session: row, siblingSessions: rows.filter(item => item.taskId === row.taskId), workspace: { taskId: row.taskId, taskVersion: 1, conversationId: id, archiveId: null, completed: false, reopened: false, fixedSkillReady: false, skills: [], materials: [], activeTurnId: null, turns: row.turnCount ? [turn] : [] } }
 }
 await context.route('**/*', async route => {
   const request = route.request(), url = new URL(request.url()), path = url.pathname
@@ -34,8 +36,14 @@ await context.route('**/*', async route => {
   if (path.endsWith('/auth/me')) return json({ id: 'admin', name: '隔离管理员', role: 'super_admin', status: 'active' })
   calls.push({ method: request.method(), path, query: url.search })
   if (request.method() !== 'GET') { unexpected.push(`${request.method()} ${path}`); return json({}, 405) }
-  if (!path.startsWith(root)) { unexpected.push(path); return json({}, 501) }
   if (failure) return json({ detail: '隔离故障' }, failure)
+  if (path === taskRoot) {
+    const q = url.searchParams, all = tasks.filter(item => (!q.get('ownerId') || item.ownerId === q.get('ownerId')) && (!q.get('workspace') || item.workspace === q.get('workspace')) && item.name.includes(q.get('search') || ''))
+    const filtered = all.filter(item => !q.get('status') || (q.get('status') === 'completed' ? item.completed : !item.completed)), pageNumber = Number(q.get('page') || 1), pageSize = Number(q.get('pageSize') || 20)
+    return json({ items: filtered.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), total: filtered.length, page: pageNumber, pageSize, counters: { total: all.length, active: all.filter(item => !item.completed).length, completed: all.filter(item => item.completed).length }, members })
+  }
+  if (path.startsWith(taskRoot + '/')) { const task = tasks.find(item => path === `${taskRoot}/${item.id}`); return task ? json({ task, sessions: rows.filter(row => row.taskId === task.id) }) : json({}, 404) }
+  if (!path.startsWith(root)) { unexpected.push(path); return json({}, 501) }
   if (path === root) {
     const q = url.searchParams
     let items = rows.filter(item => (!q.get('ownerId') || item.ownerId === q.get('ownerId')) && (!q.get('workspace') || item.workspace === q.get('workspace')) && (!q.get('status') || item.status === q.get('status')) && item.name.includes(q.get('search') || ''))
@@ -57,8 +65,8 @@ await context.route('**/*', async route => {
     : route.fulfill({ contentType: 'text/plain', body: '真实文件内容' })
   unexpected.push(path); return json({}, 501)
 })
-const refresh = () => page.getByRole('button', { name: '刷新', exact: true }).click()
-const choose = id => page.locator('.wm-name').filter({ hasText: new RegExp(`^验收会话 ${id}$`) }).click()
+const refresh = async () => { const session = page.getByRole('button', { name: '刷新会话', exact: true }); await (await session.count() ? session : page.getByRole('button', { name: '刷新', exact: true })).click() }
+const choose = id => page.locator('.tc-task-name').filter({ hasText: new RegExp(`^验收任务 ${id}$`) }).click()
 const waitName = id => page.locator('.wm-chat-heading strong').filter({ hasText: new RegExp(`^验收会话 ${id}$`) }).waitFor()
 async function bounds(label, locator) {
   await locator.scrollIntoViewIfNeeded()
@@ -76,15 +84,15 @@ async function bounds(label, locator) {
 }
 try {
   await page.goto(`${base}/#/management/workspace-sessions`)
-  await page.locator('.wm-name').first().waitFor()
-  await page.locator('.wm-sync .el-switch').click()
-  assert.equal(await page.locator('.wm-name').count(), 10)
-  await page.locator('.el-pagination .btn-next').click(); await page.locator('.wm-name').filter({ hasText: /^验收会话 10$/ }).waitFor()
-  await page.getByRole('textbox', { name: '搜索会话名称' }).fill('验收会话 20')
-  await page.locator('.wm-name').filter({ hasText: /^验收会话 20$/ }).waitFor(); assert.equal(await page.locator('.wm-name').count(), 1)
-  await choose(20); await waitName(20); await page.getByRole('button', { name: '← 返回会话列表' }).click()
-  assert.equal(await page.getByRole('textbox', { name: '搜索会话名称' }).inputValue(), '验收会话 20')
-  await page.getByRole('button', { name: '重置筛选' }).click(); await page.locator('.wm-name').filter({ hasText: /^验收会话 0$/ }).waitFor()
+  await page.locator('.tc-task-name').first().waitFor()
+  await page.locator('.wm-sync .el-switch').first().click()
+  assert.equal(await page.locator('.tc-task-name').count(), 20)
+  await page.locator('.el-pagination .btn-next').click(); await page.locator('.tc-task-name').filter({ hasText: /^验收任务 20$/ }).waitFor()
+  await page.getByRole('textbox', { name: '搜索任务名称' }).fill('验收任务 20')
+  await page.locator('.tc-task-name').filter({ hasText: /^验收任务 20$/ }).waitFor(); assert.equal(await page.locator('.tc-task-name').count(), 1)
+  await choose(20); await waitName(20); await page.getByRole('button', { name: '返回任务列表' }).click()
+  assert.equal(await page.getByRole('textbox', { name: '搜索任务名称' }).inputValue(), '验收任务 20')
+  await page.getByRole('button', { name: '重置筛选' }).click(); await page.locator('.tc-task-name').filter({ hasText: /^验收任务 0$/ }).waitFor()
   checks.push('真实请求分页、名称筛选、返回保留筛选、重置')
   for (const width of [1920, 1000, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1080 })
@@ -109,8 +117,8 @@ try {
   await page.getByRole('dialog').getByText('图需说明.txt', { exact: true }).waitFor(); await page.keyboard.press('Escape')
   checks.push('完整已提交消息/实际技能/公开过程、真实图片预览与文件下载、纯只读附件面板')
   revision = 1; await refresh(); await page.getByText('新公开执行进度', { exact: true }).waitFor(); await page.getByText('同步后新回复', { exact: true }).waitFor()
-  failure = 503; await refresh(); await page.getByText('同步已中断，当前显示最后一次成功内容', { exact: false }).waitFor(); assert.ok(await page.getByText('同步后新回复', { exact: true }).isVisible())
-  failure = 0; await refresh(); await page.getByText('同步已中断，当前显示最后一次成功内容', { exact: false }).waitFor({ state: 'hidden' })
+  failure = 503; await refresh(); await page.getByText('会话同步已中断', { exact: false }).waitFor(); assert.ok(await page.getByText('同步后新回复', { exact: true }).isVisible())
+  failure = 0; await refresh(); await page.getByText('会话同步已中断', { exact: false }).waitFor({ state: 'hidden' })
   checks.push('手动增量同步、断线保留最近成功内容、恢复同步')
   for (const width of [1920, 1000, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1080 })
@@ -123,12 +131,12 @@ try {
   held = 'session-1'; await page.locator('.wm-conversation').filter({ has: page.getByText('验收会话 1', { exact: true }) }).click()
   await page.waitForTimeout(100); await page.evaluate(() => { location.hash = '#/management/workspace-sessions?session=session-2' }); await waitName(2)
   release?.(); held = undefined; await page.waitForTimeout(150); assert.equal(await page.locator('.wm-chat-heading strong').innerText(), '验收会话 2')
-  await page.locator('.wm-conversation').filter({ has: page.getByText('验收会话 4', { exact: true }) }).click(); await waitName(4); await page.getByText('这个会话还没有提交消息', { exact: true }).waitFor()
+  await page.evaluate(() => { location.hash = '#/management/task-center?task=task-0&session=session-4' }); await waitName(4); await page.locator('.wm-conversation').filter({ has: page.getByText('验收会话 4', { exact: true }) }).click(); await waitName(4); await page.getByText('这个会话还没有提交消息', { exact: true }).waitFor()
   checks.push('同成员会话切换、迟到响应不串会话、空会话')
   deleted = true; await refresh(); await page.getByText('会话已删除或不可用，请返回列表。', { exact: true }).waitFor(); assert.equal(await page.locator('.wm-chat').count(), 0)
   deleted = false; await refresh(); await waitName(4)
-  failure = 403; await refresh(); await page.getByText('仅超级管理员可查看', { exact: true }).waitFor()
-  assert.equal(await page.locator('.wm-chat,.wm-name,.wm-managed-asset').count(), 0)
+  failure = 403; await refresh(); await page.getByText('无权查看任务', { exact: true }).waitFor()
+  assert.equal(await page.locator('.wm-chat,.tc-task-name,.wm-managed-asset').count(), 0)
   checks.push('源会话删除及管理员撤权清除全部敏感内容')
   assert.deepEqual(errors, []); assert.deepEqual(unexpected, [])
   await writeFile(resolve(output, 'report.json'), JSON.stringify({ result: 'PASS', checks, geometry, errors, unexpected, calls }, null, 2))

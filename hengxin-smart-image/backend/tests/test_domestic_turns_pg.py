@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models import Job, Outbox
 from app.modules.domestic_studio.bindings import read_bindings, save_bindings
 from app.modules.domestic_studio.conversation_models import Conversation, ConversationDeletion, ConversationRequest, Workspace
-from app.modules.domestic_studio.conversation_service import create
+from domestic_task_fixtures import create
 from app.modules.domestic_studio.installed_skills import DomesticInstalledSkills
 from app.modules.domestic_studio.models import SkillExecutionReference
 from app.modules.domestic_studio.skill_state import DomesticSkillState
@@ -19,6 +19,7 @@ from app.modules.domestic_studio import turn_service
 from app.modules.management.models import SystemSettings
 from app.overseas.studio.schemas import NewConversation, Send
 from app.resource_models import UserRecord
+from app.modules.domestic_studio.task_models import Task, TaskRequest
 from test_domestic_installed_skills import install_fixture
 from test_domestic_studio_bindings_pg import database
 
@@ -26,7 +27,7 @@ from test_domestic_studio_bindings_pg import database
 @pytest.fixture
 def context(database, tmp_path, monkeypatch):
     monkeypatch.setenv('DOMESTIC_STUDIO_LOCK_ROOT', str(tmp_path / 'shared-locks'))
-    for model in (UserRecord, Job, Outbox, Workspace, Conversation, ConversationDeletion, ConversationRequest,
+    for model in (UserRecord, Job, Outbox, Workspace, Task, TaskRequest, Conversation, ConversationDeletion, ConversationRequest,
                   DomesticSkillState, SkillExecutionReference, Turn, Upload, Picture, SystemSettings):
         model.__table__.create(database)
     monkeypatch.setattr(turn_service, 'get_settings', lambda: SimpleNamespace(enable_codex_executor=True))

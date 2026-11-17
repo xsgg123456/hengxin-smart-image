@@ -142,7 +142,18 @@ def process(factory, store, identity):
         with maintenance_lock.hold(settings, identity):
             return _process(factory, store, identity, settings)
     except (OSError, ValueError):
+        failed(factory, identity)
         return False
+
+
+def failed(factory, identity):
+    with factory.begin() as session:
+        channel, receipt = locked(session, identity)
+        if receipt:
+            receipt.status, receipt.error = 'delete_failed', '会话清理未完成，请重试或联系管理员'
+            session.flush()
+            from .task_deletion import reconcile
+            reconcile(session, channel.task_id)
 
 
 def _process(factory, store, identity, settings):
@@ -174,12 +185,12 @@ def _process(factory, store, identity, settings):
             state.version += 1
             erase_records(session, identity)
             receipt.status, receipt.error, receipt.manifest = 'deleted', None, {}
+            session.flush()
+            from .task_deletion import reconcile
+            reconcile(session, channel.task_id)
         return True
     except Exception:
-        with factory.begin() as session:
-            _, receipt = locked(session, identity)
-            if receipt:
-                receipt.status, receipt.error = 'delete_failed', '会话清理未完成，请重试或联系管理员'
+        failed(factory, identity)
         return False
 
 

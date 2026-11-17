@@ -79,10 +79,10 @@ class Actions:
             self.original['remove_stop_overrides']()
             u.run(['systemctl', 'start', *u.NATIVE], timeout=180)
         backend = tuple(n for n in u.APPS if n != scopes.UI[self.scope])
-        self.app_command('up', backend)
+        u.app_command('up', backend)
         if backend:
             self.health(ctx)
-        self.app_command('up', (scopes.UI[self.scope],))
+        u.app_command('up', (scopes.UI[self.scope],))
         self.health(ctx, frontend=True)
 
     def remove_stop_overrides(self):

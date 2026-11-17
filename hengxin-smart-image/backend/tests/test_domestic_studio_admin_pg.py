@@ -18,6 +18,8 @@ from app.modules.domestic_studio.turn_models import OutputFile, Picture, Transcr
 from app.resource_models import UserRecord
 from app.storage.minio_store import get_store
 from app.main import app
+from domestic_task_fixtures import create
+from app.overseas.studio.schemas import NewConversation
 from test_domestic_studio_bindings_pg import database
 from test_domestic_turns_pg import context
 from test_domestic_studio_http_pg import client_env
@@ -41,7 +43,7 @@ def monitor(client_env, database, monkeypatch):
         for workspace in ('case', 'product', 'scene', 'phone'):
             session.add(Workspace(owner_id=owner, workspace=workspace))
             session.flush()
-            item = Conversation(owner_id=owner, workspace=workspace, name=workspace)
+            item = create(session, owner, workspace, NewConversation(name=workspace), 'fixture-' + workspace)
             session.add(item)
             session.flush()
             channels.append(item.id)
@@ -128,7 +130,8 @@ def test_details_transcript_pagination_are_readonly_and_audited(monitor):
         assert response.headers['cache-control'] == 'private, no-store'
         data = response.json()
         assert data['session']['ownerName'] == '真实成员'
-        assert len(data['siblingSessions']) == 5
+        assert len(data['siblingSessions']) == 1
+        assert data['siblingSessions'][0]['taskId'] == data['workspace']['taskId']
         assert data['workspace']['turns'][0]['skillName'] == '实际Skill'
         assert data['workspace']['turns'][0]['canRecover'] is False
         assert 'secret-runtime-token' not in response.text and '/private/runtime' not in response.text

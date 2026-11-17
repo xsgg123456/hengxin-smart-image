@@ -13,6 +13,7 @@ from app.overseas.studio.files import copy_to
 from app.storage.minio_store import get_store
 from . import archive_deletion, archive_queries, archive_service, recovery_transport
 from .router import Database, Key, User
+from .task_scope import Scope
 
 
 router = APIRouter(prefix='/domestic-studio', tags=['domestic-studio-archives'])
@@ -20,9 +21,11 @@ router = APIRouter(prefix='/domestic-studio', tags=['domestic-studio-archives'])
 
 @router.post('/workspaces/{workspace}/conversations/{conversation_id}/archive',
              dependencies=[Depends(browser_request)])
-def archive(workspace: str, conversation_id: UUID, body: archive_service.ArchiveInput,
+@router.post('/tasks/{task_id}/studio/conversations/{conversation_id}/archive',
+             dependencies=[Depends(browser_request)])
+def archive(scope: Scope, conversation_id: UUID, body: archive_service.ArchiveInput,
             actor: User, session: Database, key: Key):
-    record = archive_service.prepare(session, actor.id, workspace, conversation_id, body, key)
+    record = archive_service.prepare(session, actor.id, scope, conversation_id, body, key)
     identity = record.id
     # Persist the exact destination manifest before writing independently owned bytes.
     session.commit()

@@ -26,7 +26,7 @@ def lock_actor(session, actor_id):
     return actor
 
 
-def owned(session, actor_id, workspace, conversation_id, *, lock=False, allow_deleting=False):
+def owned(session, actor_id, workspace, conversation_id, *, lock=False, allow_deleting=False, write=False):
     require_workspace(workspace)
     query = select(Conversation).where(
         Conversation.id == conversation_id, Conversation.owner_id == actor_id,
@@ -41,6 +41,8 @@ def owned(session, actor_id, workspace, conversation_id, *, lock=False, allow_de
         raise HTTPException(404, '会话已删除或不存在')
     if not allow_deleting and session.get(ConversationDeletion, row.id) is not None:
         raise HTTPException(409, '会话正在删除或删除未完成，请重试删除')
+    from .task_service import channel_task
+    channel_task(session, row, write=write or lock, allow_deleting=allow_deleting)
     return row
 
 
@@ -67,24 +69,44 @@ def _record(session, actor_id, operation, target, key, digest, conversation_id):
     session.flush()
 
 
-def create(session, actor_id, workspace, body, key):
+def create(session, actor_id, workspace, body, key, *, task_id=None):
     """Create at most ten conversations per person and entry, transactionally."""
     require_workspace(workspace)
     lock_actor(session, actor_id)
     lock_admission(session)
-    old, digest = _receipt(session, actor_id, 'create', workspace, key, body.model_dump(mode='json'))
+    from .task_service import owned as owned_task, writable
+    task_id = task_id or session.info.get('domestic_task_id')
+    if task_id is None:
+        raise HTTPException(422, '请先创建或选择业务任务')
+    task = owned_task(session, actor_id, task_id)
+    if task.workspace != workspace:
+        raise HTTPException(404, '任务不属于当前业务')
+    writable(task)
+    target = str(task.id)
+    # A pre-migration browser retry keeps its original workspace receipt.
+    legacy = session.scalar(select(ConversationRequest).where(
+        ConversationRequest.user_id == actor_id, ConversationRequest.operation == 'create',
+        ConversationRequest.target == workspace, ConversationRequest.key == key))
+    if legacy:
+        if legacy.body_hash != fingerprint_payload(body.model_dump(mode='json')):
+            raise HTTPException(409, '同一幂等键不能提交不同内容')
+        channel = owned(session, actor_id, workspace, legacy.conversation_id)
+        if channel.task_id != task.id:
+            raise HTTPException(409, '原请求属于其他任务')
+        return channel
+    old, digest = _receipt(session, actor_id, 'create', target, key, body.model_dump(mode='json'))
     if old:
         return owned(session, actor_id, workspace, old.conversation_id)
     state = workspace_state(session, actor_id, workspace, create=True)
     count = session.scalar(select(func.count()).select_from(Conversation).where(
-        Conversation.owner_id == actor_id, Conversation.workspace == workspace))
+        Conversation.task_id == task.id))
     if count >= 10:
-        raise HTTPException(409, '每个工作台最多保留10个会话，请先删除会话后重试')
-    row = Conversation(owner_id=actor_id, workspace=workspace, name=body.name or f'会话 {count + 1}')
+        raise HTTPException(409, '每个任务最多保留10个会话，请先删除会话后重试')
+    row = Conversation(task_id=task.id, owner_id=actor_id, workspace=workspace, name=body.name or f'会话 {count + 1}')
     session.add(row)
     session.flush()
     state.version += 1
-    _record(session, actor_id, 'create', workspace, key, digest, row.id)
+    _record(session, actor_id, 'create', target, key, digest, row.id)
     return row
 
 

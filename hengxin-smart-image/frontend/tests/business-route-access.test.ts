@@ -46,6 +46,6 @@ test('国内管理入口全部仅超管且工作台会话位于调用与执行�
   assert.deepEqual(management.meta.roles, ['super_admin'])
   for (const child of management.children!) assert.deepEqual(child.meta.roles, ['super_admin'])
   const visible = management.children!.filter(route => !route.meta.isHide)
-  assert.deepEqual(visible.slice(0, 2).map(route => route.path), ['activity', 'workspace-sessions'])
-  assert.equal(visible[1].component, '/hengxin/admin/workspace-sessions')
+  assert.deepEqual(visible.slice(0, 2).map(route => route.path), ['activity', 'task-center'])
+  assert.equal(visible[1].component, '/hengxin/admin/task-center')
 })

@@ -11,17 +11,22 @@ from .conversation_service import lock_actor, owned, workspace_state
 from .turn_models import Turn
 
 
-def request(session, actor_id, workspace, identity, version):
+def request(session, actor_id, workspace, identity, version, *, task_delete=False):
     lock_actor(session, actor_id)
     lock_admission(session)
     receipt = session.get(ConversationDeletion, identity)
-    if receipt and (receipt.owner_id != actor_id or receipt.workspace != workspace):
+    if receipt and (receipt.owner_id != actor_id or receipt.workspace != workspace
+                    or (session.info.get('domestic_task_id') and receipt.task_id != session.info['domestic_task_id'])):
         raise HTTPException(404, '会话不存在')
     if receipt and receipt.status == 'deleted':
         return {'conversationId': str(identity), 'status': 'deleted'}
     if receipt and receipt.status == 'deleting':
         return {'conversationId': str(identity), 'status': 'deleting'}
     channel = owned(session, actor_id, workspace, identity, lock=True, allow_deleting=True)
+    from .task_service import channel_task, writable
+    task = channel_task(session, channel)
+    if not task_delete:
+        writable(task)
     if receipt:
         if receipt.status == 'delete_failed':
             receipt.status, receipt.error = 'deleting', None
@@ -43,7 +48,7 @@ def request(session, actor_id, workspace, identity, version):
             Archive.source_conversation_id == identity, ArchiveDeletion.status != 'deleted').limit(1))
         if deleting_archive:
             raise HTTPException(409, '此会话的归档正在清理，请稍后重试')
-        receipt = ConversationDeletion(conversation_id=identity, owner_id=actor_id, workspace=workspace,
+        receipt = ConversationDeletion(conversation_id=identity, task_id=channel.task_id, owner_id=actor_id, workspace=workspace,
                                        status='deleting', manifest={})
         session.add(receipt)
         state = workspace_state(session, actor_id, workspace)
@@ -56,6 +61,7 @@ def request(session, actor_id, workspace, identity, version):
 
 def status(session, actor_id, workspace, identity):
     receipt = session.get(ConversationDeletion, identity)
-    if receipt is None or receipt.owner_id != actor_id or receipt.workspace != workspace:
+    if (receipt is None or receipt.owner_id != actor_id or receipt.workspace != workspace
+            or (session.info.get('domestic_task_id') and receipt.task_id != session.info['domestic_task_id'])):
         raise HTTPException(404, '会话删除记录不存在')
     return {'conversationId': str(identity), 'status': receipt.status, 'error': receipt.error}

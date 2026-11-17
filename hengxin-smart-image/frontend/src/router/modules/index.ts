@@ -22,9 +22,9 @@ export const routeModules: AppRouteRecord[] = [{
 }, {
   name: 'HxManagement', path: '/management', component: '/index/index',
   meta: { title: '管理中心', icon: 'ri:settings-3-line', roles: fullWorkspaceRoles },
-  children: [...(['usage','monitor'].map(path => ({name:`HxAdmin${path}`,path,component:'/hengxin/admin/activity',redirect:'/management/activity',meta:{title:'调用与执行',isHide:true,isHideTab:true,roles:fullWorkspaceRoles}}))), ...[
+  children: [{ name: 'HxAdminworkspace-sessions', path: 'workspace-sessions', component: '/hengxin/admin/task-center', redirect: '/management/task-center', meta: { title: '任务中心', isHide: true, isHideTab: true, roles: fullWorkspaceRoles } }, ...(['usage','monitor'].map(path => ({name:`HxAdmin${path}`,path,component:'/hengxin/admin/activity',redirect:'/management/activity',meta:{title:'调用与执行',isHide:true,isHideTab:true,roles:fullWorkspaceRoles}}))), ...[
     { path: 'activity', title: '调用与执行', icon: 'ri:bar-chart-line', roles: fullWorkspaceRoles },
-    { path: 'workspace-sessions', title: '工作台会话', icon: 'ri:chat-history-line', roles: ['super_admin'] },
+    { path: 'task-center', title: '任务中心', icon: 'ri:chat-history-line', roles: ['super_admin'] },
     { path: 'retention', title: '自动清理', icon: 'ri:history-line', roles: ['super_admin'] },
     { path: 'users', title: '用户与角色', icon: 'ri:group-line', roles: ['super_admin'] },
     { path: 'skills', title: 'Skills 管理', icon: 'ri:tools-line', roles: ['super_admin'] },
