@@ -1,10 +1,10 @@
 import { computed, onUnmounted, ref, watch, type ComputedRef } from 'vue'
 import { overseasImageCache, type ImageLease } from '@/api/shared/image-cache'
-import { imageUrl, type StudioImage } from './studio-images'
+import { imageUrl, type StudioImage, type StudioImageAccess } from './studio-images'
 
 const loadingImage = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="280" height="100"><text x="140" y="55" fill="white" text-anchor="middle" font-size="18">正在加载原图…</text></svg>')
 const failedImage = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="280" height="100"><text x="140" y="55" fill="white" text-anchor="middle" font-size="18">原图暂时无法显示</text></svg>')
-export function useImageViewer(images: ComputedRef<StudioImage[]>, failure: (reason: unknown) => void) {
+export function useImageViewer(images: ComputedRef<StudioImage[]>, failure: (reason: unknown) => void, access?: StudioImageAccess) {
   const visible = ref(false), current = ref(0), viewerKey = ref(0), urls = ref<Record<number, string>>({}), error = ref('')
   const leases = new Map<number, ImageLease>(), pending = new Map<number, AbortController>()
   let generation = 0
@@ -18,7 +18,7 @@ export function useImageViewer(images: ComputedRef<StudioImage[]>, failure: (rea
     const asset = images.value[index]; if (!asset || leases.has(index) || pending.has(index)) return
     const epoch = generation, controller = new AbortController(); pending.set(index, controller)
     try {
-      const lease = await overseasImageCache.acquire(imageUrl(asset), { signal: controller.signal })
+      const lease = await (access ? access.load(asset, controller.signal) : overseasImageCache.acquire(imageUrl(asset), { signal: controller.signal }))
       if (epoch !== generation || controller.signal.aborted) { lease.release(); return }
       leases.set(index, lease); urls.value = { ...urls.value, [index]: lease.url }
     } catch (reason) {
@@ -39,7 +39,7 @@ export function useImageViewer(images: ComputedRef<StudioImage[]>, failure: (rea
     const index = current.value, lease = leases.get(index)
     if (!lease) return
     lease.release(); leases.delete(index); delete urls.value[index]
-    overseasImageCache.invalidate(imageUrl(images.value[index]))
+    if (!access) overseasImageCache.invalidate(imageUrl(images.value[index]))
     error.value = '图片无法显示，请重新加载或下载原文件'
     // Element Plus keeps its native decode-error flag until navigation/remount.
     viewerKey.value++

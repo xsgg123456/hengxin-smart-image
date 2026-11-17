@@ -1,8 +1,10 @@
 // Formal Art application, isolated browser context and intercepted HTTP only.
 import assert from 'node:assert/strict'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve, isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { verifyManagedViewer } from './workspace-viewer-browser-helpers.mjs'
+const previewPng = await readFile(new URL('../preview-reference-edit/current.png', import.meta.url))
 const moduleName = process.env.PLAYWRIGHT_MODULE || 'playwright'
 const { chromium } = await import(isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName)
 const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3037'
@@ -21,12 +23,13 @@ const taskRoot = '/api/v1/management/domestic-studio/tasks'
 const tasks = Array.from({ length: 21 }, (_, index) => ({ id: `task-${index}`, name: `验收任务 ${index}`, ownerId: rows[index].ownerId, ownerName: rows[index].ownerName, workspace: rows[index].workspace, version: 1, completed: index % 3 === 0, conversationCount: rows.filter(row => row.taskId === `task-${index}`).length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }))
 const file = (id, kind, name, type) => ({ id: `${kind === 'files' ? 'upload:' : ''}${id}`, name, contentType: type, sizeBytes: 12, url: `${root}/session-0/${kind}/${id}/content`, ...(kind === 'files' ? { source: 'upload' } : {}) })
 const picture = { ...file('picture-a', 'pictures', '已保存图片.png', 'image/png'), width: 1, height: 1, turnId: 'turn-session-0', sku: null, archived: false }
+let longContent = false
 let failure = 0, revision = 0, held, release, deleted = false, authStatus = 200, authDelay = 0, authChecks = 0
 const slowPaths = new Set()
 const members = [{ id: 'member-a', name: '真实成员甲' }, { id: 'member-b', name: '真实成员乙' }]
 function snapshot(id) {
   const row = rows.find(item => item.id === id)
-  const turn = { id: `turn-${id}`, text: `完整已提交需求 ${id}`, skillName: '本轮实际技能', status: row.status, reply: revision ? '同步后新回复' : '已收到完整需求', error: row.status === 'failed' ? '执行失败原因' : null, jobId: 'job-a', jobVersion: 1, createdAt: stamp, actor: { id: row.ownerId, name: row.ownerName }, replyAt: stamp, replyTimeSource: 'message', conversationId: id, attachments: id === 'session-0' ? [file('input-a', 'files', '图需说明.txt', 'text/plain'), file('vector-a', 'files', '矢量附件.svg', 'image/svg+xml')] : [], pictures: id === 'session-0' ? [picture] : [], referencePictures: [], outputs: id === 'session-0' ? [file('output-a', 'outputs', '正式输出.txt', 'text/plain')] : [] }
+  const turn = { id: `turn-${id}`, text: `完整已提交需求 ${id}${longContent ? '\n阅读位置验证'.repeat(80) : ''}`, skillName: '本轮实际技能', status: row.status, reply: revision ? '同步后新回复' : '已收到完整需求', error: row.status === 'failed' ? '执行失败原因' : null, jobId: 'job-a', jobVersion: 1, createdAt: stamp, actor: { id: row.ownerId, name: row.ownerName }, replyAt: stamp, replyTimeSource: 'message', conversationId: id, attachments: id === 'session-0' ? [file('input-a', 'files', '图需说明.txt', 'text/plain'), file('vector-a', 'files', '矢量附件.svg', 'image/svg+xml'), file('input-image', 'files', '参考图片.png', 'image/png'), file('input-image-b', 'files', '参考图片二.png', 'image/png')] : [], pictures: id === 'session-0' ? [picture, { ...picture, id: 'picture-b', name: '第二张图片.png', url: `${root}/session-0/pictures/picture-b/content` }] : [], referencePictures: [], outputs: id === 'session-0' ? [file('output-a', 'outputs', '正式输出.txt', 'text/plain'), file('output-image', 'outputs', '图片输出.png', 'image/png')] : [] }
   return { session: row, siblingSessions: rows.filter(item => item.taskId === row.taskId), workspace: { taskId: row.taskId, taskVersion: 1, conversationId: id, archiveId: null, completed: false, reopened: false, fixedSkillReady: false, skills: [], materials: [], activeTurnId: null, turns: row.turnCount ? [turn] : [] } }
 }
 await context.route('**/*', async route => {
@@ -67,8 +70,8 @@ await context.route('**/*', async route => {
     return json({ items: after < revision + 1 ? [{ id: revision + 1, itemId: 'process', turnId: `turn-${id}`, kind: 'tool', text: revision ? '新公开执行进度' : '公开执行过程', state: 'running', createdAt: stamp }] : [], cursor: revision + 1, hasMore: false })
   }
   if (url.searchParams.has('thumbnail') && url.searchParams.get('thumbnail') !== 'true') return json({}, 422)
-  if (tail.endsWith('/content')) return tail.includes('/pictures/')
-    ? route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j39sAAAAASUVORK5CYII=', 'base64') })
+  if (tail.endsWith('/content')) return (tail.includes('/pictures/') || tail.includes('image'))
+    ? route.fulfill({ contentType: 'image/png', body: previewPng })
     : route.fulfill({ contentType: 'text/plain', body: '真实文件内容' })
   unexpected.push(path); return json({}, 501)
 })
@@ -184,6 +187,7 @@ try {
   await page.getByText('公开执行过程', { exact: true }).waitFor()
   assert.equal(await page.getByRole('textbox').count(), 0)
   assert.equal(await page.getByRole('button', { name: /^(发送|停止|删除|重试|取回文件|归档|修改这张)$/ }).count(), 0)
+  await verifyManagedViewer({ page, output, checks, calls, root, waitName, refresh, setFailure: value => { failure = value }, setLongContent: value => { longContent = value } })
   const vector = page.locator('.wm-managed-asset').filter({ hasText: '矢量附件.svg' })
   assert.equal(await vector.getByRole('button', { name: '预览', exact: true }).count(), 0)
   const vectorDownload = page.waitForEvent('download'); await vector.getByRole('button', { name: '下载', exact: true }).click(); await vectorDownload

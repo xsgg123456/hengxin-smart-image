@@ -1,8 +1,15 @@
 import type { Asset, StudioPicture } from '@/api/shared/studio'
+import type { StudioOutput } from '@/api/shared/studio-outputs'
+import type { ImageLease } from '@/api/shared/image-cache'
 import { IdentityError } from '@/api/identity/request'
 import { createImageCache, overseasImageCache } from '@/api/shared/image-cache'
 
-export type StudioImage = Asset | StudioPicture
+export type StudioImage = Asset | StudioPicture | StudioOutput
+export interface StudioImageAccess {
+  load: (asset: StudioImage, signal: AbortSignal) => Promise<ImageLease>
+  thumbnail: (asset: StudioImage, signal: AbortSignal) => Promise<ImageLease>
+  download: (asset: StudioImage, signal: AbortSignal) => Promise<void>
+}
 export function isImage(asset: StudioImage) { return !('contentType' in asset) || ['image/jpeg', 'image/png', 'image/webp'].includes(asset.contentType) }
 export function imageUrl(asset: StudioImage) { return 'contentType' in asset ? `${asset.url}?preview=true` : asset.url }
 export function thumbnailUrl(asset: StudioImage) { const url = imageUrl(asset); return `${url}${url.includes('?') ? '&' : '?'}thumbnail=true` }

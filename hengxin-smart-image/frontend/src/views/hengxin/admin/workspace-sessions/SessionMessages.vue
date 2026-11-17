@@ -5,7 +5,7 @@
     <template v-for="turn in turns" :key="turn.id">
       <article class="studio-message user"><div class="studio-message-name">{{ turn.actor?.name || ownerName || '姓名未记录' }}<small>{{ formatBeijingTime(turn.createdAt, '时间未记录') }}</small></div><div class="studio-bubble">
         <ElTag v-if="turn.skillName" size="small">{{ turn.skillName }}</ElTag><small v-else class="wm-subtext">本轮未选择 Skill</small><p>{{ turn.text }}</p>
-        <div class="wm-assets"><ManagedAsset v-for="asset in [...turn.attachments, ...turn.referencePictures]" :key="asset.id" :asset="asset" @failure="$emit('failure', $event)" /></div>
+        <div class="studio-image-attachments"><ManagedAsset v-for="asset in [...turn.attachments, ...turn.referencePictures]" :key="asset.id" :asset="asset" :group="[...turn.attachments, ...turn.referencePictures]" title="用户附件" @failure="$emit('failure', $event)" /></div>
         <details v-if="turn.imageEdits?.length" class="studio-execution"><summary>本轮修改材料（{{ turn.imageEdits.length }} 张）</summary><div v-for="edit in turn.imageEdits" :key="edit.pictureId"><strong>{{ pictureName(turn, edit.pictureId) }}</strong><p>{{ edit.text || '未添加位置说明' }}</p><p v-if="edit.annotationId">标注附件：{{ attachmentName(turn, edit.annotationId) }}</p><p v-for="reference in edit.references || []" :key="reference.attachmentId">{{ attachmentName(turn, reference.attachmentId) }} · {{ reference.kind === 'product' ? '产品参考' : reference.kind === 'effect' ? '效果参考' : reference.customPurpose }}：{{ reference.note }}</p></div></details>
       </div></article>
       <article class="studio-message assistant"><div class="studio-message-name">Codex <small>{{ labels[turn.status] || turn.status }}</small><small v-if="turn.replyAt">{{ formatBeijingTime(turn.replyAt, '时间未记录') }}</small></div><div class="studio-bubble">
@@ -13,7 +13,7 @@
         <p v-if="!turn.reply && !byTurn.get(turn.id)?.length" class="wm-muted">{{ ['queued', 'running'].includes(turn.status) ? '等待新的公开消息与执行记录…' : '没有可显示的公开回复或执行记录' }}</p>
         <ElAlert v-if="turn.error" :title="turn.error" type="error" :closable="false" /><ElAlert v-if="turn.deliveryError" :title="turn.deliveryError" type="warning" :closable="false" />
         <p v-if="turn.deliveryStatus && turn.deliveryStatus.state !== 'complete'" class="wm-subtext">文件保存状态：{{ deliveryLabels[turn.deliveryStatus.state] }} · 已保存 {{ turn.deliveryStatus.saved }}{{ turn.deliveryStatus.expected == null ? ' 个' : ` / ${turn.deliveryStatus.expected} 个` }}</p>
-        <div class="wm-assets results"><ManagedAsset v-for="asset in [...turn.pictures, ...(turn.outputs || [])]" :key="asset.id" :asset="asset" @failure="$emit('failure', $event)" /></div>
+        <div class="studio-pictures results"><ManagedAsset v-for="asset in [...turn.pictures, ...(turn.outputs || [])]" :key="asset.id" :asset="asset" :group="[...turn.pictures, ...(turn.outputs || [])]" title="生成结果" result @failure="$emit('failure', $event)" /></div>
       </div></article>
     </template>
   </div>

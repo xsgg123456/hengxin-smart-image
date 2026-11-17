@@ -1,5 +1,5 @@
 <template>
-  <ElImage :key="thumbnailKey" :src="thumbnailUrl(asset)" :alt="asset.name" fit="contain" tabindex="0" role="button" :aria-label="`预览 ${asset.name}`" @click="open(index)" @keydown.enter.stop.prevent="open(index)" @keydown.space.stop.prevent="open(index)" @error="verifyThumbnail">
+  <ElImage :key="thumbnailKey" :src="thumbnailSource" :alt="asset.name" fit="contain" tabindex="0" role="button" :aria-label="`预览 ${asset.name}`" @click="open(index)" @keydown.enter.stop.prevent="open(index)" @keydown.space.stop.prevent="open(index)" @error="verifyThumbnail">
     <template #placeholder><span class="image-state">加载中…</span></template>
     <template #error><span class="image-state">缩略图暂不可用<br>点击查看原图<br><button type="button" :disabled="downloading" @click.stop="download(index)">下载原文件</button><small v-if="downloadError" role="alert">{{ downloadError }}</small></span></template>
   </ElImage>
@@ -11,21 +11,35 @@
 </template>
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { checkImage, imageUrl, thumbnailUrl, isImage, type StudioImage } from './studio-images'
+import { checkImage, imageUrl, thumbnailUrl, isImage, type StudioImage, type StudioImageAccess } from './studio-images'
 import { useImageViewer } from './use-image-viewer'
 import { downloadAttachment } from '@/api/shared/attachment-download'
 import { IdentityError } from '@/api/identity/request'
 import { overseasImageCache } from '@/api/shared/image-cache'
-const props = defineProps<{ asset: StudioImage; group: StudioImage[]; title: string }>()
+const props = defineProps<{ asset: StudioImage; group: StudioImage[]; title: string; access?: StudioImageAccess }>()
 const emit = defineEmits<{ failure: [reason: unknown] }>()
 const downloadError = ref(''), downloading = ref(false), controller = new AbortController()
 const images = computed(() => props.group.filter(isImage))
 const index = computed(() => Math.max(0, images.value.findIndex(a => a.id === props.asset.id)))
-const { visible, current, viewerKey, urlList, error, open, close, select, imageError, retry } = useImageViewer(images, reason => emit('failure', reason))
-const thumbnailKey = ref(0)
+const { visible, current, viewerKey, urlList, error, open, close, select, imageError, retry } = useImageViewer(images, reason => emit('failure', reason), props.access)
+const thumbnailKey = ref(0), managedThumbnail = ref('')
+const thumbnailSource = computed(() => props.access ? managedThumbnail.value : thumbnailUrl(props.asset))
+watch(() => props.asset.url, async (_url, _old, onCleanup) => {
+  if (!props.access) return
+  const pending = new AbortController()
+  let release: (() => void) | undefined
+  managedThumbnail.value = ''
+  onCleanup(() => { pending.abort(); release?.() })
+  try {
+    const lease = await props.access.thumbnail(props.asset, pending.signal)
+    if (pending.signal.aborted) { lease.release(); return }
+    release = lease.release; managedThumbnail.value = lease.url
+  } catch (reason) { if (!pending.signal.aborted) emit('failure', reason) }
+}, { immediate: true })
 let thumbnailAttempts = 0, thumbnailTimer: ReturnType<typeof setTimeout> | undefined, thumbnailEpoch = 0
 watch(() => thumbnailUrl(props.asset), () => { ++thumbnailEpoch; thumbnailAttempts = 0; clearTimeout(thumbnailTimer); thumbnailTimer = undefined })
 async function verifyThumbnail() {
+  if (props.access) return
   const epoch = thumbnailEpoch
   try { await checkImage(props.asset, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])) }
   catch (reason) {
@@ -40,13 +54,14 @@ async function download(index: number) {
   if (downloading.value) return
   const asset = images.value[index]; if (!asset) return
   downloading.value = true; downloadError.value = ''
-  try { await downloadAttachment(asset.url, asset.name, controller.signal) }
+  try { await (props.access ? props.access.download(asset, controller.signal) : downloadAttachment(asset.url, asset.name, controller.signal)) }
   catch (reason) { if (!controller.signal.aborted) {
-    if (reason instanceof IdentityError && [401, 403, 404].includes(reason.status)) overseasImageCache.invalidate(imageUrl(asset))
+    if (!props.access && reason instanceof IdentityError && [401, 403, 404].includes(reason.status)) overseasImageCache.invalidate(imageUrl(asset))
     downloadError.value = reason instanceof Error ? reason.message : '下载失败，请重试'; emit('failure', reason)
   } }
   finally { downloading.value = false }
 }
+defineExpose({ open: () => open(index.value) })
 onUnmounted(() => { controller.abort(); clearTimeout(thumbnailTimer) })
 </script>
 <style scoped>
