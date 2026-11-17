@@ -30,7 +30,7 @@ def report(env, **params):
     return response.json()
 
 
-@pytest.mark.parametrize('role,code', [('super_admin', 200), ('design_manager', 200),
+@pytest.mark.parametrize('role,code', [('super_admin', 200), ('design_manager', 403),
                                     ('operator', 403), ('designer', 403)])
 def test_permissions(files_env, role, code):
     with files_env[1].begin() as session:

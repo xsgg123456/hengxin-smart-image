@@ -44,7 +44,7 @@ import { useAdminQuery } from './use-admin-query'
 import ApiUsageDetail from './ApiUsageDetail.vue'
 const dates = ref<string[] | null>(null), userId = ref(''), generationType = ref<GenerationType | ''>(''), inputError = ref('')
 const applied = ref<ApiUsageQuery>({}), page = ref(1), pageSize = ref(20), tab = ref('business'), selected = ref<ApiUsageRow>()
-const allUsers = computed(() => useUserStore().info.roles?.some(role => ['super_admin', 'design_manager'].includes(role)))
+const allUsers = computed(() => useUserStore().info.roles?.some(role => role === 'super_admin'))
 const { data: report, loading, error, load } = useAdminQuery(() => getApiUsage({ ...applied.value, outputsOnly: tab.value === 'business', page: 1, pageSize: 1 }))
 const pageRows = computed(() => report.value?.rows.slice((page.value - 1) * pageSize.value, page.value * pageSize.value) || [])
 const percentage = (v: number | null) => v === null ? '无已知结果' : `${(v * 100).toFixed(1)}%`

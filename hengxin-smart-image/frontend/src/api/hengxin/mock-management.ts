@@ -21,7 +21,6 @@ export function createMockManagement(getUser: () => User | Promise<User>, option
   }
   const users: ManagedUser[] = options.snapshot?.users ? copy(options.snapshot.users).map(user => ({ ...user, identitySessionId: null })) : [
     { id: 'mock-operator', name: '模拟运营', identitySessionId: null, role: 'operator', status: 'active', department: '运营部', lastLoginAt: new Date().toISOString() },
-    { id: 'mock-design-manager', name: '模拟主管', identitySessionId: null, role: 'design_manager', status: 'active', department: '设计部', lastLoginAt: null },
     { id: 'mock-designer', name: '模拟设计', identitySessionId: null, role: 'designer', status: 'active', department: '设计部', lastLoginAt: null },
     { id: 'mock-super-admin', name: '模拟超管', identitySessionId: null, role: 'super_admin', status: 'active', department: '管理部', lastLoginAt: null },
     { id: 'mock-pending', name: '新成员', identitySessionId: null, role: null, status: 'pending', department: '运营部', lastLoginAt: null }
@@ -45,7 +44,7 @@ export function createMockManagement(getUser: () => User | Promise<User>, option
       const current = await check(true, 'save')
       const user = users.find(u => u.id === input.id)
       if (!user) throw new ApiError('NOT_FOUND', '用户不存在', 404)
-      if (!['pending', 'active', 'disabled'].includes(input.status) || (input.role !== null && !['super_admin', 'design_manager', 'designer', 'operator'].includes(input.role)) || (input.status === 'active' && !input.role) || (input.status === 'pending' && input.role)) throw new ApiError('VALIDATION', '角色与账号状态不匹配', 422)
+      if (!['pending', 'active', 'disabled'].includes(input.status) || (input.role !== null && !['super_admin', 'designer', 'operator'].includes(input.role)) || (input.status === 'active' && !input.role) || (input.status === 'pending' && input.role)) throw new ApiError('VALIDATION', '角色与账号状态不匹配', 422)
       if ((input.id === current.id || (user.role === 'super_admin' && user.status === 'active' && users.filter(u => u.role === 'super_admin' && u.status === 'active').length === 1)) && (input.role !== 'super_admin' || input.status !== 'active')) throw new ApiError('CONFLICT', '不能停用或降权当前/最后一位超级管理员', 409)
       assignments.set(user.id, { role: input.role, status: input.status })
       Object.assign(user, { role: input.role, status: input.status }); options.onUserChanged?.(copy(user)); capture(); return copy(user)

@@ -72,7 +72,7 @@ def build_report(session: Session, user: UserRecord, query: c.UsageQuery) -> c.R
     start, end = parse_day(query.from_), parse_day(query.to)
     if start and end and start > end:
         raise HTTPException(422, '开始日期不能晚于结束日期')
-    all_scope = user.role in ('super_admin', 'design_manager')
+    all_scope = user.role == 'super_admin'
     if query.unassigned and (not all_scope or query.userId):
         raise HTTPException(403 if not all_scope else 422, '未知操作者筛选仅支持全员范围，不能同时选择人员')
     try:

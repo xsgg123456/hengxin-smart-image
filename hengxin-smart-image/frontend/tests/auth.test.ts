@@ -2,11 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { getPreviewUser, getLoginScenario, safeReturnPath } from '../src/api/hengxin/session'
 
-test('预览身份默认运营，四角色拥有稳定独立标识，未知角色不提权', () => {
+test('预览身份默认运营，三角色拥有稳定独立标识，未知角色不提权', () => {
   assert.equal(getPreviewUser('').id, 'mock-operator')
-  const roles = ['operator', 'designer', 'design_manager', 'super_admin']
-  assert.equal(new Set(roles.map(role => getPreviewUser(`?role=${role}`).id)).size, 4)
+  const roles = ['operator', 'designer', 'super_admin']
+  assert.equal(new Set(roles.map(role => getPreviewUser(`?role=${role}`).id)).size, 3)
   assert.equal(getPreviewUser('?role=admin').role, 'operator')
+  assert.equal(getPreviewUser('?role=design_manager').role, 'operator')
   assert.equal(getPreviewUser('?role=super_admin&auth=pending').role, null)
   assert.equal(getPreviewUser('?auth=disabled').status, 'disabled')
   assert.equal(getLoginScenario('?auth=unknown'), 'success')
@@ -21,4 +22,9 @@ test('登录回跳仅允许业务站内路径，拒绝外域、反斜杠、登�
 test('API 换套图登录返回仅放行两个页面，并保留详情查询', () => {
   for (const value of ['/api-image-edits/create', '/api-image-edits/records?task=api-task']) assert.equal(safeReturnPath(value), value)
   for (const value of ['/api-image-edits', '/api-image-edits/admin', '/api-image-edits/records/evil', '/api-image-edits/../management/users']) assert.equal(safeReturnPath(value), '/api-image-edits/create')
+})
+
+test('管理员工作台会话登录回跳保留真实会话查询', () => {
+  const target = '/management/workspace-sessions?session=example'
+  assert.equal(safeReturnPath(target), target)
 })

@@ -49,12 +49,12 @@ def admin(env, role='super_admin'):
 
 def test_permissions_and_validation(files_env):
     client = files_env[0]
-    for role in ('operator', 'designer'):
+    for role in ('operator', 'designer', 'design_manager'):
         admin(files_env, role)
         assert client.get(URL + '/summary').status_code == 403
         assert client.get(URL + '/records').status_code == 403
         assert client.get(URL + '/records/' + str(uuid4())).status_code == 403
-    for role in ('super_admin', 'design_manager'):
+    for role in ('super_admin',):
         admin(files_env, role)
         response = client.get(URL + '/summary')
         assert response.status_code == 200, response.text

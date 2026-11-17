@@ -8,7 +8,7 @@
       <template v-else>
       <div class="hx-filter"><ElInput v-model="search" class="hx-search" clearable placeholder="搜索姓名或部门" aria-label="搜索成员" :disabled="loading && !data" /><ElSelect v-model="status" clearable placeholder="全部状态" style="width: 160px" aria-label="成员状态" :disabled="loading && !data"><ElOption v-for="(label,key) in statuses" :key="key" :label="label" :value="key" /></ElSelect><ElButton :loading="loading" @click="load">刷新成员</ElButton></div>
       <ElAlert v-if="error" :title="error" type="error" :closable="false"><ElButton text @click="load">重试加载</ElButton></ElAlert>
-      <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roles[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? formatBeijingTime(row.lastLoginAt) : '尚未登录' }}</template><template #action="{ row }"><ElButton text type="primary" :disabled="loading || saving" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
+      <ArtTable height="auto" empty-height="340px" :show-table-header="false" :data="data?.items || []" :columns="columns" :loading="loading" :show-pagination="false" empty-text="暂无匹配成员"><template #role="{ row }">{{ row.role ? roleLabels[row.role as Role] : '未分配' }}</template><template #status="{ row }"><ElTag :type="row.status === 'active' ? 'success' : 'info'">{{ statuses[row.status as keyof typeof statuses] }}</ElTag></template><template #lastLoginAt="{ row }">{{ row.lastLoginAt ? formatBeijingTime(row.lastLoginAt) : '尚未登录' }}</template><template #action="{ row }"><ElButton text type="primary" :disabled="loading || saving" @click="edit(row)">分配角色 / 状态</ElButton></template></ArtTable>
       <div class="hx-filter hx-gap"><span>{{ loading ? '正在读取…' : `共 ${total} 位成员` }}</span><ElPagination v-model:current-page="page" :page-size="12" :total="total" layout="prev,pager,next" :disabled="loading" /></div>
       </template>
     </ElCard>
@@ -25,7 +25,7 @@ import { formatBeijingTime } from '@/utils/beijing-time'
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listUsers, saveUser, managementApi } from '@/api/management'
-import type { PageResult, Role, User } from '@/types/hengxin'
+import type { AssignableRole, PageResult, Role, User } from '@/types/hengxin'
 import type { ManagedUser, UserInput } from '@/types/management'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import AdminPreview from './AdminPreview.vue'
@@ -45,9 +45,11 @@ async function load() {
 }
 function filter(){ if(page.value!==1)page.value=1;else void load() }
 watch([search,status,directory],filter); watch(page,load)
-const roles:Record<Role,string>={super_admin:'超级管理员',design_manager:'设计主管',designer:'设计人员',operator:'运营人员'},statuses={pending:'待授权',active:'启用',disabled:'禁用'}
+const roles:Record<AssignableRole,string>={super_admin:'超级管理员',designer:'设计人员',operator:'运营人员'}
+const roleLabels:Record<Role,string>={...roles,design_manager:'设计主管（已停用）'}
+const statuses={pending:'待授权',active:'启用',disabled:'禁用'}
 const form=reactive<UserInput>({id:'',role:null,status:'pending'}),open=ref(false),name=ref(''),saving=ref(false),saveError=ref('')
-function edit(user:ManagedUser){if(user.directoryState==='legacy_unconfirmed')return;Object.assign(form,{id:user.id,role:user.role,status:user.status});name.value=user.name;saveError.value='';conflict.value=false;open.value=true}
+function edit(user:ManagedUser){if(user.directoryState==='legacy_unconfirmed')return;Object.assign(form,{id:user.id,role:user.role==='design_manager'?null:user.role,status:user.status});name.value=user.name;saveError.value='';conflict.value=false;open.value=true}
 async function save(){
   if(saving.value||conflict.value)return
   if(form.status==='active'&&!form.role){saveError.value='启用账号前请选择业务角色';return}

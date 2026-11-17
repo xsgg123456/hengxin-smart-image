@@ -29,6 +29,7 @@ from app.modules.api_image_edits.conversation_router import router as conversati
 from app.modules.domestic_studio.management_router import router as domestic_studio_management_router
 from app.modules.domestic_studio.router import router as domestic_studio_router
 from app.modules.domestic_studio.archive_router import router as domestic_studio_archive_router
+from app.modules.domestic_studio.admin_router import router as domestic_studio_admin_router
 from app.account_management.router import router as codex_account_router
 
 
@@ -62,4 +63,5 @@ app.include_router(conversation_router, prefix="/api/v1")
 app.include_router(domestic_studio_management_router, prefix="/api/v1")
 app.include_router(domestic_studio_router, prefix="/api/v1")
 app.include_router(domestic_studio_archive_router, prefix="/api/v1")
+app.include_router(domestic_studio_admin_router, prefix="/api/v1")
 app.include_router(codex_account_router, prefix="/api/v1")

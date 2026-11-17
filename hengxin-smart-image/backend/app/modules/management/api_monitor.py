@@ -85,8 +85,8 @@ def queue_rows(session, channel, now):
 
 
 def build_api_monitor(session, user):
-    if user.role not in ('super_admin', 'design_manager'):
-        raise HTTPException(403, '仅管理员和设计主管可查看执行监控')
+    if user.role != 'super_admin':
+        raise HTTPException(403, '仅超级管理员可查看执行监控')
     now, channels, incidents = utcnow(), [], []
     for channel in ('api', 'cli'):
         enabled = get_api_settings().enabled if channel == 'api' else get_settings().enable_codex_executor

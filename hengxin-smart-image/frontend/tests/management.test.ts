@@ -33,3 +33,9 @@ test('管理权限每次重新判断，读取失败可重试、停用立即拒�
   user.status = 'disabled'
   await assert.rejects(api.getSettings(), { code: 'UNAUTHORIZED' })
 })
+
+test('国内模拟赋权同样拒绝已退休设计主管', async () => {
+  const api = createMockManagement(() => admin)
+  await assert.rejects(api.saveUser({ id: 'mock-operator', role: 'design_manager', status: 'active' }), { code: 'VALIDATION' })
+  assert.ok((await api.listUsers({ page: 1, pageSize: 20 })).items.every(user => user.role !== 'design_manager'))
+})

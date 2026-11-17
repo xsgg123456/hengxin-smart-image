@@ -16,7 +16,7 @@ export function isRetiredBusinessPath(path: string) {
 
 export function apiWorkspaceRedirect(path: string, roles: string[] = []) {
   if (isRetiredBusinessPath(path.split(/[?#]/)[0])) return '/api-image-edits/create'
-  const limited = roles.length === 1 && ['designer', 'operator'].includes(roles[0])
+  const limited = roles.length === 1 && ['designer', 'operator', 'design_manager'].includes(roles[0])
   const target = path.replace(/\/$/, '')
   return limited && businessPaths.has(target) && !['/api-image-edits', '/new-product', '/product-replace', '/product-library'].some(prefix => target === prefix || target.startsWith(prefix + '/'))
     ? '/api-image-edits/create' : undefined

@@ -121,7 +121,7 @@ def test_settings_actual_values_no_secrets_and_permissions(env, monkeypatch):
     with original[1].begin() as session:
         session.get(UserRecord, original[3][0]).role = 'design_manager'
     assert env[0].get('/management/execution-settings').status_code == 403
-    assert env[0].get('/management/api-monitor').status_code == 200
+    assert env[0].get('/management/api-monitor').status_code == 403
     with original[1].begin() as session:
         session.get(UserRecord, original[3][0]).role = 'operator'
     assert env[0].get('/management/api-monitor').status_code == 403

@@ -28,8 +28,8 @@ def totals(facts):
 
 
 def build_report(session, user, query):
-    if user.role not in ('super_admin', 'design_manager'):
-        raise HTTPException(403, '仅管理员和设计主管可查看调用与执行')
+    if user.role != 'super_admin':
+        raise HTTPException(403, '仅超级管理员可查看调用与执行')
     start, end = parse_day(query.from_), parse_day(query.to)
     if start and end and start > end:
         raise HTTPException(422, '开始日期不能晚于结束日期')

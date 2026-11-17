@@ -14,8 +14,8 @@ router = APIRouter(prefix='/management/retention', tags=['management'])
 
 
 def authorize(user):
-    if user.role not in ('super_admin', 'design_manager'):
-        raise HTTPException(403, '仅超级管理员和设计主管可查看自动清理')
+    if user.role != 'super_admin':
+        raise HTTPException(403, '仅超级管理员可查看自动清理')
 
 
 @router.get('/summary', response_model=RetentionSummary)

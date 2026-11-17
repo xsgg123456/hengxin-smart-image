@@ -1,5 +1,7 @@
 import type { ManagementService } from './management'
-export type Role = 'super_admin' | 'design_manager' | 'designer' | 'operator'
+export type AssignableRole = 'super_admin' | 'designer' | 'operator'
+// Historical responses remain readable; this role cannot be assigned or manage users.
+export type Role = AssignableRole | 'design_manager'
 export interface User {
   id: string
   name: string

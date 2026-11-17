@@ -4,7 +4,8 @@ from sqlalchemy import select
 
 from app.contracts.business import User
 from app.modules.auth.application_models import MembershipApplication as Application, ApplicationEvent as Event
-from app.modules.auth.member_policy import ROLES as roles, lock_permissions as lock, require_admin
+from app.modules.auth.domestic_roles import ASSIGNABLE_ROLES as roles
+from app.modules.auth.member_policy import lock_permissions as lock, require_admin
 from app.modules.auth.member_policy import audit_member, snapshot
 from app.modules.auth.models import RoleAssignmentRecord, UserIdentityRecord
 from app.resource_models import UserRecord
@@ -20,7 +21,7 @@ def find_member(session, identity):
 
 
 def is_allowed(session, member):
-    return member.status == 'active' and member.role in roles
+    return member.status == 'active' and member.role in (*roles, 'design_manager')
 
 
 def describe_member(session, member, identity_session_id):
@@ -29,6 +30,8 @@ def describe_member(session, member, identity_session_id):
 
 
 def enroll(session, application, role, actor_id):
+    if role not in roles:
+        raise HTTPException(422, '国内业务不再支持分配该角色')
     identity = {key: getattr(application, key) for key in
                 ('corp_id', 'provider_user_id', 'union_id', 'name', 'department')}
     member = find_member(session, identity)

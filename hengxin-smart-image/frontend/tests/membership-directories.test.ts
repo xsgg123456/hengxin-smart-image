@@ -43,8 +43,12 @@ test('真实国内目录SFC：仅成员和申请，不请求历史目录，403�
     await flush(); assert.equal(queries.at(-1)?.directory, 'members'); assert.ok(text(view.root).includes('共 30 位成员'))
     assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTabPane').map(n => n.props.name), ['members', 'applications'])
     const count = queries.length; update(find(view.root, 'ElTabs'), 'applications'); await flush(); assert.equal(queries.length, count); assert.equal(writes.length, 0)
+    assert.deepEqual(Object.keys(find(view.root, 'Applications').props.roles), ['super_admin', 'designer', 'operator'])
     assert.ok(queries.every(q => q.directory === 'members'))
-    update(find(view.root, 'ElTabs'), 'members'); await flush(); click(view.root, '分配角色 / 状态'); await flush(); reject = true; click(view.root, '保存授权'); await flush()
+    update(find(view.root, 'ElTabs'), 'members'); await flush(); click(view.root, '分配角色 / 状态'); await flush();
+    const roleSelect = all(view.root).find(n => n.tag === 'ElSelect' && n.props['aria-label'] === '业务角色')!
+    assert.deepEqual(all(roleSelect).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['super_admin', 'designer', 'operator'])
+    reject = true; click(view.root, '保存授权'); await flush()
     assert.equal(find(view.root, 'ElDialog').props.modelValue, false); assert.deepEqual(find(view.root, 'ArtTable').props.data, []); assert.ok(text(view.root).includes('共 0 位成员'))
   } finally { view.close() }
 })

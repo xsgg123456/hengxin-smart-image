@@ -37,6 +37,15 @@ test('合并页旧入口保留组件使菜单处理器注册兼容跳转', () =>
     assert.equal(route.redirect, '/management/activity')
     assert.equal(route.component, '/hengxin/admin/activity')
     assert.equal(route.meta.isHide, true)
-    assert.deepEqual(route.meta.roles, ['super_admin', 'design_manager'])
+    assert.deepEqual(route.meta.roles, ['super_admin'])
   }
+})
+
+test('国内管理入口全部仅超管且工作台会话位于调用与执行之后', () => {
+  const management = routeModules.find(route => route.path === '/management')!
+  assert.deepEqual(management.meta.roles, ['super_admin'])
+  for (const child of management.children!) assert.deepEqual(child.meta.roles, ['super_admin'])
+  const visible = management.children!.filter(route => !route.meta.isHide)
+  assert.deepEqual(visible.slice(0, 2).map(route => route.path), ['activity', 'workspace-sessions'])
+  assert.equal(visible[1].component, '/hengxin/admin/workspace-sessions')
 })

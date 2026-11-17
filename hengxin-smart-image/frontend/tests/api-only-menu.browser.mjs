@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.API_UI_URL || 'http://127.0.0.1:3024/'
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) })
 await mkdir('../../output/playwright/api-only-menu', { recursive: true })
 try {
  for (const role of ['designer','operator','design_manager','super_admin']) {
@@ -19,12 +19,14 @@ try {
   })
   await page.goto(base+'#/api-image-edits/records')
   await page.getByRole('heading',{name:'换图记录',exact:true}).waitFor()
-  const limited = ['designer','operator'].includes(role)
+  const limited = role !== 'super_admin'
   const menu = page.locator('.el-menu').first()
-  for(const name of ['图片处理','任务中心','模板库','成品库','Skill 管理']) {
+  for(const name of ['图片处理','任务中心','模板库','Skill 管理']) {
    assert.equal(await menu.getByText(name,{exact:true}).count(),0,`${role} ${name}`)
   }
   assert.equal(await menu.getByText('API 换套图',{exact:true}).count(),1)
+  assert.equal(await menu.getByText('成品库',{exact:true}).count(),1)
+  assert.equal(await menu.getByText('管理中心',{exact:true}).count(),limited ? 0 : 1)
   {
    await page.evaluate(() => {
     const key = Object.keys(localStorage).find(k=>k.includes('worktab'))
@@ -50,6 +52,7 @@ try {
    assert.equal(await page.getByText('旧模板入口',{exact:true}).count(),0,'旧搜索历史已清理')
    await page.keyboard.press('Escape')
    for(const path of ['/image-processing/wallpaper','/tasks/index','/templates/index','/archive/index','/management/skills','/wallpaper/index','/product/index','/text/index','/image-processing','/image-processing/product','/image-processing/text']) {
+    if(path === '/management/skills' && !limited) continue
     await page.goto(base+'#'+path)
     await page.waitForURL('**#/api-image-edits/create')
     await page.getByRole('heading',{name:'新建换图',exact:true}).waitFor()

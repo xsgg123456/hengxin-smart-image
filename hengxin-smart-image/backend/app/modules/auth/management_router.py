@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.contracts import business as b, management as m
 from app.db.session import get_session
 from app.db.timestamps import utcnow
+from app.modules.auth.domestic_roles import ASSIGNABLE_ROLES as ROLES
 from app.modules.auth.member_policy import audit_member, lock_permissions, require_admin, snapshot
 from app.modules.auth.models import AuthSessionRecord, RoleAssignmentRecord, UserIdentityRecord
 from app.modules.auth.permissions import require_permission
@@ -87,6 +88,8 @@ def update_user(
         raise HTTPException(422, '成员 ID 无效') from error
     if body.id != user_id:
         raise HTTPException(422, '请求成员 ID 与路径不一致')
+    if body.role is not None and body.role not in ROLES:
+        raise HTTPException(422, '国内业务不再支持分配该角色')
     lock_permissions(session)
     require_admin(session, actor.id)
     target = session.get(UserRecord, target_id, populate_existing=True)
