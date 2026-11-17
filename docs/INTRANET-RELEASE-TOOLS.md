@@ -2,9 +2,9 @@
 
 旧公网专用发布脚本已从当前仓库退役；以后生产默认只走本页内网流程，历史记录中的命令不可复用。开发和隔离测试仍在本地。见 [退役范围](PUBLIC-RELEASE-RETIREMENT-20261113.md)。
 
-最新状态（2026-11-13 晚）：国内、国外 Fast 已部署，两组前后端均为 `3b38a2c445149d4a0d12c4145cc90f9e173ab4aa`，共享仍为 `2bc8acc7`。当前工具版本为 `31249944c5fea417`；pending 为空，两个发布标记 open，三入口 Fast 参数及三组健康检查通过。详见 [Fast 部署验收](CODEX-FAST-DEPLOYED-20261113.md)。
+最新状态（2026-11-17）：国内角色收敛与管理员只读会话已部署，国内前后端为 `c79924625230275bad65fa778020d5b4a3b272e0`，上一成功版本为 `3b38a2c445149d4a0d12c4145cc90f9e173ab4aa`；海外保持 `3b38a2c`，共享保持 `2bc8acc7`。工具版本 `31249944c5fea417`，正式 verify 通过，pending 为空，自动清理完成。详见 [本次部署验收](DOMESTIC-MONITOR-ROLES-DEPLOYED-20261117.md)。
 
-此前国内显式 Skill 迭代版本为 `9a884b7cee60b1a0965b49cfc97c0940c1811790`，目前保留为国内上一成功版本。该次配置保留及入口恢复记录见 [显式 Skill 部署验收](DOMESTIC-EXPLICIT-SKILL-DEPLOYED-20261113.md)。
+此前国内显式 Skill 迭代版本为 `9a884b7cee60b1a0965b49cfc97c0940c1811790`；本次已超出国内两版保留范围，经真实引用核查后自动清理其无人引用源码、上传包和发布事务备份。该次配置保留及入口恢复历史记录见 [显式 Skill 部署验收](DOMESTIC-EXPLICIT-SKILL-DEPLOYED-20261113.md)。
 
 2026-11-13：国内工作台联合升级已完成，实际国内 schema 为 0043，三组应用版本为 `2bc8acc7ecf412626a6a635a9413b1644b55417e`，当前工具版本为 `290f3a7a25e263cb`（Git `6c7b6af6bca4e7a1cc6f3ce57345bc786e3ae77b`）。部署与前向恢复证据见 [验收记录](DOMESTIC-STUDIO-DEPLOYED-20261113.md)。下文一次性 0032→0043 方案保留作历史参考，不应再次执行 prepare；后续使用已支持国内 publisher 的独立发布流程。
 
