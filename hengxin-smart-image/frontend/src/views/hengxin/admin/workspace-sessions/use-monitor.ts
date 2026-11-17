@@ -70,7 +70,10 @@ export function useMonitor(api = createWorkspaceSessionsApi(), listEnabled = tru
   const timer = setInterval(() => {
     if (autoSync.value && !requesting && (typeof document === 'undefined' || document.visibilityState === 'visible')) void refreshData(true)
   }, 3000)
-  const unsubscribe = identity.subscribe(() => failure(new IdentityError(403, '身份已变化')))
+  const unsubscribe = identity.subscribe(reason => {
+    // 暂时隐藏由全局身份锁保护，不能当成管理员被撤权。
+    if (reason !== 'suspended') failure(new IdentityError(403, '身份已变化'))
+  })
   onScopeDispose(() => { alive = false; ++epoch; controller?.abort(); clearInterval(timer); unsubscribe(); clear() })
   return { filters, list, detail, transcript, selectedId, autoSync, loading, denied, error, lastSuccess, refresh, select, filterChanged, reset, failure }
 }

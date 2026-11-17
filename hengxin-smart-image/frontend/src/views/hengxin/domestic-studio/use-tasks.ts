@@ -107,7 +107,10 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
   watch(() => filters.page, () => { void refresh() })
   watch(autoSync, value => { if (value) void refresh() })
   const timer = setInterval(() => { if (autoSync.value && !requesting && !busy.value && (typeof document === 'undefined' || document.visibilityState === 'visible')) void refreshData(true) }, 3000)
-  const unsubscribe = identity.subscribe(() => failure(new IdentityError(403, '身份已变化')))
+  const unsubscribe = identity.subscribe(reason => {
+    // 暂时隐藏由全局身份锁保护，返回重验成功后继续使用当前任务。
+    if (reason !== 'suspended') failure(new IdentityError(403, '身份已变化'))
+  })
   onScopeDispose(() => { alive = false; ++epoch; controller?.abort(); clearInterval(timer); unsubscribe(); clear() })
   return { filters, list, task, managed, loading, busy, error, notice, denied, pending, autoSync, lastSuccess, refresh, reset, failure,
     create: (name: string) => pending.value ? Promise.resolve(false) : run({ kind: 'create', name, workspace: context().workspace, key: randomUUID() }),

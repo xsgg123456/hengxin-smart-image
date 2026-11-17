@@ -13,6 +13,22 @@ const listing = (id: string): SessionList => ({ items: [summary(id)], total: 1, 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0))
 const entry = (id: number, text: string) => ({ id, turnId: 'turn', itemId: 'item', kind: 'tool' as const, text, state: 'running' as const, createdAt: stamp })
 
+test('管理会话切页保留详情和同步设置，实际换号仍清空', async () => {
+  const api = { list: async () => listing('a'), detail: async () => detail('a'), transcript: async () => ({ items: [entry(1, '过程')], cursor: 1, hasMore: false }) }
+  const scope = effectScope(), state = scope.run(() => useMonitor(api))!
+  try {
+    state.select('a'); await settle(); assert.ok(state.detail.value)
+    for (const auto of [false, true]) {
+      state.autoSync.value = auto; identity.advance('suspended')
+      assert.equal(state.denied.value, false); assert.equal(state.autoSync.value, auto)
+      assert.equal(state.detail.value?.session.id, 'a'); assert.equal(state.transcript.value[0].text, '过程')
+      await state.refresh(); assert.equal(state.denied.value, false)
+    }
+    identity.advance('changed')
+    assert.equal(state.denied.value, true); assert.equal(state.detail.value, undefined); assert.deepEqual(state.transcript.value, [])
+  } finally { scope.stop() }
+})
+
 test('管理接口仅GET、查询参数编码且拒绝个人/跨会话/海外文件地址', async () => {
   const calls: { url: string; method?: string }[] = []
   const api = createWorkspaceSessionsApi(async (url, options) => { calls.push({ url: String(url), method: options?.method }); return new Response(JSON.stringify(listing('a'))) })

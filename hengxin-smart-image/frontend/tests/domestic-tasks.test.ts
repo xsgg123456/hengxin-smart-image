@@ -91,6 +91,29 @@ test('任务删除只在实际清理回执deleted后返回，删除失败保留�
   finally { scope.stop() }
 })
 
+for (const management of [false, true]) for (const id of ['', 'task-a']) {
+  test(`${management ? '管理' : '个人'}任务${id ? '详情' : '列表'}切页不撤权，真实身份失效仍清空`, async () => {
+    session.clear()
+    const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'owner', workspace: 'camera', management, id }), () => {}, () => {}, fakeApi()))!
+    try {
+      await flush(); state.filters.search = '保留筛选'; await flush()
+      const snapshot = id ? state.task.value : state.list.value
+      assert.ok(snapshot)
+      for (const auto of [false, true]) {
+        state.autoSync.value = auto; await flush()
+        identity.advance('suspended')
+        assert.equal(state.denied.value, false); assert.equal(state.error.value, '')
+        assert.equal(state.autoSync.value, auto); assert.equal(state.filters.search, '保留筛选')
+        assert.ok(id ? state.task.value : state.list.value)
+        await state.refresh(); assert.equal(state.denied.value, false)
+      }
+      identity.advance('invalid')
+      assert.equal(state.denied.value, true); assert.equal(state.autoSync.value, false)
+      assert.equal(state.task.value, undefined); assert.equal(state.list.value, undefined); assert.equal(state.managed.value, undefined)
+    } finally { scope.stop() }
+  })
+}
+
 test('管理任务不能写，暂停同步时撤权也立即清空任务、列表和会话内容', async () => {
   session.clear(); let writes = 0
   const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'admin', workspace: '', management: true, id: 'task-a' }), () => {}, () => {}, fakeApi({ create: async () => { writes++; return task() } })))!
