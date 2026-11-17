@@ -13,7 +13,7 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
   const list = shallowRef<TaskList>(), task = shallowRef<DomesticTask>(), managed = shallowRef<ManagedTaskDetail>()
   const loading = ref(false), busy = ref(false), error = ref(''), denied = ref(false), notice = ref('')
   const pending = shallowRef<Operation>(), autoSync = ref(true), lastSuccess = ref('')
-  let epoch = 0, controller: AbortController | undefined, alive = true
+  let epoch = 0, controller: AbortController | undefined, alive = true, requesting = false
   const scope = () => JSON.stringify([context().actor, context().workspace, context().management])
   const storageKey = () => `hx-domestic-task-operation:${scope()}`
   function save(value?: Operation) {
@@ -28,11 +28,12 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
       error.value = '查看权限已失效，已清除任务内容，请重新登录后核实权限。'
     } else error.value = reason instanceof IdentityError && typeof reason.detail === 'string' ? reason.detail : reason instanceof Error ? reason.message : '任务请求失败，请重试'
   }
-  async function refresh() {
+  async function refreshData(background = false) {
     if (!alive || denied.value || !context().actor) return
     const token = ++epoch, current = { ...context() }
     controller?.abort(); controller = new AbortController(); const signal = controller.signal
-    loading.value = true
+    requesting = true
+    loading.value = !background || !(current.id ? task.value : list.value)
     try {
       if (current.id) {
         if (current.management) {
@@ -61,8 +62,9 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
       if (token !== epoch || signal.aborted) return
       if (reason instanceof IdentityError && [404, 410].includes(reason.status) && current.id) { task.value = undefined; managed.value = undefined }
       failure(reason)
-    } finally { if (token === epoch) loading.value = false }
+    } finally { if (token === epoch) { requesting = false; loading.value = false } }
   }
+  const refresh = () => refreshData()
   async function run(operation: Operation) {
     if (busy.value || context().management || denied.value) return false
     const owner = scope(), originalId = context().id
@@ -104,7 +106,7 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
   watch(() => [filters.workspace, filters.ownerId, filters.search, filters.status], () => { filters.page = 1; list.value = undefined; void refresh() })
   watch(() => filters.page, () => { void refresh() })
   watch(autoSync, value => { if (value) void refresh() })
-  const timer = setInterval(() => { if (autoSync.value && !loading.value && !busy.value && (typeof document === 'undefined' || document.visibilityState === 'visible')) void refresh() }, 3000)
+  const timer = setInterval(() => { if (autoSync.value && !requesting && !busy.value && (typeof document === 'undefined' || document.visibilityState === 'visible')) void refreshData(true) }, 3000)
   const unsubscribe = identity.subscribe(() => failure(new IdentityError(403, '身份已变化')))
   onScopeDispose(() => { alive = false; ++epoch; controller?.abort(); clearInterval(timer); unsubscribe(); clear() })
   return { filters, list, task, managed, loading, busy, error, notice, denied, pending, autoSync, lastSuccess, refresh, reset, failure,

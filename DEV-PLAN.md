@@ -1,8 +1,10 @@
-# 2026-11-17 · 国内任务、多方案会话与管理员任务中心（实施中）
+# 2026-11-17 · 国内任务、多方案会话与管理员任务中心（已部署验收）
+
+上线收尾：除张帅之外17个未使用历史空任务已按固定清单通过持久删除流程清理，保留6任务7会话，前后内容摘要一致，见 [清理验收](docs/DOMESTIC-UNUSED-HISTORY-CLEANED-20261117.md)。任务中心刷新跳动修复已完成592项前端测试、类型检查及52个隔离浏览器只读请求验证：自动同步期间按钮几何和内容节点稳定、数据仍更新，手动刷新/筛选/异常/撤权保持；待独立审查后中文提交并仅国内前端发布，不重跑0044迁移。
 
 用户已确认最终独立预览，授权文档、正式开发、测试审查、中文Git提交及内网部署。按以下四步执行，每步自检、集成后固定快照独立审查；正式数据仅用于只读核实和已授权发布，开发测试使用独立PostgreSQL/对象存储/浏览器。
 
-当前进度：步骤1–3已实现，产品及专项发布工具均通过独立两阶段审查；步骤4的真实PostgreSQL/Docker故障回归已完成，进入固定提交打包与维护发布阶段，尚未上线。验证证据见 [开发验证记录](docs/DOMESTIC-TASKS-VALIDATION-20261117.md)，维护影响与恢复边界见 [专项维护方案](docs/DOMESTIC-TASKS-MAINTENANCE-20261117.md)。
+当前进度：四步均已完成。产品及专项发布工具通过独立两阶段审查，业务提交 `02ddb53749a9e16580a965b64ea13ffdd19aef51` 已经用户具体维护授权完成国内上线；schema为0044，24个历史会话归入23个任务，17张历史表迁移前后摘要一致，海外及shared保持，正式五业务入口及管理只读页面验收通过。见 [部署验收](docs/DOMESTIC-TASKS-DEPLOYED-20261117.md)、[开发验证记录](docs/DOMESTIC-TASKS-VALIDATION-20261117.md)及[专项维护方案](docs/DOMESTIC-TASKS-MAINTENANCE-20261117.md)。
 
 1. **任务数据及历史兼容**：在 backend/app/modules/domestic_studio 新建 task_models/task_service/task_queries/task_router 及任务生命周期/清理模块，迁移0043之后新增Task、幂等操作与必要删除状态、Conversation任务归属；修改 conversation_models/service、queries/router 及实际调用边界。历史按成员+业务回填任务，保持会话和物理/恢复凭据不变。验收：真实PostgreSQL前后快照、完整FK、重复创建/并发冲突、完成/删除时在途任务拒绝及旧API不可绕过；海外模型保持。
 2. **正式业务页与多会话**：frontend/src/views/hengxin/domestic-studio、src/api/hengxin新增真实任务列表/创建及详情；复用DomesticWorkspace和shared/studio组件，按任务作用域读写会话、恢复已有草稿。业务路由只显示当前成员，新增任务不隐式创建会话；任务重命名/完成/重开/持久删除、异常核实与分页状态完整。验收：三角色五入口、多个任务/会话相互隔离、历史任务/文件/修改/取回/归档回归、类型检查和真实浏览器操作。

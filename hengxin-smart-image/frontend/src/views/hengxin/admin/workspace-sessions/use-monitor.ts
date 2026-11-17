@@ -10,7 +10,7 @@ export function useMonitor(api = createWorkspaceSessionsApi(), listEnabled = tru
   const transcript = shallowRef<StudioTranscript[]>([])
   const selectedId = ref(''), autoSync = ref(true), loading = ref(false), denied = ref(false)
   const error = ref(''), lastSuccess = ref('')
-  let epoch = 0, controller: AbortController | undefined, cursor = 0
+  let epoch = 0, controller: AbortController | undefined, cursor = 0, requesting = false, alive = true
   function clear() { list.value = undefined; detail.value = undefined; transcript.value = []; cursor = 0; lastSuccess.value = '' }
   function failure(reason: unknown) {
     if (reason instanceof IdentityError && [401, 403].includes(reason.status)) {
@@ -18,15 +18,17 @@ export function useMonitor(api = createWorkspaceSessionsApi(), listEnabled = tru
       error.value = '查看权限已失效，已清除会话内容，请重新登录后核实权限。'
     } else error.value = reason instanceof Error ? reason.message : '同步失败，请重试'
   }
-  async function refresh() {
-    if (denied.value || (!listEnabled && !selectedId.value)) return
+  async function refreshData(background = false) {
+    if (!alive || denied.value || (!listEnabled && !selectedId.value)) return
     const token = ++epoch, id = selectedId.value
     controller?.abort(); controller = new AbortController()
     const signal = controller.signal
-    loading.value = true
+    requesting = true
+    loading.value = !background || !(id ? detail.value : list.value)
     try {
       if (id) {
         const next = await api.detail(id, signal)
+        if (token !== epoch) return
         let after = cursor
         const entries = new Map(transcript.value.map(item => [`${item.turnId}:${item.itemId}`, item]))
         while (true) {
@@ -52,10 +54,11 @@ export function useMonitor(api = createWorkspaceSessionsApi(), listEnabled = tru
         detail.value = undefined; transcript.value = []; cursor = 0; lastSuccess.value = ''
         error.value = '会话已删除或不可用，请返回列表。'
       } else failure(reason)
-    } finally { if (token === epoch) loading.value = false }
+    } finally { if (token === epoch) { requesting = false; loading.value = false } }
   }
+  const refresh = () => refreshData()
   function select(id: string) {
-    ++epoch; controller?.abort(); selectedId.value = id
+    ++epoch; controller?.abort(); selectedId.value = id; requesting = false; loading.value = false
     detail.value = undefined; transcript.value = []; cursor = 0; error.value = ''; lastSuccess.value = ''
     void refresh()
   }
@@ -65,9 +68,9 @@ export function useMonitor(api = createWorkspaceSessionsApi(), listEnabled = tru
   }
   function reset() { Object.assign(filters, { ownerId: '', workspace: '', status: '', search: '', page: 1 }); filterChanged() }
   const timer = setInterval(() => {
-    if (autoSync.value && !loading.value && (typeof document === 'undefined' || document.visibilityState === 'visible')) void refresh()
+    if (autoSync.value && !requesting && (typeof document === 'undefined' || document.visibilityState === 'visible')) void refreshData(true)
   }, 3000)
   const unsubscribe = identity.subscribe(() => failure(new IdentityError(403, '身份已变化')))
-  onScopeDispose(() => { ++epoch; controller?.abort(); clearInterval(timer); unsubscribe(); clear() })
+  onScopeDispose(() => { alive = false; ++epoch; controller?.abort(); clearInterval(timer); unsubscribe(); clear() })
   return { filters, list, detail, transcript, selectedId, autoSync, loading, denied, error, lastSuccess, refresh, select, filterChanged, reset, failure }
 }

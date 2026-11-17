@@ -98,6 +98,44 @@ test('管理任务不能写，暂停同步时撤权也立即清空任务、列�
   finally { scope.stop() }
 })
 
+for (const management of [false, true]) for (const id of ['', 'task-a']) {
+  test(`${management ? '管理' : '个人'}任务${id ? '详情' : '列表'}自动同步静默且去重，手动刷新可替换在途同步`, async t => {
+    t.mock.timers.enable({ apis: ['setInterval'] }); session.clear()
+    const requests: { value: ReturnType<typeof deferred<any>>; signal?: AbortSignal }[] = []
+    const request = (signal?: AbortSignal) => { const value = deferred<any>(); requests.push({ value, signal }); return value.promise }
+    const response = (name: string) => id ? management ? { task: { ...task(id), name }, sessions: [] } : { ...task(id), name } : { ...listing(), items: [{ ...task(), name }] }
+    const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'owner', workspace: management ? '' : 'camera', management, id }), () => {}, () => {}, fakeApi({ list: async (_filters, _management, signal) => request(signal), detail: async (_id, signal) => request(signal), managedDetail: async (_id, signal) => request(signal) })))!
+    const name = () => id ? state.task.value?.name : state.list.value?.items[0].name
+    try {
+      assert.equal(state.loading.value, true)
+      requests[0].value.resolve(response('初次')); await flush()
+      t.mock.timers.tick(3000); assert.equal(requests.length, 2); assert.equal(state.loading.value, false); assert.equal(name(), '初次')
+      t.mock.timers.tick(6000); assert.equal(requests.length, 2); assert.equal(requests[1].signal?.aborted, false)
+      requests[1].value.resolve(response('后台更新')); await flush(); assert.equal(name(), '后台更新')
+      t.mock.timers.tick(3000); assert.equal(requests.length, 3)
+      const manual = state.refresh(); assert.equal(state.loading.value, true); assert.equal(requests[2].signal?.aborted, true)
+      requests[2].value.resolve(response('迟到')); await flush(); assert.equal(name(), '后台更新'); assert.equal(state.loading.value, true)
+      requests[3].value.resolve(response('手动更新')); await manual; assert.equal(name(), '手动更新'); assert.equal(state.loading.value, false)
+      state.autoSync.value = false; t.mock.timers.tick(3000); assert.equal(requests.length, 4)
+    } finally { scope.stop() }
+  })
+}
+
+test('后台任务同步错误保留快照，筛选有反馈，后台撤权立即清空且阻止后续同步', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] }); session.clear()
+  let failure = 0, count = 0
+  const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'admin', workspace: '', management: true, id: '' }), () => {}, () => {}, fakeApi({ list: async () => { count++; if (failure) throw new IdentityError(failure, '同步异常'); return listing() } })))!
+  try {
+    await flush(); const success = state.lastSuccess.value
+    failure = 503; t.mock.timers.tick(3000); await flush()
+    assert.ok(state.list.value); assert.equal(state.lastSuccess.value, success); assert.equal(state.error.value, '同步异常'); assert.equal(state.loading.value, false)
+    failure = 0; state.filters.search = '新筛选'; await Promise.resolve(); assert.equal(state.loading.value, true); await flush(); assert.equal(state.error.value, '')
+    failure = 403; t.mock.timers.tick(3000); await flush()
+    assert.equal(state.list.value, undefined); assert.equal(state.denied.value, true); assert.equal(state.autoSync.value, false)
+    const previous = count; t.mock.timers.tick(6000); assert.equal(count, previous)
+  } finally { scope.stop() }
+})
+
 test('历史草稿只迁移已确认所属会话，保留内容、参考关系和原请求键，不覆盖新草稿', () => {
   local.clear(); session.clear()
   const saved = { version: 1, text: '旧方案未发送要求', skill: '', attachments: [{ id: 'upload:f', name: '素材', source: 'upload', contentType: 'image/png', sizeBytes: 1, url: '/api/v1/domestic-studio/workspaces/camera/files/f/content' }], references: ['picture'], revisions: [{ pictureId: 'picture', text: '标注', marks: [] }] }

@@ -1,6 +1,6 @@
 # 国内任务与管理员任务中心验证记录
 
-本记录是开发与隔离验证证据，尚不表示已部署生产。业务版本0.2.74；用户确认的独立预览为 `hengxin-smart-image/frontend/preview-task-center/`。
+本记录保留开发与隔离验证证据。业务版本0.2.74，生产提交 `02ddb53` 已完成上线，实际生产结果另见 [部署验收](DOMESTIC-TASKS-DEPLOYED-20261117.md)；不要把下述隔离测试当作生产故障演练。用户确认的独立预览为 `hengxin-smart-image/frontend/preview-task-center/`。
 
 ## 功能与构建
 
@@ -22,6 +22,6 @@
 
 初次专项发布审查发现两项HIGH：实际启动调用绕过重启策略恢复、成功核验遗漏非目标配置漂移。已修复并补充最终验收/台账异常关闭国内入口及可重试恢复。修复后完整发布工具套件504通过、15子测试通过；4个可选Docker跳过用例已在宿主独立Compose实际执行，4项全部通过。真实独立PostgreSQL迁移进程锁、UID1001、publisher沙箱及pg_dump/restore均执行通过，具体证据见专项维护方案。
 
-最终快照 `bdc78af52f5564caa852690e03d2626b14a94ce73ff07e295256dcc2bff51fe5` 的产品及专项发布工具均通过独立两阶段审查，详见 [合并审查凭据](reviews/DOMESTIC-TASKS-20261117.md)。发布复核另独立执行专项90项、scope/engine/catalog/GC回归139项及8个子测试、真实Docker4项，全部通过。安装稿已静态复核，但实际安装和生产切换尚未执行。依赖审计critical为0；既有high73/moderate51/low11，本次未升级依赖、不宣称全库无漏洞。
+最终快照 `bdc78af52f5564caa852690e03d2626b14a94ce73ff07e295256dcc2bff51fe5` 的产品及专项发布工具均通过独立两阶段审查，详见 [合并审查凭据](reviews/DOMESTIC-TASKS-20261117.md)。发布复核另独立执行专项90项、scope/engine/catalog/GC回归139项及8个子测试、真实Docker4项，全部通过。安装稿已静态复核；其后实际安装及生产切换结果见上方部署记录，不属于审查时的隔离测试结论。依赖审计critical为0；既有high73/moderate51/low11，本次未升级依赖、不宣称全库无漏洞。
 
 数据库0043→0044影响、备份、停止围栏及前向恢复方案见 [专项维护方案](DOMESTIC-TASKS-MAINTENANCE-20261117.md)。生产执行与验收须另记实测结果。

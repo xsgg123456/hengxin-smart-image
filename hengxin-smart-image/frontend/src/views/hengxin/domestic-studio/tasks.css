@@ -1,4 +1,6 @@
 .tc-page { padding-top:8px }
+.tc-page .wm-sync .el-button { width:112px;flex-shrink:0 }
+.tc-page > .wm-sync .el-button { width:84px }
 .tc-page .hx-heading { margin-bottom:26px }
 .tc-page .hx-heading h1 { font-size:26px }
 .tc-page .hx-heading p { font-size:13px }

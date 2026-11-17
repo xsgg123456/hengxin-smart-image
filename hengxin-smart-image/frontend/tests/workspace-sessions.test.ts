@@ -92,3 +92,34 @@ test('自动同步暂停时身份变化仍立即清敏感数据', async () => {
   try { state.select('a'); await settle(); state.autoSync.value = false; identity.advance('changed'); assert.equal(state.denied.value, true); assert.equal(state.detail.value, undefined) }
   finally { scope.stop() }
 })
+
+for (const id of ['', 'a']) test(`会话${id ? '详情' : '列表'}后台同步不显示loading且在途去重，主动刷新仍反馈`, async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const requests: { resolve: (value: any) => void; signal?: AbortSignal }[] = []
+  const request = (signal?: AbortSignal) => new Promise<any>(resolve => requests.push({ resolve, signal }))
+  const scope = effectScope(), state = scope.run(() => useMonitor({ detail: async (_id, signal) => request(signal), list: async (_filters, signal) => request(signal), transcript: async () => ({ items: [], cursor: 0, hasMore: false }) }))!
+  const response = (name: string) => id ? { ...detail(id), session: { ...summary(id), name } } : { ...listing('a'), items: [{ ...summary('a'), name }] }
+  const name = () => id ? state.detail.value?.session.name : state.list.value?.items[0].name
+  try {
+    state.select(id); assert.equal(state.loading.value, true)
+    requests[0].resolve(response('初次')); await settle()
+    t.mock.timers.tick(3000); assert.equal(requests.length, 2); assert.equal(state.loading.value, false)
+    t.mock.timers.tick(6000); assert.equal(requests.length, 2); assert.equal(requests[1].signal?.aborted, false)
+    requests[1].resolve(response('同步更新')); await settle(); assert.equal(name(), '同步更新')
+    t.mock.timers.tick(3000); const manual = state.refresh(); assert.equal(state.loading.value, true); assert.equal(requests[2].signal?.aborted, true)
+    requests[2].resolve(response('迟到')); await settle(); assert.equal(name(), '同步更新'); assert.equal(state.loading.value, true)
+    requests[3].resolve(response('手动更新')); await manual; assert.equal(name(), '手动更新'); assert.equal(state.loading.value, false)
+    state.autoSync.value = false; t.mock.timers.tick(3000); assert.equal(requests.length, 4)
+  } finally { scope.stop() }
+})
+
+test('任务最后一个会话移除时取消在途加载，迟到详情不发起后续过程请求', async () => {
+  let release: ((value: SessionDetail) => void) | undefined, transcriptCalls = 0
+  const scope = effectScope(), state = scope.run(() => useMonitor({ detail: async () => new Promise(resolve => { release = resolve }), list: async () => listing('a'), transcript: async () => { transcriptCalls++; return { items: [], cursor: 0, hasMore: false } } }, false))!
+  try {
+    state.select('a'); assert.equal(state.loading.value, true)
+    state.select(''); assert.equal(state.loading.value, false)
+    release?.(detail('a')); await settle(); assert.equal(transcriptCalls, 0); assert.equal(state.detail.value, undefined)
+    scope.stop(); await state.refresh(); assert.equal(state.detail.value, undefined)
+  } finally { scope.stop() }
+})

@@ -22,6 +22,7 @@ const tasks = Array.from({ length: 21 }, (_, index) => ({ id: `task-${index}`, n
 const file = (id, kind, name, type) => ({ id: `${kind === 'files' ? 'upload:' : ''}${id}`, name, contentType: type, sizeBytes: 12, url: `${root}/session-0/${kind}/${id}/content`, ...(kind === 'files' ? { source: 'upload' } : {}) })
 const picture = { ...file('picture-a', 'pictures', '已保存图片.png', 'image/png'), width: 1, height: 1, turnId: 'turn-session-0', sku: null, archived: false }
 let failure = 0, revision = 0, held, release, deleted = false
+const slowPaths = new Set()
 const members = [{ id: 'member-a', name: '真实成员甲' }, { id: 'member-b', name: '真实成员乙' }]
 function snapshot(id) {
   const row = rows.find(item => item.id === id)
@@ -35,6 +36,7 @@ await context.route('**/*', async route => {
   const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
   if (path.endsWith('/auth/me')) return json({ id: 'admin', name: '隔离管理员', role: 'super_admin', status: 'active' })
   calls.push({ method: request.method(), path, query: url.search })
+  if (slowPaths.has(path)) await new Promise(resolve => setTimeout(resolve, 800))
   if (request.method() !== 'GET') { unexpected.push(`${request.method()} ${path}`); return json({}, 405) }
   if (failure) return json({ detail: '隔离故障' }, failure)
   if (path === taskRoot) {
@@ -82,9 +84,41 @@ async function bounds(label, locator) {
   geometry.push({ label, width: page.viewportSize().width, ...result })
   assert.deepEqual(result.clipped, [], label); assert.ok(result.viewport && !result.overflow, `${label}: ${JSON.stringify(result)}`)
 }
+async function verifyPolling(label, path, button, content, change, updated) {
+  slowPaths.add(path)
+  const before = await button.boundingBox()
+  await content.evaluate(element => { window.__polledContent = element })
+  for (let tick = 0; tick < 2; tick++) {
+    const arrived = page.waitForRequest(request => new URL(request.url()).pathname === path)
+    const completed = page.waitForResponse(response => new URL(response.url()).pathname === path)
+    change(tick)
+    await arrived
+    for (let sample = 0; sample < 3; sample++) {
+      await page.waitForTimeout(120)
+      assert.equal(await button.evaluate(element => element.classList.contains('is-loading')), false, `${label}: 自动同步不转圈`)
+      assert.equal(await page.locator('.tc-page .el-loading-mask:visible,.tc-page .el-skeleton:visible').count(), 0, `${label}: 自动同步不遮罩`)
+      assert.deepEqual(await button.boundingBox(), before, `${label}: 自动同步按钮几何稳定`)
+      assert.ok(await content.evaluate(element => element === window.__polledContent && element.isConnected), `${label}: 内容节点保持`)
+    }
+    await completed; await updated(tick)
+  }
+  await page.screenshot({ path: resolve(output, `${label}-polling.png`), fullPage: true })
+  const completed = page.waitForResponse(response => new URL(response.url()).pathname === path)
+  await button.click(); await page.waitForTimeout(120)
+  assert.equal(await button.evaluate(element => element.classList.contains('is-loading')), true, `${label}: 主动刷新有反馈`)
+  assert.deepEqual(await button.boundingBox(), before, `${label}: 手动刷新按钮几何稳定`)
+  await completed
+  await page.waitForFunction(() => !document.querySelector('.tc-page .wm-sync .is-loading'))
+  slowPaths.delete(path)
+  geometry.push({ label: `${label}-polling`, width: page.viewportSize().width, before, after: await button.boundingBox(), automaticTicks: 2, samplesPerTick: 3 })
+  checks.push(`${label}: 两次真实3秒自动tick静默更新，内容节点及按钮几何保持；手动刷新反馈且宽度稳定`)
+}
 try {
   await page.goto(`${base}/#/management/workspace-sessions`)
   await page.locator('.tc-task-name').first().waitFor()
+  await page.waitForFunction(() => !document.querySelector('.el-loading-mask'))
+  await verifyPolling('list', taskRoot, page.getByRole('button', { name: '刷新', exact: true }), page.locator('.tc-task-name').first(), tick => { tasks[0].name = `自动同步任务 ${tick}` }, tick => page.getByRole('button', { name: `自动同步任务 ${tick}`, exact: true }).waitFor())
+  tasks[0].name = '验收任务 0'
   await page.locator('.wm-sync .el-switch').first().click()
   assert.equal(await page.locator('.tc-task-name').count(), 20)
   await page.locator('.el-pagination .btn-next').click(); await page.locator('.tc-task-name').filter({ hasText: /^验收任务 20$/ }).waitFor()
@@ -102,6 +136,10 @@ try {
     await page.screenshot({ path: resolve(output, `list-${width}.png`), fullPage: true })
   }
   await page.setViewportSize({ width: 1920, height: 1080 }); await choose(0); await waitName(0)
+  await page.locator('.wm-sync .el-switch').first().click()
+  await verifyPolling('detail', `${root}/session-0`, page.getByRole('button', { name: '刷新会话', exact: true }), page.locator('.wm-chat'), tick => { rows[0].name = `自动同步会话 ${tick}` }, tick => page.locator('.wm-chat-heading strong').filter({ hasText: `自动同步会话 ${tick}` }).waitFor())
+  await page.locator('.wm-sync .el-switch').first().click()
+  rows[0].name = '验收会话 0'; revision = 0; await refresh()
   await page.getByText('公开执行过程', { exact: true }).waitFor()
   assert.equal(await page.getByRole('textbox').count(), 0)
   assert.equal(await page.getByRole('button', { name: /^(发送|停止|删除|重试|取回文件|归档|修改这张)$/ }).count(), 0)
@@ -122,6 +160,7 @@ try {
   checks.push('手动增量同步、断线保留最近成功内容、恢复同步')
   for (const width of [1920, 1000, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1080 })
+    if (width === 390) { await page.locator('.el-menu-item.is-active').first().click(); await page.waitForTimeout(350) }
     if (width > 700) await bounds('成员会话只读说明', page.locator('.wm-sidebar-note'))
     await bounds('只读说明', page.locator('.wm-readonly'))
     await bounds('附件与结果', page.getByRole('button', { name: '附件与结果', exact: true }))
