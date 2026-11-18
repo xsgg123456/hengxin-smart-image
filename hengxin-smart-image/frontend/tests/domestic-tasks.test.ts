@@ -5,6 +5,9 @@ import { createDomesticTasksApi, isManagedTaskDetail, type DomesticTask, type Ta
 import { createStudioApi, isDomesticAsset, type Studio } from '../src/api/shared/studio'
 import { createStudioOutputsApi } from '../src/api/shared/studio-outputs'
 import { IdentityError } from '../src/api/identity/request'
+import { domesticWorkspaces } from '../src/api/hengxin/domestic-workspaces'
+import { safeReturnPath } from '../src/api/hengxin/session'
+import { routeModules } from '../src/router/modules'
 import { useTasks } from '../src/views/hengxin/domestic-studio/use-tasks'
 import { restoreTaskStorage } from '../src/views/hengxin/domestic-studio/task-storage'
 import { composerDraftKey } from '../src/views/shared/studio/studio-composer-draft'
@@ -187,4 +190,28 @@ test('零会话不隐式创建，显式新建可用；任何方案执行、上�
     view.state.uploading.value = true; assert.equal(view.state.canMutateTask.value, false); view.state.uploading.value = false
     f.rows[0].deletionStatus = 'deleting'; await view.state.refresh(); await flush(); assert.equal(view.state.canMutateTask.value, false)
   } finally { view.close() }
+})
+
+test('十个业务注册真实成员入口、登录返回地址和管理详情，管理筛选携带相同标识', async () => {
+  assert.equal(domesticWorkspaces.length, 10)
+  const distinctPaths = new Set(domesticWorkspaces.map(workspace => workspace.path))
+  assert.equal(distinctPaths.size, 10)
+  for (const workspace of domesticWorkspaces) {
+    const group = routeModules.find(menu => menu.meta.title === workspace.group)!
+    const menu = group.children?.find(item => group.path + '/' + item.path === workspace.path)
+    assert.equal(menu?.meta.title, workspace.title)
+    assert.equal(menu?.component, '/hengxin/domestic-studio/workspace')
+    assert.equal(safeReturnPath(workspace.path + '?task=task-a'), workspace.path + '?task=task-a')
+    const currentTask = { ...task(), workspace: workspace.key }
+    const api = createDomesticTasksApi(async url => {
+      const endpoint = new URL(String(url), 'http://local')
+      assert.equal(endpoint.pathname, '/api/v1/management/domestic-studio/tasks')
+      assert.equal(endpoint.searchParams.get('workspace'), workspace.key)
+      return Response.json({ ...listing(), items: [currentTask] })
+    })
+    assert.equal((await api.list({ workspace: workspace.key, ownerId: '', search: '', status: '', page: 1, pageSize: 20 }, true)).items[0].workspace, workspace.key)
+    const session = { ...row('s'), ownerId: currentTask.ownerId, ownerName: currentTask.ownerName, workspace: workspace.key, taskId: currentTask.id }
+    assert.equal(isManagedTaskDetail({ task: currentTask, sessions: [session] }, currentTask.id), true)
+    assert.equal(isManagedTaskDetail({ task: currentTask, sessions: [{ ...session, workspace: 'other' }] }, currentTask.id), false)
+  }
 })

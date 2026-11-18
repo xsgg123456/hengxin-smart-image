@@ -1,6 +1,6 @@
 import { createIdentityRequest, record } from '../identity/request'
 import { isManagedSession, type ManagedSession } from './workspace-sessions'
-import type { WorkspaceKey } from './domestic-studio-skills'
+import { isWorkspaceKey, type WorkspaceKey } from '../shared/domestic-workspace-keys'
 
 export interface DomesticTask {
   id: string; name: string; workspace: WorkspaceKey; ownerId: string; ownerName: string
@@ -18,7 +18,7 @@ const root = '/api/v1/domestic-studio/tasks', managementRoot = '/api/v1/manageme
 const integer = (value: unknown) => Number.isSafeInteger(value) && Number(value) >= 0
 export function isDomesticTask(value: unknown): value is DomesticTask {
   return record(value) && ['id', 'name', 'ownerId', 'ownerName', 'createdAt', 'updatedAt'].every(key => typeof value[key] === 'string')
-    && ['camera', 'case', 'product', 'scene', 'phone'].includes(String(value.workspace))
+    && isWorkspaceKey(value.workspace)
     && integer(value.version) && Number(value.version) > 0 && typeof value.completed === 'boolean'
     && integer(value.conversationCount) && integer(value.activeConversationCount)
     && (value.deletionStatus === null || ['deleting', 'delete_failed'].includes(String(value.deletionStatus)))

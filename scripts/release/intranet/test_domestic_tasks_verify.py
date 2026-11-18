@@ -49,7 +49,7 @@ def test_only_exact_prepared_domestic_config_changes_pass(verify_world):
 @pytest.mark.parametrize('operation', ['add', 'remove', 'change'])
 @pytest.mark.parametrize('path', ['/etc/hengxin-lan/hengxin-overseas-worker.env',
                                   '/etc/hengxin-lan/domestic.env', '/etc/nginx/gateway.conf',
-                                  '/etc/systemd/system/hengxin-codex-auth.service.d/90-unified-source.conf'])
+                                  str(Path('/etc/systemd/system/hengxin-codex-auth.service.d/90-unified-source.conf'))])
 def test_unapproved_config_add_remove_change_refused(verify_world, operation, path):
     upgrade, item, after = verify_world
     if operation == 'add':
@@ -62,8 +62,8 @@ def test_unapproved_config_add_remove_change_refused(verify_world, operation, pa
         upgrade.verify_after(item, after)
 
 
-@pytest.mark.parametrize('path', ['/opt/hengxin-lan/compose.json',
-    '/etc/systemd/system/hengxin-vps-codex-worker.service.d/90-unified-source.conf'])
+@pytest.mark.parametrize('path', [str(Path('/opt/hengxin-lan/compose.json')),
+    str(Path('/etc/systemd/system/hengxin-vps-codex-worker.service.d/90-unified-source.conf'))])
 def test_domestic_config_must_match_prepared_hash(verify_world, path):
     upgrade, item, after = verify_world
     after['configs'][path] = 'unreviewed-domestic-change'

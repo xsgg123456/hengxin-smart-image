@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 import engine
-import domestic_tasks_history as history
+import domestic_tasks_policy as tasks_policy
+from domestic_tasks_policy import history
 import joint_studio_credentials as processes
 import joint_studio_fence as fence
 import joint_studio_forward as forward
@@ -79,39 +80,41 @@ def backup(u, descriptor):
     return u.digest(report.read_bytes())
 
 
-def migrate(u, ctx, before, descriptor):
+def migrate(u, ctx, before, descriptor, policy=tasks_policy):
     fence.assert_held(u, descriptor)
     stopped(u)
-    if snapshot.schemas(u) != before['schema'] or u.data_identity() != before['data']:
+    if (before['schema'].get('domestic') != policy.SOURCE or snapshot.schemas(u) != before['schema']
+            or u.data_identity() != before['data']):
         raise RuntimeError('Schema/data changed before Tasks migration')
     backup_sha = backup(u, descriptor)
-    row = {'schema': before['schema'], 'data': before['data'], 'target': '0044',
-           'backup_sha256': backup_sha, 'history': history.capture(u), 'phase': 'migrating'}
-    engine._save('tasks-migration.json', row, exclusive=True)
+    row = {'schema': before['schema'], 'data': before['data'], 'target': policy.TARGET,
+           'backup_sha256': backup_sha, 'history': policy.history.capture(u), 'phase': 'migrating'}
+    engine._save(policy.RECEIPT, row, exclusive=True)
     worker = dict(ctx['hengxin-vps-codex-worker'])
     worker['env'] = dict(worker['env'], DOMESTIC_STUDIO_MIGRATION_FENCE='1')
-    u.native_run(worker, module='alembic', args=('upgrade', '0044'),
+    u.native_run(worker, module='alembic', args=('upgrade', policy.TARGET),
                  cwd=str(u.RELEASE / 'backend'), timeout=300, pass_fds=(descriptor,))
-    check_migration(u, before, descriptor)
+    check_migration(u, before, descriptor, policy)
 
 
-def check_migration(u, before, descriptor):
-    row = engine._read('tasks-migration.json')
-    if (row.get('target') != '0044' or row.get('schema') != before['schema']
+def check_migration(u, before, descriptor, policy=tasks_policy):
+    row = engine._read(policy.RECEIPT)
+    if (row.get('target') != policy.TARGET or before['schema'].get('domestic') != policy.SOURCE
+            or row.get('schema') != before['schema']
             or row.get('data') != before['data'] or row.get('phase') not in ('migrating', 'migrated')
             or row.get('backup_sha256') != backup(u, descriptor)
-            or snapshot.schemas(u) != dict(before['schema'], domestic='0044')
+            or snapshot.schemas(u) != dict(before['schema'], domestic=policy.TARGET)
             or u.data_identity() != before['data']):
         raise RuntimeError('Tasks migration evidence/schema/data differs')
     if row['phase'] == 'migrating':
         stopped(u)
-        history.verify(u, row['history'])
+        policy.history.verify(u, row['history'])
         row['phase'] = 'migrated'
-        engine._save('tasks-migration.json', row)
+        engine._save(policy.RECEIPT, row)
 
 
 @contextmanager
-def context(item, descriptor):
+def context(item, descriptor, policy=tasks_policy):
     """Must be nested inside the ordinary domestic scope context and host lock."""
     u, before = engine.u, item['before']
     original_stop, original_start, original_app = u.stop_apps, u.start_apps, u.app_command
@@ -143,16 +146,16 @@ def context(item, descriptor):
         freeze(u)
         original_stop()
         state = engine._load_state(engine._read('prepared.json'))
-        migrate(u, state['ctx'], before, descriptor)
+        migrate(u, state['ctx'], before, descriptor, policy)
 
     def guarded_recover():
         fence.assert_held(u, descriptor)
-        if (u.WORK / 'tasks-migration.json').exists():
+        if (u.WORK / policy.RECEIPT).exists():
             state = engine._load_state(engine._read('prepared.json'))
             fence.wait_database(u, state['ctx']['hengxin-vps-codex-worker'])
         if snapshot.schemas(u) != before['schema']:
             u.app_command('stop', u.ENTRIES)
-            raise RuntimeError('Tasks migration committed or drifted; use tasks-recover for forward recovery')
+            raise RuntimeError(f'Migration committed or drifted; use {policy.COMMAND}-recover for forward recovery')
         with scopes.replace(u, stop_apps=original_stop):
             result = original_recover()
             verify_restarts()
@@ -163,12 +166,12 @@ def context(item, descriptor):
         yield
 
 
-def resume(item, descriptor):
+def resume(item, descriptor, policy=tasks_policy):
     u = engine.u
     baseline = engine._read('prepared.json')
     state = engine._load_state(baseline)
     engine._check(baseline, recovering=True, state=state)
-    check_migration(u, item['before'], descriptor)
+    check_migration(u, item['before'], descriptor, policy)
     if u.validate_release() != baseline['release_manifest']:
         raise RuntimeError('Tasks candidate changed during recovery')
     if (u.WORK / 'applied.json').exists():
@@ -188,7 +191,7 @@ def resume(item, descriptor):
     try:
         u.start_apps(state['ctx'])
         engine._check(baseline, recovering=True, state=state)
-        check_migration(u, item['before'], descriptor)
+        check_migration(u, item['before'], descriptor, policy)
         if u.validate_release() != baseline['release_manifest']:
             raise RuntimeError('Tasks candidate drift after forward start')
         engine._save('applied.json', {'manifest': baseline['release_manifest']}, exclusive=True)

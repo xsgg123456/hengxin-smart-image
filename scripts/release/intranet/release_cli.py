@@ -6,7 +6,9 @@ from pathlib import Path
 
 def run(cli, argv=None):
     parser = argparse.ArgumentParser(description=cli.__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status'))
+    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status',
+                                          'workspaces-prepare', 'workspaces-deploy', 'workspaces-recover',
+                                          'workspaces-finish', 'workspaces-status'))
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--release', type=Path)
     parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
@@ -14,7 +16,7 @@ def run(cli, argv=None):
     args = parser.parse_args(argv)
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
-    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare'):
+    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare'):
         parser.error('--release is only valid for a preparation command')
     if args.action in ('prepare-fast', 'prepare-model') and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
         parser.error(args.action + ' requires a domestic or overseas scope and cannot run frontend-only')
@@ -34,6 +36,11 @@ def run(cli, argv=None):
             from codex_runtime_marker import guard
             joint_studio_marker.guard(cli.engine.u, store)
             guard(cli.engine.u, store)
+        if args.action.startswith('workspaces-'):
+            from domestic_tasks_release import run as maintenance_run
+            import domestic_workspaces_policy
+            print(json.dumps(maintenance_run(store, args, domestic_workspaces_policy), indent=2))
+            return
         if args.action.startswith('tasks-'):
             from domestic_tasks_release import run as tasks_run
             print(json.dumps(tasks_run(store, args), indent=2))

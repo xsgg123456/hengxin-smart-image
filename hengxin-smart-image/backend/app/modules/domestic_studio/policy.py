@@ -1,21 +1,13 @@
-"""Server-side boundaries for the five domestic workspaces.
+"""Server-side boundaries for the domestic workspaces.
 
 The caller obtains a binding under the execution-admission lock and passes the
 existing Skill freezer. Client-supplied Skill IDs are never authoritative.
 """
 from collections.abc import Callable, Mapping
-from types import MappingProxyType
 
 from fastapi import HTTPException
 
-
-WORKSPACES: Mapping[str, bool] = MappingProxyType({
-    'camera': True,
-    'case': True,
-    'product': False,
-    'scene': False,
-    'phone': False,
-})
+from .workspaces import WORKSPACES
 
 
 def require_workspace(workspace: str) -> str:

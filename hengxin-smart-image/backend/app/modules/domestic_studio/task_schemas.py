@@ -2,7 +2,8 @@
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-WorkspaceName = Literal['camera', 'case', 'product', 'scene', 'phone']
+from .workspaces import WorkspaceName
+
 TaskStatus = Literal['active', 'completed']
 
 

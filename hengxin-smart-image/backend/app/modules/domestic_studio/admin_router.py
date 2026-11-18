@@ -12,11 +12,11 @@ from app.modules.files.delivery import FileDelivery
 from app.overseas.attachment_delivery import deliver
 from app.storage.minio_store import get_store
 from . import admin_details, admin_queries
+from .workspaces import WorkspaceName
 
 router = APIRouter(prefix='/management/domestic-studio/sessions', tags=['domestic-studio-admin'])
 Admin = Annotated[object, Depends(require_permission('manage_system'))]
 Database = Annotated[Session, Depends(get_session)]
-Workspace = Literal['camera', 'case', 'product', 'scene', 'phone']
 Status = Literal['empty', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'unknown']
 
 
@@ -29,7 +29,7 @@ def audit(session, actor, member_id, action, **objects):
 
 @router.get('')
 def listing(actor: Admin, session: Database, response: Response, ownerId: UUID | None = None,
-            workspace: Workspace | None = None, status: Status | None = None,
+            workspace: WorkspaceName | None = None, status: Status | None = None,
             search: str = Query('', max_length=200), page: int = Query(1, ge=1),
             pageSize: int = Query(20, ge=1, le=100)):
     result = admin_queries.listing(session, owner_id=ownerId, workspace=workspace, status=status,

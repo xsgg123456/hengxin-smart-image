@@ -34,9 +34,14 @@ class WorkspaceBindings(BaseModel):
     model_config = ConfigDict(extra='forbid')
     camera: SkillId | None
     case: SkillId | None
+    film: SkillId | None
+    cable: SkillId | None
+    earbud: SkillId | None
+    accessory: SkillId | None
     product: SkillId | None
     scene: SkillId | None
     phone: SkillId | None
+    edit: SkillId | None
 
 
 class BindingInput(BaseModel):

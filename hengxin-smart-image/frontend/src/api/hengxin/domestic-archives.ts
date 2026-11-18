@@ -1,9 +1,9 @@
 import { createIdentityRequest, record } from '@/api/identity/request'
 import { isImageEdit, type ImageEdit } from '@/api/shared/studio'
-import type { WorkspaceKey } from './domestic-studio-skills'
+import { isNewProductKey, type NewProductKey, type WorkspaceKey } from '../shared/domestic-workspace-keys'
 
 export interface ArchiveFile { id: string; kind: 'upload' | 'picture' | 'output'; name: string; contentType: string; sizeBytes: number; width: number | null; height: number | null; url: string }
-export interface ArchiveSummary { id: string; productName: string; workspace: 'camera' | 'case'; conversationName: string; createdAt: string; pictureCount: number; cover: ArchiveFile | null; deletionStatus: 'deleting' | 'delete_failed' | null; deletionError: string | null }
+export interface ArchiveSummary { id: string; productName: string; workspace: NewProductKey; conversationName: string; createdAt: string; pictureCount: number; cover: ArchiveFile | null; deletionStatus: 'deleting' | 'delete_failed' | null; deletionError: string | null }
 export interface ArchiveTranscript { itemId?: string | null; kind: 'message' | 'reasoning' | 'tool' | 'notice'; text: string; state: 'running' | 'completed' | 'failed'; createdAt: string | null }
 export interface ArchiveTurn { id: string; text: string; actorName: string | null; createdAt: string; reply: string | null; replyAt: string | null; status?: 'succeeded' | 'partial' | 'failed' | 'cancelled' | null; error?: string | null; transcript?: ArchiveTranscript[] | null; attachments: ArchiveFile[]; referencePictures: ArchiveFile[]; pictures: ArchiveFile[]; outputs: ArchiveFile[]; imageEdits?: ImageEdit[] }
 export interface ArchiveDetail extends ArchiveSummary { turns: ArchiveTurn[] }
@@ -19,7 +19,7 @@ function file(v: unknown, archive: string, kind?: string): v is ArchiveFile {
     && v.url === `${root}/archives/${archive}/files/${v.id}/content`
 }
 function summary(v: unknown): v is ArchiveSummary {
-  return record(v) && identifier(v.id) && typeof v.productName === 'string' && ['camera', 'case'].includes(String(v.workspace))
+  return record(v) && identifier(v.id) && typeof v.productName === 'string' && isNewProductKey(v.workspace)
     && typeof v.conversationName === 'string' && typeof v.createdAt === 'string' && integer(v.pictureCount)
     && (v.cover === null || file(v.cover, v.id, 'picture'))
     && (v.deletionStatus === null || ['deleting', 'delete_failed'].includes(String(v.deletionStatus))) && nullableString(v.deletionError)
@@ -60,7 +60,7 @@ export function createDomesticArchivesApi(fetcher: typeof fetch = fetch) {
     list: (search = '', workspace = '', pageNumber = 1) => request(`${root}/archives`, page, undefined, { params: { search, workspace, page: pageNumber, pageSize: 20 } }),
     detail: (id: string) => { if (!identifier(id)) throw Error('归档编号无效'); return request(`${root}/archives/${id}`, detail) },
     create: (workspace: WorkspaceKey, conversationId: string, productName: string, key: string) => {
-      if (!['camera', 'case'].includes(workspace) || !identifier(conversationId)) throw Error('归档来源无效')
+      if (!isNewProductKey(workspace) || !identifier(conversationId)) throw Error('归档来源无效')
       return request(`${root}/workspaces/${workspace}/conversations/${conversationId}/archive`, detail, { productName }, { idempotencyKey: key, timeoutMs: 300000 })
     },
     remove: (id: string) => { if (!identifier(id)) throw Error('归档编号无效'); return request(`${root}/archives/${id}`, status, {}, { method: 'DELETE' }) },

@@ -6,11 +6,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.timestamps import Timestamps
 from app.models import Base
+from .workspaces import ARCHIVE_WORKSPACE_CHECK
 
 
 class Archive(Timestamps, Base):
     __tablename__ = 'domestic_studio_archives'
-    __table_args__ = (CheckConstraint("workspace IN ('camera','case')"),)
+    __table_args__ = (CheckConstraint(ARCHIVE_WORKSPACE_CHECK),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'), index=True)
     workspace: Mapped[str] = mapped_column(String(20), index=True)

@@ -36,9 +36,9 @@ def read_bindings(session: Session) -> dict[str, str | None]:
 def save_bindings(session: Session, requested: Mapping[str, str | None],
                   verify_enabled: Callable[[str], None], *,
                   expected: Mapping[str, str | None]) -> dict[str, str | None]:
-    """Validate all five bindings before making any changes; caller commits."""
+    """Validate all workspace bindings before making any changes; caller commits."""
     if set(requested) != set(WORKSPACES) or set(expected) != set(WORKSPACES):
-        raise HTTPException(422, '请提交全部五个工作台的绑定')
+        raise HTTPException(422, '请提交全部工作台的绑定')
     lock_admission(session)
     if read_bindings(session) != dict(expected):
         raise HTTPException(409, '工作台绑定已被其他管理员修改，请重新加载后核对')

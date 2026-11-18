@@ -16,7 +16,7 @@ import type { DomesticStudioSkillsApi, WorkspaceBindings, WorkspaceKey } from '@
 import { domesticWorkspaces as workspaces } from '@/api/hengxin/domestic-workspaces'
 const props = defineProps<{ api: DomesticStudioSkillsApi }>()
 const emit = defineEmits<{ failure: [reason: unknown]; saved: [bindings: WorkspaceBindings]; saving: [active: boolean] }>()
-const blank = (): WorkspaceBindings => ({ camera: null, case: null, product: null, scene: null, phone: null })
+const blank = (): WorkspaceBindings => Object.fromEntries(workspaces.map(item => [item.key, null])) as WorkspaceBindings
 const draft = ref<WorkspaceBindings>(blank()), saved = ref<WorkspaceBindings>(blank()), skills = ref<ManagedSkill[]>([])
 const loading = ref(false), saving = ref(false), error = ref('')
 const enabledSkills = computed(() => skills.value.filter(skill => skill.enabled))

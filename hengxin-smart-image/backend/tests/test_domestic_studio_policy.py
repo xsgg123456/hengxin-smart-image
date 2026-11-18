@@ -6,12 +6,12 @@ from app.modules.domestic_studio.policy import (
 )
 
 
-@pytest.mark.parametrize('workspace', ['camera', 'case'])
+@pytest.mark.parametrize('workspace', ['camera', 'case', 'film', 'cable', 'earbud', 'accessory'])
 def test_new_product_workspaces_allow_archive(workspace):
     assert require_archive_workspace(workspace) is None
 
 
-@pytest.mark.parametrize('workspace', ['product', 'scene', 'phone'])
+@pytest.mark.parametrize('workspace', ['product', 'scene', 'phone', 'edit'])
 def test_product_replacement_never_allows_archive(workspace):
     with pytest.raises(HTTPException) as error:
         require_archive_workspace(workspace)

@@ -1,6 +1,6 @@
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 import { isStudio, isTranscriptPage, type Studio } from '../shared/studio'
-import type { WorkspaceKey } from './domestic-studio-skills'
+import { isWorkspaceKey, type WorkspaceKey } from '../shared/domestic-workspace-keys'
 
 export const sessionStatuses = ['empty', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'unknown'] as const
 export type SessionStatus = typeof sessionStatuses[number]
@@ -20,7 +20,7 @@ const integer = (value: unknown) => Number.isSafeInteger(value) && Number(value)
 export const sessionBase = (id: string) => `${root}/${encodeURIComponent(id)}`
 export function isManagedSession(value: unknown): value is ManagedSession {
   return record(value) && ['id', 'name', 'ownerId', 'ownerName', 'createdAt', 'updatedAt'].every(key => typeof value[key] === 'string')
-    && ['camera', 'case', 'product', 'scene', 'phone'].includes(String(value.workspace))
+    && isWorkspaceKey(value.workspace)
     && sessionStatuses.includes(value.status as SessionStatus) && integer(value.turnCount) && integer(value.version)
     && (value.taskId === undefined || typeof value.taskId === 'string') && (value.taskName === undefined || typeof value.taskName === 'string')
     && (value.activeTurnId === null || typeof value.activeTurnId === 'string')

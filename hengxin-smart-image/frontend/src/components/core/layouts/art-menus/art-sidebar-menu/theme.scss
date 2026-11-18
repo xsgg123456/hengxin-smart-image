@@ -131,6 +131,18 @@ $popup-menu-radius: 6px;
     }
   }
 
+  .el-menu:not(.el-menu--collapse) .el-menu-item.menu-title-wrap {
+    height: auto !important;
+    min-height: $menu-height;
+    padding-block: 6px;
+
+    .menu-name {
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+  }
+
   // 右侧箭头
   .el-sub-menu__icon-arrow {
     width: 13px !important;
@@ -250,7 +262,19 @@ $popup-menu-radius: 6px;
       }
     }
 
-    // 右侧箭头颜色
+    .el-menu:not(.el-menu--collapse) .el-menu-item.menu-title-wrap {
+    height: auto !important;
+    min-height: $menu-height;
+    padding-block: 6px;
+
+    .menu-name {
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+  }
+
+  // 右侧箭头颜色
     .el-sub-menu__icon-arrow {
       color: #fff;
     }

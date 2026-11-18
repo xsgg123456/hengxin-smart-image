@@ -87,7 +87,7 @@ const { width } = useWindowSize()
 const mobile = computed(() => width.value < 800)
 const sessionsOpen = ref(!mobile.value), materialsOpen = ref(false), expanded = ref(false), tutorialOpen = ref(false), archiveOpen = ref(false), recoveryOpen = ref(false)
 const input = ref<HTMLInputElement>()
-const canArchiveWorkspace = computed(() => ['camera', 'case'].includes(props.config.key))
+const canArchiveWorkspace = computed(() => props.config.group === '新品生成')
 const canArchive = computed(() => !props.task?.completed && !!currentSession.value && !currentSession.value.deletionStatus && !data.value?.activeTurnId
   && !!data.value?.turns.some(turn => turn.reply?.trim()))
 const editing = ref<{ pictures: StudioPicture[]; initialId: string; batch: boolean }>(), editingKey = ref(''), annotationError = ref('')

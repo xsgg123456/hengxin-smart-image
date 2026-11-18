@@ -6,13 +6,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.timestamps import Timestamps
 from app.models import Base
+from .workspaces import WORKSPACE_CHECK
 
 
 class Task(Timestamps, Base):
     __tablename__ = 'domestic_studio_tasks'
     __table_args__ = (
         UniqueConstraint('id', 'owner_id', 'workspace', name='uq_domestic_task_owner_workspace'),
-        CheckConstraint("workspace IN ('camera','case','product','scene','phone')"),
+        CheckConstraint(WORKSPACE_CHECK),
         CheckConstraint('length(trim(name)) BETWEEN 1 AND 60'),
         CheckConstraint("deletion_status IS NULL OR deletion_status IN ('deleting','delete_failed','deleted')"),
     )

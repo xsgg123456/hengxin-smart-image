@@ -2,9 +2,10 @@ import { createIdentityRequest, record } from '@/api/identity/request'
 import { isManagedSkill, type SkillCatalog, type SkillPlatformUpdate } from '@/api/shared/skill-types'
 import { createSkillTransferApi } from '@/api/shared/skill-transfers'
 
+import { workspaceKeys, type WorkspaceKey } from '../shared/domestic-workspace-keys'
+export type { WorkspaceKey } from '../shared/domestic-workspace-keys'
+
 export const studioSkillsRoot = '/api/v1/management/domestic-studio'
-export const workspaceKeys = ['camera', 'case', 'product', 'scene', 'phone'] as const
-export type WorkspaceKey = typeof workspaceKeys[number]
 export type WorkspaceBindings = Record<WorkspaceKey, string | null>
 const isBindings = (value: unknown): value is { bindings: WorkspaceBindings } => record(value)
   && record(value.bindings) && Object.keys(value.bindings).length === workspaceKeys.length

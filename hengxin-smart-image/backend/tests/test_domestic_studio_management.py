@@ -76,10 +76,10 @@ def test_no_session_and_missing_browser_header_are_rejected(management):
     assert client.put(ROOT + '/bindings', json=empty(), headers=HEADERS).status_code == 401
 
 
-def test_binding_payload_requires_all_five_and_no_extra_keys(management):
+def test_binding_payload_requires_all_workspaces_and_no_extra_keys(management):
     client, _, _, _ = management
-    assert client.put(ROOT + '/bindings', json={'camera': None}, headers=HEADERS).status_code == 422
-    assert client.put(ROOT + '/bindings', json=empty() | {'other': None}, headers=HEADERS).status_code == 422
+    assert bind(client, {'camera': None}).status_code == 422
+    assert bind(client, empty() | {'other': None}).status_code == 422
     assert client.get(ROOT + '/bindings').json()['bindings'] == empty()
 
 

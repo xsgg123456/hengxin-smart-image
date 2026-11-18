@@ -1,3 +1,4 @@
+import { isWorkspaceKey } from './domestic-workspace-keys'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 
 export interface StudioOutput { id: string; name: string; contentType: string; sizeBytes: number; url: string }
@@ -27,7 +28,7 @@ export function createStudioOutputsApi(fetcher: typeof fetch = fetch, scope: 'ov
   const base = (taskId: string, conversationId: string) => {
     if (scope === 'domestic-task') return `/api/v1/domestic-studio/tasks/${encodeURIComponent(taskId)}/studio/conversations/${encodeURIComponent(conversationId)}`
     if (scope === 'domestic') {
-      if (!['camera', 'case', 'product', 'scene', 'phone'].includes(taskId)) throw Error('工作台入口无效')
+      if (!isWorkspaceKey(taskId)) throw Error('工作台入口无效')
       return `/api/v1/domestic-studio/workspaces/${taskId}/conversations/${encodeURIComponent(conversationId)}`
     }
     return `/api/overseas/v1/tasks/${encodeURIComponent(taskId)}/studio/conversations/${encodeURIComponent(conversationId)}`

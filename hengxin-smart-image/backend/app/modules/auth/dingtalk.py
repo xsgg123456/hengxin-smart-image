@@ -18,8 +18,10 @@ CALLBACK_PATH = '/api/v1/auth/dingtalk/callback'
 ALLOWED_RETURN_PATHS = (
     '/api-image-edits/create', '/api-image-edits/records',
     '/new-product/camera-accessories', '/new-product/phone-case',
+    '/new-product/screen-protector', '/new-product/data-cable',
+    '/new-product/earbud-case', '/new-product/creative-accessories',
     '/product-replace/product-only', '/product-replace/scene-model-product-size',
-    '/product-replace/phone-wallpaper-film', '/product-library',
+    '/product-replace/phone-wallpaper-film', '/product-replace/general-edit', '/product-library',
     '/management/activity', '/management/usage', '/management/monitor', '/management/users', '/management/settings',
     '/management/skills', '/management/task-center', '/management/workspace-sessions',
 )

@@ -28,6 +28,7 @@
       v-else
       :index="isExternalLink(item) ? undefined : item.path || item.meta.title"
       :level-item="level + 1"
+      :class="{ 'menu-title-wrap': item.meta.wrapMenuTitle }"
       @click="goPage(item)"
     >
       <div class="menu-icon flex-cc">

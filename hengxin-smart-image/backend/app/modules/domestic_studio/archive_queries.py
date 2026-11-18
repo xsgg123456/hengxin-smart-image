@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from .archive_models import Archive, ArchiveDeletion, ArchiveFile
 from .archive_service import file_dto, verify_snapshot
 from .queries import timestamp
+from .workspaces import ARCHIVE_WORKSPACES
 
 
 def available(session, identity):
@@ -31,7 +32,7 @@ def dto(session, record):
 
 
 def listing(session, search='', workspace='', page=1, page_size=20):
-    if workspace and workspace not in ('camera', 'case'):
+    if workspace and workspace not in ARCHIVE_WORKSPACES:
         raise HTTPException(422, '归档来源无效')
     filters = [Archive.status == 'ready']
     if search.strip():

@@ -1,12 +1,15 @@
 """Durable interlock shared by ordinary publishing and cleanup."""
 import json
 
-NAME = 'intranet-domestic-tasks.json'
+import domestic_tasks_policy as tasks
+import domestic_workspaces_policy as workspaces
+
+NAME = tasks.MARKER
 TERMINAL = {'complete', 'cancelled', 'rolled-back'}
 
 
-def read(u, store):
-    path = store.root / NAME
+def read(u, store, name=NAME):
+    path = store.root / name
     if not path.exists():
         return None
     u.safe(path)
@@ -16,7 +19,9 @@ def read(u, store):
     return row
 
 
-def guard(u, store):
-    row = read(u, store)
-    if row and row['phase'] not in TERMINAL:
-        raise RuntimeError('Resolve domestic Tasks maintenance using tasks-recover first')
+def guard(u, store, except_name=None):
+    for transition in (tasks, workspaces):
+        if transition.MARKER != except_name:
+            row = read(u, store, transition.MARKER)
+            if row and row['phase'] not in TERMINAL:
+                raise RuntimeError(f'Resolve domestic maintenance using {transition.COMMAND}-recover first')

@@ -3,6 +3,12 @@ import copy
 
 import scopes
 import snapshot
+import domestic_tasks_history as history
+
+SOURCE, TARGET = '0043', '0044'
+COMMAND = 'tasks'
+MARKER = 'intranet-domestic-tasks.json'
+RECEIPT = 'tasks-migration.json'
 
 BASE = 'c79924625230275bad65fa778020d5b4a3b272e0'
 MIGRATION = 'backend/migrations/versions/0044_domestic_tasks.py'
@@ -29,19 +35,25 @@ def validate(before, candidate):
 
 
 def check(original, u, before_root, candidate_root, scope, mode, **kwargs):
+    return check_reviewed(original, u, before_root, candidate_root, scope, mode,
+                          MIGRATION, validate, 'tasks_maintenance', **kwargs)
+
+
+def check_reviewed(original, u, before_root, candidate_root, scope, mode,
+                   migration, validator, flag, **kwargs):
     if scope != 'domestic' or mode != 'full' or kwargs.get('fast_maintenance'):
         raise RuntimeError('Tasks maintenance is domestic full only')
     reader = snapshot.manifest
     before, candidate = reader(u, before_root), reader(u, candidate_root)
-    validate(before, candidate)
+    validator(before, candidate)
 
     def filtered(adapter, root):
         value = copy.deepcopy(reader(adapter, root))
         # Only the single hash-locked migration is removed from the ordinary
         # ownership comparison. All app files keep normal reachability checks.
-        value['files'].pop(MIGRATION, None)
-        value.get('provenance', {}).get('source_files', {}).pop(MIGRATION, None)
+        value['files'].pop(migration, None)
+        value.get('provenance', {}).get('source_files', {}).pop(migration, None)
         return value
 
     with scopes.replace(snapshot, manifest=filtered):
-        return original(u, before_root, candidate_root, scope, mode, tasks_maintenance=True)
+        return original(u, before_root, candidate_root, scope, mode, **{flag: True})

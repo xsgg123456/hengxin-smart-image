@@ -6,11 +6,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.timestamps import Timestamps
 from app.models import Base
+from .workspaces import WORKSPACE_CHECK
 
 
 class WorkspaceBinding(Timestamps, Base):
     __tablename__ = 'domestic_studio_skill_bindings'
-    __table_args__ = (CheckConstraint("workspace IN ('camera','case','product','scene','phone')"),)
+    __table_args__ = (CheckConstraint(WORKSPACE_CHECK),)
 
     workspace: Mapped[str] = mapped_column(String(20), primary_key=True)
     skill_id: Mapped[str] = mapped_column(String(100), nullable=False)

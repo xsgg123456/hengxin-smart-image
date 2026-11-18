@@ -1,11 +1,13 @@
+import { isWorkspaceKey } from './domestic-workspace-keys'
 import { IdentityError } from '../identity/request'
 export { formatAttachmentSize } from '@/utils/attachment-size'
 
 export async function downloadAttachment(url: string, name: string, signal: AbortSignal, fetcher: typeof fetch = fetch) {
   // Check the original content endpoint, independently of thumbnail decoding.
   const overseas = /^\/api\/overseas\/v1\/(?:materials\/[a-zA-Z0-9-]+|tasks\/[a-zA-Z0-9-]+\/studio\/(?:files|outputs|pictures)\/[a-zA-Z0-9-]+)\/content$/
-  const domestic = /^\/api\/v1\/domestic-studio\/(?:tasks\/[a-zA-Z0-9-]+\/studio\/(?:files|outputs|pictures)\/[a-zA-Z0-9-]+|workspaces\/(?:camera|case|product|scene|phone)\/(?:files|outputs|pictures)\/[a-zA-Z0-9-]+|archives\/[a-zA-Z0-9-]+\/files\/[a-zA-Z0-9-]+)\/content$/
-  if (!overseas.test(url) && !domestic.test(url)) throw Error('附件地址无效')
+  const domestic = /^\/api\/v1\/domestic-studio\/(?:tasks\/[a-zA-Z0-9-]+\/studio\/(?:files|outputs|pictures)\/[a-zA-Z0-9-]+|archives\/[a-zA-Z0-9-]+\/files\/[a-zA-Z0-9-]+)\/content$/
+  const workspace = /^\/api\/v1\/domestic-studio\/workspaces\/([a-z]+)\/(?:files|outputs|pictures)\/[a-zA-Z0-9-]+\/content$/.exec(url)?.[1]
+  if (!overseas.test(url) && !domestic.test(url) && !isWorkspaceKey(workspace)) throw Error('附件地址无效')
   const deadline = AbortSignal.timeout(10000), combined = AbortSignal.any([signal, deadline])
   let response: Response
   try {

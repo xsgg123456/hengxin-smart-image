@@ -1,3 +1,4 @@
+import { isWorkspaceKey } from './domestic-workspace-keys'
 import { MAX_UPLOAD_BYTES } from './upload-limits'
 import { isStudioOutput, type StudioOutput } from './studio-outputs'
 import { isSkill, type Skill } from './skill-types'
@@ -17,7 +18,7 @@ export interface ImageEdit { pictureId: string; annotationId: string | null; tex
 export interface TurnInput { conversationId?: string; text: string; skillId: string | null; attachmentIds: string[]; referencePictureIds: string[]; imageEdits?: ImageEdit[] }
 const root = '/api/overseas/v1', overseasBase = (id: string) => `${root}/tasks/${encodeURIComponent(id)}/studio`
 const domesticBase = (id: string) => {
-  if (!['camera', 'case', 'product', 'scene', 'phone'].includes(id)) throw Error('工作台入口无效')
+  if (!isWorkspaceKey(id)) throw Error('工作台入口无效')
   return `/api/v1/domestic-studio/workspaces/${id}`
 }
 export const domesticTaskBase = (id: string) => `/api/v1/domestic-studio/tasks/${encodeURIComponent(id)}/studio`
@@ -45,7 +46,7 @@ export function isAsset(v: unknown, taskId: string, contentBase = overseasBase(t
     : source === 'upload' && id.startsWith('upload:') && v.url === `${contentBase}/files/${encodeURIComponent(id.slice(7))}/content`
 }
 export function isDomesticAsset(v: unknown, workspace: string): v is Asset {
-  try { return isAsset(v, workspace, ['camera', 'case', 'product', 'scene', 'phone'].includes(workspace) ? domesticBase(workspace) : domesticTaskBase(workspace), true) } catch { return false }
+  try { return isAsset(v, workspace, isWorkspaceKey(workspace) ? domesticBase(workspace) : domesticTaskBase(workspace), true) } catch { return false }
 }
 export function isConversation(v: unknown): v is StudioConversation {
   return record(v) && ['id', 'name', 'createdAt', 'updatedAt'].every(k => string(v[k])) && integer(v.version) && Number(v.version) > 0

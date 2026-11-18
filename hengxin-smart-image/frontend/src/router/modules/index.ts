@@ -14,7 +14,7 @@ export const routeModules: AppRouteRecord[] = [{
   meta: { title: group, icon: index ? 'ri:shuffle-line' : 'ri:sparkling-line' },
   children: domesticWorkspaces.filter(item => item.group === group).map(item => ({
     name: `HxStudio_${item.key}`, path: item.path.split('/').pop()!, component: '/hengxin/domestic-studio/workspace',
-    meta: { title: item.title, icon: 'ri:chat-ai-line', keepAlive: false }
+    meta: { title: item.title, wrapMenuTitle: true, icon: 'ri:chat-ai-line', keepAlive: false }
   }))
 })), {
   name: 'HxProductLibrary', path: '/product-library', component: '/hengxin/domestic-studio/library',

@@ -16,9 +16,15 @@ const context = await browser.newContext({ viewport: { width: 1920, height: 1080
 const page = await context.newPage(), errors = [], unexpected = [], calls = [], checks = [], geometry = []
 page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(20000)
 const stamp = '2026-11-17T02:00:00Z', root = '/api/v1/management/domestic-studio/sessions'
-const keys = ['camera', 'case', 'product', 'scene', 'phone']
+const routes = {
+  camera: '/new-product/camera-accessories', case: '/new-product/phone-case',
+  product: '/product-replace/product-only', scene: '/product-replace/scene-model-product-size', phone: '/product-replace/phone-wallpaper-film',
+  film: '/new-product/screen-protector', cable: '/new-product/data-cable', earbud: '/new-product/earbud-case',
+  accessory: '/new-product/creative-accessories', edit: '/product-replace/general-edit',
+}
+const keys = Object.keys(routes)
 const states = ['running', 'queued', 'succeeded', 'failed', 'empty', 'cancelled', 'unknown']
-const rows = Array.from({ length: 21 }, (_, index) => ({ id: `session-${index}`, name: `验收会话 ${index}`, ownerId: index < 15 ? 'member-a' : 'member-b', ownerName: index < 15 ? '真实成员甲' : '真实成员乙', workspace: [0, 1, 4].includes(index) ? 'camera' : keys[index % 5], taskId: `task-${[1, 4].includes(index) ? 0 : index}`, taskName: `验收任务 ${[1, 4].includes(index) ? 0 : index}`, status: states[index % 7], turnCount: index === 4 ? 0 : 1, createdAt: stamp, updatedAt: stamp, version: 1, activeTurnId: null }))
+const rows = Array.from({ length: 21 }, (_, index) => ({ id: `session-${index}`, name: `验收会话 ${index}`, ownerId: index < 15 ? 'member-a' : 'member-b', ownerName: index < 15 ? '真实成员甲' : '真实成员乙', workspace: [0, 1, 4].includes(index) ? 'camera' : keys[index % keys.length], taskId: `task-${[1, 4].includes(index) ? 0 : index}`, taskName: `验收任务 ${[1, 4].includes(index) ? 0 : index}`, status: states[index % 7], turnCount: index === 4 ? 0 : 1, createdAt: stamp, updatedAt: stamp, version: 1, activeTurnId: null }))
 const taskRoot = '/api/v1/management/domestic-studio/tasks'
 const tasks = Array.from({ length: 21 }, (_, index) => ({ id: `task-${index}`, name: `验收任务 ${index}`, ownerId: rows[index].ownerId, ownerName: rows[index].ownerName, workspace: rows[index].workspace, version: 1, completed: index % 3 === 0, conversationCount: rows.filter(row => row.taskId === `task-${index}`).length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }))
 const file = (id, kind, name, type) => ({ id: `${kind === 'files' ? 'upload:' : ''}${id}`, name, contentType: type, sizeBytes: 12, url: `${root}/session-0/${kind}/${id}/content`, ...(kind === 'files' ? { source: 'upload' } : {}) })
@@ -149,10 +155,10 @@ async function switchBrowserTab(label, content) {
 }
 try {
   {
-    for (const [index, route] of ['/new-product/camera-accessories', '/new-product/phone-case', '/product-replace/product-only', '/product-replace/scene-model-product-size', '/product-replace/phone-wallpaper-film'].entries()) {
+    for (const [key, route] of Object.entries(routes)) {
       await page.goto(`${base}/#${route}`)
       const content = page.locator('.tc-task-name').first()
-      await page.getByRole('button', { name: tasks.find(task => task.workspace === keys[index]).name, exact: true }).waitFor()
+      await page.getByRole('button', { name: tasks.find(task => task.workspace === key).name, exact: true }).waitFor()
       await switchBrowserTab(route, content)
     }
   }

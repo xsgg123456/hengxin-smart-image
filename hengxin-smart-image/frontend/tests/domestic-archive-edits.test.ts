@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createDomesticArchivesApi } from '../src/api/hengxin/domestic-archives'
 import { IdentityError } from '../src/api/identity/request'
+import { archiveWorkspaces, domesticWorkspaces } from '../src/api/hengxin/domestic-workspaces'
 import { archiveTranscript } from '../src/views/hengxin/domestic-studio/archive-transcript'
 
 const archive = '10000000-0000-4000-8000-000000000001'
@@ -56,4 +57,26 @@ test('归档公开过程按归档事件合并，旧资料缺少事件关联时�
   ] })
   assert.deepEqual(result.map(item => item.text), ['最新进度', '另一个事件', '历史未关联一', '历史未关联二'])
   assert.equal(new Set(result.map(item => item.itemId)).size, 4)
+})
+
+test('成品库按六个新品业务独立筛选、读取并提交归档，替换业务拒绝归档', async () => {
+  assert.deepEqual(archiveWorkspaces.map(item => item.key), ['camera', 'case', 'film', 'cable', 'earbud', 'accessory'])
+  for (const workspace of domesticWorkspaces) {
+    const data = { ...fixture(), workspace: workspace.key }
+    const urls: string[] = []
+    const api = createDomesticArchivesApi(async url => {
+      urls.push(String(url))
+      return Response.json(String(url).includes('?') ? { items: [data], total: 1, page: 1, pageSize: 20 } : data)
+    })
+    if (workspace.group === '新品生成') {
+      assert.equal((await api.list('', workspace.key)).items[0].workspace, workspace.key)
+      assert.equal(new URL(urls[0], 'http://local').searchParams.get('workspace'), workspace.key)
+      assert.equal((await api.create(workspace.key, other, '产品', 'key')).workspace, workspace.key)
+      assert.equal(urls[1], `/api/v1/domestic-studio/workspaces/${workspace.key}/conversations/${other}/archive`)
+    } else {
+      assert.throws(() => api.create(workspace.key, other, '产品', 'key'), /归档来源无效/)
+      assert.deepEqual(urls, [])
+      await assert.rejects(api.detail(archive), IdentityError)
+    }
+  }
 })

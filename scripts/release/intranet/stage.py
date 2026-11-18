@@ -68,6 +68,8 @@ def main():
     store = retention_store(Path('/var/lib/hengxin-release'))
     engine.u.safe(store.root)
     with store.locked():
+        import domestic_tasks_marker
+        domestic_tasks_marker.guard(engine.u, store)
         import joint_studio_marker
         from codex_runtime_marker import guard
         joint_studio_marker.guard(engine.u, store)

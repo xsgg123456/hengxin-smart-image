@@ -17,9 +17,14 @@ page.on('pageerror', error => errors.push(error.message))
 const entries = [
   ['camera', '/new-product/camera-accessories', '相机配件生成'],
   ['case', '/new-product/phone-case', '手机壳生成'],
+  ['film', '/new-product/screen-protector', '手机膜生成'],
+  ['cable', '/new-product/data-cable', '数据线生成'],
+  ['earbud', '/new-product/earbud-case', '耳机保护套生成'],
+  ['accessory', '/new-product/creative-accessories', '创意配件生成 (手机挂绳/防水袋/手机支架/平板支架)'],
   ['product', '/product-replace/product-only', '只换产品'],
   ['scene', '/product-replace/scene-model-product-size', '换场景 / 模特 / 产品 / 修改尺寸'],
   ['phone', '/product-replace/phone-wallpaper-film', '换手机 / 壁纸 / 膜'],
+  ['edit', '/product-replace/general-edit', '通用修改产品图片'],
 ]
 const skill = { id: 'skill-current', name: 'camera-design', displayName: '相机配件电商图片设计规范与产品细节保真技能', description: '仅本轮明确选中才使用' }
 const stamp = '2026-11-13T03:00:00Z'
@@ -73,9 +78,9 @@ await context.route('**/*', async route => {
   if (!path.startsWith('/api/')) return route.continue()
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
   if (path.endsWith('/auth/me')) return json({ id: 'isolated-domestic-user', name: '隔离验收用户', role: 'super_admin', status: 'active' })
-  const taskMatch = path.match(/^\/api\/v1\/domestic-studio\/tasks\/(camera|case|product|scene|phone)-task$/)
+  const taskMatch = path.match(/^\/api\/v1\/domestic-studio\/tasks\/([a-z]+)-task$/)
   if (taskMatch) { const key = taskMatch[1], entry = entries.find(item => item[0] === key); return json({ id: `${key}-task`, name: entry[2], workspace: key, ownerId: 'isolated-domestic-user', ownerName: '隔离验收用户', version: 1, completed: false, conversationCount: workspaces[key].rows.length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }) }
-  const match = path.match(/^\/api\/v1\/domestic-studio\/tasks\/(camera|case|product|scene|phone)-task\/studio(.*)$/)
+  const match = path.match(/^\/api\/v1\/domestic-studio\/tasks\/([a-z]+)-task\/studio(.*)$/)
   if (!match) { unexpected.push(path); return json({}, 501) }
   const [, key, suffix] = match, w = workspaces[key]
   if (suffix === '/transcript') return json({ items: [], cursor: 0, hasMore: false })
@@ -100,6 +105,16 @@ try {
   for (const [key, path, title] of entries) {
     await page.goto(`${base}/#${path}?task=${key}-task`); await ready()
     await page.getByRole('heading', { name: title, exact: true }).waitFor(); await ready()
+    assert.equal(await button('归档到成品库').count(), path.startsWith('/new-product/') ? 1 : 0)
+    if (key === 'accessory') {
+      const menuLabel = page.locator('.layout-sidebar').getByText(title, { exact: true })
+      await bounds('创意配件完整菜单名称', menuLabel)
+      assert.ok(await menuLabel.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1))
+      await page.screenshot({ path: resolve(output, 'creative-accessories-menu.png'), animations: 'disabled' })
+      await button('使用教程').click()
+      await page.getByText(title + ' · 使用教程', { exact: true }).waitFor()
+      await page.keyboard.press('Escape')
+    }
     assert.equal(await input.inputValue(), ''); assert.equal(await choice().isChecked(), false)
     assert.equal(await page.locator('.studio-empty').count(), 0)
     const label = page.locator('.domestic-skill-choice'), upload = button('上传附件')

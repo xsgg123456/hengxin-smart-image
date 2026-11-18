@@ -19,15 +19,16 @@ import snapshot
 
 
 class Upgrade:
-    def __init__(self, store):
+    def __init__(self, store, transition=policy):
+        self.policy = transition
         self.tool, self.store, self.u = release.Release(store), store, engine.u
 
     def save(self, row, phase):
         row['phase'] = phase
-        self.store.report(marker.NAME, row)
+        self.store.report(self.policy.MARKER, row)
 
     def read(self):
-        row = marker.read(self.u, self.store)
+        row = marker.read(self.u, self.store, self.policy.MARKER)
         if not row:
             raise RuntimeError('No domestic Tasks maintenance transaction')
         return row
@@ -47,7 +48,7 @@ class Upgrade:
     def configured(self, item, descriptor):
         with scope_engine.context('domestic', 'full', backend=Path(item['target_backend']),
                                   frontend=Path(item['target_frontend']), domestic_publisher=True):
-            with migration.context(item, descriptor):
+            with migration.context(item, descriptor, self.policy):
                 yield
 
     def prepare(self, path):
@@ -55,20 +56,20 @@ class Upgrade:
         data = self.tool.load()
         current = data['current']
         if (data.get('version') != 2 or data.get('pending') or data.get('migration_pending')
-                or current['schema']['domestic'] != '0043'
-                or current['groups']['domestic']['backend_commit'] != policy.BASE
+                or current['schema']['domestic'] != self.policy.SOURCE
+                or current['groups']['domestic']['backend_commit'] != self.policy.BASE
                 or not scopes.has_domestic_publisher(current)):
-            raise RuntimeError('Tasks maintenance requires the idle reviewed 0043 domestic baseline')
+            raise RuntimeError(f'Maintenance requires the idle reviewed {self.policy.SOURCE} domestic baseline')
         path = snapshot.release_path(path)
         if str(path) not in catalog.check(data)['staged']:
             raise RuntimeError('Tasks candidate must be staged through the release ledger')
-        policy.validate(snapshot.manifest(self.u, current['groups']['domestic']['backend']),
+        self.policy.validate(snapshot.manifest(self.u, current['groups']['domestic']['backend']),
                         snapshot.manifest(self.u, path))
         row = {'release': str(path), 'before_sha256': catalog.state_sha(current)}
         self.save(row, 'preparing')
         original = scope_changes.check
         def approved(*args, **kwargs):
-            return policy.check(original, *args, **kwargs)
+            return self.policy.check(original, *args, **kwargs)
         with scopes.replace(scope_changes, check=approved):
             data = self.tool.prepare(path, 'full', 'domestic')
         row['item'] = copy.deepcopy(data['pending'])
@@ -78,7 +79,7 @@ class Upgrade:
     def deploy(self):
         row = self.read()
         if row['phase'] != 'prepared':
-            raise RuntimeError('Tasks maintenance is not prepared; use tasks-recover')
+            raise RuntimeError(f'Maintenance is not prepared; use {self.policy.COMMAND}-recover')
         item = self.item(row)
         snapshot.same(item['before'], self.tool.capture(self.tool.load()))
         self.save(row, 'deploying')
@@ -95,7 +96,7 @@ class Upgrade:
             path = self.u.SYSTEMD / (name + '.service.d') / self.u.DROPIN
             configs[str(path)] = baseline['dropins'][name]
         snapshot.same(configs, after['configs'])
-        expected = dict(item['before'], schema=dict(item['before']['schema'], domestic='0044'))
+        expected = dict(item['before'], schema=dict(item['before']['schema'], domestic=self.policy.TARGET))
         snapshot.unchanged_runtime(expected, after)
         for side in ('overseas', 'shared'):
             snapshot.same(scope_snapshot.group(item['before'], side), scope_snapshot.group(after, side))
@@ -108,7 +109,11 @@ class Upgrade:
 
     def finish(self):
         row = self.read()
-        if row['phase'] not in ('deploying', 'forward-required', 'ledger-writing', 'complete'):
+        # A terminal receipt can outlive its source and later successful deploys.
+        # Replaying it must never close the current domestic ingress.
+        if row['phase'] == 'complete':
+            return row
+        if row['phase'] not in ('deploying', 'forward-required', 'ledger-writing'):
             raise RuntimeError('Tasks transaction cannot finish in this phase')
         item = self.item(row)
         try:
@@ -125,7 +130,7 @@ class Upgrade:
     def finish_locked(self, row, item):
         with fence.hold(self.u) as descriptor:
             with self.configured(item, descriptor):
-                migration.check_migration(self.u, item['before'], descriptor)
+                migration.check_migration(self.u, item['before'], descriptor, self.policy)
                 if not (self.u.WORK / 'applied.json').exists():
                     raise RuntimeError('Tasks candidate switch is incomplete')
                 engine.apply()  # Verify applied config and candidate digest again.
@@ -191,7 +196,7 @@ class Upgrade:
         item = self.item(row)
         with fence.hold(self.u) as descriptor:
             with self.configured(item, descriptor):
-                if (self.u.WORK / 'tasks-migration.json').exists():
+                if (self.u.WORK / self.policy.RECEIPT).exists():
                     state = engine._load_state(engine._read('prepared.json'))
                     fence.wait_database(self.u, state['ctx']['hengxin-vps-codex-worker'])
                 schema = snapshot.schemas(self.u)
@@ -199,8 +204,8 @@ class Upgrade:
                     started = (self.u.WORK / 'started.json').exists()
                     if started:
                         engine.recover()
-                elif schema == dict(item['before']['schema'], domestic='0044'):
-                    migration.resume(item, descriptor)
+                elif schema == dict(item['before']['schema'], domestic=self.policy.TARGET):
+                    migration.resume(item, descriptor, self.policy)
                     self.save(row, 'forward-required')
                     started = None
                 else:
@@ -217,14 +222,15 @@ class Upgrade:
         return self.finish()
 
 
-def run(store, args):
+def run(store, args, transition=policy):
     if args.scope != 'domestic' or args.mode != 'full':
         raise RuntimeError('Tasks maintenance requires --scope domestic --mode full')
-    tool = Upgrade(store)
-    action = args.action.removeprefix('tasks-')
+    marker.guard(engine.u, store, except_name=transition.MARKER)
+    tool = Upgrade(store, transition)
+    action = args.action.removeprefix(transition.COMMAND + '-')
     if action == 'prepare':
         if args.release is None:
-            raise RuntimeError('tasks-prepare requires --release')
+            raise RuntimeError(f'{transition.COMMAND}-prepare requires --release')
         row = tool.prepare(args.release)
     else:
         row = tool.read() if action == 'status' else getattr(tool, action)()

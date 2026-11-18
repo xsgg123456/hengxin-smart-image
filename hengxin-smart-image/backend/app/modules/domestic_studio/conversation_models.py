@@ -6,10 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.timestamps import Timestamps
 from app.models import Base
+from .workspaces import WORKSPACE_CHECK
 from .task_models import Task, TaskRequest  # Register task foreign-key targets.
-
-
-WORKSPACE_CHECK = "workspace IN ('camera','case','product','scene','phone')"
 
 
 class Workspace(Timestamps, Base):

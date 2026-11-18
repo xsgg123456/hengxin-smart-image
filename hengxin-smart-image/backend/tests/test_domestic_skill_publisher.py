@@ -96,8 +96,8 @@ def test_upload_update_binding_delete_and_old_snapshot_remains_readable(service)
     assert catalog.frozen_package(frozen).files['SKILL.md'] == DOCUMENT
     toggle = ROOT + f"/skills/{item['id']}/availability"
     assert client.patch(toggle, json={'enabled': True, 'version': item['version']}, headers=HEADERS).status_code == 200
-    bindings = {key: (item['id'] if key == 'camera' else None) for key in ('camera', 'case', 'product', 'scene', 'phone')}
-    empty = dict.fromkeys(bindings)
+    empty = client.get(ROOT + '/bindings').json()['bindings']
+    bindings = empty | {'camera': item['id']}
     assert client.put(ROOT + '/bindings', json={'bindings': bindings, 'expected': empty}, headers=HEADERS).status_code == 200
     job_id = uuid4()
     with factory.begin() as session:
