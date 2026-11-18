@@ -2,7 +2,9 @@
 
 旧公网专用发布脚本已从当前仓库退役；以后生产默认只走本页内网流程，历史记录中的命令不可复用。开发和隔离测试仍在本地。见 [退役范围](PUBLIC-RELEASE-RETIREMENT-20261113.md)。
 
-最新状态（2026-11-17）：任务中心只读展开与分组看图优化已通过普通国内前端发布，国内前端 `93718b7e42227018ee295d7319b43d234966fe6d`（0.2.77）、后端 `02ddb53749a9e16580a965b64ea13ffdd19aef51`；上一成功状态为前端 `4541b95` / 后端 `02ddb53`，未执行数据库升级。海外保持 `3b38a2c`，共享保持 `2bc8acc7`。正式verify、10个入口资源HTTP/摘要及真实会话展开/分组图片/附件面板视觉验收通过，pending为空，自动清理complete，净释放30486528字节。详见 [最新发布记录](DOMESTIC-TASK-VIEWER-DEPLOYED-20261117.md)。0043→0044专项已完成，不得重跑；两版均兼容0044，可按普通分组回退本次前端，不倒灌数据库。前次切页故障修复的生产实际OS切页未验收边界仍见 [历史记录](DOMESTIC-TASK-VISIBILITY-DEPLOYED-20261117.md)。
+2026-11-18 国内和海外生产 Worker 已切换到 Codex CLI `0.169.1`。业务首轮和续聊默认使用 `gpt-6.2-astra`、`high`、`service_tier="priority"` 和 `features.fast_mode=true`。国内后端为 `45b1280db608`，海外后端为 `aef44a628dae`。国内前端仍为 `93718b7e`，海外前端仍为 `3b38a2c4`。工具版本为 `ab3b7df41e38b39a`。本次按用户确认登记了 Ubuntu 已安装的 sosreport 更新，随后通过运行时专项事务和两次独立的 `prepare-model` 发布。模型按组使用 `release.py rollback --scope` 回退。CLI 配套回退入口为当前工具目录下的 `codex_runtime_maintenance.py rollback`。
+
+历史状态（2026-11-17）：任务中心只读展开与分组看图优化已通过普通国内前端发布，国内前端 `93718b7e42227018ee295d7319b43d234966fe6d`（0.2.77）、后端 `02ddb53749a9e16580a965b64ea13ffdd19aef51`；上一成功状态为前端 `4541b95` / 后端 `02ddb53`，未执行数据库升级。海外保持 `3b38a2c`，共享保持 `2bc8acc7`。正式verify、10个入口资源HTTP/摘要及真实会话展开/分组图片/附件面板视觉验收通过，pending为空，自动清理complete，净释放30486528字节。详见 [当次发布记录](DOMESTIC-TASK-VIEWER-DEPLOYED-20261117.md)。0043→0044专项已完成，不得重跑；两版均兼容0044，可按普通分组回退本次前端，不倒灌数据库。前次切页故障修复的生产实际OS切页未验收边界仍见 [历史记录](DOMESTIC-TASK-VISIBILITY-DEPLOYED-20261117.md)。
 
 此前国内角色收敛及管理员只读会话版本 `c799246` 已超出两版保留范围，其无人引用源码、上传包及发布附带备份已自动清理；原工作台会话管理入口已并入任务中心，角色迁移不重复执行。历史见 [角色部署验收](DOMESTIC-MONITOR-ROLES-DEPLOYED-20261117.md)，任务功能及0044迁移见 [任务部署验收](DOMESTIC-TASKS-DEPLOYED-20261117.md)。
 
