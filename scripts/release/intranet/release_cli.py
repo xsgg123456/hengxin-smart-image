@@ -8,12 +8,17 @@ def run(cli, argv=None):
     parser = argparse.ArgumentParser(description=cli.__doc__)
     parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status',
                                           'workspaces-prepare', 'workspaces-deploy', 'workspaces-recover',
-                                          'workspaces-finish', 'workspaces-status'))
+                                          'workspaces-finish', 'workspaces-status',
+                                          'upload-apply', 'upload-rollback', 'upload-recover'))
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--release', type=Path)
-    parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
+    parser.add_argument('--mode', choices=('full', 'frontend'))
     parser.add_argument('--scope', choices=('domestic', 'overseas', 'shared'))
     args = parser.parse_args(argv)
+    upload = args.action.startswith('upload-')
+    if upload and (args.scope or args.mode or args.release or args.apply):
+        parser.error('Domestic upload maintenance takes no options')
+    args.mode = args.mode or 'full'
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
     if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare'):
@@ -36,6 +41,10 @@ def run(cli, argv=None):
             from codex_runtime_marker import guard
             joint_studio_marker.guard(cli.engine.u, store)
             guard(cli.engine.u, store)
+        tool = cli.Release(store)
+        if not upload and args.action != 'status' and tool.path.exists():
+            if (tool.load().get('pending') or {}).get('kind') == 'domestic-upload-gateway':
+                raise RuntimeError('Resolve pending domestic gateway maintenance using upload-recover')
         if args.action.startswith('workspaces-'):
             from domestic_tasks_release import run as maintenance_run
             import domestic_workspaces_policy
@@ -48,7 +57,10 @@ def run(cli, argv=None):
         if args.action != 'status':
             import domestic_tasks_marker
             domestic_tasks_marker.guard(cli.engine.u, store)
-        tool = cli.Release(store)
+        if upload:
+            from domestic_upload_maintenance import run as upload_run
+            print(json.dumps(upload_run(tool, args.action.removeprefix('upload-')), indent=2))
+            return
         if args.action == 'cleanup':
             tool.cleanup(apply=args.apply)
             return
