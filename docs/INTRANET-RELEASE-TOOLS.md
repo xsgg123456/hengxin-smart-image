@@ -1,5 +1,7 @@
 # 内网生产发布工具
 
+2026-11-18 国内工作台菜单专项已完成。国内前端和后端均为 `3247094f6231`、前端 0.2.78，数据库 0045，当前内网工具 `fc3a4a31180b59b5`。国内上一成功状态为前端 93718b7、后端 45b1280。海外与共享基线见下方模型发布记录。0044→0045 一次性专项已完成，跨 schema 故障恢复遵循本专项前向恢复规则。见 [发布验收](DOMESTIC-WORKSPACES-20261118.md)。
+
 旧公网专用发布脚本已从当前仓库退役；以后生产默认只走本页内网流程，历史记录中的命令不可复用。开发和隔离测试仍在本地。见 [退役范围](PUBLIC-RELEASE-RETIREMENT-20261113.md)。
 
 2026-11-18 国内和海外生产 Worker 已切换到 Codex CLI `0.169.1`。业务首轮和续聊默认使用 `gpt-6.2-astra`、`high`、`service_tier="priority"` 和 `features.fast_mode=true`。国内后端为 `45b1280db608`，海外后端为 `aef44a628dae`。国内前端仍为 `93718b7e`，海外前端仍为 `3b38a2c4`。工具版本为 `ab3b7df41e38b39a`。本次按用户确认登记了 Ubuntu 已安装的 sosreport 更新，随后通过运行时专项事务和两次独立的 `prepare-model` 发布。模型按组使用 `release.py rollback --scope` 回退。CLI 配套回退入口为当前工具目录下的 `codex_runtime_maintenance.py rollback`。
