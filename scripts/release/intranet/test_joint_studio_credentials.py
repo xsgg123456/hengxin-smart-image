@@ -136,3 +136,51 @@ def test_remaining_cgroup_child_refuses_before_removal(runtime, monkeypatch):
     props['ControlGroup'] = '/service'
     with pytest.raises(RuntimeError, match='live processes'):
         credentials.prepare(u, state)
+
+@pytest.mark.parametrize('mode', [0, 0o660])
+def test_only_dead_accounts_are_cleaned_while_auth_broker_keeps_listening(runtime, mode):
+    _, _, u, _, props = runtime
+    touched = []
+    def prop(name, key):
+        touched.append(name)
+        assert name == credentials.SERVICES[0]
+        return props[key]
+    u.prop = prop
+    endpoints = [Path(name) for name in u.ACCOUNT_SOCKETS]
+    with socket.socket(socket.AF_UNIX) as live_broker:
+        live_broker.bind(str(endpoints[-1]))
+        live_broker.listen()
+        before = endpoints[-1].lstat()
+        for endpoint in endpoints[:3]:
+            with socket.socket(socket.AF_UNIX) as dead:
+                dead.bind(str(endpoint))
+                dead.listen()
+            os.chown(endpoint,65534,65534)
+            endpoint.chmod(mode)
+        credentials.prepare_accounts(u, {n:[65534,65534,0o660] for n in u.ACCOUNT_SOCKETS[:3]}, 65534)
+        assert all(not endpoint.exists() for endpoint in endpoints[:3])
+        assert credentials.identity(endpoints[-1].lstat()) == credentials.identity(before)
+        assert set(touched) == {credentials.SERVICES[0]}
+        with socket.socket(socket.AF_UNIX) as client:
+            client.connect(str(endpoints[-1]))
+
+
+@pytest.mark.parametrize('case', ['still-listening', 'wrong-group', 'wrong-mode', 'joint-maintenance'])
+def test_account_recovery_preserves_unverified_socket(runtime, case):
+    _, _, u, state, _ = runtime
+    endpoint = Path(u.ACCOUNT_SOCKETS[0])
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(str(endpoint))
+        server.listen()
+        os.chown(endpoint, 65534, 65533 if case == 'wrong-group' else 65534)
+        endpoint.chmod(0o600 if case == 'wrong-mode' else 0o660)
+        if case != 'still-listening':
+            server.close()
+        before = credentials.identity(endpoint.lstat())
+        records = {n:[65534,65534,0o660] for n in u.ACCOUNT_SOCKETS[:3]}
+        with pytest.raises(RuntimeError):
+            if case == 'joint-maintenance':
+                credentials.prepare(u, state)
+            else:
+                credentials.prepare_accounts(u, records, 65534)
+        assert credentials.identity(endpoint.lstat()) == before

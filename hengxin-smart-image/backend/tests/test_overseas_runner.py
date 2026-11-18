@@ -77,7 +77,7 @@ def test_success_duplicate_and_private_home(execution, monkeypatch):
 
 
 @pytest.mark.parametrize('previous', [None, 'original-session', 'legacy'])
-def test_all_protocols_request_fast_including_resumed_studio(execution, monkeypatch, previous):
+def test_business_model_effort_and_fast_on_studio_and_legacy_protocols(execution, monkeypatch, previous):
     from app.overseas.studio.execution import StudioProtocol
     factory, new, _ = execution
     if previous != 'legacy':
@@ -93,10 +93,9 @@ def test_all_protocols_request_fast_including_resumed_studio(execution, monkeypa
     assert len(captured) == 1
     args = captured[0]
     assert args[:4] == ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true']
-    if previous != 'legacy':
-        assert args[args.index('--model') + 1] == 'gpt-6-astra'
-        assert 'model_reasoning_effort="high"' in args
-        assert ('resume' in args) == bool(previous)
+    assert args[args.index('--model') + 1] == 'gpt-6.2-astra'
+    assert 'model_reasoning_effort="high"' in args
+    assert ('resume' in args) == (previous == 'original-session')
 
 
 def test_missing_protocol_fails_before_model(execution, monkeypatch):

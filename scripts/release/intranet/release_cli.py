@@ -6,7 +6,7 @@ from pathlib import Path
 
 def run(cli, argv=None):
     parser = argparse.ArgumentParser(description=cli.__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status'))
+    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status'))
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--release', type=Path)
     parser.add_argument('--mode', choices=('full', 'frontend'), default='full')
@@ -14,10 +14,10 @@ def run(cli, argv=None):
     args = parser.parse_args(argv)
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
-    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'tasks-prepare'):
-        parser.error('--release is only valid for prepare or prepare-fast')
-    if args.action == 'prepare-fast' and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
-        parser.error('prepare-fast requires --scope domestic/overseas and --mode full')
+    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare'):
+        parser.error('--release is only valid for a preparation command')
+    if args.action in ('prepare-fast', 'prepare-model') and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
+        parser.error(args.action + ' requires a domestic or overseas scope and cannot run frontend-only')
     if cli.socket.gethostname() != 'hengxin-ai-245' or cli.os.geteuid() != 0:
         raise RuntimeError('Only root on hengxin-ai-245 is supported')
     cli.engine.u.safe(cli.engine.u.ROOT)
@@ -31,7 +31,9 @@ def run(cli, argv=None):
                 raise RuntimeError('Resolve the recorded split migration before publishing')
         if args.action != 'status':
             import joint_studio_marker
+            from codex_runtime_marker import guard
             joint_studio_marker.guard(cli.engine.u, store)
+            guard(cli.engine.u, store)
         if args.action.startswith('tasks-'):
             from domestic_tasks_release import run as tasks_run
             print(json.dumps(tasks_run(store, args), indent=2))
@@ -43,11 +45,13 @@ def run(cli, argv=None):
         if args.action == 'cleanup':
             tool.cleanup(apply=args.apply)
             return
-        if args.action in ('prepare', 'prepare-fast'):
+        if args.action in ('prepare', 'prepare-fast', 'prepare-model'):
             if args.release is None:
                 parser.error('prepare requires --release')
             if args.action == 'prepare-fast':
                 data = tool.prepare(args.release, args.mode, args.scope, fast_maintenance=True)
+            elif args.action == 'prepare-model':
+                data = tool.prepare(args.release, 'backend', args.scope)
             else:
                 data = tool.prepare(args.release, args.mode, args.scope)
         elif args.action in ('status', 'verify'):

@@ -32,7 +32,7 @@ def candidate(original, u, scope, mode, backend, frontend, domestic_publisher=Fa
         expected.add(scopes.DOMESTIC_PUBLISHER)
     if result.get('name') != 'hengxin-lan' or set(result['services']) != expected:
         raise RuntimeError('Independent compose inventory changed')
-    for name in scopes.apps(scope, domestic_publisher) if mode == 'full' else ():
+    for name in scopes.apps(scope, domestic_publisher) if mode != 'frontend' else ():
         service = result['services'][name]
         mounts = service.get('volumes', [])
         if any(not isinstance(v, dict) or 'target' not in v for v in mounts):
@@ -42,6 +42,8 @@ def candidate(original, u, scope, mode, backend, frontend, domestic_publisher=Fa
         service['volumes'] = [v for v in mounts if not (v['target'] == '/app/app' or v['target'].startswith('/app/app/'))]
         service['volumes'].append({'type': 'bind', 'source': str(backend / 'backend/app'),
                                   'target': '/app/app', 'read_only': True, 'bind': {'create_host_path': False}})
+    if mode == 'backend':
+        return result
     mounts = result['services'][scopes.UI[scope]].get('volumes', [])
     matched = [v for v in mounts if isinstance(v, dict) and v.get('target') == '/usr/share/nginx/html']
     if len(matched) != 1 or not matched[0].get('read_only'):
@@ -82,10 +84,11 @@ def context(scope, mode='full', backend=None, frontend=None, domestic_publisher=
     binding = {'scope': scope, 'mode': mode, 'backend': str(backend), 'frontend': str(frontend),
                'domestic_publisher': domestic_publisher}
     actions = Actions(u, scope, mode, original, all_native, backend)
-    native = {n: all_native[n] for n in scopes.NATIVE[scope]} if mode == 'full' else {}
+    native = {n: all_native[n] for n in scopes.NATIVE[scope]} if mode != 'frontend' else {}
     modules = dict(u.PYTHON_SERVICES)
     modules[scopes.DOMESTIC_PUBLISHER] = 'app.modules.domestic_studio.skill_publisher'
-    python = {n: modules[n] for n in scopes.apps(scope, domestic_publisher)} if mode == 'full' else {}
+    python = {n: modules[n] for n in scopes.apps(scope, domestic_publisher)} if mode != 'frontend' else {}
+    ui = () if mode == 'backend' else (scopes.UI[scope],)
 
     def validate_release():
         manifests = {}
@@ -115,8 +118,8 @@ def context(scope, mode='full', backend=None, frontend=None, domestic_publisher=
         return check(baseline, recovering=recovering, state=state)
 
     values = {n: getattr(actions, n) for n in names if hasattr(actions, n)}
-    values.update(NATIVE=native, PYTHON_SERVICES=python, APPS=(*python, scopes.UI[scope]),
-                  ENTRIES=tuple(n for n in python if n.endswith('-api')) + (scopes.UI[scope],),
+    values.update(NATIVE=native, PYTHON_SERVICES=python, APPS=(*python, *ui),
+                  ENTRIES=tuple(n for n in python if n.endswith('-api')) + ui,
                   RELEASE=backend, validate_release=validate_release,
                   candidate_compose=lambda c: candidate(c, u, scope, mode, backend, frontend, domestic_publisher))
     with ExitStack() as stack:

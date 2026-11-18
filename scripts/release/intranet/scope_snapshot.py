@@ -139,9 +139,10 @@ def unchanged_other(before, after, scope, mode='full'):
     """Prove service identities, not just source/mount equality, stayed stable."""
     scopes.validate(scope, mode)
     publisher = scopes.DOMESTIC_PUBLISHER in before['containers']
-    excluded_apps = set(scopes.apps(scope, publisher)) if mode == 'full' else set()
-    excluded_apps.add(scopes.UI[scope])
-    excluded_native = set(scopes.NATIVE[scope]) if mode == 'full' else set()
+    excluded_apps = set(scopes.apps(scope, publisher)) if mode != 'frontend' else set()
+    if mode != 'backend':
+        excluded_apps.add(scopes.UI[scope])
+    excluded_native = set(scopes.NATIVE[scope]) if mode != 'frontend' else set()
     for section, excluded in (('containers', excluded_apps), ('native', excluded_native)):
         first = {n: v for n, v in before[section].items() if n not in excluded}
         second = {n: v for n, v in after[section].items() if n not in excluded}

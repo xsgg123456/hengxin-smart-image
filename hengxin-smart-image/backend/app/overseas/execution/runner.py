@@ -102,7 +102,8 @@ def run(factory, job_id):
             if hasattr(handler, 'prepare_collection'):
                 handler.prepare_collection(job, workspace)
             args = (handler.arguments(workspace) if hasattr(handler, 'arguments') else
-                    ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '-'])
+                    ['exec', '--model', 'gpt-6.2-astra', '-c', 'model_reasoning_effort="high"',
+                     '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '-'])
             args = ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true', *args]
             command = sandbox_command(workspace, settings.codex_binary, args, settings.codex_bwrap_binary)
             with factory.begin() as session:

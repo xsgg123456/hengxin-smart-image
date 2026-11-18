@@ -10,7 +10,7 @@ class Actions:
     def __init__(self, u, scope, mode, original, all_native, backend):
         self.u, self.scope, self.mode = u, scope, mode
         self.original, self.all_native, self.backend = original, all_native, backend
-        self.workers = scopes.WORKERS[scope] if mode == 'full' else ()
+        self.workers = scopes.WORKERS[scope] if mode != 'frontend' else ()
 
     def shared_idle(self):
         """Read-only refusal: never pause business queues to upgrade shared services."""
@@ -82,7 +82,8 @@ class Actions:
         u.app_command('up', backend)
         if backend:
             self.health(ctx)
-        u.app_command('up', (scopes.UI[self.scope],))
+        if self.mode != 'backend':
+            u.app_command('up', (scopes.UI[self.scope],))
         self.health(ctx, frontend=True)
 
     def remove_stop_overrides(self):
@@ -114,7 +115,7 @@ class Actions:
                         continue
                     if not info['State']['Running'] or info['State'].get('Health', {}).get('Status', 'healthy') != 'healthy':
                         raise RuntimeError('Application container not healthy')
-                if self.mode == 'full':
+                if self.mode != 'frontend':
                     port, path = scopes.READY[self.scope]
                     self._http(f'http://127.0.0.1:{port}{path}')
                 for name in self.workers:

@@ -51,10 +51,16 @@ def rollback(tool, scope):
     current = data['groups'][scope]['current']
     if previous.get('schema') != current.get('schema'):
         raise RuntimeError('Rollback across schema versions is incompatible; use audited forward recovery')
-    mode = 'frontend' if previous['backend'] == current['backend'] else 'full'
+    if previous['backend'] == current['backend']:
+        mode = 'frontend'
+    elif previous['frontend'] == current['frontend']:
+        mode = 'backend'
+    else:
+        mode = 'full'
     # Rebuild from today's global compose. Never replay an old full-site compose
     # that would revert another group's later successful deployment.
-    tool.prepare(Path(previous['frontend']), mode, scope, rollback_target=previous)
+    release = previous['backend' if mode == 'backend' else 'frontend']
+    tool.prepare(Path(release), mode, scope, rollback_target=previous)
     return tool.deploy()
 
 

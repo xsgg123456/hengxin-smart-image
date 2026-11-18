@@ -140,7 +140,7 @@ class Imports:
 
 def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False, tasks_maintenance=False):
     """Validate before any single-scope drain or mutation; return changed paths."""
-    if scope not in ENTRYPOINTS or mode not in ('frontend', 'full'):
+    if scope not in ENTRYPOINTS or mode not in ('frontend', 'full', 'backend'):
         raise RuntimeError('Invalid independent release scope or mode')
     before = snapshot.manifest(u, before_root)
     candidate = snapshot.manifest(u, candidate_root)
@@ -156,6 +156,9 @@ def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False, t
     old_files, new_files = backend_files(before), backend_files(candidate)
     changed = sorted(n for n in old_files.keys() | new_files.keys()
                      if old_files.get(n) != new_files.get(n))
+    if mode == 'backend':
+        from model_maintenance import validate
+        validate(before, candidate, scope, changed)
     if not changed:
         return changed
     old_owners = Imports(sources(before_root, before)).owners()
@@ -170,6 +173,9 @@ def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False, t
         if unknown:
             denied[name] = []
         elif owners == {scope}:
+            target_changes.append(name)
+        elif mode == 'backend' and owners == {'domestic', 'overseas'}:
+            # The complete backend delta was matched to the reviewed bytes above.
             target_changes.append(name)
         elif tasks_maintenance and scope == 'domestic' and mode == 'full':
             from domestic_tasks_policy import approved_change

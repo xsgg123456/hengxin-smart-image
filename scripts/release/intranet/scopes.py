@@ -36,8 +36,10 @@ def apps(scope, publisher=False):
 
 
 def validate(scope, mode='full'):
-    if scope not in GROUPS or mode not in ('full', 'frontend'):
+    if scope not in GROUPS or mode not in ('full', 'frontend', 'backend'):
         raise ValueError('Unknown release scope/mode')
+    if mode == 'backend' and scope == 'shared':
+        raise ValueError('Backend maintenance requires a business scope')
 
 
 @contextmanager

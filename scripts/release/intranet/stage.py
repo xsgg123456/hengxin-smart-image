@@ -69,7 +69,9 @@ def main():
     engine.u.safe(store.root)
     with store.locked():
         import joint_studio_marker
+        from codex_runtime_marker import guard
         joint_studio_marker.guard(engine.u, store)
+        guard(engine.u, store)
         tool = Release(store)
         marker = store.root/'intranet-split-migration.json'
         if marker.exists():

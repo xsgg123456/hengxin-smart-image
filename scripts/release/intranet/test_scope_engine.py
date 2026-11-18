@@ -2,6 +2,7 @@
 import json
 import time
 import unittest
+from itertools import product
 from unittest.mock import Mock, patch
 
 import engine as e
@@ -74,9 +75,10 @@ class ScopeEngineTests(unittest.TestCase):
         self.controls.clear()
 
     def assert_boundaries(self, scope, mode='full'):
-        apps = set(scopes.APPS[scope]) if mode == 'full' else set()
-        apps.add(scopes.UI[scope])
-        native = set(scopes.NATIVE[scope]) if mode == 'full' else set()
+        apps = set(scopes.APPS[scope]) if mode != 'frontend' else set()
+        if mode != 'backend':
+            apps.add(scopes.UI[scope])
+        native = set(scopes.NATIVE[scope]) if mode != 'frontend' else set()
         for argv in self.commands:
             if argv[:2] in (['systemctl', 'stop'], ['systemctl', 'start']):
                 self.assertTrue(set(argv[2:]) <= native, argv)
@@ -90,13 +92,13 @@ class ScopeEngineTests(unittest.TestCase):
 
     def test_full_apply_and_explicit_recovery_only_touch_target(self):
         # Each scope has a fresh fixture because journals are intentionally single-use.
-        for scope in ('domestic', 'overseas'):
-            with self.subTest(scope=scope):
+        for scope, mode in product(('domestic', 'overseas'), ('full', 'backend')):
+            with self.subTest(scope=scope, mode=mode):
                 if (self.work / 'prepared.json').exists():
                     for path in self.work.iterdir():
                         path.unlink()
-                with scope_engine.context(scope):
-                    self.prepare(scope)
+                with scope_engine.context(scope, mode):
+                    self.prepare(scope, mode)
                     # Real worker restart restores default queue subscriptions.
                     original_run = self.mocks['run'].side_effect
                     def restarted(argv, **kw):
@@ -108,9 +110,11 @@ class ScopeEngineTests(unittest.TestCase):
                     changed = json.loads(self.compose.read_bytes())
                     for n in set(self.old_compose['services']) - set(scopes.APPS[scope]) - {scopes.UI[scope]}:
                         self.assertEqual(changed['services'][n], self.old_compose['services'][n])
+                    if mode == 'backend':
+                        self.assertEqual(changed['services'][scopes.UI[scope]], self.old_compose['services'][scopes.UI[scope]])
                     self.assertEqual(e.recover(), 'rolled-back')
                     self.assertEqual(json.loads(self.compose.read_bytes()), self.old_compose)
-                    self.assert_boundaries(scope)
+                    self.assert_boundaries(scope, mode)
                     self.mocks['run'].side_effect = original_run
 
     def test_release_preserves_native_settings_and_recovery_restores_original(self):

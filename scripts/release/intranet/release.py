@@ -63,6 +63,8 @@ class Release:
         return data
 
     def prepare(self, release, mode, scope=None, rollback_target=None, fast_maintenance=False):
+        if mode == 'backend' and scope not in ('domestic', 'overseas'):
+            raise RuntimeError('Backend maintenance requires a business scope')
         if fast_maintenance and (scope not in ('domestic', 'overseas') or mode != 'full' or rollback_target):
             raise RuntimeError('Fast maintenance requires a full business release')
         data = self.load()
@@ -85,7 +87,7 @@ class Release:
                                     fast_maintenance=fast_maintenance)
         else:
             snapshot.compatible(old, candidate, mode)
-        if not rollback_target:
+        if not rollback_target and mode != 'backend':
             operations.keep_assets(self.u, Path(selected['frontend']), release)
         parent = self.store.root / 'intranet-transactions'
         parent.mkdir(mode=0o700, exist_ok=True)
@@ -95,10 +97,12 @@ class Release:
                    'phase': 'preparing', 'before': before}
         if fast_maintenance:
             pending['maintenance'] = 'codex-fast-20261113'
+        if mode == 'backend' and not rollback_target:
+            pending['maintenance'] = 'codex-model-20261118'
         if scope:
             import scope_snapshot
             import scopes
-            pending.update(scope=scope, target_frontend=str(release),
+            pending.update(scope=scope, target_frontend=selected['frontend'] if mode == 'backend' else str(release),
                            target_backend=rollback_target['backend'] if rollback_target else
                            selected['backend'] if mode == 'frontend' else str(release),
                            census=scope_snapshot.census(self.u, domestic_publisher=scopes.has_domestic_publisher(before)),
@@ -154,7 +158,10 @@ class Release:
                     self.u, domestic_publisher=scopes.has_domestic_publisher(after)), item['scope'], item['mode'])
             else:
                 actual = after
-            if actual['frontend'] != item['release'] or (item['mode'] != 'frontend' and actual['backend'] != item.get('target_backend', item['release'])):
+            expected_frontend = item.get('target_frontend', item['release'])
+            expected_backend = item.get('target_backend', item['release'])
+            if (actual['frontend'] != expected_frontend
+                    or (item['mode'] != 'frontend' and actual['backend'] != expected_backend)):
                 raise RuntimeError('Running source did not switch to candidate')
             history = set(data.get('source_history', []))
             history.update(cleanup_history.sources(data['current']) | cleanup_history.sources(data['previous']))

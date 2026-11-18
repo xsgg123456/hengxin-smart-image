@@ -40,7 +40,7 @@ def prepare(context, database, tmp_path, monkeypatch):
 def fake_cli(calls):
     def run(_command, prompt, control, _timeout, monitor, started):
         assert _command[:4] == ['-c', 'service_tier="priority"', '-c', 'features.fast_mode=true']
-        assert _command[_command.index('--model') + 1] == 'gpt-6-astra'
+        assert _command[_command.index('--model') + 1] == 'gpt-6.2-astra'
         assert 'model_reasoning_effort="high"' in _command
         calls.append(prompt)
         started(123, 'boot-id', 'birth-id')
@@ -71,6 +71,30 @@ def test_runner_saves_verified_picture_and_never_repeats_cli(context, database, 
         assert turn.reply == '![图片](/work/final.png)' and turn.dispatched
         assert session.get(Outbox, job_id).completed_at is not None
         assert picture and store.objects[(picture.bucket, picture.object_key)] == image_bytes()
+
+
+def test_existing_session_resumes_with_current_business_model(context, database, tmp_path, monkeypatch):
+    factory, catalog, first = prepare(context, database, tmp_path, monkeypatch)
+    _, _, _, actor, _, channel, _ = context
+    calls = []
+    def execute(args, prompt, control, *rest):
+        sessions = control.parents[1] / 'home' / '.codex' / 'sessions'
+        sessions.mkdir(exist_ok=True)
+        (sessions / 'rollout-session-1.jsonl').write_text(
+            '{"type":"session_meta","payload":{"id":"session-1"}}\n', encoding='utf-8')
+        calls.append(args)
+        return fake_cli([])(args, prompt, control, *rest)
+    monkeypatch.setattr(runner, 'execute', execute)
+    store = Store()
+    runner.run_turn(first, factory, store=store, catalog=catalog)
+    with factory.begin() as session:
+        turn_service.send(session, actor, 'camera', channel, Send(text='延续上轮'), 'second', catalog)
+        second = session.scalar(select(Turn.job_id).where(Turn.job_id != first))
+    runner.run_turn(second, factory, store=store, catalog=catalog)
+    assert len(calls) == 2 and 'resume' not in calls[0]
+    assert calls[1][calls[1].index('resume'):] == ['resume', '--skip-git-repo-check', '--json', 'session-1', '-']
+    with factory() as session:
+        assert session.get(Job, second).status == 'succeeded'
 
 
 def test_ambiguous_process_failure_is_uncertain_and_not_automatically_retried(context, database, tmp_path, monkeypatch):

@@ -115,7 +115,7 @@ def test_settings_actual_values_no_secrets_and_permissions(env, monkeypatch):
     data = env[0].get('/management/execution-settings').json()
     assert data['api']['taskConcurrency'] == 7
     assert data['cli']['concurrency'] == 2 and data['cli']['timeoutSeconds'] == 600
-    assert data['cli']['model'] == 'gpt-6-astra' and data['cli']['usesSkills'] is False
+    assert data['cli']['model'] == 'gpt-6.2-astra' and data['cli']['usesSkills'] is False
     assert data['retention'] == {'enabled': False, 'cacheIdleDays': 1, 'historyIdleDays': 3}
     assert 'api_key' not in str(data) and 'broker' not in str(data)
     with original[1].begin() as session:
