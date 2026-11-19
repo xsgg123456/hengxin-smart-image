@@ -7,7 +7,7 @@ from app.modules.auth.sessions import SESSION_COOKIE, issue_session
 from app.modules.auth.dependencies import get_identity_id
 from app.main import app
 from app.resource_models import UserRecord
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 
 
 def test_server_session_cookie_authenticates_and_logout_revokes(files_env):

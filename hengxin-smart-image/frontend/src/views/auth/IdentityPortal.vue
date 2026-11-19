@@ -32,7 +32,7 @@ import LoginLeftView from '@/components/core/views/login/LoginLeftView.vue'
 import AuthTopBar from '@/components/core/views/login/AuthTopBar.vue'
 import BusinessEntry from './BusinessEntry.vue'
 import type { Component } from 'vue'
-import { releaseDestination, isIndependentRelease, redirectReleaseEntry } from '@/release/navigation'
+import { domesticLandingPath, releaseDestination, isIndependentRelease, redirectReleaseEntry } from '@/release/navigation'
 defineProps<{ overseasComponent?: Component }>()
 import { identityApi, IdentityError, type IdentityConfig, type AccessResult, type Member } from '@/api/identity/auth'
 import { requestContainerAuthCode } from '@/api/hengxin/container-auth'
@@ -108,7 +108,7 @@ async function load() {
     if (reason instanceof IdentityError && reason.status === 401) { if (callbackError === 'provider_error') error.value = '钉钉授权失败，请重新授权'; name.value = ''; overseas.value = false; states.value = {}; if (isIndependentRelease() && window.location.pathname.startsWith('/overseas')) window.location.replace(releaseDestination('shared', '/auth/login')) }
   } finally { if (epoch === generation) busy.value = false }
 }
-function legacySession() { window.location.assign(releaseDestination('domestic', '/api-image-edits/create', '?workspace=domestic')) }
+function legacySession() { window.location.assign(releaseDestination('domestic', domesticLandingPath, '?workspace=domestic')) }
 async function authorize() {
   if (!config.value?.configured) return
   if (!/DingTalk/i.test(navigator.userAgent)) { window.location.assign('/api/identity/v1/dingtalk/authorize'); return }

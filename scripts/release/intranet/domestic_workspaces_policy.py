@@ -25,16 +25,20 @@ def approved_change(name, before, after):
 
 
 def validate(before, candidate):
+    validate_locked(before, candidate, BASE, MIGRATION, MIGRATION_SHA, BACKEND_DELTA_SHA)
+
+
+def validate_locked(before, candidate, base, migration, migration_sha, delta_sha):
     commit = candidate.get('commit')
-    if (before.get('commit') != BASE or candidate.get('scope') != 'domestic' or not commit
-            or commit == BASE or candidate.get('provenance', {}).get('source_commit') != commit):
+    if (before.get('commit') != base or candidate.get('scope') != 'domestic' or not commit
+            or commit == base or candidate.get('provenance', {}).get('source_commit') != commit):
         raise RuntimeError('Workspaces maintenance requires the reviewed domestic baseline and Git provenance')
     old = scope_changes.backend_files(before)
     new = scope_changes.backend_files(candidate)
     delta = {name: (old.get(name), new.get(name)) for name in old.keys() | new.keys()
              if old.get(name) != new.get(name)}
     digest = snapshot.sha(json.dumps(delta, sort_keys=True, separators=(',', ':')).encode())
-    if (digest != BACKEND_DELTA_SHA or delta.get(MIGRATION) != (None, MIGRATION_SHA)
+    if (digest != delta_sha or delta.get(migration) != (None, migration_sha)
             or before.get('runtime_inputs') != candidate.get('runtime_inputs')):
         raise RuntimeError('Workspaces maintenance requires exactly the reviewed backend and runtime inputs')
 

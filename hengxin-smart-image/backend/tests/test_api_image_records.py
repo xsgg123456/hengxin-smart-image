@@ -66,6 +66,9 @@ def test_default_owner_all_other_and_identity_switch(files_env):
     with factory() as session:
         assert list_tasks(session, 1, 20, '', '')['total'] == 2
     identity[0] = other
+    assert client.get(ROOT + '/tasks').status_code == 403
+    with factory.begin() as session:
+        session.get(UserRecord, other).role = 'super_admin'
     assert [row['id'] for row in records(client)['items']] == [other_id]
 
 

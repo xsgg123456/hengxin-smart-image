@@ -59,8 +59,8 @@ test('归档公开过程按归档事件合并，旧资料缺少事件关联时�
   assert.equal(new Set(result.map(item => item.itemId)).size, 4)
 })
 
-test('成品库按六个新品业务独立筛选、读取并提交归档，替换业务拒绝归档', async () => {
-  assert.deepEqual(archiveWorkspaces.map(item => item.key), ['camera', 'case', 'film', 'cable', 'earbud', 'accessory'])
+test('成品库按七个新品业务独立筛选、读取并提交归档，替换业务拒绝归档', async () => {
+  assert.deepEqual(archiveWorkspaces.map(item => item.key), ['general', 'camera', 'case', 'film', 'cable', 'earbud', 'accessory'])
   for (const workspace of domesticWorkspaces) {
     const data = { ...fixture(), workspace: workspace.key }
     const urls: string[] = []

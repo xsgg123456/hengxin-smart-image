@@ -74,7 +74,7 @@ def test_live_sse_replay_and_access_revocation(files_env, monkeypatch):
                 assert next(lines) == ': heartbeat'
                 assert next(lines) == ''
                 with factory.begin() as session:
-                    session.get(UserRecord, identity[0]).status = 'disabled'
+                    session.get(UserRecord, identity[0]).role = 'operator'
                 assert next(lines) == 'event: closed'
                 assert 'access_changed' in next(lines)
             assert http.get(url).status_code == 403

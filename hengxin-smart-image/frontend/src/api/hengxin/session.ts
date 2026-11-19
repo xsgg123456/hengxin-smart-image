@@ -1,3 +1,4 @@
+import { domesticLandingPath } from '../../release/navigation'
 import { domesticWorkspaces } from './domestic-workspaces'
 import type { AssignableRole, User } from '../../types/hengxin'
 
@@ -23,8 +24,8 @@ export function getPreviewUser(search = globalThis.location?.search ?? ''): User
     status: scenario === 'pending' ? 'pending' : scenario === 'disabled' ? 'disabled' : 'active' }
 }
 export function safeReturnPath(value: unknown): string {
-  if (typeof value !== 'string' || !value.startsWith('/') || /[\\\r\n]/.test(value) || value.startsWith('//')) return '/api-image-edits/create'
+  if (typeof value !== 'string' || !value.startsWith('/') || /[\\\r\n]/.test(value) || value.startsWith('//')) return domesticLandingPath
   const path = value.split(/[?#]/)[0]
   return domesticWorkspaces.some(item => item.path === path) || /^\/(api-image-edits\/(create|records)|product-library|management\/(activity|usage|monitor|retention|users|settings|skills|workspace-sessions|task-center))$/.test(path)
-    ? value : '/api-image-edits/create'
+    ? value : domesticLandingPath
 }

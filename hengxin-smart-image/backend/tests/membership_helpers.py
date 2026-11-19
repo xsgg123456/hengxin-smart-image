@@ -12,7 +12,7 @@ from app.modules.auth.models import AuthSessionRecord, UserIdentityRecord
 from app.resource_models import UserRecord
 from app.overseas.auth.models import BusinessSession, Member, MemberRole
 from app.overseas.members import membership as overseas_adapter
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 from test_overseas_auth import overseas, HEADERS
 
 IDENTITY = {'corp_id': 'corp', 'provider_user_id': 'applicant', 'name': '同名员工',

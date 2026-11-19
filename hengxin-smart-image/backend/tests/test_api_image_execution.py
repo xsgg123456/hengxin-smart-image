@@ -125,7 +125,7 @@ def test_download_and_storage_retries_never_regenerate(files_env):
     assert web.get(ROOT + '/tasks/' + task_id).json()['status'] == 'succeeded'
 
 
-def test_expired_execution_recovers_without_admin_and_fences_late_worker(files_env):
+def test_expired_execution_recovers_without_manual_resolution_and_fences_late_worker(files_env):
     web, factory, store, identity = files_env
     task_id, _ = create(web, 1)
     claimed = claim(factory)
@@ -145,7 +145,6 @@ def test_expired_execution_recovers_without_admin_and_fences_late_worker(files_e
         attempt = session.scalar(select(ApiAttempt))
         assert attempt.state == 'uncertain' and attempt.resolved_by is None
         assert session.get(ApiItem, claimed[0]).lease_token is None
-        assert session.get(UserRecord, identity[0]).role != 'super_admin'
     assert web.post(url + '/retry', headers={'Idempotency-Key': 'direct-retry'}).status_code == 202
     assert execute_next(factory, store, Client())
     assert web.get(url).json()['status'] == 'succeeded'

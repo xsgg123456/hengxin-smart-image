@@ -1,5 +1,5 @@
-export const newProductKeys = ['camera', 'case', 'film', 'cable', 'earbud', 'accessory'] as const
-export const replacementKeys = ['product', 'scene', 'phone', 'edit'] as const
+export const newProductKeys = ['general', 'camera', 'case', 'film', 'cable', 'earbud', 'accessory'] as const
+export const replacementKeys = ['edit', 'product', 'scene', 'phone'] as const
 export const workspaceKeys = [...newProductKeys, ...replacementKeys] as const
 export type WorkspaceKey = typeof workspaceKeys[number]
 export type NewProductKey = typeof newProductKeys[number]

@@ -39,7 +39,7 @@ def test_retry_freezes_actor_and_preserves_prior_attempt(files_env):
     first = category(factory, 'api_request')[0]
     assert first['operator_id'] == creator and first['is_retry'] is False
     with factory.begin() as session:
-        editor = UserRecord(id=uuid4(), name='重试者', role='operator', status='active', identity_source='development')
+        editor = UserRecord(id=uuid4(), name='重试者', role='super_admin', status='active', identity_source='development')
         session.add(editor)
         identity[0] = editor.id
     assert post(client, ROOT + '/tasks/' + task + '/retry', key='retry').status_code == 202

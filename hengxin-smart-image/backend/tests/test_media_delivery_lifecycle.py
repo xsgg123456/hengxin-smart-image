@@ -27,7 +27,7 @@ from app.storage.minio_store import get_store
 
 
 @pytest.fixture
-def media_env(tmp_path, monkeypatch):
+def media_env(tmp_path, monkeypatch, kind):
     engine = create_engine(f'sqlite:///{tmp_path / "media.db"}',
                            connect_args={'check_same_thread': False}, pool_size=1, max_overflow=0)
     Base.metadata.create_all(engine)
@@ -35,7 +35,8 @@ def media_env(tmp_path, monkeypatch):
     uid, fid, aid, tid = [uuid4() for _ in range(4)]
     data = b'original image bytes'
     with factory.begin() as session:
-        session.add(UserRecord(id=uid, name='reader', role='operator', status='active',
+        role = 'super_admin' if kind in ('api', 'api_zip') else 'operator'
+        session.add(UserRecord(id=uid, name='reader', role=role, status='active',
                                identity_source='wecom'))
         for model, key in [(FileRecord, fid), (ApiFile, aid)]:
             session.add(model(id=key, owner_id=uid, name='原图.png', bucket='private',

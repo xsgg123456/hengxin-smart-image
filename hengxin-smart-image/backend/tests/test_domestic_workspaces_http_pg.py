@@ -17,6 +17,7 @@ from test_domestic_tasks_pg import HEADERS, ROOT, new, studio
 from test_domestic_turns_pg import context
 
 ENTRIES = {
+    'general': '/new-product/general',
     'film': '/new-product/screen-protector', 'cable': '/new-product/data-cable',
     'earbud': '/new-product/earbud-case', 'accessory': '/new-product/creative-accessories',
     'edit': '/product-replace/general-edit',

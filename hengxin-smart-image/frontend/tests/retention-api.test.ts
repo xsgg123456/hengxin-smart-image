@@ -38,5 +38,5 @@ test('服务失败与不完整数据不伪造成功；导航仅管理角色且�
   const route = routeModules.find(r => r.path === '/management')!.children!.find(r => r.path === 'retention')!
   assert.deepEqual(route.meta.roles, ['super_admin']); assert.equal(route.component, '/hengxin/admin/retention')
   assert.equal(safeReturnPath('/management/retention?tab=pending'), '/management/retention?tab=pending')
-  for (const role of ['operator', 'designer']) assert.equal(apiWorkspaceRedirect('/management/retention', [role]), '/api-image-edits/create')
+  for (const role of ['operator', 'designer']) assert.equal(apiWorkspaceRedirect('/management/retention', [role]), '/new-product/general')
 })

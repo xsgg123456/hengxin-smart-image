@@ -12,6 +12,12 @@ OLD_REPLACEMENTS = {'product', 'scene', 'phone'}
 
 
 def check_constraints(u, expanded):
+    products = OLD_PRODUCTS | (NEW_PRODUCTS if expanded else set())
+    replacements = OLD_REPLACEMENTS | ({'edit'} if expanded else set())
+    check_values(u, products, replacements)
+
+
+def check_values(u, products, replacements):
     records = sql(u, """
         SELECT json_build_array(t.relname, c.conname, c.convalidated, pg_get_expr(c.conbin, c.conrelid))
         FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
@@ -28,9 +34,9 @@ def check_constraints(u, expanded):
         match = re.fullmatch(
             r"\(\(workspace\)::text = ANY \(\(ARRAY\[('[a-z]+'::character varying"
             r"(?:, '[a-z]+'::character varying)*)\]\)::text\[\]\)\)", expression)
-        expected = OLD_PRODUCTS | (NEW_PRODUCTS if expanded else set())
+        expected = set(products)
         if table != 'domestic_studio_archives':
-            expected |= OLD_REPLACEMENTS | ({'edit'} if expanded else set())
+            expected |= replacements
         if not match or sorted(re.findall(r"'([a-z]+)'", match[1])) != sorted(expected):
             raise RuntimeError('Unexpected domestic workspace CHECK values on ' + table)
         seen.add(table)

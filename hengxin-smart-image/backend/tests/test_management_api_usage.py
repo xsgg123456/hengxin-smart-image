@@ -98,17 +98,16 @@ def test_real_api_projection_physical_delete_preserves_minimal_facts(files_env, 
 @pytest.mark.parametrize("role", ["operator", "design_manager"])
 def test_actual_operator_scope_and_unknown_actor_guard(files_env, monkeypatch, role):
     client, factory, _, identity = files_env
+    task, _ = create(client)
     with factory.begin() as session:
         session.get(UserRecord, identity[0]).role = role
-    task, _ = create(client)
     other = UserRecord(id=uuid4(), name='协作者', role='designer', status='active', identity_source='development')
     with factory.begin() as session:
         session.add(other)
     mine, theirs, unknown = [fact(identity[0], task) for _ in range(3)]
     theirs['operator_id'], unknown['operator_id'] = other.id, None
     mock_facts(monkeypatch, [mine, theirs, unknown])
-    report = client.get(URL).json()
-    assert report['summary']['apiAttempts'] == 1 and len(report['users']) == 1
+    assert client.get(URL).status_code == 403
     assert client.get(URL + f'?userId={other.id}').status_code == 403
     assert client.get(URL + '?unassigned=true').status_code == 403
     with factory.begin() as session:

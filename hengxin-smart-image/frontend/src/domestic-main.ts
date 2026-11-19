@@ -87,7 +87,16 @@ window.addEventListener('hengxin:identity-changed', () => {
   identity.advance('changed')
   void retryBootstrap.run()
 })
-identity.configureProbe(fetchGetUserInfo)
+function hasChangedIdentity(user: Api.Auth.UserInfo) {
+  const old = useUserStore().info
+  return !!old.userId && (old.userId !== user.userId || JSON.stringify(old.roles) !== JSON.stringify(user.roles))
+}
+identity.configureProbe(async () => {
+  if (hasChangedIdentity(await fetchGetUserInfo())) {
+    identity.advance('changed')
+    await retryBootstrap.run()
+  }
+})
 retryBootstrap.run = createBootstrapRunner({
   start() { lockContent(); bootstrap.loading = true; bootstrap.error = '' },
   async load() {
@@ -96,8 +105,7 @@ retryBootstrap.run = createBootstrapRunner({
   },
   async accept(user) {
     const epoch = identity.epoch
-    const old = useUserStore().info
-    if (old.userId && (old.userId !== user.userId || JSON.stringify(old.roles) !== JSON.stringify(user.roles))) {
+    if (hasChangedIdentity(user)) {
       identity.advance('changed')
       void retryBootstrap.run()
       return

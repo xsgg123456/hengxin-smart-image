@@ -40,7 +40,7 @@ def dingtalk_config():
 
 @router.get('/auth/dingtalk/authorize')
 def dingtalk_authorize(
-    redirect: str = Query('/api-image-edits/create'),
+    redirect: str = Query(dingtalk.DEFAULT_RETURN_PATH),
     session: Session = Depends(get_session),
 ):
     settings = dingtalk.get_settings()
@@ -70,7 +70,7 @@ def dingtalk_callback(
     session: Session = Depends(get_session),
     previous: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
-    return_path = '/api-image-edits/create'
+    return_path = dingtalk.DEFAULT_RETURN_PATH
     if not isinstance(login_state, str) or not compare_digest(state.encode(), login_state.encode()):
         return _callback_response(return_path, 'denied')
     try:
@@ -96,6 +96,8 @@ def dingtalk_callback(
     except HTTPException as error:
         session.rollback()
         return _callback_response(return_path, 'denied')
+    if user.role != 'super_admin' and return_path.startswith('/api-image-edits/'):
+        return_path = dingtalk.DEFAULT_RETURN_PATH
     response = _callback_response(return_path)
     _set_session_cookie(response, token)
     return response

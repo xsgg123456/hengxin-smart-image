@@ -4,10 +4,10 @@ import { domesticWorkspaces } from '@/api/hengxin/domestic-workspaces'
 const fullWorkspaceRoles = ['super_admin']
 export const routeModules: AppRouteRecord[] = [{
   name: 'HxApiImageEdits', path: '/api-image-edits', component: '/index/index',
-  meta: { title: 'API 换套图', icon: 'ri:exchange-2-line' },
+  meta: { title: 'API 换套图', icon: 'ri:exchange-2-line', roles: fullWorkspaceRoles },
   children: [
-    { name: 'HxApiImageCreate', path: 'create', component: '/hengxin/api-image-edits/create', meta: { title: '新建换图', icon: 'ri:image-add-line', keepAlive: false } },
-    { name: 'HxApiImageRecords', path: 'records', component: '/hengxin/api-image-edits/records', meta: { title: '换图记录', icon: 'ri:history-line', keepAlive: false } }
+    { name: 'HxApiImageCreate', path: 'create', component: '/hengxin/api-image-edits/create', meta: { title: '新建换图', icon: 'ri:image-add-line', roles: fullWorkspaceRoles, keepAlive: false } },
+    { name: 'HxApiImageRecords', path: 'records', component: '/hengxin/api-image-edits/records', meta: { title: '换图记录', icon: 'ri:history-line', roles: fullWorkspaceRoles, keepAlive: false } }
   ]
 }, ...(['新品生成', '产品替换'] as const).map((group, index) => ({
   name: index ? 'HxProductReplace' : 'HxNewProduct', path: index ? '/product-replace' : '/new-product', component: '/index/index',

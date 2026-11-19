@@ -6,7 +6,7 @@ from app.modules.domestic_studio.policy import (
 )
 
 
-@pytest.mark.parametrize('workspace', ['camera', 'case', 'film', 'cable', 'earbud', 'accessory'])
+@pytest.mark.parametrize('workspace', ['general', 'camera', 'case', 'film', 'cable', 'earbud', 'accessory'])
 def test_new_product_workspaces_allow_archive(workspace):
     assert require_archive_workspace(workspace) is None
 

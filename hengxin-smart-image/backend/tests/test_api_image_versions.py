@@ -32,7 +32,7 @@ def test_revision_cas_frozen_inputs_retry_history_and_restore(files_env):
     task_id, first, path = setup_result(client, factory)
     annotation = upload(client, 'annotation.png')
     with factory.begin() as session:
-        editor = UserRecord(id=uuid4(), name='修改操作者', role='operator', status='active',
+        editor = UserRecord(id=uuid4(), name='修改操作者', role='super_admin', status='active',
                             identity_source='development')
         session.add(editor)
         identity[0] = editor.id

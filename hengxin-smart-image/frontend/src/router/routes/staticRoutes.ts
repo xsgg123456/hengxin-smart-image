@@ -12,7 +12,7 @@ import { AppRouteRecordRaw } from '@/utils/router'
  */
 export const staticRoutes: AppRouteRecordRaw[] = [
   ...['/wallpaper/index', '/product/index', '/text/index', '/image-processing/:pathMatch(.*)*', '/tasks/:pathMatch(.*)*', '/templates/:pathMatch(.*)*', '/archive/:pathMatch(.*)*'].map(path => ({
-    path, redirect: '/api-image-edits/create', meta: { title: '新建换图', isHideTab: true }
+    path, redirect: '/', meta: { title: '工作台', isHideTab: true }
   })),
   // 不需要登录就能访问的路由示例
   // {

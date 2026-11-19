@@ -9,7 +9,7 @@ from app.modules.domestic_studio import management_router
 from app.modules.domestic_studio.policy import WORKSPACES
 from app.modules.domestic_studio.installed_skills import DomesticInstalledSkills
 from app.resource_models import UserRecord
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 from test_domestic_installed_skills import install_fixture
 
 

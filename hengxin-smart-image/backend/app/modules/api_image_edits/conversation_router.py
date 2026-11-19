@@ -11,40 +11,40 @@ from app.modules.auth.dependencies import get_current_user, get_identity_id
 from app.modules.auth.permissions import authorize
 from . import conversation as service
 from .conversation_models import ConversationEvent
-from .router import Database, Key, User
+from .router import Admin, Database, Key
 
 router = APIRouter(prefix='/api-image-edits/tasks/{task_id}/items/{item_id}/conversation')
 
 
 @router.get('')
-def detail(task_id: UUID, item_id: UUID, user: User, session: Database):
+def detail(task_id: UUID, item_id: UUID, user: Admin, session: Database):
     result = service.view(session, task_id, item_id)
     session.commit()
     return result
 
 
 @router.post('/turns', status_code=202)
-def submit(task_id: UUID, item_id: UUID, data: service.SubmitTurn, user: User, session: Database, key: Key):
+def submit(task_id: UUID, item_id: UUID, data: service.SubmitTurn, user: Admin, session: Database, key: Key):
     service.submit(session, user, task_id, item_id, data, key)
     return service.view(session, task_id, item_id)
 
 
 @router.post('/turns/{turn_id}/stop')
-def stop(task_id: UUID, item_id: UUID, turn_id: UUID, user: User, session: Database):
+def stop(task_id: UUID, item_id: UUID, turn_id: UUID, user: Admin, session: Database):
     service.stop(session, task_id, item_id, turn_id)
     return service.view(session, task_id, item_id)
 
 
 @router.post('/turns/{turn_id}/adopt')
 def adopt(task_id: UUID, item_id: UUID, turn_id: UUID, data: service.AdoptTurn,
-          user: User, session: Database, key: Key):
+          user: Admin, session: Database, key: Key):
     service.adopt(session, user, task_id, item_id, turn_id, data, key)
     return service.view(session, task_id, item_id)
 
 
 def read_events(factory, identity_id, task_id, item_id, after):
     with factory() as session:
-        authorize(get_current_user(identity_id, session))
+        authorize(get_current_user(identity_id, session), 'manage_system')
         _, item = service.target(session, task_id, item_id)
         conversation = service.identity(session, item.id)
         if not conversation:

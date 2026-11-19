@@ -101,7 +101,7 @@ def test_full_range_scoping_days_and_paging(files_env, monkeypatch):
     assert totals(client, f'&userId={other.id}')['summary']['initialImages'] == 0
     with factory.begin() as session:
         session.get(UserRecord, actor).role = 'designer'
-    assert totals(client)['summary']['totalGeneratedImages'] == 1
+    assert client.get(URL + '?outputsOnly=true').status_code == 403
     assert client.get(URL + f'?outputsOnly=true&userId={other.id}').status_code == 403
 
 

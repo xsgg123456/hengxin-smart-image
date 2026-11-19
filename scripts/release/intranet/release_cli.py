@@ -9,6 +9,7 @@ def run(cli, argv=None):
     parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status',
                                           'workspaces-prepare', 'workspaces-deploy', 'workspaces-recover',
                                           'workspaces-finish', 'workspaces-status',
+                                          'general-prepare', 'general-deploy', 'general-recover', 'general-finish', 'general-status',
                                           'upload-apply', 'upload-rollback', 'upload-recover'))
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--release', type=Path)
@@ -21,7 +22,7 @@ def run(cli, argv=None):
     args.mode = args.mode or 'full'
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
-    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare'):
+    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare', 'general-prepare'):
         parser.error('--release is only valid for a preparation command')
     if args.action in ('prepare-fast', 'prepare-model') and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
         parser.error(args.action + ' requires a domestic or overseas scope and cannot run frontend-only')
@@ -45,6 +46,11 @@ def run(cli, argv=None):
         if not upload and args.action != 'status' and tool.path.exists():
             if (tool.load().get('pending') or {}).get('kind') == 'domestic-upload-gateway':
                 raise RuntimeError('Resolve pending domestic gateway maintenance using upload-recover')
+        if args.action.startswith('general-'):
+            from domestic_tasks_release import run as maintenance_run
+            import domestic_general_policy
+            print(json.dumps(maintenance_run(store, args, domestic_general_policy), indent=2))
+            return
         if args.action.startswith('workspaces-'):
             from domestic_tasks_release import run as maintenance_run
             import domestic_workspaces_policy

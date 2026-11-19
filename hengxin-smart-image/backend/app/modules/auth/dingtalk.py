@@ -15,7 +15,9 @@ from app.core.config import Settings, get_settings
 logger = logging.getLogger(__name__)
 LOGIN_STATE_TTL = timedelta(minutes=10)
 CALLBACK_PATH = '/api/v1/auth/dingtalk/callback'
+DEFAULT_RETURN_PATH = '/new-product/general'
 ALLOWED_RETURN_PATHS = (
+    DEFAULT_RETURN_PATH,
     '/api-image-edits/create', '/api-image-edits/records',
     '/new-product/camera-accessories', '/new-product/phone-case',
     '/new-product/screen-protector', '/new-product/data-cable',
@@ -71,12 +73,12 @@ def public_config(settings: Settings | None = None) -> dict[str, Any]:
 
 def safe_return_path(value: str | None) -> str:
     if not value:
-        return ALLOWED_RETURN_PATHS[0]
+        return DEFAULT_RETURN_PATH
     parsed = urlsplit(value)
     if parsed.scheme or parsed.netloc or parsed.fragment or '\r' in value or '\n' in value:
-        return ALLOWED_RETURN_PATHS[0]
+        return DEFAULT_RETURN_PATH
     if parsed.path not in ALLOWED_RETURN_PATHS:
-        return ALLOWED_RETURN_PATHS[0]
+        return DEFAULT_RETURN_PATH
     return urlunsplit(('', '', parsed.path, parsed.query, ''))
 
 

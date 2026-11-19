@@ -8,7 +8,7 @@ from app.models import utcnow
 from app.modules.auth import dingtalk
 from app.modules.auth.models import UserIdentityRecord
 from app.resource_models import UserRecord
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -43,12 +43,12 @@ def test_browser_authorize_url_contains_callback_and_one_time_state():
 
 
 def test_return_path_rejects_external_redirects():
-    assert dingtalk.safe_return_path('https://attacker.example') == '/api-image-edits/create'
-    assert dingtalk.safe_return_path('//attacker.example') == '/api-image-edits/create'
+    assert dingtalk.safe_return_path('https://attacker.example') == '/new-product/general'
+    assert dingtalk.safe_return_path('//attacker.example') == '/new-product/general'
     assert dingtalk.safe_return_path('/api-image-edits/records?task=abc') == '/api-image-edits/records?task=abc'
     assert dingtalk.safe_return_path('/management/task-center?task=abc') == '/management/task-center?task=abc'
     assert dingtalk.safe_return_path('/management/workspace-sessions?session=abc') == '/management/workspace-sessions?session=abc'
-    assert dingtalk.safe_return_path('/management/task-center-evil') == '/api-image-edits/create'
+    assert dingtalk.safe_return_path('/management/task-center-evil') == '/new-product/general'
 
 
 def test_login_state_is_one_time_and_expires(files_env):

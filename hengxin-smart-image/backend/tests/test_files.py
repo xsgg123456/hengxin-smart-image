@@ -47,7 +47,7 @@ def test_all_roles_cross_owner_and_recheck_disabled(files_env, role):
         other = UserRecord(id=uuid4(), name='另一成员', role=role, status='active', identity_source='development')
         session.add(other)
         identity[0] = other.id
-    assert client.get(picture['url']).status_code == 200
+    assert client.get(picture['url']).status_code == (200 if role == 'super_admin' else 403)
     with factory.begin() as session:
         session.get(UserRecord, identity[0]).status = 'disabled'
     assert client.get(picture['url']).status_code == 403

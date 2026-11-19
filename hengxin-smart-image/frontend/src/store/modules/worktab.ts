@@ -441,8 +441,13 @@ export const useWorktabStore = defineStore(
           if (tab.path && apiWorkspaceRedirect(tab.path, useUserStore().info.roles)) return false
           try {
             if (tab.name) {
-              const routes = routerInstance.getRoutes()
-              if (routes.some((r) => r.name === tab.name)) return true
+              const route = routerInstance.getRoutes().find((r) => r.name === tab.name)
+              if (route) {
+                if (typeof route.name === 'string' && route.name.startsWith('HxStudio_') && typeof route.meta.title === 'string') {
+                  tab.title = route.meta.title
+                }
+                return true
+              }
             }
             if (tab.path) {
               const resolved = routerInstance.resolve({

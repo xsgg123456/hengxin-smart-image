@@ -14,14 +14,14 @@ test('预览身份默认运营，三角色拥有稳定独立标识，未知角�
 })
 test('登录回跳仅允许业务站内路径，拒绝外域、反斜杠、登录循环与非业务地址', () => {
   for (const value of ['https://evil.test', '//evil.test', '/\\evil.test', '/auth/login', '/%2f%2fevil.test', '/management/users\n']) {
-    assert.equal(safeReturnPath(value), '/api-image-edits/create')
+    assert.equal(safeReturnPath(value), '/new-product/general')
   }
   assert.equal(safeReturnPath('/management/usage?date=2026-09-09'), '/management/usage?date=2026-09-09')
-  assert.equal(safeReturnPath('/tasks/index'), '/api-image-edits/create')
+  assert.equal(safeReturnPath('/tasks/index'), '/new-product/general')
 })
 test('API 换套图登录返回仅放行两个页面，并保留详情查询', () => {
   for (const value of ['/api-image-edits/create', '/api-image-edits/records?task=api-task']) assert.equal(safeReturnPath(value), value)
-  for (const value of ['/api-image-edits', '/api-image-edits/admin', '/api-image-edits/records/evil', '/api-image-edits/../management/users']) assert.equal(safeReturnPath(value), '/api-image-edits/create')
+  for (const value of ['/api-image-edits', '/api-image-edits/admin', '/api-image-edits/records/evil', '/api-image-edits/../management/users']) assert.equal(safeReturnPath(value), '/new-product/general')
 })
 
 test('管理员工作台会话登录回跳保留真实会话查询', () => {

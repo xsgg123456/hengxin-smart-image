@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Response
 from . import admin_queries, task_deletion, task_queries, task_service
 from .admin_router import Admin, audit
 from .router import Database, Key, User, WRITE
+from .shared_task_router import router as shared_view_router
 from .task_models import Task
 from .task_schemas import DeleteTask, NewTask, TaskStatus, UpdateTask, WorkspaceName
 
@@ -12,11 +13,15 @@ router = APIRouter(prefix='/domestic-studio/tasks', tags=['domestic-tasks'])
 admin_router = APIRouter(prefix='/management/domestic-studio/tasks', tags=['domestic-tasks-admin'])
 
 
+router.include_router(shared_view_router)
+
+
 @router.get('')
-def listing(actor: User, session: Database, workspace: WorkspaceName,
+def listing(actor: User, session: Database, workspace: WorkspaceName, response: Response,
             status: TaskStatus | None = None, search: str = Query('', max_length=200),
             page: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100)):
-    return task_queries.listing(session, owner_id=actor.id, workspace=workspace, status=status,
+    response.headers['Cache-Control'] = 'private, no-store'
+    return task_queries.listing(session, workspace=workspace, status=status,
                                 search=search, page=page, page_size=pageSize)
 
 

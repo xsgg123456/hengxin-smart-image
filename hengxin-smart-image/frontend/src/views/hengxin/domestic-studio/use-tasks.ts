@@ -36,21 +36,16 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
     loading.value = !background || !(current.id ? task.value : list.value)
     try {
       if (current.id) {
-        if (current.management) {
-          const value = await api.managedDetail(current.id, signal)
+        if (!current.management && task.value?.ownerId === current.actor && task.value.deletionStatus) {
+          const receipt = await api.deletion(current.id, signal)
           if (token !== epoch) return
-          managed.value = value; task.value = value.task
-        } else {
-          if (task.value?.deletionStatus) {
-            const receipt = await api.deletion(current.id, signal)
-            if (token !== epoch) return
-            if (receipt.status === 'deleted') { clear(); removed(); return }
-          }
-          const value = await api.detail(current.id, signal)
-          if (token !== epoch) return
-          if (value.workspace !== current.workspace) throw Error('任务不属于当前业务，请从原业务菜单进入。')
-          task.value = value
+          if (receipt.status === 'deleted') { clear(); removed(); return }
         }
+        const value = current.management ? await api.managedDetail(current.id, signal)
+          : await api.detail(current.id, current.workspace, signal)
+        if (token !== epoch) return
+        managed.value = current.management || value.task.ownerId !== current.actor ? value : undefined
+        task.value = value.task
       } else {
         const value = await api.list({ ...filters, workspace: current.management ? filters.workspace : current.workspace }, current.management, signal)
         if (token !== epoch) return
@@ -66,7 +61,7 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
   }
   const refresh = () => refreshData()
   async function run(operation: Operation) {
-    if (busy.value || context().management || denied.value) return false
+    if (busy.value || context().management || denied.value || (context().id && managed.value)) return false
     const owner = scope(), originalId = context().id
     busy.value = true; error.value = ''; save(operation)
     try {
@@ -114,7 +109,7 @@ export function useTasks(context: () => Context, entered: (task: DomesticTask) =
   onScopeDispose(() => { alive = false; ++epoch; controller?.abort(); clearInterval(timer); unsubscribe(); clear() })
   return { filters, list, task, managed, loading, busy, error, notice, denied, pending, autoSync, lastSuccess, refresh, reset, failure,
     create: (name: string) => pending.value ? Promise.resolve(false) : run({ kind: 'create', name, workspace: context().workspace, key: randomUUID() }),
-    update: (value: DomesticTask, changes: { name?: string; completed?: boolean }) => pending.value ? Promise.resolve(false) : run({ kind: 'update', id: value.id, version: value.version, ...changes, key: randomUUID() }),
-    remove: (value: DomesticTask) => pending.value ? Promise.resolve(false) : run({ kind: 'delete', id: value.id, version: value.version, key: randomUUID() }),
+    update: (value: DomesticTask, changes: { name?: string; completed?: boolean }) => pending.value || value.ownerId !== context().actor ? Promise.resolve(false) : run({ kind: 'update', id: value.id, version: value.version, ...changes, key: randomUUID() }),
+    remove: (value: DomesticTask) => pending.value || value.ownerId !== context().actor ? Promise.resolve(false) : run({ kind: 'delete', id: value.id, version: value.version, key: randomUUID() }),
     retry: () => pending.value && run(pending.value) }
 }

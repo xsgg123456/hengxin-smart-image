@@ -20,7 +20,7 @@ const task = (id = 'task-a'): DomesticTask => ({ id, name: `设计任务${id}`, 
 const listing = (id = 'task-a'): TaskList => ({ items: [task(id)], total: 1, page: 1, pageSize: 20, counters: { total: 1, active: 1, completed: 0 } })
 const studio = (): Studio => ({ taskId: 'task-a', taskVersion: 1, archiveId: null, reopened: false, completed: false, turns: [], materials: [], skills: [], fixedSkillReady: false, activeTurnId: null, conversationId: null, conversations: [], activeConversationCount: 0, maxConversations: 10 })
 function fakeApi(overrides: Partial<ReturnType<typeof createDomesticTasksApi>> = {}) {
-  return { list: async () => listing(), detail: async (id: string) => task(id), managedDetail: async (id: string) => ({ task: task(id), sessions: [] }),
+  return { list: async () => listing(), detail: async (id: string) => ({ task: task(id), sessions: [] }), managedDetail: async (id: string) => ({ task: task(id), sessions: [] }),
     create: async () => task(), update: async () => task(), remove: async () => ({ status: 'deleting' as const }), deletion: async () => ({ status: 'deleted' as const }), ...overrides }
 }
 
@@ -59,7 +59,7 @@ test('任务切换与筛选的迟到响应不能覆盖新任务，返回保留�
   session.clear()
   const held = deferred<DomesticTask>(), oldList = deferred<TaskList>()
   const context = reactive({ actor: 'owner', workspace: 'camera', management: false, id: 'task-a' })
-  const scope = effectScope(), state = scope.run(() => useTasks(() => context, () => {}, () => {}, fakeApi({ detail: async id => id === 'task-a' ? held.promise : task(id), list: async filters => filters.search === 'old' ? oldList.promise : listing(filters.search) })))!
+  const scope = effectScope(), state = scope.run(() => useTasks(() => context, () => {}, () => {}, fakeApi({ detail: async id => ({ task: id === 'task-a' ? await held.promise : task(id), sessions: [] }), list: async filters => filters.search === 'old' ? oldList.promise : listing(filters.search) })))!
   try {
     context.id = 'task-b'; await flush(); held.resolve(task('task-a')); await flush()
     assert.equal(state.task.value?.id, 'task-b')
@@ -89,7 +89,7 @@ test('未知创建保留原请求和键，阻止重复创建，刷新后以原�
 test('任务删除只在实际清理回执deleted后返回，删除失败保留任务和错误', async () => {
   session.clear(); let removed = 0, receipt: 'deleting' | 'delete_failed' | 'deleted' = 'delete_failed'
   const deleting = { ...task(), deletionStatus: 'delete_failed' as const, deletionError: '文件暂不可用' }
-  const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'owner', workspace: 'camera', management: false, id: 'task-a' }), () => {}, () => { removed++ }, fakeApi({ detail: async () => deleting, deletion: async () => ({ status: receipt }), remove: async () => ({ status: 'delete_failed', error: '文件暂不可用' }) })))!
+  const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'owner', workspace: 'camera', management: false, id: 'task-a' }), () => {}, () => { removed++ }, fakeApi({ detail: async () => ({ task: deleting, sessions: [] }), deletion: async () => ({ status: receipt }), remove: async () => ({ status: 'delete_failed', error: '文件暂不可用' }) })))!
   try { await flush(); await state.remove(deleting); await flush(); assert.equal(removed, 0); assert.equal(state.task.value?.deletionError, '文件暂不可用'); receipt = 'deleted'; await state.refresh(); assert.equal(removed, 1) }
   finally { scope.stop() }
 })
@@ -129,8 +129,8 @@ for (const management of [false, true]) for (const id of ['', 'task-a']) {
     t.mock.timers.enable({ apis: ['setInterval'] }); session.clear()
     const requests: { value: ReturnType<typeof deferred<any>>; signal?: AbortSignal }[] = []
     const request = (signal?: AbortSignal) => { const value = deferred<any>(); requests.push({ value, signal }); return value.promise }
-    const response = (name: string) => id ? management ? { task: { ...task(id), name }, sessions: [] } : { ...task(id), name } : { ...listing(), items: [{ ...task(), name }] }
-    const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'owner', workspace: management ? '' : 'camera', management, id }), () => {}, () => {}, fakeApi({ list: async (_filters, _management, signal) => request(signal), detail: async (_id, signal) => request(signal), managedDetail: async (_id, signal) => request(signal) })))!
+    const response = (name: string) => id ? { task: { ...task(id), name }, sessions: [] } : { ...listing(), items: [{ ...task(), name }] }
+    const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'owner', workspace: management ? '' : 'camera', management, id }), () => {}, () => {}, fakeApi({ list: async (_filters, _management, signal) => request(signal), detail: async (_id, _workspace, signal) => request(signal), managedDetail: async (_id, signal) => request(signal) })))!
     const name = () => id ? state.task.value?.name : state.list.value?.items[0].name
     try {
       assert.equal(state.loading.value, true)
@@ -192,10 +192,14 @@ test('零会话不隐式创建，显式新建可用；任何方案执行、上�
   } finally { view.close() }
 })
 
-test('十个业务注册真实成员入口、登录返回地址和管理详情，管理筛选携带相同标识', async () => {
-  assert.equal(domesticWorkspaces.length, 10)
+test('业务菜单按确认顺序注册入口、登录返回地址和管理详情，管理筛选携带相同标识', async () => {
+  assert.deepEqual(domesticWorkspaces.map(item => item.key), [
+    'general', 'camera', 'case', 'film', 'cable', 'earbud', 'accessory', 'edit', 'product', 'scene', 'phone',
+  ])
+  assert.equal(domesticWorkspaces.find(item => item.path === '/new-product/screen-protector')?.title, '所有膜生成')
+  assert.equal(domesticWorkspaces[0].title, '新品通用生成')
   const distinctPaths = new Set(domesticWorkspaces.map(workspace => workspace.path))
-  assert.equal(distinctPaths.size, 10)
+  assert.equal(distinctPaths.size, domesticWorkspaces.length)
   for (const workspace of domesticWorkspaces) {
     const group = routeModules.find(menu => menu.meta.title === workspace.group)!
     const menu = group.children?.find(item => group.path + '/' + item.path === workspace.path)
@@ -214,4 +218,28 @@ test('十个业务注册真实成员入口、登录返回地址和管理详情�
     assert.equal(isManagedTaskDetail({ task: currentTask, sessions: [session] }, currentTask.id), true)
     assert.equal(isManagedTaskDetail({ task: currentTask, sessions: [{ ...session, workspace: 'other' }] }, currentTask.id), false)
   }
+})
+
+test('成员查看他人任务始终使用业务只读详情，不能修改或核实他人删除回执', async () => {
+  session.clear()
+  const peerTask = { ...task(), deletionStatus: 'delete_failed' as const }
+  const calls: string[] = []
+  const api = fakeApi({
+    detail: async (id, workspace) => { calls.push(workspace + '/' + id); return { task: peerTask, sessions: [] } },
+    managedDetail: async () => { throw Error('不能使用管理接口') },
+    deletion: async () => { throw Error('不能查看创建人的删除回执') },
+    update: async () => { throw Error('不能修改他人任务') },
+    remove: async () => { throw Error('不能删除他人任务') }
+  })
+  const scope = effectScope(), state = scope.run(() => useTasks(() => ({ actor: 'peer', workspace: 'camera', management: false, id: peerTask.id }), () => {}, () => {}, api))!
+  try {
+    await flush()
+    assert.equal(state.managed.value?.task.ownerId, 'owner')
+    assert.equal(await state.update(peerTask, { completed: true }), false)
+    assert.equal(await state.remove(peerTask), false)
+    await state.refresh()
+    assert.equal(state.error.value, '')
+    assert.deepEqual(calls, ['camera/task-a', 'camera/task-a'])
+    assert.equal(session.size, 0)
+  } finally { scope.stop() }
 })

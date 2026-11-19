@@ -13,7 +13,7 @@ from app.modules.auth.dev_identity import seed_dev_identity
 from app.modules.auth.permissions import authorize
 from app.resource_models import UserRecord
 from test_api_image_domain import enabled_api
-from files_helpers import files_env, image_bytes
+from files_helpers import files_env, image_bytes, member_env
 
 
 def test_production_guard():
@@ -22,8 +22,8 @@ def test_production_guard():
     assert not Settings().enable_dev_identity
 
 
-def test_auth_me_fixed_identity_ignores_client_headers(files_env, monkeypatch):
-    client, _, _, identity = files_env
+def test_auth_me_fixed_identity_ignores_client_headers(member_env, monkeypatch):
+    client, _, _, identity = member_env
     app.dependency_overrides.pop(get_identity_id)
     monkeypatch.setenv('ENABLE_DEV_IDENTITY', 'true')
     monkeypatch.setenv('DEV_USER_ID', str(identity[0]))

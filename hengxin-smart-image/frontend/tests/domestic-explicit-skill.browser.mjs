@@ -15,16 +15,17 @@ const page = await context.newPage(), errors = [], unexpected = [], sends = [], 
 page.setDefaultTimeout(30000)
 page.on('pageerror', error => errors.push(error.message))
 const entries = [
+  ['general', '/new-product/general', '新品通用生成'],
   ['camera', '/new-product/camera-accessories', '相机配件生成'],
   ['case', '/new-product/phone-case', '手机壳生成'],
-  ['film', '/new-product/screen-protector', '手机膜生成'],
+  ['film', '/new-product/screen-protector', '所有膜生成'],
   ['cable', '/new-product/data-cable', '数据线生成'],
   ['earbud', '/new-product/earbud-case', '耳机保护套生成'],
   ['accessory', '/new-product/creative-accessories', '创意配件生成 (手机挂绳/防水袋/手机支架/平板支架)'],
+  ['edit', '/product-replace/general-edit', '通用修改产品图片'],
   ['product', '/product-replace/product-only', '只换产品'],
   ['scene', '/product-replace/scene-model-product-size', '换场景 / 模特 / 产品 / 修改尺寸'],
   ['phone', '/product-replace/phone-wallpaper-film', '换手机 / 壁纸 / 膜'],
-  ['edit', '/product-replace/general-edit', '通用修改产品图片'],
 ]
 const skill = { id: 'skill-current', name: 'camera-design', displayName: '相机配件电商图片设计规范与产品细节保真技能', description: '仅本轮明确选中才使用' }
 const stamp = '2026-11-13T03:00:00Z'
@@ -78,8 +79,12 @@ await context.route('**/*', async route => {
   if (!path.startsWith('/api/')) return route.continue()
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
   if (path.endsWith('/auth/me')) return json({ id: 'isolated-domestic-user', name: '隔离验收用户', role: 'super_admin', status: 'active' })
-  const taskMatch = path.match(/^\/api\/v1\/domestic-studio\/tasks\/([a-z]+)-task$/)
-  if (taskMatch) { const key = taskMatch[1], entry = entries.find(item => item[0] === key); return json({ id: `${key}-task`, name: entry[2], workspace: key, ownerId: 'isolated-domestic-user', ownerName: '隔离验收用户', version: 1, completed: false, conversationCount: workspaces[key].rows.length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }) }
+  const taskMatch = path.match(/^\/api\/v1\/domestic-studio\/tasks\/([a-z]+)-task\/view\/([a-z]+)$/)
+  if (taskMatch) {
+    const [, key, workspace] = taskMatch, entry = entries.find(item => item[0] === key)
+    if (workspace !== key || !entry) return json({}, 404)
+    return json({ task: { id: `${key}-task`, name: entry[2], workspace: key, ownerId: 'isolated-domestic-user', ownerName: '隔离验收用户', version: 1, completed: false, conversationCount: workspaces[key].rows.length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }, sessions: [] })
+  }
   const match = path.match(/^\/api\/v1\/domestic-studio\/tasks\/([a-z]+)-task\/studio(.*)$/)
   if (!match) { unexpected.push(path); return json({}, 501) }
   const [, key, suffix] = match, w = workspaces[key]
@@ -105,6 +110,12 @@ try {
   for (const [key, path, title] of entries) {
     await page.goto(`${base}/#${path}?task=${key}-task`); await ready()
     await page.getByRole('heading', { name: title, exact: true }).waitFor(); await ready()
+    if (key === 'general' || key === 'edit') {
+      const group = key === 'general' ? '新品生成' : '产品替换'
+      const menu = page.locator('.layout-sidebar .el-sub-menu').filter({ has: page.getByText(group, { exact: true }) })
+      const expected = entries.filter(item => item[1].split('/')[1] === path.split('/')[1]).map(item => item[2])
+      assert.deepEqual(await menu.locator('.el-menu-item .menu-name').allTextContents(), expected)
+    }
     assert.equal(await button('归档到成品库').count(), path.startsWith('/new-product/') ? 1 : 0)
     if (key === 'accessory') {
       const menuLabel = page.locator('.layout-sidebar').getByText(title, { exact: true })
@@ -126,7 +137,7 @@ try {
     assert.equal(sends.at(-1).body.conversationId, `${key}-a`)
     checks.push(`${key}: 默认空白；选中发送；成功清空；下一轮null；历史真实技能标签`)
   }
-  await page.goto(`${base}/#${entries[0][1]}?task=camera-task`); await page.getByRole('heading', { name: entries[0][2], exact: true }).waitFor(); await ready()
+  await page.goto(`${base}/#/new-product/camera-accessories?task=camera-task`); await page.getByRole('heading', { name: '相机配件生成', exact: true }).waitFor(); await ready()
   await input.fill('甲草稿'); await page.locator('.domestic-skill-choice').click(); await choose('方案乙'); await ready()
   assert.equal(await choice().isChecked(), false); await input.fill('乙草稿')
   await choose('方案甲'); await ready(); assert.equal(await input.inputValue(), '甲草稿'); assert.equal(await choice().isChecked(), true)

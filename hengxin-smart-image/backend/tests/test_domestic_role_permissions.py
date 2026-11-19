@@ -5,7 +5,7 @@ from app.modules.auth.dependencies import get_identity_id
 from app.modules.auth.models import RoleAssignmentRecord
 from app.modules.auth.sessions import SESSION_COOKIE, issue_session
 from app.resource_models import UserRecord
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 from membership_helpers import membership_env, overseas, post, decide
 
 

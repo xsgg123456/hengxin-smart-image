@@ -1,3 +1,4 @@
+import { domesticLandingPath } from '../release/navigation'
 import type { AppRouteRecord } from '../types/router'
 import { routeModules } from './modules'
 
@@ -15,11 +16,11 @@ export function isRetiredBusinessPath(path: string) {
 }
 
 export function apiWorkspaceRedirect(path: string, roles: string[] = []) {
-  if (isRetiredBusinessPath(path.split(/[?#]/)[0])) return '/api-image-edits/create'
-  const limited = roles.length === 1 && ['designer', 'operator', 'design_manager'].includes(roles[0])
-  const target = path.replace(/\/$/, '')
-  return limited && businessPaths.has(target) && !['/api-image-edits', '/new-product', '/product-replace', '/product-library'].some(prefix => target === prefix || target.startsWith(prefix + '/'))
-    ? '/api-image-edits/create' : undefined
+  const target = path.split(/[?#]/)[0].replace(/\/$/, '')
+  const admin = roles.includes('super_admin')
+  if (isRetiredBusinessPath(target)) return admin ? '/api-image-edits/create' : domesticLandingPath
+  if (!admin && (target === '/api-image-edits' || target.startsWith('/api-image-edits/'))) return domesticLandingPath
+  if (!admin && businessPaths.has(target) && (target === '/management' || target.startsWith('/management/'))) return domesticLandingPath
 }
 
 /** 已知但不在当前角色菜单中的页面显示 403；未知地址仍由原 404 逻辑处理。 */

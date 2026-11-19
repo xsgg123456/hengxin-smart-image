@@ -19,7 +19,7 @@ test('退出进入登录页并保留安全业务返回地址，清除预览参�
   const url = new URL(logoutDestination('https://zhitu.qhhengxin.top/?role=super_admin#/tasks/index?task=123'))
   assert.equal(url.origin, 'https://zhitu.qhhengxin.top')
   assert.equal(url.search, '')
-  assert.equal(url.hash, '#/auth/login?redirect=%2Fapi-image-edits%2Fcreate')
+  assert.equal(url.hash, '#/auth/login?redirect=%2Fnew-product%2Fgeneral')
   assert.equal(new URL(logoutDestination('https://zhitu.qhhengxin.top/#//evil.example')).hash,
-    '#/auth/login?redirect=%2Fapi-image-edits%2Fcreate')
+    '#/auth/login?redirect=%2Fnew-product%2Fgeneral')
 })

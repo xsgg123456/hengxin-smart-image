@@ -19,8 +19,8 @@ test('换号先重走真实VueRouter守卫，完成前不展示旧管理员路�
   router.beforeEach(async to => {
     guardCalls++
     await wait
-    if (!router.hasRoute('api-create')) {
-      router.addRoute({ path: '/api-image-edits/create', name: 'api-create', component: {} })
+    if (!router.hasRoute('general')) {
+      router.addRoute({ path: '/new-product/general', name: 'general', component: {} })
       return { path: to.path, replace: true }
     }
     return true
@@ -35,7 +35,7 @@ test('换号先重走真实VueRouter守卫，完成前不展示旧管理员路�
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(visible, false); assert.equal(finished, false)
   release(); await pending
-  assert.equal(router.currentRoute.value.name, 'api-create')
+  assert.equal(router.currentRoute.value.name, 'general')
   assert.equal(router.hasRoute('admin'), false)
   assert.ok(guardCalls >= 2); assert.equal(visible, true); assert.equal(finished, true)
 })

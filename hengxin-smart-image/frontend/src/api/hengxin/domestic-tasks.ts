@@ -1,5 +1,5 @@
 import { createIdentityRequest, record } from '../identity/request'
-import { isManagedSession, type ManagedSession } from './workspace-sessions'
+import { isManagedSession, taskViewBase, type ManagedSession } from './workspace-sessions'
 import { isWorkspaceKey, type WorkspaceKey } from '../shared/domestic-workspace-keys'
 
 export interface DomesticTask {
@@ -45,7 +45,7 @@ export function createDomesticTasksApi(fetcher: typeof fetch = fetch) {
   const deletion = (value: unknown): value is TaskDeletion => record(value) && ['deleting', 'delete_failed', 'deleted'].includes(String(value.status)) && (value.error == null || typeof value.error === 'string')
   return {
     list: (filters: TaskFilters, management = false, signal?: AbortSignal) => request(signal)(management ? managementRoot : root, isTaskList, undefined, { params: { ...filters } }),
-    detail: (id: string, signal?: AbortSignal) => request(signal)(taskPath(id), (value): value is DomesticTask => isDomesticTask(value) && value.id === id),
+    detail: (id: string, workspace: string, signal?: AbortSignal) => request(signal)(taskViewBase(id, workspace), (value): value is ManagedTaskDetail => isManagedTaskDetail(value, id) && value.task.workspace === workspace),
     managedDetail: (id: string, signal?: AbortSignal) => request(signal)(`${managementRoot}/${encodeURIComponent(id)}`, (value): value is ManagedTaskDetail => isManagedTaskDetail(value, id)),
     create: (body: { name: string; workspace: string }, key: string) => request()(root, isDomesticTask, body, { idempotencyKey: key }),
     update: (id: string, body: { version: number; name?: string; completed?: boolean }, key: string) => request()(taskPath(id), isDomesticTask, body, { method: 'PATCH', idempotencyKey: key }),

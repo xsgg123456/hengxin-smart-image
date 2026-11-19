@@ -1,4 +1,5 @@
 export type ReleaseScope = 'domestic' | 'overseas' | 'shared'
+export const domesticLandingPath = '/new-product/general'
 type EntryLocation = Pick<Location, 'pathname' | 'search' | 'hash'>
 
 export function isIndependentRelease(): boolean {
@@ -18,7 +19,7 @@ export function entryDestination(scope: ReleaseScope, location: EntryLocation): 
   else if (path === '#/overseas' || path.startsWith('#/overseas/')) target = 'overseas'
   else if (path && path !== '#/') target = 'domestic'
   const hash = location.hash && location.hash !== '#/' ? location.hash
-    : target === 'overseas' ? '#/overseas/tasks' : target === 'domestic' ? '#/api-image-edits/create' : '#/auth/business'
+    : target === 'overseas' ? '#/overseas/tasks' : target === 'domestic' ? `#${domesticLandingPath}` : '#/auth/business'
   const destination = `/${target}/${location.search}${hash}`
   return destination === `${location.pathname}${location.search}${location.hash}` ? undefined : destination
 }

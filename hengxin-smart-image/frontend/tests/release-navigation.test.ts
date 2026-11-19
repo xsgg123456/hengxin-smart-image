@@ -15,7 +15,7 @@ test('旧根链接按hash分组，原始查询和fragment完整保留且只跳�
 
 test('裸分组入口选择本域默认页，跨组hash进入所属入口', () => {
   assert.equal(entryDestination('shared', new URL('http://localhost/')), '/shared/#/auth/business')
-  assert.equal(entryDestination('domestic', new URL('http://localhost/domestic/')), '/domestic/#/api-image-edits/create')
+  assert.equal(entryDestination('domestic', new URL('http://localhost/domestic/')), '/domestic/#/new-product/general')
   assert.equal(entryDestination('overseas', new URL('http://localhost/overseas/')), '/overseas/#/overseas/tasks')
   assert.equal(entryDestination('domestic', new URL('http://localhost/domestic/#/auth/login?redirect=%2Fx')), '/shared/#/auth/login?redirect=%2Fx')
   assert.equal(entryDestination('shared', new URL('http://localhost/shared/#/overseas/tasks')), '/overseas/#/overseas/tasks')

@@ -6,7 +6,7 @@ import { domesticWorkspaces } from '../src/api/hengxin/domestic-workspaces'
 import { click, compile, find, flush, mount, text, update } from './membership-test-harness'
 import { liveSkillsComponent, skillCatalogComponent } from './skill-platforms-components'
 
-const empty = (): WorkspaceBindings => ({ camera: null, case: null, film: null, cable: null, earbud: null, accessory: null, product: null, scene: null, phone: null, edit: null })
+const empty = (): WorkspaceBindings => ({ general: null, camera: null, case: null, film: null, cable: null, earbud: null, accessory: null, edit: null, product: null, scene: null, phone: null })
 const skill = { id: 'a', name: 'camera', displayName: '相机技能', description: '测试', enabled: true, version: 1, platforms: [] }
 const component = compile('views/hengxin/admin/DomesticStudioBindings.vue', {
   '@/api/identity/request': { IdentityError },
@@ -36,7 +36,7 @@ test('国内管理客户端使用国内路径，校验响应并发送来源标�
   await assert.rejects(createDomesticStudioSkillsApi(async () => Response.json({ bindings: { camera: null } })).getBindings(), IdentityError)
 })
 
-test('十个绑定可保存、清空，加载失败不会伪造默认 Skill', async () => {
+test('全部工作台绑定可保存、清空，加载失败不会伪造默认 Skill', async () => {
   let saved = empty(), writes = 0, fail = false
   const api = {
     getBindings: async () => { if (fail) throw Error('目录不可用'); return { bindings: { ...saved } } },
@@ -50,7 +50,7 @@ test('十个绑定可保存、清空，加载失败不会伪造默认 Skill', as
     await flush()
     const button = find(view.root, 'ElButton')
     assert.equal(text(button), '保存绑定'); (button.props.onClick as () => void)(); await flush()
-    assert.equal(writes, 1); assert.deepEqual(Object.values(saved), Array(10).fill('a'))
+    assert.equal(writes, 1); assert.deepEqual(Object.values(saved), Array(domesticWorkspaces.length).fill('a'))
     update(selector, null); await flush(); (button.props.onClick as () => void)(); await flush()
     assert.equal(writes, 2); assert.equal(saved.camera, null)
   } finally { view.close() }

@@ -55,7 +55,7 @@ const reset = () => { authenticated = true; domesticValid = true; overseasValid 
 const freshEntry = async path => { await page.goto('about:blank'); await page.goto(`${base}${path}`) }
 try {
   for (const [scope, defaultHash] of [
-    ['domestic', '#/api-image-edits/create'],
+    ['domestic', '#/new-product/general'],
     ['overseas', '#/overseas/tasks'],
     ['shared', '#/auth/business'],
   ]) {
@@ -108,7 +108,7 @@ try {
   await button('切换业务').waitFor()
   assert.equal(new URL(page.url()).pathname, '/domestic/')
   assert.equal(new URL(page.url()).search, '?source=legacy')
-  assert.equal(new URL(page.url()).hash, '#/api-image-edits/records?record=fixture')
+  assert.equal(new URL(page.url()).hash, '#/new-product/general')
   await button('退出登录').click()
   await button('钉钉登录').waitFor()
   assert.equal(new URL(page.url()).pathname, '/shared/')

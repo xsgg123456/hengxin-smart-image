@@ -20,7 +20,7 @@ const routes = {
   camera: '/new-product/camera-accessories', case: '/new-product/phone-case',
   product: '/product-replace/product-only', scene: '/product-replace/scene-model-product-size', phone: '/product-replace/phone-wallpaper-film',
   film: '/new-product/screen-protector', cable: '/new-product/data-cable', earbud: '/new-product/earbud-case',
-  accessory: '/new-product/creative-accessories', edit: '/product-replace/general-edit',
+  accessory: '/new-product/creative-accessories', edit: '/product-replace/general-edit', general: '/new-product/general',
 }
 const keys = Object.keys(routes)
 const states = ['running', 'queued', 'succeeded', 'failed', 'empty', 'cancelled', 'unknown']
@@ -29,6 +29,7 @@ const taskRoot = '/api/v1/management/domestic-studio/tasks'
 const tasks = Array.from({ length: 21 }, (_, index) => ({ id: `task-${index}`, name: `验收任务 ${index}`, ownerId: rows[index].ownerId, ownerName: rows[index].ownerName, workspace: rows[index].workspace, version: 1, completed: index % 3 === 0, conversationCount: rows.filter(row => row.taskId === `task-${index}`).length, activeConversationCount: 0, createdAt: stamp, updatedAt: stamp, deletionStatus: null, deletionError: null }))
 const file = (id, kind, name, type) => ({ id: `${kind === 'files' ? 'upload:' : ''}${id}`, name, contentType: type, sizeBytes: 12, url: `${root}/session-0/${kind}/${id}/content`, ...(kind === 'files' ? { source: 'upload' } : {}) })
 const picture = { ...file('picture-a', 'pictures', '已保存图片.png', 'image/png'), width: 1, height: 1, turnId: 'turn-session-0', sku: null, archived: false }
+let viewer = { id: 'member-b', name: '真实成员乙', role: 'operator', status: 'active' }
 let longContent = false
 let failure = 0, revision = 0, held, release, deleted = false, authStatus = 200, authDelay = 0, authChecks = 0
 const slowPaths = new Set()
@@ -47,7 +48,7 @@ await context.route('**/*', async route => {
   if (path.endsWith('/auth/me')) {
     authChecks++
     if (authDelay) await new Promise(resolve => setTimeout(resolve, authDelay))
-    return json({ id: 'admin', name: '隔离管理员', role: 'super_admin', status: 'active' }, authStatus)
+    return json(viewer, authStatus)
   }
   calls.push({ method: request.method(), path, query: url.search })
   if (slowPaths.has(path)) await new Promise(resolve => setTimeout(resolve, 800))
@@ -59,7 +60,13 @@ await context.route('**/*', async route => {
     return json({ items: filtered.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), total: filtered.length, page: pageNumber, pageSize, counters: { total: all.length, active: all.filter(item => !item.completed).length, completed: all.filter(item => item.completed).length }, members })
   }
   if (path.startsWith(taskRoot + '/')) { const task = tasks.find(item => path === `${taskRoot}/${item.id}`); return task ? json({ task, sessions: rows.filter(row => row.taskId === task.id) }) : json({}, 404) }
-  if (!path.startsWith(root)) { unexpected.push(path); return json({}, 501) }
+  const shared = path.match(/^\/api\/v1\/domestic-studio\/tasks\/([^/]+)\/view\/([^/]+)(?:\/sessions(\/.*))?$/)
+  if (shared && !shared[3]) {
+    const task = tasks.find(row => row.id === shared[1] && row.workspace === shared[2])
+    return task ? json({ task, sessions: rows.filter(row => row.taskId === task.id) }) : json({}, 404)
+  }
+  const sessionRoot = shared ? path.slice(0, -shared[3].length) : root
+  if (!path.startsWith(sessionRoot)) { unexpected.push(path); return json({}, 501) }
   if (path === root) {
     const q = url.searchParams
     let items = rows.filter(item => (!q.get('ownerId') || item.ownerId === q.get('ownerId')) && (!q.get('workspace') || item.workspace === q.get('workspace')) && (!q.get('status') || item.status === q.get('status')) && item.name.includes(q.get('search') || ''))
@@ -68,9 +75,9 @@ await context.route('**/*', async route => {
     items = items.slice((pageNumber - 1) * pageSize, pageNumber * pageSize)
     return json({ items, total, page: pageNumber, pageSize, counters, members })
   }
-  const [, id, tail] = path.slice(root.length).match(/^\/([^/]+)(.*)$/) || []
+  const [, id, tail] = path.slice(sessionRoot.length).match(/^\/([^/]+)(.*)$/) || []
   if (deleted) return json({}, 404)
-  if (!tail) { if (held === id) await new Promise(resolve => { release = resolve }); return json(snapshot(id)) }
+  if (!tail) { if (held === id) await new Promise(resolve => { release = resolve }); return json(shared ? JSON.parse(JSON.stringify(snapshot(id)).replaceAll(root, sessionRoot)) : snapshot(id)) }
   if (tail === '/transcript') {
     const after = Number(url.searchParams.get('after') || 0)
     return json({ items: after < revision + 1 ? [{ id: revision + 1, itemId: 'process', turnId: `turn-${id}`, kind: 'tool', text: revision ? '新公开执行进度' : '公开执行过程', state: 'running', createdAt: stamp }] : [], cursor: revision + 1, hasMore: false })
@@ -154,6 +161,28 @@ async function switchBrowserTab(label, content) {
   checks.push(`${label}: 隐藏/恢复事件、重验前遮蔽、成功恢复内容与同步设置`)
 }
 try {
+  tasks.push({ ...tasks[0], id: 'own-task', name: '本人任务', ownerId: viewer.id, ownerName: viewer.name })
+  await page.goto(`${base}/#${routes.camera}`)
+  const own = page.getByRole('row').filter({ hasText: '本人任务' })
+  const peer = page.getByRole('row').filter({ has: page.getByRole('button', { name: '验收任务 0', exact: true }) })
+  await own.getByRole('button', { name: '进入任务' }).waitFor()
+  assert.equal(await own.getByLabel('更多任务操作').count(), 1)
+  assert.equal(await peer.getByLabel('更多任务操作').count(), 0)
+  await peer.getByRole('button', { name: '只读查看' }).click()
+  await waitName(0)
+  assert.equal(await page.getByRole('button', { name: /^(标记任务完成|重新打开任务|发送|归档到成品库)$/ }).count(), 0)
+  assert.equal(await page.locator('.wm-readonly').innerText(), '◇ 只读查看 · 无法代发消息或修改用户内容')
+  await page.getByRole('button', { name: '附件与结果', exact: true }).click()
+  await page.getByRole('tab', { name: '生成结果' }).click()
+  await page.getByRole('dialog').getByText('已保存图片.png', { exact: true }).first().waitFor()
+  await page.keyboard.press('Escape')
+  await page.screenshot({ path: resolve(output, 'member-shared-task.png'), fullPage: true })
+  assert.ok(calls.some(item => item.path.includes('/view/camera/sessions/session-0/pictures/')))
+  assert.ok(calls.every(item => item.method === 'GET' && !item.path.startsWith('/api/v1/management/') && !item.path.endsWith('/studio')))
+  checks.push('同业务本人可操作，其他成员进入只读工作台、查看对话及结果，全部请求为业务 GET')
+  tasks.pop()
+  viewer = { id: 'admin', name: '隔离管理员', role: 'super_admin', status: 'active' }
+  await page.goto('about:blank')
   {
     for (const [key, route] of Object.entries(routes)) {
       await page.goto(`${base}/#${route}`)

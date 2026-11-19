@@ -71,12 +71,21 @@ class MemoryStore:
 
 @pytest.fixture
 def files_env():
+    yield from _isolated_files_env('super_admin')
+
+
+@pytest.fixture
+def member_env():
+    yield from _isolated_files_env('operator')
+
+
+def _isolated_files_env(role):
     engine = create_engine('sqlite://', connect_args={'check_same_thread': False},
                            poolclass=StaticPool)
     Base.metadata.create_all(engine)
     factory = sessionmaker(engine, expire_on_commit=False)
     with factory.begin() as session:
-        user = UserRecord(id=uuid4(), name='测试操作者', role='operator', status='active',
+        user = UserRecord(id=uuid4(), name='测试操作者', role=role, status='active',
                           identity_source='development')
         session.add(user)
     identity = [user.id]

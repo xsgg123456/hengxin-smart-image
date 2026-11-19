@@ -23,7 +23,7 @@ from app.overseas.management import skill_publication as shared_publication, ins
 from app.overseas.management.skill_publisher import create_app
 from app.overseas.management.skill_transfer_store import TransferStore, atomic_json
 from app.resource_models import UserRecord
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 from test_skill_initialization_recovery import CRASH
 
 ROOT = '/api/v1/management/domestic-studio'

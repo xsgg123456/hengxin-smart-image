@@ -108,9 +108,45 @@ def test_input_validation(files_env, change):
 
 
 def test_disabled_channel_and_admin_permission(files_env, monkeypatch):
-    client, _, _, _ = files_env
+    client, factory, _, identity = files_env
     monkeypatch.setenv('API_IMAGE_ENABLED', 'false')
     get_api_settings.cache_clear()
     assert client.get(ROOT + '/status').json()['enabled'] is False
     assert client.post(ROOT + '/files', files={'file': ('x.png', image_bytes())}).status_code == 503
+    with factory.begin() as session:
+        session.get(UserRecord, identity[0]).role = 'designer'
     assert client.post(ROOT + '/channel/resume').status_code == 403
+
+
+@pytest.mark.parametrize('role', ['designer', 'operator', 'design_manager'])
+def test_live_downgrade_denies_every_api_edit_entry_even_own_history(files_env, role, monkeypatch):
+    from app.modules.api_image_edits import conversation_router
+
+    client, factory, _, identity = files_env
+    monkeypatch.setattr(conversation_router, 'session_factory', lambda: factory)
+    task_id, payload = create(client, count=1)
+    task = f'{ROOT}/tasks/{task_id}'
+    item_id = client.get(task).json()['items'][0]['id']
+    item = f'{task}/items/{item_id}'
+    file = f"{ROOT}/files/{payload['materialFileId']}"
+    turn = f'{item}/conversation/turns/{uuid4()}'
+    with factory.begin() as session:
+        session.get(UserRecord, identity[0]).role = role
+
+    assert client.get('/api/v1/auth/me').json()['role'] == role
+    for path in [ROOT + '/status', ROOT + '/tasks', ROOT + '/creators', task, task + '/deletion',
+                 task + '/zip', file, file + '/content', file + '/content?variant=256',
+                 file + '/content?download=true', item + '/conversation', item + '/conversation/events']:
+        assert client.get(path).status_code == 403, path
+    assert client.head(file + '/content').status_code == 403
+    assert client.delete(file).status_code == 403
+    assert client.delete(task).status_code == 403
+    assert client.post(ROOT + '/files', files={'file': ('x.png', image_bytes())}).status_code == 403
+    for path, data in [
+        (ROOT + '/tasks', payload), (ROOT + '/channel/resume', None), (task + '/retry', None),
+        (item + '/retry', None), (item + '/stop', None), (item + '/restore', {'version': 1}),
+        (item + '/revise', {'baseVersion': 1, 'text': '修改'}),
+        (item + '/conversation/turns', {'baseVersion': 1, 'text': '修改'}),
+        (turn + '/stop', None), (turn + '/adopt', {'baseVersion': 1}),
+    ]:
+        assert client.post(path, json=data, headers={'Idempotency-Key': str(uuid4())}).status_code == 403, path

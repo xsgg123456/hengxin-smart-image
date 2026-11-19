@@ -2,8 +2,8 @@
 from types import MappingProxyType
 from typing import Literal, get_args
 
-NewProduct = Literal['camera', 'case', 'film', 'cable', 'earbud', 'accessory']
-Replacement = Literal['product', 'scene', 'phone', 'edit']
+NewProduct = Literal['general', 'camera', 'case', 'film', 'cable', 'earbud', 'accessory']
+Replacement = Literal['edit', 'product', 'scene', 'phone']
 WorkspaceName = NewProduct | Replacement
 
 ARCHIVE_WORKSPACES = get_args(NewProduct)

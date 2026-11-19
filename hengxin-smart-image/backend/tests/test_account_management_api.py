@@ -5,7 +5,7 @@ from app.account_management import client as broker
 from app.core.config import get_settings
 from app.modules.auth.sessions import issue_session
 from app.resource_models import UserRecord
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 from test_overseas_auth import overseas, login, seed
 from app.overseas.auth.models import Member, MemberRole
 from sqlalchemy import select

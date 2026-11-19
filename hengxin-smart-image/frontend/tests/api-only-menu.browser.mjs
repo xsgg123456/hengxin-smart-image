@@ -7,33 +7,39 @@ await mkdir('../../output/playwright/api-only-menu', { recursive: true })
 try {
  for (const role of ['designer','operator','design_manager','super_admin']) {
   const context = await browser.newContext(), page = await context.newPage()
+  let currentRole = role
+  const requests = []
   await context.route('**/*', async route => {
    const u = new URL(route.request().url())
    if(u.origin !== new URL(base).origin) return route.abort()
    if(!u.pathname.startsWith('/api/')) return route.continue()
+   requests.push(u.pathname)
+   if(currentRole !== 'super_admin' && u.pathname.includes('/api-image-edits/')) return route.fulfill({status:403,contentType:'application/json',body:'{}'})
    let body = {}
-   if(u.pathname.endsWith('/auth/me')) body = {id:'menu-user',name:'菜单测试',role,status:'active'}
+   if(u.pathname.endsWith('/auth/me')) body = {id:'menu-user',name:'菜单测试',role:currentRole,status:'active'}
    else if(u.pathname.endsWith('/status')) body = {enabled:true,paused:false,reason:null}
    else if(u.pathname.endsWith('/tasks')) body = {items:[],total:0,page:1,pageSize:20}
    return route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
   })
   await page.goto(base+'#/api-image-edits/records')
-  await page.getByRole('heading',{name:'换图记录',exact:true}).waitFor()
   const limited = role !== 'super_admin'
+  const title = limited ? '新品通用生成' : '换图记录'
+  await page.getByRole('heading',{name:title,exact:true}).waitFor()
   const menu = page.locator('.el-menu').first()
-  for(const name of ['图片处理','任务中心','模板库','Skill 管理']) {
+  for(const name of ['图片处理','模板库','Skill 管理']) {
    assert.equal(await menu.getByText(name,{exact:true}).count(),0,`${role} ${name}`)
   }
-  assert.equal(await menu.getByText('API 换套图',{exact:true}).count(),1)
+  assert.equal(await menu.getByText('API 换套图',{exact:true}).count(),limited ? 0 : 1)
   assert.equal(await menu.getByText('成品库',{exact:true}).count(),1)
   assert.equal(await menu.getByText('管理中心',{exact:true}).count(),limited ? 0 : 1)
   {
-   await page.evaluate(() => {
+   await page.evaluate(limited => {
     const key = Object.keys(localStorage).find(k=>k.includes('worktab'))
     if(!key) throw new Error('Missing persisted worktab')
     const data = JSON.parse(localStorage.getItem(key))
-    data.opened.push({path:'/tasks/index',name:'HxtasksPage',title:'任务中心',fixedTab:true})
+    data.opened.push({path:'/tasks/index',name:'HxtasksPage',title:'旧任务中心标签',fixedTab:true})
     data.opened.push({path:'/wallpaper/index',title:'旧替换壁纸',fixedTab:true})
+    if(limited) data.opened.push({path:'/api-image-edits/records',name:'HxApiImageRecords',title:'旧换套图记录',fixedTab:true})
     data.current=data.opened.at(-1)
     data.keepAliveExclude=['HxtasksPage','HxAdminskills']
     localStorage.setItem(key,JSON.stringify(data))
@@ -41,25 +47,38 @@ try {
     if(!userKey) throw new Error('Missing persisted user')
     const user = JSON.parse(localStorage.getItem(userKey))
     user.searchHistory = [{path:'/templates/index',name:'HxtemplatesPage',meta:{title:'旧模板入口'}}]
+    if(limited) user.searchHistory.push({path:'/api-image-edits/records?task=old',meta:{title:'旧换套图搜索'}})
     localStorage.setItem(userKey,JSON.stringify(user))
-   })
+   },limited)
    await page.reload()
-   await page.getByRole('heading',{name:'换图记录',exact:true}).waitFor()
-   assert.equal(await page.getByText('任务中心',{exact:true}).count(),0,'旧标签已清理')
+   await page.getByRole('heading',{name:title,exact:true}).waitFor()
+   assert.equal(await page.getByText('旧换套图记录',{exact:true}).count(),0)
+   assert.equal(await page.getByText('旧任务中心标签',{exact:true}).count(),0,'旧标签已清理')
    assert.equal(await page.getByText('旧替换壁纸',{exact:true}).count(),0,'旧别名固定标签已清理')
    await page.keyboard.press('Control+k')
    await page.getByRole('dialog').waitFor()
    assert.equal(await page.getByText('旧模板入口',{exact:true}).count(),0,'旧搜索历史已清理')
+   assert.equal(await page.getByText('旧换套图搜索',{exact:true}).count(),0)
    await page.keyboard.press('Escape')
    for(const path of ['/image-processing/wallpaper','/tasks/index','/templates/index','/archive/index','/management/skills','/wallpaper/index','/product/index','/text/index','/image-processing','/image-processing/product','/image-processing/text']) {
     if(path === '/management/skills' && !limited) continue
     await page.goto(base+'#'+path)
-    await page.waitForURL('**#/api-image-edits/create')
-    await page.getByRole('heading',{name:'新建换图',exact:true}).waitFor()
+    await page.waitForURL(limited ? '**#/new-product/general' : '**#/api-image-edits/create')
+    await page.getByRole('heading',{name:limited ? '新品通用生成' : '新建换图',exact:true}).waitFor()
    }
   }
+  if(limited) assert.ok(requests.every(path => !path.includes('/api-image-edits/')), '普通身份不发起任何换套图请求')
   await page.waitForTimeout(400)
   await page.screenshot({path:`../../output/playwright/api-only-menu/${role}.png`})
+  if(!limited) {
+   await page.goto(base+'#/api-image-edits/records')
+   await page.getByRole('heading',{name:'换图记录',exact:true}).waitFor()
+   currentRole = 'designer'
+   await page.getByRole('tab',{name:'全部任务',exact:true}).click()
+   await page.getByRole('heading',{name:'新品通用生成',exact:true}).waitFor()
+   assert.equal(await menu.getByText('API 换套图',{exact:true}).count(),0)
+   assert.equal(await page.getByRole('heading',{name:'换图记录',exact:true}).count(),0)
+  }
   await context.close()
  }
  console.log('PASS: 四角色菜单、全部角色旧固定/当前/缓存/搜索标签清理、旧地址及别名落地')

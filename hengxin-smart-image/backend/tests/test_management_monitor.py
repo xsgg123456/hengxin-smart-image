@@ -14,7 +14,7 @@ from app.models import Job, utcnow
 from app.worker.models import WorkerHeartbeat
 from app.resource_models import UserRecord
 from app.worker import health as worker_health
-from files_helpers import files_env
+from files_helpers import member_env as files_env
 
 
 

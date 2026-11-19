@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.contracts import api_usage as c
 from app.db.session import get_session
-from app.modules.auth.dependencies import CurrentUser
+from app.modules.auth.permissions import require_permission
 from app.modules.api_image_edits.models import ApiItem, ApiTask
 from app.modules.management.api_usage_summary import generated_images, generation_type, summarize
 from app.resource_models import UserRecord
@@ -123,5 +123,5 @@ def build_report(session: Session, user: UserRecord, query: c.UsageQuery) -> c.R
 
 
 @router.get('/management/api-usage', response_model=c.Report)
-def usage(query: Annotated[c.UsageQuery, Query()], user: CurrentUser, session: Session = Depends(get_session)):
+def usage(query: Annotated[c.UsageQuery, Query()], user: Annotated[UserRecord, Depends(require_permission('manage_system'))], session: Session = Depends(get_session)):
     return build_report(session, user, query)

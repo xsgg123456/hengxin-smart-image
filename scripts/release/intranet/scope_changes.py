@@ -139,7 +139,7 @@ class Imports:
 
 
 def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False, tasks_maintenance=False,
-          workspaces_maintenance=False):
+          workspaces_maintenance=False, general_maintenance=False):
     """Validate before any single-scope drain or mutation; return changed paths."""
     if scope not in ENTRYPOINTS or mode not in ('frontend', 'full', 'backend'):
         raise RuntimeError('Invalid independent release scope or mode')
@@ -178,8 +178,10 @@ def check(u, before_root, candidate_root, scope, mode, fast_maintenance=False, t
         elif mode == 'backend' and owners == {'domestic', 'overseas'}:
             # The complete backend delta was matched to the reviewed bytes above.
             target_changes.append(name)
-        elif (tasks_maintenance or workspaces_maintenance) and scope == 'domestic' and mode == 'full':
-            if workspaces_maintenance:
+        elif (tasks_maintenance or workspaces_maintenance or general_maintenance) and scope == 'domestic' and mode == 'full':
+            if general_maintenance:
+                from domestic_general_policy import approved_change
+            elif workspaces_maintenance:
                 from domestic_workspaces_policy import approved_change
             else:
                 from domestic_tasks_policy import approved_change

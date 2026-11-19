@@ -21,10 +21,10 @@ def submitted_upload_ids(session, channel_id):
         for value in snapshot.get('attachmentIds', [])}
 
 
-def file_dto(row, channel_id, kind):
+def file_dto(row, channel_id, kind, root):
     data = dict(id=('upload:' if kind == 'files' else '') + str(row.id), name=row.name,
         contentType=row.content_type, sizeBytes=row.size_bytes,
-        url=f'{ROOT}/{channel_id}/{kind}/{row.id}/content')
+        url=f'{root}/{channel_id}/{kind}/{row.id}/content')
     if kind == 'files':
         data['source'] = 'upload'
     if kind == 'pictures':
@@ -51,28 +51,30 @@ def file_row(session, channel_id, kind, identity):
     return row
 
 
-def references(session, channel, identities, kind):
+def references(session, channel, identities, kind, root):
     result = []
     for value in identities:
         identity = UUID(value.split(':', 1)[-1])
         try:
-            result.append(file_dto(file_row(session, channel.id, kind, identity), channel.id, kind))
+            result.append(file_dto(file_row(session, channel.id, kind, identity), channel.id, kind, root))
         except HTTPException as error:
             if error.status_code != 404:
                 raise
             # Keep the submitted reference visible while access still returns 404.
             missing = dict(id=str(value), name='原文件已不可用', unavailable=True,
-                url=f'{ROOT}/{channel.id}/{kind}/{identity}/content', contentType='', sizeBytes=0)
+                url=f'{root}/{channel.id}/{kind}/{identity}/content', contentType='', sizeBytes=0)
             missing.update(dict(source='upload') if kind == 'files' else
                            dict(width=0, height=0, turnId='', sku=None, archived=False))
             result.append(missing)
     return result
 
 
-def detail(session, channel):
+def detail(session, channel, *, root=ROOT):
     owner = session.get(UserRecord, channel.owner_id)
     summaries = admin_queries.siblings(session, channel.owner_id, task_id=channel.task_id)
-    summary = next(row for row in summaries if row['id'] == str(channel.id))
+    summary = next((row for row in summaries if row['id'] == str(channel.id)), None)
+    if summary is None:
+        raise HTTPException(404, '会话不存在或已删除')
     turns = []
     for turn in session.scalars(select(Turn).where(Turn.conversation_id == channel.id)
                                .order_by(Turn.created_at, Turn.id)):
@@ -89,18 +91,18 @@ def detail(session, channel):
             jobId=str(job.id), jobVersion=turn.version, canRecover=False, recoveryRequested=turn.recovery_requested,
             actor=dict(id=str(channel.owner_id), name=owner.name if owner else None), createdAt=timestamp(turn.created_at),
             replyAt=timestamp(reply_at), replyTimeSource=('message' if message else 'completed') if reply_at else None,
-            attachments=references(session, channel, turn.snapshot.get('attachmentIds', []), 'files'),
-            referencePictures=references(session, channel, turn.snapshot.get('referencePictureIds', []), 'pictures'),
+            attachments=references(session, channel, turn.snapshot.get('attachmentIds', []), 'files', root),
+            referencePictures=references(session, channel, turn.snapshot.get('referencePictureIds', []), 'pictures', root),
             imageEdits=public_edits(turn.snapshot),
-            pictures=[file_dto(row, channel.id, 'pictures') for row in session.scalars(select(Picture)
+            pictures=[file_dto(row, channel.id, 'pictures', root) for row in session.scalars(select(Picture)
                 .where(Picture.turn_id == turn.id).order_by(Picture.created_at, Picture.id))],
-            outputs=[file_dto(row, channel.id, 'outputs') for row in session.scalars(select(OutputFile)
+            outputs=[file_dto(row, channel.id, 'outputs', root) for row in session.scalars(select(OutputFile)
                 .where(OutputFile.turn_id == turn.id).order_by(OutputFile.created_at, OutputFile.id))]))
     workspace = dict(taskId=str(channel.task_id), taskVersion=channel.version, conversationId=str(channel.id),
         maxConversations=10,
         activeConversationCount=sum(bool(row['activeTurnId']) for row in summaries if row['workspace'] == channel.workspace),
         completed=session.get(Task, channel.task_id).completed, reopened=False, archiveId=None, turns=turns, activeTurnId=summary['activeTurnId'],
-        skills=[], fixedSkillReady=False, materials=[file_dto(row, channel.id, 'files')
+        skills=[], fixedSkillReady=False, materials=[file_dto(row, channel.id, 'files', root)
             for row in session.scalars(select(Upload).where(Upload.conversation_id == channel.id,
                 Upload.id.in_(submitted_upload_ids(session, channel.id)),
                 Upload.status == 'ready').order_by(Upload.created_at, Upload.id))])

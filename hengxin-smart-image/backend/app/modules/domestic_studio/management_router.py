@@ -32,6 +32,7 @@ PUBLISH_SOCKET = '/run/hengxin-domestic-skill-publisher/publisher.sock'
 
 class WorkspaceBindings(BaseModel):
     model_config = ConfigDict(extra='forbid')
+    general: SkillId | None
     camera: SkillId | None
     case: SkillId | None
     film: SkillId | None
