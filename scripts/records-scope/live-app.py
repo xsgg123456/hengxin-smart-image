@@ -56,7 +56,7 @@ def seed():
     data = image_bytes()
     with factory.begin() as session:
         for index, name in enumerate(['隔离验收本人', '同名创建人', '同名创建人', '无记录验收账号']):
-            session.add(UserRecord(id=people[index], name=name, role='operator',
+            session.add(UserRecord(id=people[index], name=name, role='super_admin' if index in (0, 3) else 'operator',
                 status='disabled' if index == 2 else 'active', identity_source='development'))
         file = ApiFile(id=UUID(int=501), owner_id=people[0], name='隔离样本.png',
             bucket='qa-memory', object_key='api-image-edits/qa/sample.png', content_type='image/png',

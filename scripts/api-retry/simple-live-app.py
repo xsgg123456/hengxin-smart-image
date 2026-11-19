@@ -48,7 +48,7 @@ Base.metadata.create_all(engine)
 factory = sessionmaker(engine, expire_on_commit=False)
 store = MemoryStore()
 with factory.begin() as session:
-    user = UserRecord(id=uuid4(), name="重试隔离验收", role="operator",
+    user = UserRecord(id=uuid4(), name="重试隔离验收", role="super_admin",
                       status="active", identity_source="development")
     session.add(user)
 
