@@ -1,6 +1,7 @@
 """Durable interlock shared by ordinary publishing and cleanup."""
 import json
 
+import overseas_design_policy as design
 import domestic_general_policy as general
 import domestic_tasks_policy as tasks
 import domestic_workspaces_policy as workspaces
@@ -21,8 +22,8 @@ def read(u, store, name=NAME):
 
 
 def guard(u, store, except_name=None):
-    for transition in (tasks, workspaces, general):
+    for transition in (tasks, workspaces, general, design):
         if transition.MARKER != except_name:
             row = read(u, store, transition.MARKER)
             if row and row['phase'] not in TERMINAL:
-                raise RuntimeError(f'Resolve domestic maintenance using {transition.COMMAND}-recover first')
+                raise RuntimeError(f'Resolve scoped maintenance using {transition.COMMAND}-recover first')

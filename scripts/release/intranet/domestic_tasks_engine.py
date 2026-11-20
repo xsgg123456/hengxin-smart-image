@@ -80,30 +80,50 @@ def backup(u, descriptor):
     return u.digest(report.read_bytes())
 
 
+def wait_database(u, ctx, policy):
+    if getattr(policy, 'SCOPE', 'domestic') == 'overseas':
+        from overseas_design_engine import wait_database as wait_overseas
+        wait_overseas(u)
+    else:
+        fence.wait_database(u, ctx['hengxin-vps-codex-worker'])
+
+
+def backup_digest(u, descriptor, policy):
+    if getattr(policy, 'SCOPE', 'domestic') == 'overseas':
+        return policy.history.backup(u, descriptor)
+    return backup(u, descriptor)
+
+
 def migrate(u, ctx, before, descriptor, policy=tasks_policy):
+    scope = getattr(policy, 'SCOPE', 'domestic')
     fence.assert_held(u, descriptor)
     stopped(u)
-    if (before['schema'].get('domestic') != policy.SOURCE or snapshot.schemas(u) != before['schema']
+    if (before['schema'].get(scope) != policy.SOURCE or snapshot.schemas(u) != before['schema']
             or u.data_identity() != before['data']):
         raise RuntimeError('Schema/data changed before Tasks migration')
-    backup_sha = backup(u, descriptor)
+    backup_sha = backup_digest(u, descriptor, policy)
     row = {'schema': before['schema'], 'data': before['data'], 'target': policy.TARGET,
            'backup_sha256': backup_sha, 'history': policy.history.capture(u), 'phase': 'migrating'}
     engine._save(policy.RECEIPT, row, exclusive=True)
-    worker = dict(ctx['hengxin-vps-codex-worker'])
-    worker['env'] = dict(worker['env'], DOMESTIC_STUDIO_MIGRATION_FENCE='1')
-    u.native_run(worker, module='alembic', args=('upgrade', policy.TARGET),
-                 cwd=str(u.RELEASE / 'backend'), timeout=300, pass_fds=(descriptor,))
+    if scope == 'overseas':
+        from overseas_design_engine import run_migration
+        run_migration(u, ctx['hengxin-overseas-worker'], descriptor, policy)
+    else:
+        worker = dict(ctx['hengxin-vps-codex-worker'])
+        worker['env'] = dict(worker['env'], DOMESTIC_STUDIO_MIGRATION_FENCE='1')
+        u.native_run(worker, module='alembic', args=('upgrade', policy.TARGET),
+                     cwd=str(u.RELEASE / 'backend'), timeout=300, pass_fds=(descriptor,))
     check_migration(u, before, descriptor, policy)
 
 
 def check_migration(u, before, descriptor, policy=tasks_policy):
+    scope = getattr(policy, 'SCOPE', 'domestic')
     row = engine._read(policy.RECEIPT)
-    if (row.get('target') != policy.TARGET or before['schema'].get('domestic') != policy.SOURCE
+    if (row.get('target') != policy.TARGET or before['schema'].get(scope) != policy.SOURCE
             or row.get('schema') != before['schema']
             or row.get('data') != before['data'] or row.get('phase') not in ('migrating', 'migrated')
-            or row.get('backup_sha256') != backup(u, descriptor)
-            or snapshot.schemas(u) != dict(before['schema'], domestic=policy.TARGET)
+            or row.get('backup_sha256') != backup_digest(u, descriptor, policy)
+            or snapshot.schemas(u) != dict(before['schema'], **{scope: policy.TARGET})
             or u.data_identity() != before['data']):
         raise RuntimeError('Tasks migration evidence/schema/data differs')
     if row['phase'] == 'migrating':
@@ -152,7 +172,7 @@ def context(item, descriptor, policy=tasks_policy):
         fence.assert_held(u, descriptor)
         if (u.WORK / policy.RECEIPT).exists():
             state = engine._load_state(engine._read('prepared.json'))
-            fence.wait_database(u, state['ctx']['hengxin-vps-codex-worker'])
+            wait_database(u, state['ctx'], policy)
         if snapshot.schemas(u) != before['schema']:
             u.app_command('stop', u.ENTRIES)
             raise RuntimeError(f'Migration committed or drifted; use {policy.COMMAND}-recover for forward recovery')
@@ -180,7 +200,7 @@ def resume(item, descriptor, policy=tasks_policy):
     engine._quiesce(state)
     engine._phase(state, 'recovering')
     freeze(u)
-    forward.stop_existing(u)
+    forward.stop_existing(u, include_domestic_publisher=getattr(policy, 'SCOPE', 'domestic') == 'domestic')
     stopped(u)
     engine._check(baseline, recovering=True, state=state)
     engine._phase(state, 'switching')

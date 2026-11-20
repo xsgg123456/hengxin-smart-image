@@ -21,6 +21,7 @@ import snapshot
 class Upgrade:
     def __init__(self, store, transition=policy):
         self.policy = transition
+        self.scope = getattr(transition, 'SCOPE', 'domestic')
         self.tool, self.store, self.u = release.Release(store), store, engine.u
 
     def save(self, row, phase):
@@ -36,7 +37,7 @@ class Upgrade:
     def item(self, row):
         data = self.tool.load()
         item = data.get('pending') or row.get('item')
-        if (not item or item.get('scope') != 'domestic' or item.get('mode') != 'full'
+        if (not item or item.get('scope') != self.scope or item.get('mode') != 'full'
                 or item.get('release') != row['release'] or item.get('rollback')):
             raise RuntimeError('Tasks transaction binding differs')
         if row.get('item') and item != row['item']:
@@ -46,7 +47,7 @@ class Upgrade:
 
     @contextmanager
     def configured(self, item, descriptor):
-        with scope_engine.context('domestic', 'full', backend=Path(item['target_backend']),
+        with scope_engine.context(self.scope, 'full', backend=Path(item['target_backend']),
                                   frontend=Path(item['target_frontend']), domestic_publisher=True):
             with migration.context(item, descriptor, self.policy):
                 yield
@@ -56,22 +57,25 @@ class Upgrade:
         data = self.tool.load()
         current = data['current']
         if (data.get('version') != 2 or data.get('pending') or data.get('migration_pending')
-                or current['schema']['domestic'] != self.policy.SOURCE
-                or current['groups']['domestic']['backend_commit'] != self.policy.BASE
+                or current['schema'][self.scope] != self.policy.SOURCE
+                or current['groups'][self.scope]['backend_commit'] != self.policy.BASE
                 or not scopes.has_domestic_publisher(current)):
-            raise RuntimeError(f'Maintenance requires the idle reviewed {self.policy.SOURCE} domestic baseline')
+            raise RuntimeError(f'Maintenance requires the idle reviewed {self.policy.SOURCE} {self.scope} baseline')
         path = snapshot.release_path(path)
         if str(path) not in catalog.check(data)['staged']:
             raise RuntimeError('Tasks candidate must be staged through the release ledger')
-        self.policy.validate(snapshot.manifest(self.u, current['groups']['domestic']['backend']),
+        self.policy.validate(snapshot.manifest(self.u, current['groups'][self.scope]['backend']),
                         snapshot.manifest(self.u, path))
+        if self.scope == 'overseas':
+            from overseas_design_engine import preflight
+            preflight(self.u, path, self.policy)
         row = {'release': str(path), 'before_sha256': catalog.state_sha(current)}
         self.save(row, 'preparing')
         original = scope_changes.check
         def approved(*args, **kwargs):
             return self.policy.check(original, *args, **kwargs)
         with scopes.replace(scope_changes, check=approved):
-            data = self.tool.prepare(path, 'full', 'domestic')
+            data = self.tool.prepare(path, 'full', self.scope)
         row['item'] = copy.deepcopy(data['pending'])
         self.save(row, 'prepared')
         return row
@@ -92,20 +96,22 @@ class Upgrade:
         baseline = engine._read('prepared.json')
         configs = dict(item['before']['configs'])
         configs[str(self.u.COMPOSE)] = baseline['candidate']
-        for name in scopes.NATIVE['domestic']:
+        for name in scopes.NATIVE[self.scope]:
             path = self.u.SYSTEMD / (name + '.service.d') / self.u.DROPIN
             configs[str(path)] = baseline['dropins'][name]
         snapshot.same(configs, after['configs'])
-        expected = dict(item['before'], schema=dict(item['before']['schema'], domestic=self.policy.TARGET))
+        expected = dict(item['before'], schema=dict(item['before']['schema'], **{self.scope: self.policy.TARGET}))
         snapshot.unchanged_runtime(expected, after)
-        for side in ('overseas', 'shared'):
+        for side in scopes.GROUPS:
+            if side == self.scope:
+                continue
             snapshot.same(scope_snapshot.group(item['before'], side), scope_snapshot.group(after, side))
             snapshot.same(item['before']['asset_fallbacks'][side], after['asset_fallbacks'][side])
-        actual = after['groups']['domestic']
+        actual = after['groups'][self.scope]
         if actual['frontend'] != item['release'] or actual['backend'] != item['target_backend']:
             raise RuntimeError('Tasks candidate source is not running')
         scope_snapshot.unchanged_other(item['census'], scope_snapshot.census(
-            self.u, domestic_publisher=True), 'domestic')
+            self.u, domestic_publisher=True), self.scope)
 
     def finish(self):
         row = self.read()
@@ -121,7 +127,7 @@ class Upgrade:
         except BaseException:
             # Candidate entries are already open after engine.apply. A failed
             # verification/ledger write must not continue accepting new jobs.
-            with scope_engine.context('domestic', 'full', domestic_publisher=True):
+            with scope_engine.context(self.scope, 'full', domestic_publisher=True):
                 self.u.app_command('stop', self.u.ENTRIES)
             raise
         self.tool.cleanup(completed, automatic=True)
@@ -185,7 +191,7 @@ class Upgrade:
             raise RuntimeError('Tasks pending ledger disappeared')
         pending = data['pending']
         if row['phase'] == 'preparing' and not Path(pending['work']).exists():
-            if (pending.get('scope') != 'domestic' or pending.get('release') != row['release']
+            if (pending.get('scope') != self.scope or pending.get('release') != row['release']
                     or catalog.state_sha(data['current']) != row['before_sha256']):
                 raise RuntimeError('Tasks preparation binding drift')
             snapshot.same(data['current'], self.tool.capture(data, runtime=True))
@@ -198,13 +204,13 @@ class Upgrade:
             with self.configured(item, descriptor):
                 if (self.u.WORK / self.policy.RECEIPT).exists():
                     state = engine._load_state(engine._read('prepared.json'))
-                    fence.wait_database(self.u, state['ctx']['hengxin-vps-codex-worker'])
+                    migration.wait_database(self.u, state['ctx'], self.policy)
                 schema = snapshot.schemas(self.u)
                 if schema == item['before']['schema']:
                     started = (self.u.WORK / 'started.json').exists()
                     if started:
                         engine.recover()
-                elif schema == dict(item['before']['schema'], domestic=self.policy.TARGET):
+                elif schema == dict(item['before']['schema'], **{self.scope: self.policy.TARGET}):
                     migration.resume(item, descriptor, self.policy)
                     self.save(row, 'forward-required')
                     started = None
@@ -223,8 +229,9 @@ class Upgrade:
 
 
 def run(store, args, transition=policy):
-    if args.scope != 'domestic' or args.mode != 'full':
-        raise RuntimeError('Tasks maintenance requires --scope domestic --mode full')
+    scope = getattr(transition, 'SCOPE', 'domestic')
+    if args.scope != scope or args.mode != 'full':
+        raise RuntimeError(f'Tasks maintenance requires --scope {scope} --mode full')
     marker.guard(engine.u, store, except_name=transition.MARKER)
     tool = Upgrade(store, transition)
     action = args.action.removeprefix(transition.COMMAND + '-')

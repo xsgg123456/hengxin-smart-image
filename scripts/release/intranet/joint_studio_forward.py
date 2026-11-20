@@ -6,7 +6,7 @@ import joint_studio_engine
 import scopes
 
 
-def stop_existing(u):
+def stop_existing(u, *, include_domestic_publisher=True):
     """Stop only the known application services after the existing drain checks."""
     for name in u.NATIVE:
         path = engine._dropin(name).with_name('91-unify-stop.conf')
@@ -21,8 +21,11 @@ def stop_existing(u):
     u.run(['systemctl', 'stop', *u.NATIVE], timeout=110)
     if any(u.prop(name, 'MainPID') != '0' for name in u.NATIVE):
         raise RuntimeError('Native process remains active')
-    services = json.loads(u.COMPOSE.read_bytes())['services']
     names = tuple(name for name in u.APPS if name not in u.ENTRIES)
+    if not include_domestic_publisher:
+        u.app_command('stop', names)
+        return
+    services = json.loads(u.COMPOSE.read_bytes())['services']
     if scopes.DOMESTIC_PUBLISHER in services:
         names = tuple(dict.fromkeys((*names, scopes.DOMESTIC_PUBLISHER)))
     with scopes.replace(u, APPS=tuple(dict.fromkeys((*u.APPS, scopes.DOMESTIC_PUBLISHER)))):

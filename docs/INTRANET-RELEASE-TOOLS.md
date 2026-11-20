@@ -1,5 +1,7 @@
 # 内网生产发布工具
 
+2026-11-20 海外设计与反馈专项涉及海外数据库 `overseas_0026` → `overseas_0028`，并独立切换共享登录页前端。维护基线、命令及恢复路径见[海外设计任务中心与反馈专项发布](OVERSEAS-DESIGN-RELEASE-20261120.md)。
+
 2026-11-19 国内通用新品与任务权限专项已完成。国内前后端 `009a1808f5c4`，前端 0.2.79，schema 0046，内网工具 `acc16ece689edbb7`。本次 `general-prepare/deploy` 已登记成功，勿重跑 0045→0046。详见[发布与恢复记录](DOMESTIC-GENERAL-20261119.md)。
 
 2026-11-18 国内工作台附件网关专项修复已生效，当前内网工具版本 `38e9da8aef2d76ea`，应用仍为下方工作台版本。正式工具通过 `release.py upload-apply`、`upload-rollback` 和 `upload-recover` 管理该网关配置，见 [国内附件发布验收](DOMESTIC-UPLOAD-GATEWAY-20261118.md)。
