@@ -1,0 +1,89 @@
+.dc-page.hx-page{padding:clamp(18px,2.3vw,38px);max-width:1580px;margin:0 auto}
+.dc-title h1{margin:0;font-size:clamp(24px,2.2vw,32px);letter-spacing:-.035em;font-weight:650;line-height:1.4;color:var(--el-text-color-primary)}
+.dc-title p{margin:7px 0 0;font-size:14px;color:var(--el-text-color-secondary)}
+.dc-tabs{display:flex;gap:30px;margin:24px 0;border-bottom:1px solid var(--el-border-color-light)}
+.dc-tabs button{font:inherit;font-weight:550;font-size:15px;padding:0 2px 12px;position:relative;color:var(--el-text-color-secondary);cursor:pointer;background:none;border:0}
+.dc-tabs button[aria-current]{color:var(--el-color-primary)}
+.dc-tabs button[aria-current]:after{position:absolute;content:'';height:3px;left:0;right:0;bottom:-1px;border-radius:4px;background:currentColor}
+.dc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(14px,1.45vw,24px)}
+.dc-card{isolation:isolate;position:relative;display:flex;min-width:0;align-items:flex-start;justify-content:space-between;flex-direction:column;padding:clamp(15px,1.55vw,27px);overflow:hidden;aspect-ratio:1.92;border:0;border-radius:14px;background:transparent;color:var(--card-ink);text-align:left;cursor:pointer;transition:transform .16s}
+.dc-card:hover{transform:translateY(-3px)}
+.dc-card:focus-visible,.dc-tabs button:focus-visible{outline:3px solid var(--el-color-primary);outline-offset:3px}
+.dc-art{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.dc-card{--card-ink:#26221e;--shade:255,253,249}
+.dc-card::before{position:absolute;inset:0;z-index:-1;content:'';background:linear-gradient(90deg,rgba(var(--shade),.76),rgba(var(--shade),.58) 30%,rgba(var(--shade),.2) 54%,transparent 74%);pointer-events:none}
+.fan-scene {display:none}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .dc-card {
+    --photo-scale: 1;
+    --scene-duration: 850ms;
+  }
+  .dc-card:is(:hover, :focus-visible) {
+    --photo-scale: 1.075;
+    --scene-duration: 3s;
+  }
+  .dc-card .dc-art {
+    transform: translateX(var(--track-offset, 0%)) scale(var(--photo-scale));
+    transition: transform var(--scene-duration) ease-in-out;
+  }
+  /* Match the photo's proportions so the glow follows the lamp when the card crops vertically. */
+  .dc-card:where([data-platform="Amazon"], [data-platform="Wayfair"], [data-platform="Mercado Libre"], [data-platform="Walmart"])::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    aspect-ratio: 485 / 253;
+    transform: translateY(-50%) scale(var(--photo-scale));
+    pointer-events: none;
+    background: var(--scene-light);
+    opacity: 0;
+    transition: opacity var(--scene-duration) ease-in-out, transform var(--scene-duration) ease-in-out;
+  }
+  .dc-card[data-platform="Amazon"] {
+    --scene-light:
+      radial-gradient(ellipse 7% 11% at 61.8% 16.6%, #fffce6 14%, rgb(255 242 191 / 74%) 51%, transparent 100%),
+      radial-gradient(ellipse 29% 59% at 62% 22%, rgb(255 230 166 / 82%) 0%, rgb(255 207 116 / 55%) 45%, transparent 100%);
+  }
+  .dc-card[data-platform="Wayfair"] {
+    --scene-light: linear-gradient(132deg, transparent 24%, rgb(255 249 218 / 23%) 33%, rgb(255 248 212 / 70%) 42%, transparent 53%);
+  }
+  .dc-card[data-platform="Wayfair"]::after {
+    background-size: 150% 100%;
+    background-position: 95% center;
+    transition: background-position var(--scene-duration) ease-in-out, opacity var(--scene-duration) ease-in-out, transform var(--scene-duration) ease-in-out;
+  }
+  .dc-card[data-platform="Wayfair"]:is(:hover,:focus-visible)::after {background-position: 20% center;}
+  .dc-card[data-platform="Mercado Libre"] {
+    --scene-light:
+      radial-gradient(ellipse 7% 20% at 55% 46%, #fff6ca 2%, rgb(255 203 111 / 64%) 34%, transparent 100%),
+      radial-gradient(ellipse 10% 24% at 81% 44%, #fff6cb 2%, rgb(255 201 96 / 70%) 30%, transparent 100%),
+      radial-gradient(ellipse 25% 68% at 81% 45%, rgb(255 183 78 / 47%), transparent 100%);
+  }
+  .dc-card[data-platform="Walmart"] {
+    --scene-light:
+      radial-gradient(ellipse 9% 13% at 81% 16%, rgb(255 235 177 / 87%) 10%, rgb(255 219 150 / 49%) 62%, transparent 99%),
+      radial-gradient(ellipse 29% 65% at 83% 20%, rgb(255 214 141 / 62%), transparent 100%);
+  }
+  .dc-card:is(:hover,:focus-visible)::after { opacity: 1; }
+  .dc-custom:is(:hover,:focus-visible) { --track-offset: -3%; --photo-scale: 1.09; }
+  .fan-scene {
+    display: block; position: absolute; width:100%; aspect-ratio:485/253;
+    left:0; top:50%; transform:translateY(-50%) scale(var(--photo-scale)); z-index:-2;
+    pointer-events:none; opacity:0;
+    transition:opacity 300ms ease,transform var(--scene-duration) ease-in-out;
+  }
+  .fan-scene canvas { position:absolute;left:32.02749%;top:8.03689%;width:60.61856%;height:43.87352% }
+  .dc-card:is(:hover,:focus-visible) .fan-scene {opacity:1}
+}
+.dc-custom .dc-card-copy {max-width:63%}
+.dc-custom .dc-card-copy b {letter-spacing:-.035em}
+.dc-card-copy{display:flex;flex-direction:column;gap:5px;max-width:49%}
+.dc-card-copy b{font-family:Arial,Helvetica,sans-serif;font-size:clamp(24px,2.2vw,37px);line-height:1.04;letter-spacing:-.052em;font-weight:700;text-wrap:balance}
+.dc-card-copy>span{font-size:14px;letter-spacing:.04em}
+.dc-card-action{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:550}
+.dc-card-action>span{font-size:17px;line-height:1}
+@media(max-width:1150px){.dc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.dc-grid{grid-template-columns:minmax(0,1fr)}.dc-tabs{margin:18px 0}.dc-card{aspect-ratio:2.35}.dc-card-copy b{font-size:27px}}
+@media(prefers-reduced-motion:reduce){.dc-card{transition:none}.dc-card:hover{transform:none}}

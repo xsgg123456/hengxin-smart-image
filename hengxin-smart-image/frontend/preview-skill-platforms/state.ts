@@ -5,7 +5,7 @@ export interface PreviewSkill extends ManagedSkill { platforms: string[] }
 export const platforms = [
   { value: 'Amazon', label: '亚马逊 / Amazon' }, { value: 'Wayfair', label: '威费尔 / Wayfair' },
   { value: 'Mercado Libre', label: '美客多 / Mercado Libre' }, { value: 'Walmart', label: '沃尔玛 / Walmart' },
-  { value: 'The Home Depot', label: '家得宝 / The Home Depot' }, { value: 'Shopee', label: '虾皮 / Shopee' },
+  { value: 'The Home Depot', label: '家得宝 / The Home Depot' },
 ]
 export const skills = reactive<PreviewSkill[]>(structuredClone(seed))
 export const taskPlatform = ref('Amazon')

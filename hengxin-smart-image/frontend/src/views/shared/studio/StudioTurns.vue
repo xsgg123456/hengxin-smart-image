@@ -1,6 +1,6 @@
 <template>
   <div ref="scroller" class="studio-messages" aria-live="polite" @scroll="trackScroll" @load.capture="followBottom">
-    <div v-if="!turns.length && !hideEmptyGuide" class="studio-empty"><h2>从你的设计需求开始</h2><p>按需选择 Skill，引用任务素材，直接告诉 Codex 你想怎么做。</p></div>
+    <div v-if="!turns.length && !hideEmptyGuide" class="studio-empty"><h2>从你的设计需求开始</h2><p>{{ hideSkillLabels ? '描述想做的图片，也可以上传参考图。' : '按需选择 Skill，引用任务素材，直接告诉 Codex 你想怎么做。' }}</p></div>
     <template v-for="(turn, index) in turns" :key="turn.id">
       <div v-if="index === 0 || turn.conversationId !== turns[index - 1].conversationId" class="studio-conversation-divider">{{ turn.conversationId && turn.conversationId === conversationId ? '当前对话' : '历史对话' }}</div>
       <article class="studio-message user"><div class="studio-message-name">{{ turn.actor?.name?.trim() || '未知操作人' }}<small title="北京时间">{{ formatBeijingTime(turn.createdAt, '时间未记录') }}</small></div><div class="studio-bubble"><ElTag v-if="turn.skillName && !hideSkillLabels">{{ turn.skillName }}</ElTag><p>{{ turn.text }}</p><StudioAttachments :assets="[...turn.attachments, ...turn.referencePictures]" title="本条消息" @failure="$emit('failure', $event)" /><ElButton v-if="turn.imageEdits?.length" text type="primary" @click="history = turn">查看本轮修改材料（{{ turn.imageEdits.length }}张）</ElButton></div></article>

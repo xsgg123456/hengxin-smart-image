@@ -11,10 +11,11 @@ class Task(Timestamps, Base):
     __tablename__ = 'overseas_tasks'
     __table_args__ = (CheckConstraint('version >= 1'),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    name: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(161))
     product_name: Mapped[str] = mapped_column(String(80))
     brand: Mapped[str] = mapped_column(String(60))
     platform: Mapped[str] = mapped_column(String(40))
+    design_type: Mapped[str] = mapped_column(String(20), default='platform', server_default='platform')
     language: Mapped[str | None] = mapped_column(String(2))
     market: Mapped[str] = mapped_column(String(60))
     remarks: Mapped[str] = mapped_column(Text, default='')

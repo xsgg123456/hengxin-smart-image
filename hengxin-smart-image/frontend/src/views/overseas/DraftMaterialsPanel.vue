@@ -1,7 +1,7 @@
 <template>
-  <ElCard class="art-card hx-section" shadow="never">
+  <ElCard class="art-card hx-section" :class="{ compact: direct }" shadow="never">
     <div class="section-heading"><h2>图需资料</h2><ElTag type="info">至少提供一份</ElTag></div>
-    <p class="hx-muted hx-gap">至少上传一份资料，每类支持多份，单份不超过 500 MB。PPT/PPTX 自动归入图片需求文件，其他需求附件归入竞品分析表格。</p>
+    <p v-if="!direct" class="hx-muted hx-gap">至少上传一份资料，每类支持多份，单份不超过 500 MB。PPT/PPTX 自动归入图片需求文件，其他需求附件归入图需参考资料。</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap" />
     <div class="material-grid">
       <div v-for="kind in kinds" :key="kind.key" class="material-card" :data-kind="kind.key">
@@ -21,7 +21,7 @@
         </ElUpload>
       </div>
     </div>
-    <p class="review-notice">提交后先由图需审核，审核通过后才能继续 AI 设计；资料不完整时退回提交人修改。</p>
+    <p v-if="!direct" class="review-notice">提交后先由图需审核，审核通过后才能继续 AI 设计；资料不完整时退回提交人修改。</p>
   </ElCard>
 </template>
 <script setup lang="ts">
@@ -34,9 +34,9 @@ import { IdentityError } from '@/api/identity/request'
 import type { RequirementDraft } from '@/api/overseas/requirement-drafts'
 import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 import AttachmentDownload from './AttachmentDownload.vue'
-const props = defineProps<{ draft: RequirementDraft; api: MaterialsApi; disabled: boolean; change: (operation: 'retry' | 'cancel' | 'remove', id: string) => Promise<unknown>; refresh: () => Promise<unknown> }>()
+const props = defineProps<{ draft: RequirementDraft; api: MaterialsApi; disabled: boolean; direct?: boolean; change: (operation: 'retry' | 'cancel' | 'remove', id: string) => Promise<unknown>; refresh: () => Promise<unknown> }>()
 const emit = defineEmits<{ busy: [value: boolean]; pending: [names: string[]]; failure: [reason: unknown] }>()
-const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '竞品分析表格' }] as const
+const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '图需参考资料' }] as const
 const error = ref(''), changing = ref(false), uploads = ref<{ id: string; file: File; kind: MaterialKind; progress: number; controller: AbortController }[]>([])
 let active = true
 const files = computed(() => {
@@ -71,6 +71,9 @@ async function action(operation: 'retry' | 'remove', file: typeof files.value[nu
 onUnmounted(() => { active = false; for (const file of uploads.value) file.controller.abort(); emit('busy', false) })
 </script>
 <style scoped>
+.compact .material-card { padding: 14px 16px; }
+.compact .material-card :deep(.el-upload-dragger) { padding: 16px 10px; }
+.compact .upload-copy { gap: 4px; }
 h2,h3{font-size:14px}p{overflow-wrap:anywhere;white-space:pre-wrap}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .material-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:20px}.material-card{border:1px solid #e4e7ed;border-radius:10px;padding:18px;min-width:0}.material-card :deep(.el-upload){display:block;width:100%}.material-card :deep(.el-upload-dragger){width:100%;padding:28px 12px;background:#fafbff;margin-top:12px}.upload-copy{display:flex;flex-direction:column;gap:14px;font-size:13px;color:#687891;white-space:normal}.upload-copy strong{font-weight:500}.upload-copy span{font-size:12px;color:#8b98aa}.review-notice{margin-top:20px;padding:16px;border-radius:8px;background:#f4f7ff;color:#7789a8;font-size:13px;line-height:1.8}
 .import-file{margin-top:14px;padding:14px 0;border-bottom:1px solid var(--el-border-color-lighter)}.file-details{display:flex;gap:10px;align-items:flex-start}.file-details>div{min-width:0}.file-symbol{color:var(--el-color-primary);margin-top:3px;flex-shrink:0}.file-name{font-size:13px;line-height:1.6}.file-details .hx-muted{font-size:12px;margin-top:4px}.file-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:12px;flex-wrap:wrap}.file-actions>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.file-ready{color:var(--el-color-success)}.file-failed{color:var(--el-color-danger);overflow-wrap:anywhere}.el-progress{margin-top:12px}

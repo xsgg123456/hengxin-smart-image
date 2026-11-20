@@ -4,5 +4,5 @@
 <script setup lang="ts">
 import type { TaskDetail } from '@/api/overseas/tasks'
 import OverseasArchiveFields from '../OverseasArchiveFields.vue'
-defineProps<{ task: Pick<TaskDetail, 'name' | 'productName' | 'brand' | 'platform' | 'language' | 'skus'> }>()
+defineProps<{ task: Pick<TaskDetail, 'name' | 'productName' | 'brand' | 'platform' | 'language' | 'skus' | 'designType'> }>()
 </script>

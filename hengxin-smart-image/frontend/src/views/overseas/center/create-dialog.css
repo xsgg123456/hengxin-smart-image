@@ -1,0 +1,21 @@
+.el-dialog.dc-create-dialog {
+  width: min(1024px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.dc-create-dialog > .el-dialog__header { flex: none; padding: 19px 28px; border-bottom: 1px solid var(--el-border-color-lighter); }
+.dc-create-dialog .el-dialog__header .el-dialog__title { font-size: 20px; font-weight: 600; }
+.dc-create-dialog .el-dialog__headerbtn { top: 7px; right: 12px; }
+.dc-create-dialog > .el-dialog__body {
+  min-height: 0; overflow: auto; padding: 0 !important;
+  background: var(--el-bg-color-page); overscroll-behavior: contain;
+}
+.dc-form-content { padding: 20px 28px; }
+.dc-form-content .hx-create-grid { grid-template-columns:minmax(0,1fr) }
+.dc-form-content .hx-stack {gap:16px}
+@media(max-width:600px) {
+  .el-dialog.dc-create-dialog {width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
+  .dc-form-content {padding:12px}
+}

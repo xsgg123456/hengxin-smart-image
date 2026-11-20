@@ -9,6 +9,7 @@ from app.execution.workspace import prepare_workspace
 from app.execution.output_collector import snapshot_outputs
 from app.overseas.execution import claims
 from app.overseas.execution.models import Job
+from app.overseas.tasks.models import Task
 from app.storage.minio_store import get_store
 from .models import Conversation, Turn, Picture
 from .files import read
@@ -23,6 +24,12 @@ class StudioProtocol:
             turn = session.get(Turn, UUID(job.payload['turnId']))
             if not turn or turn.job_id != job.id or turn.task_id != job.task_id:
                 raise ValueError('Studio turn ownership mismatch')
+            task = session.get(Task, job.task_id)
+            if not task:
+                raise ValueError('Studio task missing')
+            custom = task.design_type == 'custom'
+            if custom and job.payload.get('skill') is not None:
+                raise ValueError('Custom design cannot execute a frozen Skill')
             conversation = session.get(Conversation, turn.conversation_id)
             if not conversation or conversation.task_id != job.task_id:
                 raise ValueError('Studio conversation ownership mismatch')
@@ -49,6 +56,7 @@ class StudioProtocol:
         if previous and not any((home / 'sessions').rglob(f'*{previous}*')):
             raise ValueError('Original session files missing')
         workspace.previous_session = previous
+        workspace.disable_skills = custom
         workspace.baseline = snapshot_outputs(home, previous) if previous else {}
         from .context_workspace import prepare
         workspace.input_paths = prepare(workspace, history, job.payload['inputs'],
@@ -61,6 +69,8 @@ class StudioProtocol:
     def arguments(self, workspace):
         args = ['exec', '--model', 'gpt-6.2-astra', '-c', 'model_reasoning_effort="high"',
                 '--sandbox', 'workspace-write']
+        if getattr(workspace, 'disable_skills', False):
+            args += ['-c', 'skills.bundled.enabled=false', '-c', 'features.skill_search=false']
         if workspace.previous_session:
             args += ['resume', '--skip-git-repo-check', '--json', workspace.previous_session]
         else:

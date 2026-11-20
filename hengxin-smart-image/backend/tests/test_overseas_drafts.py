@@ -93,10 +93,15 @@ def test_clear_cancels_jobs_rotates_key_and_version(drafts):
     assert client.request('DELETE', DRAFT, json={'version': draft['version']}, headers=HEADERS).status_code == 409
 
 
-def test_upload_and_atomic_consume_retry(drafts):
-    client, _, _, designer, _, _ = drafts
+@pytest.mark.parametrize('direct,manager', [(False, False), (True, False), (True, True)])
+def test_upload_and_atomic_consume_retry(drafts, direct, manager):
+    from app.overseas.auth.models import MemberRole
+    client, factory, actor, designer, _, _ = drafts
+    if manager:
+        with factory.begin() as session:
+            session.scalar(select(MemberRole).where(MemberRole.user_id == actor)).role = 'design_manager'
     first = client.get(DRAFT).json()
-    fields = {k: v for k, v in payload(designer).items() if k != 'remarks'}
+    fields = {k: v for k, v in payload(actor if direct and not manager else designer).items() if k != 'remarks'}
     fields['skus'] = [{'code': 'A'}]
     saved = client.put(DRAFT, json={'version': first['version'], 'fields': fields}, headers=HEADERS).json()
     response = client.post(ROOT + '/materials?kind=competitor&draftId=' + saved['id'],
@@ -106,11 +111,25 @@ def test_upload_and_atomic_consume_retry(drafts):
     draft = client.get(DRAFT).json()
     assert draft['materials'][0]['id'] == material['id'] and draft['version'] == saved['version']
     body = {**draft['fields'], 'draftId': draft['id'], 'draftVersion': draft['version'], 'materialIds': [material['id']]}
+    if direct:
+        body['creationSource'] = 'design_center'
+        if not manager:
+            denied = create(client, {**body, 'designerId': str(designer)}, key=draft['submitKey'])
+            assert denied.status_code == 403
+        assert create(client, {**body, 'materialIds': None}).status_code == 422
+        assert create(client, {**body, 'draftId': None, 'draftVersion': None}).status_code == 422
     wrong = create(client, {**body, 'name': '未保存'}, key=draft['submitKey'])
     assert wrong.status_code == 409
     assert client.get(DRAFT).json()['id'] == draft['id']
     created = create(client, body, key=draft['submitKey'])
     assert created.status_code == 201, created.text
+    task = created.json()
+    assert task['status'] == ('studio' if direct else 'pending_review')
+    assert task['requirementsReviews'] == []
+    assert [e['kind'] for e in task['events']] == ['task.studio_created' if direct else 'task.created']
+    if direct:
+        assert client.get(ROOT + '/tasks/' + task['id'] + '/studio').status_code == 200
+        assert create(client, {k: v for k, v in body.items() if k != 'creationSource'}, key=draft['submitKey']).status_code == 409
     cleared = client.get(DRAFT).json()
     assert cleared['lastSubmittedTaskId'] == created.json()['id'] and cleared['id'] != draft['id']
     assert cleared['lastSubmittedKey'] == draft['submitKey']

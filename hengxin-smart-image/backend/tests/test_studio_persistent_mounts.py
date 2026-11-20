@@ -61,6 +61,27 @@ def test_persistent_controlled_target_must_be_correct_kind(tmp_path):
         mounts(ws)
 
 
+def test_custom_round_masks_cli_discovery_on_resume_without_deleting_files(tmp_path, monkeypatch):
+    ws = space(tmp_path)
+    ws.disable_skills = True
+    materials.prepare(SimpleNamespace(payload={'skill': None}), ws)
+    for directory in (ws.home / '.agents/skills', ws.home / '.codex/skills',
+                      ws.work / '.agents/skills', ws.work / '.codex/skills', ws.work / 'skills'):
+        marker = directory / 'old/SKILL.md'
+        marker.parent.mkdir(parents=True)
+        marker.write_text('old')
+    binary, helper, bwrap = [tmp_path / name for name in ('codex', 'codex-code-mode-host', 'bwrap')]
+    for executable in (binary, helper, bwrap):
+        executable.touch()
+    monkeypatch.setattr(runtime, 'os', SimpleNamespace(name='posix', environ={}))
+    args = runtime.sandbox_command(ws, binary, ['exec', 'resume', 'existing'], bwrap)
+    for target in ('/home/runner/.agents', '/home/runner/.codex/skills', '/work/.agents',
+                   '/work/.codex', '/work/skills'):
+        assert args[args.index(target) - 1] == '--tmpfs'
+        assert any(a == '--remount-ro' and b == target for a, b in zip(args, args[1:]))
+    assert len(list(tmp_path.rglob('SKILL.md'))) == 5
+
+
 @pytest.mark.skipif(__import__('os').name != 'posix', reason='Linux link boundary')
 def test_model_cannot_redirect_next_round_input_mount(tmp_path):
     ws = space(tmp_path)

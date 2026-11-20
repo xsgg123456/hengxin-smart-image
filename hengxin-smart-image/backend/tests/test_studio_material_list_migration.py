@@ -65,7 +65,7 @@ def test_visibility_migration_preserves_populated_duplicates_and_is_repeatable(d
         for name, rows in before.items():
             if name == 'overseas_alembic_version':
                 continue
-            additions = {'overseas_tasks': (None,),
+            additions = {'overseas_tasks': (None, 'platform'),
                          'overseas_studio_conversations': ('会话 1', 1),
                          'overseas_studio_uploads': (None,)}.get(name, ())
             assert after[name] == [(*row, *additions) for row in rows]

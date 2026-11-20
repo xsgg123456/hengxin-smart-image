@@ -153,7 +153,7 @@ def test_filter_recheck_replay_and_immutable_frozen_round(studio):
         assert session.scalar(select(func.count()).select_from(Job)) == 2
 
 
-@pytest.mark.parametrize('platform', ['Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot', 'Shopee', 'Amazon'])
+@pytest.mark.parametrize('platform', ['Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot', 'Amazon'])
 def test_all_target_platforms_create_and_filter(studio, platform):
     client, factory, _, task, _, _ = studio
     assert create(client, {**payload(UUID(task['designer']['id'])), 'platform': platform}, 'new-platform').status_code == 201
@@ -174,3 +174,21 @@ def test_historical_platform_stays_unchanged_with_no_skill_path(studio):
     assert response.status_code == 200 and response.json()['skills'] == []
     with factory() as session:
         assert session.get(Task, UUID(task['id'])).platform == 'TikTok Shop'
+
+
+def test_retired_shopee_binding_hidden_and_historical_task_can_continue_without_skill(studio):
+    client, factory, _, task, _, _ = studio
+    skill = install_sample()
+    enable_sample(factory, platforms=['Shopee', 'Amazon'])
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).platform = 'Shopee'
+    path = ROOT + '/tasks/' + task['id']
+    assert client.get(path).json()['platform'] == 'Shopee'
+    assert client.get(path + '/studio').json()['skills'] == []
+    assert client.get(MANAGE + '/skills').json()['items'][0]['platforms'] == ['Amazon']
+    assert patch(client, change(skill, ['Shopee'])).status_code == 422
+    assert send(client, task, skillId=skill['id']).status_code == 422
+    assert send(client, task).status_code == 200
+    assert patch(client, change(skill, ['Wayfair'])).status_code == 200
+    with factory() as session:
+        assert session.scalar(select(Audit)).before['platforms'] == ['Shopee', 'Amazon']

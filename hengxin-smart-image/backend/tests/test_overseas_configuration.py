@@ -154,6 +154,11 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
     app = load_entry('overseas/main.py')['app']
     business_paths = {path for path in app.openapi()['paths'] if path.startswith('/api/')}
     assert business_paths == {
+        '/api/overseas/v1/feedback',
+        '/api/overseas/v1/feedback/mine',
+        '/api/overseas/v1/feedback/{identifier}/screenshot',
+        '/api/overseas/v1/management/feedback',
+        '/api/overseas/v1/management/feedback/{identifier}',
         '/api/overseas/v1/requirement-source',
         '/api/overseas/v1/requirement-draft',
         '/api/overseas/v1/requirement-draft/source',
@@ -207,7 +212,7 @@ def test_overseas_liveness_routes_and_sanitized_errors(monkeypatch):
         '/api/overseas/v1/members/applications/{application_id}/decision',
         '/api/overseas/v1/members', '/api/overseas/v1/members/{member_id}',
         '/api/overseas/v1/members/{member_id}/audit',
-        '/api/overseas/v1/tasks', '/api/overseas/v1/tasks/{task_id}',
+        '/api/overseas/v1/tasks', '/api/overseas/v1/tasks/custom', '/api/overseas/v1/tasks/{task_id}',
         '/api/overseas/v1/tasks/{task_id}/deletion',
         '/api/overseas/v1/tasks/{task_id}/assignment', '/api/overseas/v1/task-designers',
         '/api/overseas/v1/task-assignees',

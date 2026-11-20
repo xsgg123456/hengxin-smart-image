@@ -1,7 +1,7 @@
 <template>
   <ElConfigProvider :locale="zh" :z-index="3000">
     <div class="app-layout">
-      <aside id="app-sidebar"><ArtSidebarMenu /></aside>
+      <aside id="app-sidebar"><ArtSidebarMenu><template #sidebar-footer><slot name="sidebar-footer" /></template></ArtSidebarMenu></aside>
       <main id="app-main">
         <div id="app-header"><ArtHeaderBar><template #account><slot name="account" /></template></ArtHeaderBar></div>
         <div id="app-content"><slot /></div>

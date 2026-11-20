@@ -17,6 +17,7 @@ from app.overseas.members.application_router import router as application_router
 from app.overseas.tasks.router import router as tasks_router
 from app.overseas.materials.router import router as materials_router
 from app.overseas.drafts.router import router as drafts_router
+from app.overseas.feedback.router import router as feedback_router
 from app.overseas.drafts.worker import lifespan
 
 app = FastAPI(title='恒鑫智图 · 海外业务 API', version='0.1.0', lifespan=lifespan)
@@ -32,6 +33,7 @@ app.include_router(members_router)
 app.include_router(tasks_router)
 app.include_router(materials_router)
 app.include_router(drafts_router)
+app.include_router(feedback_router)
 
 from app.overseas.execution.router import router as execution_router
 app.include_router(execution_router)

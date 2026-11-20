@@ -3,13 +3,14 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import false, or_, true
+from sqlalchemy import false, or_, select, true
 from sqlalchemy.orm import Session
 
 from app.db.session import get_session
 from app.core.config import get_settings
 from app.overseas.auth.dependencies import get_current_member, member_roles
 from app.overseas.auth.models import Member, ROLES
+from app.overseas.feedback.models import FeedbackGrant
 
 CAPABILITIES = ('task.read', 'task.create', 'task.design', 'task.reassign', 'task.delete',
                 'stats.read', 'members.manage', 'skills.manage', 'settings.manage')
@@ -85,8 +86,16 @@ def can_submit_requirements(principal: Principal, created_by, designer_id) -> bo
                 and can_access_task(principal, created_by, designer_id, 'task.design')))
 
 
+def can_manage_feedback(session: Session, member: Member, roles=None) -> bool:
+    actual_roles = roles if roles is not None else member_roles(session, member)
+    return bool(MANAGERS.intersection(actual_roles) and session.scalar(
+        select(FeedbackGrant.id).where(FeedbackGrant.id == member.id)))
+
+
 def authorize_member(session: Session, member: Member, permission: str):
-    if not scopes(principal_for(session, member).roles, permission):
+    allowed = (can_manage_feedback(session, member) if permission == 'feedback.manage'
+               else scopes(principal_for(session, member).roles, permission))
+    if not allowed:
         raise HTTPException(403, '没有海外业务操作权限')
     return member
 

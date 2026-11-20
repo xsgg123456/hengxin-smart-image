@@ -31,6 +31,9 @@
       <ElFormItem label="姓名" required><ElInput v-model="form.name" aria-label="成员姓名" :readonly="!adapter.preview" maxlength="40" /></ElFormItem>
       <ElFormItem label="海外业务角色" required><ElSelect v-model="selectedRole" clearable aria-label="海外业务角色" :disabled="saving || conflict"><ElOption v-for="(label,key) in roleOptions" :key="key" :label="label" :value="key" /></ElSelect></ElFormItem>
       <ElFormItem label="账号启用"><ElSwitch :model-value="form.status === 'active'" aria-label="账号启用" :disabled="saving || conflict" @change="form.status = $event ? 'active' : 'disabled'" /><span v-if="form.status === 'pending'" class="hx-muted">待授权，请明确启用或禁用</span></ElFormItem>
+      <ElFormItem v-if="!adapter.preview && canManageFeedback" label="反馈管理">
+        <ElCheckbox v-model="form.feedbackManage" :disabled="saving || conflict">允许处理海外用户反馈</ElCheckbox>
+      </ElFormItem>
     </ElForm>
     <ElAlert v-if="formError" :title="formError" type="error" :closable="false" />
     <template #footer><ElButton :disabled="saving" @click="open = false">取消</ElButton><ElButton v-if="conflict" :loading="saving" @click="refreshEdit">刷新最新资料</ElButton><ElButton type="primary" :loading="saving" :disabled="conflict" @click="save">保存成员</ElButton></template>
@@ -56,6 +59,7 @@ const roleOptions = computed(() => memberRoles)
 const blank = (): OverseasMember => ({ id: '', name: '', department: '', roles: ['designer'], status: 'active', version: 1, createdAt: '', updatedAt: '' })
 const form = reactive(blank())
 const selectedRole = computed<MemberRole | ''>({ get: () => form.roles[0] ?? '', set: role => { form.roles = role ? [role] : [] } })
+const canManageFeedback = computed(() => form.status === 'active' && ['design_manager', 'super_admin'].includes(selectedRole.value))
 let generation = 0, active = true, confirmingDisable = false, originalStatus: MemberStatus = 'active'
 function failure(reason: unknown) {
   if (!active) return
@@ -79,7 +83,7 @@ async function edit(member?: OverseasMember) {
   if (loading.value || saving.value || directory.value === 'legacy' || member?.directoryState === 'legacy_unconfirmed') return
   const epoch = generation
   saving.value = true; formError.value = ''; conflict.value = false
-  try { const value = member ? await props.adapter.get(member.id) : blank(); if (!active || epoch !== generation) return; Object.assign(form, value, { roles: [...value.roles] }); originalStatus = value.status; open.value = true }
+  try { const value = member ? await props.adapter.get(member.id) : blank(); if (!active || epoch !== generation) return; Object.assign(form, value, { roles: [...value.roles], feedbackManage: value.feedbackManage ?? false }); originalStatus = value.status; open.value = true }
   catch (reason) { failure(reason) } finally { saving.value = false }
 }
 async function refreshEdit() { await edit({ ...form }); }
@@ -95,7 +99,7 @@ async function save() {
       finally { confirmingDisable = false }
     }
     if (!active) return
-    await props.adapter.save({ ...form, roles: [...form.roles] })
+    await props.adapter.save({ ...form, roles: [...form.roles], feedbackManage: props.adapter.preview ? undefined : canManageFeedback.value && form.feedbackManage })
     if (!active) return
     open.value = false; emit('changed'); ElMessage.success(props.adapter.preview ? '成员已保存到本地预览' : '成员已保存'); await load()
   } catch (reason) {

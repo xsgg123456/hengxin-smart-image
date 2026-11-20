@@ -1,5 +1,6 @@
 // Real Vue/Element components with controlled API fault responses; never touches production.
 import assert from 'node:assert/strict'
+import { designCenterDraft } from './design-center-draft.fixture.mjs'
 import { mkdir, readFile } from 'node:fs/promises'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3032'
@@ -9,6 +10,7 @@ const context = await browser.newContext({ viewport: { width: 1366, height: 900 
 page.setDefaultTimeout(20000)
 const errors = [], unexpected = [], sends = [], caps = ['task.read', 'task.design', 'task.create']
 page.on('pageerror', e => errors.push(e.message))
+const draftResponse = designCenterDraft()
 const task = { id: 't', name: '多会话交互验收', productName: '灯具', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'A' }], workflow: 'studio', status: 'studio', version: 1, createdAt: '2026-10-24', updatedAt: '2026-10-24', createdBy: { id: 'u', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: caps, events: [] }
 const make = (id, name) => ({ id, name, version: 1, createdAt: '2026-10-24T01:00:00Z', updatedAt: '2026-10-24T01:00:00Z', activeTurnId: null, status: 'empty', turnCount: 0 })
 const rows = [make('a', '主图方案'), make('b', '详情方案')], turns = { a: [], b: [] }
@@ -48,6 +50,7 @@ try {
     else if (path.endsWith('/tickets')) body = { ticket: 'test' }
     else if (path === '/api/v1/auth/identity/access') body = { state: 'unregistered' }
     else if (path.includes('/auth/')) { body = { id: 'd', name: '设计', identitySessionId: 'identity-test', status: 'active', roles: ['designer'], capabilities: caps }; if (path.endsWith('/access')) body = { state: 'allowed', member: body } }
+    else if (path.endsWith('/requirement-draft')) body = draftResponse(route.request())
     else if (path.endsWith('/tasks/t/materials')) body = []
     else if (path.endsWith('/task-designers')) body = { items: [{ id: 'd', name: '设计', department: '设计部' }], total: 1, page: 1, pageSize: 20 }
     else if (path.endsWith('/studio/transcript')) { assert.ok(requested); body = { items: [], cursor: 0, hasMore: false } }
@@ -93,14 +96,15 @@ try {
   await choose('主图方案'); await page.setViewportSize({ width: 390, height: 844 }); await button('展开工作台').click()
   await page.locator('.session-list').getByRole('button', { name: '收起', exact: true }).click(); await button('任务素材 · 0').click()
   await visibleWithin(button('下载所选图片（2）')); await page.screenshot({ path: `${out}/mobile.png`, fullPage: true })
-  await page.setViewportSize({ width: 1366, height: 900 }); await page.goto(`${base}/#/overseas/create`)
-  await page.getByRole('heading', { name: '提交图需', exact: true }).waitFor()
+  await page.setViewportSize({ width: 1366, height: 900 }); await page.goto(`${base}/#/overseas/design-center`)
+  await button('新建亚马逊图需').click()
+  await page.getByRole('dialog', { name: '新建图需' }).waitFor()
   const field = label => page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: label }) })
   assert.equal(await field('任务名称').locator('input').getAttribute('placeholder'), null)
-  assert.ok((await field('目标平台').textContent()).includes('请选择目标平台'))
+  await field('目标平台').getByText('亚马逊/Amazon', { exact: true }).waitFor()
   await field('目标平台').locator('.el-select').click()
   await page.locator('.el-select-dropdown__item:visible').first().waitFor()
-  assert.deepEqual(await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').allTextContents(), ['亚马逊/Amazon','威费尔/Wayfair','美客多/Mercado Libre','沃尔玛/Walmart','家得宝/The Home Depot','虾皮/Shopee'])
+  assert.deepEqual(await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').allTextContents(), ['亚马逊/Amazon','威费尔/Wayfair','美客多/Mercado Libre','沃尔玛/Walmart','家得宝/The Home Depot'])
   await page.keyboard.press('Escape'); await page.locator('.el-select-dropdown__item:visible').first().waitFor({ state: 'hidden' }); assert.ok((await field('品牌').textContent()).includes('请选择品牌'))
   await field('品牌').locator('.el-select').click()
   await page.getByRole('option', { name: 'OUTON', exact: true }).waitFor()

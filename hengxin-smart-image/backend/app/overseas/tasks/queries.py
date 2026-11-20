@@ -31,7 +31,8 @@ def summary(session, task, principal):
     deletion = session.get(TaskDeletion, task.id)
     skus = session.scalars(select(TaskSku).where(TaskSku.task_id == task.id).order_by(TaskSku.position))
     result = {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
-            'brand': task.brand, 'platform': task.platform, 'language': task.language, 'market': task.market,
+            'brand': task.brand, 'platform': task.platform, 'designType': task.design_type,
+            'language': task.language, 'market': task.market,
             'remarks': task.remarks, 'skus': [{'code': item.code} for item in skus],
             'workflow': task.workflow, 'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
             'updatedAt': task.updated_at, 'createdBy': {'id': str(creator.id), 'name': creator.name},
@@ -82,13 +83,19 @@ STATUS_GROUPS = {
 
 
 def list_tasks(session, actor, search='', scope='all', status=None, page=1, page_size=20,
-               designer_id=None, status_group=None):
+               designer_id=None, status_group=None, platform=None, design_type=None):
     principal = principal_for(session, actor)
     filters = [task_filter(principal, Task.created_by, Task.designer_id)]
     if scope == 'mine':
         filters.append(or_(Task.created_by == actor.id, Task.designer_id == actor.id))
     if designer_id:
         filters.append(Task.designer_id == designer_id)
+    if platform:
+        filters.append(Task.platform == platform)
+    if design_type in ('custom', 'platform'):
+        filters.append(Task.design_type == design_type)
+    elif design_type:
+        filters.extend((Task.design_type == 'platform', Task.platform == design_type))
     if status_group:
         filters.append(Task.status.in_(STATUS_GROUPS[status_group]))
         filters.append(~select(TaskDeletion.task_id).where(TaskDeletion.task_id == Task.id).exists())

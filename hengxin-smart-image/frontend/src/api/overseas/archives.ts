@@ -1,7 +1,7 @@
 import { overseasImageCache } from './image-cache'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 import type { Page } from './tasks'
-export interface Archive { id: string; taskId: string | null; taskName?: string | null; language?: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null; deleteToken?: string; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
+export interface Archive { designType?: 'platform' | 'custom'; id: string; taskId: string | null; taskName?: string | null; language?: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null; deleteToken?: string; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
 export interface ArchiveDeletion { archiveId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
 export function isArchiveDeletion(value: unknown): value is ArchiveDeletion {
   return record(value) && typeof value.archiveId === 'string' && ['deleting', 'delete_failed', 'deleted'].includes(String(value.status)) && (value.error === null || typeof value.error === 'string')
@@ -34,6 +34,7 @@ function isArchiveEvent(value: unknown): value is ArchiveEvent {
 }
 export function isArchive(value: unknown): value is Archive {
   return record(value) && ['id', 'productName', 'brand', 'platform', 'createdAt'].every(key => text(value[key]))
+    && (value.designType === undefined || value.designType === 'platform' || value.designType === 'custom')
     && (value.taskName == null || text(value.taskName)) && (value.language == null || text(value.language))
     && (value.taskId === null || text(value.taskId)) && typeof value.sourceDeleted === 'boolean'
     && (value.taskId !== null || value.sourceDeleted) && positive(value.pictureCount)

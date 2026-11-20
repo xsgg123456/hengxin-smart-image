@@ -1,4 +1,4 @@
-<template><div class="hx-page">      <div class="hx-heading">
+<template><div class="hx-page">      <div class="hx-heading" v-if="!embedded">
         <div>
           <h1>工作流任务</h1>
           <p>从需求提交到成品归档，跟进每一套海外商品图片。</p>
@@ -22,7 +22,9 @@
               :key="key"
               :label="label"
               :value="key" /></ElSelect
-          ><ElSelect v-if="!preview" v-model="designer" clearable filterable aria-label="设计负责人筛选" placeholder="全部设计负责人" style="width: 200px"><ElOption v-for="person in assignees" :key="person.id" :value="person.id" :label="person.name" /></ElSelect><ElInput
+          ><ElSelect v-if="embedded" v-model="designType" clearable aria-label="设计类型筛选" placeholder="全部设计类型" style="width:170px">
+            <ElOption v-for="item in TASK_DESIGN_TYPES" :key="item.value" :label="item.label" :value="item.value"/>
+          </ElSelect><ElSelect v-if="!preview" v-model="designer" clearable filterable aria-label="设计负责人筛选" placeholder="全部设计负责人" style="width: 200px"><ElOption v-for="person in assignees" :key="person.id" :value="person.id" :label="person.name" /></ElSelect><ElInput
             v-model="query"
             class="hx-search"
             clearable
@@ -44,43 +46,49 @@
             ><div class="hx-table-name">
               <div>
                 <strong>{{ row.name }}</strong
-                ><small>{{ row.productName }} · {{ row.id }}</small>
+                ><small>{{ row.productName }} · {{ skuLabel(row) }}</small>
               </div>
             </div></template
           >
           <template #status="{ row }"
             ><ElTag :type="preview ? 'primary' : taskStatusTone(row.status)">{{ preview ? labels[row.status as keyof typeof labels] : taskStatusLabel(row.status) }}</ElTag><p v-if="!preview && taskStatusNote(row.status)" class="task-status-note">{{ taskStatusNote(row.status) }}</p><p v-if="row.deletionError" class="task-deletion-error">{{ row.deletionError }}</p></template
           >
+          <template #designType="{ row }">{{ designTypeLabel(row) }}</template>
           <template #designer="{ row }">{{ row.designer?.name || '未指派' }}</template>
           <template #createdAt="{ row }">{{ formatBeijingTime(row.createdAt) }}</template>
           <template #action="{ row }"
-            ><ElButton text type="primary" @click="$emit('open', row.id)">查看详情</ElButton
+            ><ElButton text type="primary" @click="$emit('open', row.id)">{{ embedded && row.status === 'studio' ? '继续设计' : '查看详情' }}</ElButton
             ><slot name="action" :row="row" /></template
           >
         </ArtTable>
         <slot name="pagination" />
         <p class="hx-footnote">
-          共 {{ total }} 个任务 · 提交人提交，设计审核图需、协作生图与归档
+          共 {{ total }} 个任务
         </p>
       </ElCard>
 </div></template>
 <script setup lang="ts">
 import { formatBeijingTime } from '@/utils/beijing-time'
 
+import { TASK_DESIGN_TYPES, designTypeLabel } from './platforms'
 import { computed } from 'vue'
 import ArtTable from '@/components/core/tables/art-table/index.vue'
 import { taskStatuses, type TaskSummary } from '@/api/overseas/tasks'
 import type { Task } from './types'
 import { taskGroups, taskStatusLabel, taskStatusNote, taskStatusTone } from './task-status'
-const props = withDefaults(defineProps<{ tasks: (TaskSummary | Task)[]; allowed: boolean; total: number; busy?: boolean; preview?: boolean; assignees?: { id: string; name: string }[] }>(), { assignees: () => [] })
+const props = withDefaults(defineProps<{ tasks: (TaskSummary | Task)[]; allowed: boolean; total: number; busy?: boolean; preview?: boolean; embedded?:boolean; assignees?: { id: string; name: string }[] }>(), { assignees: () => [] })
 const query = defineModel<string>('query', { required: true }), scope = defineModel<string>('scope', { required: true }), status = defineModel<string>('status', { required: true })
+const designType = defineModel<string>('designType', {default:''})
 const designer = defineModel<string>('designer', { default: '' })
 defineEmits<{ create: []; open: [id: string]; refresh: [] }>()
 const labels = computed(() => Object.fromEntries(Object.entries(taskStatuses).filter(([key]) => key !== 'deleted' && (!props.preview || !['created', 'deleting', 'delete_failed'].includes(key)))))
+function skuLabel(row: { id: string; skus?: { code: string }[] }) {
+  return row.skus?.map(item => item.code).join('、') || row.id
+}
 const columns = [
   { prop: 'name', label: '任务 / 品名', minWidth: 240, useSlot: true },
   { prop: 'brand', label: '品牌', minWidth: 100 },
-  { prop: 'platform', label: '平台', minWidth: 100 },
+  { prop: 'designType', label: '设计类型', minWidth: 115, useSlot: true },
   ...(!props.preview ? [{ prop: 'designer', label: '设计负责人', minWidth: 120, useSlot: true }] : []),
   { prop: 'status', label: props.preview ? '当前节点' : '任务状态', minWidth: 160, useSlot: true },
   { prop: 'createdAt', label: '提交时间', minWidth: 170, useSlot: true },

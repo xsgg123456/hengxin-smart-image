@@ -9,7 +9,7 @@ from app.db.session import get_session
 from app.overseas.auth.dependencies import CurrentMember, member_roles
 from app.overseas.auth.identity import bind_member
 from app.overseas.auth.sessions import COOKIE_PATH, SESSION_COOKIE, issue_session, revoke_session
-from app.overseas.permissions import capabilities, principal_for
+from app.overseas.permissions import capabilities, principal_for, can_manage_feedback
 from app.overseas.members.service import lock_permissions
 
 router = APIRouter(prefix='/api/overseas/v1/auth', tags=['overseas-auth'])
@@ -28,6 +28,8 @@ def describe(session, member, identity_session_id=None):
     roles = member_roles(session, member)
     principal = principal_for(session, member)
     granted = capabilities(principal.roles)
+    if can_manage_feedback(session, member, roles):
+        granted.append('feedback.manage')
     # Scope-change signal for clients; deliberately not an authorizable permission.
     if principal.workflow_collaborator and principal.roles == {'designer'}:
         granted.append('task.workflow.collaborate')

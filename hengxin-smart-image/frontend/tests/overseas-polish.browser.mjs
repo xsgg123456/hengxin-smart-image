@@ -1,5 +1,6 @@
 // Real Vue/Element components with controlled API fault responses; never touches production.
 import assert from 'node:assert/strict'
+import { designCenterDraft } from './design-center-draft.fixture.mjs'
 import { mkdir } from 'node:fs/promises'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.IDENTITY_UI_URL || 'http://127.0.0.1:3032'
@@ -9,6 +10,7 @@ const context = await browser.newContext({ viewport: { width: 1366, height: 900 
 page.setDefaultTimeout(20000)
 const errors = [], unexpected = [], sends = [], caps = ['task.read', 'task.design', 'task.create']
 page.on('pageerror', e => errors.push(e.message))
+const draftResponse = designCenterDraft()
 const task = { id: 't', name: '多会话交互验收', productName: '灯具', brand: 'HX', platform: 'Amazon', market: '美国', remarks: '', skus: [{ code: 'A' }], workflow: 'studio', status: 'studio', version: 1, createdAt: '2026-10-24', updatedAt: '2026-10-24', createdBy: { id: 'u', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: caps, events: [] }
 const make = (id, name) => ({ id, name, version: 1, createdAt: '2026-10-24T01:00:00Z', updatedAt: '2026-10-24T01:00:00Z', activeTurnId: null, status: 'empty', turnCount: 0 })
 const rows = [make('a', '主图方案'), make('b', '详情方案')], turns = { a: [], b: [] }
@@ -38,6 +40,7 @@ try {
     else if (path.includes('/auth/')) { body = { id: 'd', name: '设计', identitySessionId: 'identity-test', status: 'active', roles: ['super_admin'], capabilities: caps }; if (path.endsWith('/access')) body = { state: 'allowed', member: body } }
     else if (path.endsWith('/studio/transcript')) body = { items: [], cursor: 0, hasMore: false }
     else if (path.endsWith('/studio')) body = state(url.searchParams.get('conversationId') || undefined)
+    else if (path.endsWith('/requirement-draft')) body = draftResponse(route.request())
     else if (path.endsWith('/tasks/t/materials')) body = []
     else if (path.endsWith('/tasks/t')) body = task
     else if (path.endsWith('/task-designers')) body = { items: [], total: 0, page: 1, pageSize: 20 }
@@ -71,10 +74,11 @@ try {
   await button('展开编辑').click(); await expanded.fill('详情专属草稿'); await button('完成编辑').click()
   await choose('主图方案'); assert.equal(await input.inputValue(), long)
   completed = true; version++; task.version = version; task.status = 'completed'; await button('刷新').click(); await page.waitForFunction(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('展开编辑'))?.disabled)
-  await page.goto(`${base}/#/overseas/create`)
+  await page.goto(`${base}/#/overseas/design-center`)
+  await button('新建亚马逊图需').click()
   const platform = page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: '目标平台' }) })
   await platform.locator('.el-select').click()
-  const labels = ['亚马逊/Amazon', '威费尔/Wayfair', '美客多/Mercado Libre', '沃尔玛/Walmart', '家得宝/The Home Depot', '虾皮/Shopee']
+  const labels = ['亚马逊/Amazon', '威费尔/Wayfair', '美客多/Mercado Libre', '沃尔玛/Walmart', '家得宝/The Home Depot']
   assert.deepEqual(await page.getByRole('option').allTextContents(), labels)
   await page.getByRole('option', { name: labels[3], exact: true }).click()
   assert.ok((await platform.innerText()).includes(labels[3]))
@@ -82,7 +86,7 @@ try {
   assert.equal(await page.getByText('目标站点 / 语言', { exact: true }).count(), 0)
   await page.screenshot({ animations: 'disabled', path: '../../output/playwright/overseas-polish/create.png', fullPage: true })
   assert.deepEqual(errors, []); assert.deepEqual(unexpected, [])
-  console.log('PASS: fixed two rows; long draft; 1920/1366 clipping; 16px/Enter/Escape/done; session drafts; completed disabled; six platforms/no site input')
+  console.log('PASS: fixed two rows; long draft; 1920/1366 clipping; 16px/Enter/Escape/done; session drafts; completed disabled; five platforms/no site input')
 } catch (error) {
   await page.screenshot({ animations: 'disabled', path: '../../output/playwright/overseas-polish/failure.png', fullPage: true })
   console.error(JSON.stringify({ errors, unexpected, text: await page.locator('body').innerText() })); throw error

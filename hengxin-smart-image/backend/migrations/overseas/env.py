@@ -15,6 +15,7 @@ from app.overseas.archives import models as archive_models
 from app.overseas.management import models as management_models
 from app.overseas.studio import models as studio_models
 from app.overseas.drafts import models as draft_models
+from app.overseas.feedback import models as feedback_models
 from app.overseas.db import (
     Base, VERSION_TABLE, get_engine, require_overseas_context,
     validate_migration_database,

@@ -11,7 +11,7 @@ import { IdentityError } from '../src/api/identity/request'
 import { compile, mount, all, text, simple, flush, click, update, type Node } from './membership-test-harness'
 import { fixture, deferred, fresh } from './draft-polling-fixture'
 
-function open(f = fixture()) {
+function open(f = fixture(), props: Record<string, unknown> = {}) {
   const old = Object.getOwnPropertyDescriptor(globalThis, 'document')
   const page = new EventTarget() as EventTarget & { hidden: boolean }; page.hidden = false
   Object.defineProperty(globalThis, 'document', { configurable: true, value: page })
@@ -23,12 +23,47 @@ function open(f = fixture()) {
     './OverseasCreate.vue': { default: Vue.defineComponent({ setup(_, { attrs, slots }) { return () => Vue.h('OverseasCreate', attrs, Object.values(slots).flatMap(s => s?.() || [])) } }) },
     './DesignerPicker.vue': { default: simple('DesignerPicker') }, './DraftMaterialsPanel.vue': { default: simple('DraftMaterialsPanel') }, './RequirementPicker.vue': { default: simple('RequirementPicker') }
   })
-  const view = mount(component, { actorId: 'actor', api: {}, materialsApi: {}, draftsApi: f.api, allowed: true, onCreated: (id: string) => created.push(id) })
+  const view = mount(component, { actorId: 'actor', api: {}, materialsApi: {}, draftsApi: f.api, allowed: true, onCreated: (id: string) => created.push(id), ...props })
   return { ...view, f, page, created, visibility(hidden: boolean) { page.hidden = hidden; page.dispatchEvent(new Event('visibilitychange')) }, close() { view.close(); if (old) Object.defineProperty(globalThis, 'document', old); else Reflect.deleteProperty(globalThis, 'document') } }
 }
 const buttons = (root: Node) => all(root).filter(n => n.tag === 'ElButton').map(text)
 const messages = (root: Node) => all(root).filter(n => n.tag === 'ElAlert').map(n => n.props.title).join(' ')
 function edit(root: Node, name: string) { const form = all(root).find(n => n.tag === 'OverseasCreate')!; update(form, { ...(form.props.modelValue as Drafts.DraftFields), name }) }
+
+test('卡片输入自动查询，过期响应不覆盖多选，回填保留所选平台和设计', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const f = fixture(), slow = deferred<Drafts.SourceResult>(), searches: string[] = []
+  const current = { id: 'actor', name: '本人', department: '设计' }
+  const row: Drafts.Requirement = { id: 'one', platformName: 'Amazon', brandName: 'OUTON',
+    title: '灯具主图', productName: '灯具', language: 'en', designerName: '上游设计',
+    matchedDesigner: { ...current, id: 'other' }, status: '', createdAt: '', files: [] }
+  f.api.query = async sku => {
+    searches.push(sku)
+    if (sku === 'SLOW') return slow.promise
+    return { sku, count: 2, truncated: false, list: [row, { ...row, id: 'two' }] }
+  }
+  f.api.source = async (version, sku, requirementId, fields) => {
+    f.data.server = { ...f.data.server, fields, version: version + 1, source: { sku, requirementId } }
+    return f.data.server
+  }
+  const view = open(f, { initialPlatform: 'Wayfair', actorDesigner: current }); t.after(() => view.close())
+  await flush()
+  assert.equal(all(view.root).some(n => n.tag === 'DesignerPicker'), false)
+  const input = all(view.root).find(n => n.props['aria-label'] === '商品 SKU')!
+  const enter = (code: string) => { update(input, code); (input.props.onInput as (sku: string) => void)(code) }
+  enter('S'); enter('SLOW'); t.mock.timers.tick(450); await flush()
+  enter('MULTI'); t.mock.timers.tick(450); await flush()
+  const picker = all(view.root).find(n => n.tag === 'RequirementPicker')!
+  assert.deepEqual(searches, ['SLOW', 'MULTI'])
+  assert.equal(picker.props.modelValue, true)
+  slow.resolve({ sku: 'SLOW', count: 1, list: [row], truncated: false }); await flush()
+  assert.equal(f.data.server.source, null)
+  await (picker.props.onConfirm as (r: Drafts.Requirement) => Promise<void>)(row)
+  assert.deepEqual(f.data.server.source, { sku: 'MULTI', requirementId: 'one' })
+  assert.equal(f.data.server.fields.platform, 'Wayfair')
+  assert.equal(f.data.server.fields.designerId, current.id)
+  assert.equal(f.data.server.fields.name, '灯具主图')
+})
 
 test('正式新建SFC只初读一次，隐藏继续500ms自动保存，可见刷新一次，卸载清理事件与定时器', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })

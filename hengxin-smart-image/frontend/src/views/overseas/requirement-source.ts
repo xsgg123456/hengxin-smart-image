@@ -1,7 +1,7 @@
 import type { DraftFields, Requirement } from '@/api/overseas/requirement-drafts'
 import { OVERSEAS_PLATFORMS } from './platforms'
 import { OVERSEAS_LANGUAGES } from './languages'
-export function mapRequirement(current: DraftFields, source: Requirement) {
+export function mapRequirement(current: DraftFields, source: Requirement, preserveCardFields = false) {
   const fields: DraftFields = { ...current, skus: current.skus.map(s => ({ ...s })) }, warnings: string[] = []
   const mappings = [
     ['platform', '目标平台', source.platformName, OVERSEAS_PLATFORMS.find(p => p.label === source.platformName || p.value === source.platformName)?.value],
@@ -9,6 +9,7 @@ export function mapRequirement(current: DraftFields, source: Requirement) {
     ['language', '语言', source.language, OVERSEAS_LANGUAGES.find(l => l.label === source.language || l.value === source.language)?.value]
   ] as const
   for (const [key, label, value, mapped] of mappings) {
+    if (preserveCardFields && key === 'platform') continue
     if (mapped) fields[key] = mapped
     else warnings.push(`${label}：${value ? `「${value}」无法匹配` : '上游未填写'}，请手动核对。`)
   }
@@ -16,6 +17,7 @@ export function mapRequirement(current: DraftFields, source: Requirement) {
     if (value?.trim() && value.length <= 80) fields[key] = value
     else warnings.push(`${label}：${value ? '内容超过 80 字' : '上游未填写'}，请手动补充。`)
   }
+  if (preserveCardFields) return { fields, warnings }
   if (source.matchedDesigner) fields.designerId = source.matchedDesigner.id
   else warnings.push(`负责设计：「${source.designerName || '未填写'}」无法唯一匹配，请手动选择。`)
   return { fields, warnings }

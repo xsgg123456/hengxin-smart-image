@@ -81,6 +81,8 @@ def resubmit(session, actor, task_id, body, key):
         return replay(session, task, actor)
     if task.status != 'returned':
         raise HTTPException(409, '只有退回提交人的图需可以修改重提')
+    if body.platform == 'Shopee' and task.platform != 'Shopee':
+        raise HTTPException(422, '虾皮已停用，请选择其他平台')
     require_designer(session, body.designerId)
     before_designer = task.designer_id if body.designerId != task.designer_id else None
     # Reassignment remains governed by its existing dedicated permission.

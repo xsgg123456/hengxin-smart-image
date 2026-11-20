@@ -19,7 +19,7 @@ export function entryDestination(scope: ReleaseScope, location: EntryLocation): 
   else if (path === '#/overseas' || path.startsWith('#/overseas/')) target = 'overseas'
   else if (path && path !== '#/') target = 'domestic'
   const hash = location.hash && location.hash !== '#/' ? location.hash
-    : target === 'overseas' ? '#/overseas/tasks' : target === 'domestic' ? `#${domesticLandingPath}` : '#/auth/business'
+    : target === 'overseas' ? '#/overseas/design-center' : target === 'domestic' ? `#${domesticLandingPath}` : '#/auth/business'
   const destination = `/${target}/${location.search}${hash}`
   return destination === `${location.pathname}${location.search}${location.hash}` ? undefined : destination
 }

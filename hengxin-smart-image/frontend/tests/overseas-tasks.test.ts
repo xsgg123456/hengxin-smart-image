@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createTasksApi, createRequestKeys, isTaskDetail, emptyTaskDraft, validateDraft, cleanDraft, type TaskDetail } from '../src/api/overseas/tasks'
+import { createTasksApi, createRequestKeys, isTaskDetail, emptyTaskDraft, validateDraft, cleanDraft, parseCustomTaskInput, type TaskDetail } from '../src/api/overseas/tasks'
 const task: TaskDetail = { ...emptyTaskDraft(), remarks: '', name: '真实任务', skus: [{ code: 'SKU-A' }], id: 'task/1', version: 1, status: 'created', createdAt: '2026-10-12', updatedAt: '2026-10-12', createdBy: { id: 'o', name: '运营' }, designer: { id: 'd', name: '设计', status: 'active', eligible: true }, capabilities: ['task.read'], events: [{ id: 'e', kind: 'task.created', actorId: 'o', actorName: '运营', title: '图需已保存', at: '2026-10-12', beforeDesignerId: null, afterDesignerId: 'd', version: 1 }] }
 const json = (value: unknown) => new Response(JSON.stringify(value))
 test('海外任务API严格字段、幂等头、分页参数与编码路径', async () => {
@@ -22,6 +22,20 @@ test('失败请求相同内容重试使用同key，改内容新key，成功清�
   let seq = 0; const keys = createRequestKeys(() => String(++seq))
   assert.equal(keys.for({ a: 1 }), keys.for({ a: 1 })); assert.equal(keys.for({ a: 2 }), '2')
   assert.equal(keys.for({ a: 1 }), '1'); keys.clear(); assert.equal(keys.for({ a: 1 }), '3')
+})
+test('自定义创建只发送一个规范化字段，保留幂等头和设计类型', async () => {
+  const api = createTasksApi(async (url, options) => {
+    assert.equal(String(url), '/api/overseas/v1/tasks/custom')
+    assert.deepEqual(JSON.parse(String(options?.body)), { productNameSku: '编织灯罩+SKU-7' })
+    assert.equal((options?.headers as Record<string, string>)['Idempotency-Key'], 'one')
+    return json({ ...task, designType: 'custom' })
+  })
+  assert.equal((await api.createCustom(' 编织灯罩 + SKU-7 ', 'one')).designType, 'custom')
+  assert.equal(isTaskDetail({ ...task, designType: 'other' }), false)
+  for (const invalid of [' A ', '+X', 'A+ ', 'A+B+C', 'A+' + 'x'.repeat(81)]) {
+    assert.throws(() => parseCustomTaskInput(invalid), /SKU/)
+  }
+  assert.equal(parseCustomTaskInput('💡'.repeat(80) + '+X').sku, 'X')
 })
 test('必选设计、多SKU、空白与重复校验，不接受假详情', () => {
   const draft = { ...emptyTaskDraft(), remarks: '', name: '任务', productName: '品名', platform: 'Amazon', language: 'en', brand: '品牌', market: '美国', designerId: 'd', skus: [{ code: 'A' }, { code: 'B' }] }

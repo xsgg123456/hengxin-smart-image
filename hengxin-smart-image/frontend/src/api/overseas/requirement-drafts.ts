@@ -1,7 +1,7 @@
 import { createIdentityRequest, record } from '../identity/request'
 import { isMaterial, type Material, type MaterialKind } from './materials'
 import type { Designer, TaskDraft } from './tasks'
-export type DraftFields = Omit<TaskDraft, 'materialIds' | 'draftId' | 'draftVersion'>
+export type DraftFields = Omit<TaskDraft, 'materialIds' | 'draftId' | 'draftVersion' | 'creationSource'>
 export interface SourceFile { id: string; filename: string; size: number; contentType: string; category: string }
 export interface Requirement { id: string; platformName: string; brandName: string; title: string; productName: string; language: string; designerName: string; status: string; createdAt: string; files: SourceFile[]; matchedDesigner: Designer | null }
 export interface SourceResult { sku: string; count: number; truncated: boolean; list: Requirement[] }

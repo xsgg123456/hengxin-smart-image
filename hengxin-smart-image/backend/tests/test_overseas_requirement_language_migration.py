@@ -7,7 +7,7 @@ from uuid import uuid4
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 import pytest
-from sqlalchemy import MetaData, create_engine, select, text
+from sqlalchemy import MetaData, create_engine, inspect, select, text
 from test_overseas_database import BACKEND, disposable_databases, migration_environment, migrate, snapshot
 
 
@@ -30,12 +30,12 @@ def test_language_upgrade_preserves_history_and_only_backfills_known_sources(dis
                 corp_id='test', provider_user_id=str(actor), name='历史成员', department='',
                 status='active', version=1, directory_state='enrolled', **times))
             connection.execute(md.tables['overseas_tasks'].insert().values(id=task_id,
-                name='真实历史任务名', product_name='商品', brand='品牌', platform='Amazon',
+                name='真实历史任务名', product_name='商品', brand='品牌', platform='Shopee',
                 market='US', remarks='原始备注', created_by=actor, designer_id=actor,
                 workflow='studio', status='archived', version=9, requirements_approved=True, **times))
             for identity, source in ((linked_id, task_id), (detached_id, None)):
                 connection.execute(md.tables['overseas_archives'].insert().values(id=identity,
-                    task_id=source, versions=[], product_name='商品', brand='品牌', platform='Amazon',
+                    task_id=source, versions=[], product_name='商品', brand='品牌', platform='Shopee',
                     skus=[{'code': 'A'}], sku_search='A', created_by=actor, designer_id=actor, **times))
         original, domestic_before = snapshot(url), snapshot(domestic)
         result = migrate(env)
@@ -45,6 +45,11 @@ def test_language_upgrade_preserves_history_and_only_backfills_known_sources(dis
                 if name != 'overseas_alembic_version':
                     assert sorted(map(tuple, connection.execute(select(table))), key=repr) == sorted(original[1][name], key=repr)
             assert connection.execute(text('SELECT language FROM overseas_tasks')).scalar_one() is None
+            for table, title in [('overseas_tasks', 'name'), ('overseas_archives', 'task_name')]:
+                historical_types = connection.execute(text(f'SELECT DISTINCT platform, design_type FROM {table}'))
+                assert historical_types.all() == [('Shopee', 'platform')]
+                columns = {col['name']: col for col in inspect(connection).get_columns(table)}
+                assert columns[title]['type'].length == 161 and not columns['design_type']['nullable']
             rows = {r.id: r for r in connection.execute(text('SELECT id, task_name, language FROM overseas_archives'))}
             assert rows[linked_id].task_name == '真实历史任务名' and rows[linked_id].language is None
             assert rows[detached_id].task_name is None and rows[detached_id].language is None

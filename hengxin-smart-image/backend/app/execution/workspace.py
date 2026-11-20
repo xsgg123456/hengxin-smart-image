@@ -16,6 +16,7 @@ class Workspace:
     local_skill: Path | None = None
     skill_name: str = 'skill'
     use_skill: bool = True
+    disable_skills: bool = False
 
     @property
     def skill_path(self):
@@ -100,7 +101,19 @@ def sandbox_command(workspace, binary, arguments, bwrap='/opt/hengxin-runtime/bw
     agents = workspace.home / '.agents'
     if agents.is_symlink() or (hasattr(agents, 'is_junction') and agents.is_junction()):
         raise ValueError('Skill discovery directory cannot be a link')
-    if not workspace.use_skill:
+    if getattr(workspace, 'disable_skills', False):
+        # Custom conversations resume a writable home and work tree. Hide every
+        # CLI discovery root, including files left by a previous round.
+        for base, relative, target in (
+                (workspace.home, '.agents', '/home/runner/.agents'),
+                (workspace.home, '.codex/skills', '/home/runner/.codex/skills'),
+                (workspace.work, '.agents', '/work/.agents'),
+                (workspace.work, '.codex', '/work/.codex')):
+            directory = base / relative
+            if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+                raise ValueError('Invalid Skill discovery directory')
+            argv += ['--tmpfs', target, '--remount-ro', target]
+    elif not workspace.use_skill:
         argv += ['--tmpfs', '/home/runner/.agents']
     elif skill.is_dir():
         # Hide previous per-task discovery state and expose only this frozen Skill.

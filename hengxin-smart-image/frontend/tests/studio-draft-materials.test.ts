@@ -37,8 +37,8 @@ function fixture() {
     removeMaterial: async (_task, id) => { calls.push(id); current.materials = current.materials.filter(a => a.id !== id); return structuredClone(current) } }
   return { api, calls, sends, get current() { return current } }
 }
-function mount(api: StudioApi, actor = 'designer', taskId = 't', capabilities = ['task.design']) {
-  const task = { ...emptyTaskDraft(), remarks: '', id: taskId, version: 1, capabilities } as TaskDetail
+function mount(api: StudioApi, actor = 'designer', taskId = 't', capabilities = ['task.design'], designType: TaskDetail['designType'] = 'platform') {
+  const task = { ...emptyTaskDraft(), remarks: '', id: taskId, version: 1, capabilities, designType } as TaskDetail
   let state!: ReturnType<typeof useStudio>
   const failures: unknown[] = []
   const app = renderer.createApp(defineComponent({ setup() {
@@ -46,6 +46,24 @@ function mount(api: StudioApi, actor = 'designer', taskId = 't', capabilities = 
   } })); app.mount({})
   return { state, failures, close: () => app.unmount() }
 }
+
+test('自定义任务恢复文本和附件，忽略草稿中遗留的 Skill 并直接发送', async () => {
+  const f = fixture(), key = composerDraftKey('designer', 't', 'c1')
+  local.set(key, JSON.stringify({ version: 1, text: '参考样图', skill: 'old',
+    attachments: [asset('a')], references: [], revisions: [] }))
+  f.current.skills = []
+  const view = mount(f.api, 'designer', 't', ['task.design'], 'custom')
+  try {
+    await flush()
+    assert.equal(view.state.skill.value, '')
+    assert.equal(view.state.draftNotice.value, '')
+    assert.equal(view.state.canSend.value, true)
+    await view.state.send()
+    assert.equal(f.sends[0].body.text, '参考样图')
+    assert.equal(f.sends[0].body.skillId, null)
+    assert.deepEqual(f.sends[0].body.attachmentIds, ['upload:a'])
+  } finally { view.close() }
+})
 
 test('上传/引用、文字、Skill整页重建恢复；已隐藏和重复上传身份保持，移除后刷新不复活', async () => {
   const f = fixture(), first = mount(f.api); await flush()

@@ -3,6 +3,7 @@ import subprocess
 import sys
 from uuid import uuid4
 from sqlalchemy import create_engine, text
+from app.overseas.db import SCHEMA_REVISION
 from test_overseas_database import disposable_databases, migration_environment, migrate, snapshot, BACKEND
 
 
@@ -39,7 +40,7 @@ def test_upgrade_0025_retains_history(disposable_databases):
             for table, rows in before.items():
                 if table != 'overseas_alembic_version':
                     assert after[table] == rows
-            assert after['overseas_alembic_version'] == [('overseas_0026',)]
+            assert after['overseas_alembic_version'] == [(SCHEMA_REVISION,)]
             assert after['overseas_requirement_drafts'] == after['overseas_draft_imports'] == after['overseas_draft_materials'] == []
     finally:
         engine.dispose()

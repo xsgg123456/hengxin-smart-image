@@ -10,9 +10,13 @@ import { useComposerDraft } from './studio-composer-draft'
 import { pendingKey, pendingOwner, type Pending } from './studio-pending'
 import { ObsoleteStudioSnapshot } from './studio-session-api'
 import { useRevisionActions } from './use-revision-actions'
-export type StudioTask = { id: string; version: number; capabilities: string[] }
+export type StudioTask = { id: string; version: number; capabilities: string[]; designType?: 'platform' | 'custom' }
 export function useStudio(task: () => StudioTask, failure: (reason: unknown) => void, changed: () => void, api = createStudioApi(), actorId = '', session?: { id?: string; available: () => boolean; normalize?: (value: Studio) => Studio }) {
-  const data = ref<Studio>(), text = ref(''), skill = ref(''), attachments = ref<Asset[]>([]), references = ref<StudioPicture[]>([])
+  const data = ref<Studio>(), text = ref(''), selectedSkill = ref(''), attachments = ref<Asset[]>([]), references = ref<StudioPicture[]>([])
+  const skill = computed({
+    get: () => task().designType === 'custom' ? '' : selectedSkill.value,
+    set: (value: string) => { selectedSkill.value = task().designType === 'custom' ? '' : value }
+  })
   const revisions = ref<StudioRevision[]>([])
   const draft = useComposerDraft(actorId, task().id, { text, skill, attachments, references, revisions })
   const removingMaterials = ref(false)

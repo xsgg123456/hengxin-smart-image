@@ -6,7 +6,7 @@ export type MemberRole = keyof typeof memberRoles
 export type MemberStatus = 'active' | 'pending' | 'disabled'
 export interface OverseasMember {
   id: string; name: string; department: string; roles: MemberRole[]; status: MemberStatus
-  version: number; createdAt: string; updatedAt: string; directoryState?: 'enrolled' | 'legacy_unconfirmed'
+  version: number; createdAt: string; updatedAt: string; directoryState?: 'enrolled' | 'legacy_unconfirmed'; feedbackManage?: boolean
 }
 export interface MemberQuery { search: string; status: string; role: string; page: number; pageSize: number; directory?: 'members' | 'legacy' }
 export interface MemberPage { items: OverseasMember[]; total: number; page: number; pageSize: number }
@@ -21,6 +21,7 @@ export function isOverseasMember(v: unknown): v is OverseasMember {
   return record(v) && typeof v.id === 'string' && typeof v.name === 'string' && typeof v.department === 'string'
     && Array.isArray(v.roles) && v.roles.length <= 1 && (v.status !== 'active' || v.roles.length === 1) && v.roles.every(r => typeof r === 'string' && Object.hasOwn(memberRoles, r))
     && ['active', 'pending', 'disabled'].includes(String(v.status)) && Number.isInteger(v.version) && Number(v.version) >= 1
+    && (v.feedbackManage === undefined || typeof v.feedbackManage === 'boolean')
     && typeof v.createdAt === 'string' && typeof v.updatedAt === 'string'
 }
 export function createMembersApi(fetcher: typeof fetch = fetch): MembersAdapter {
@@ -34,7 +35,7 @@ export function createMembersApi(fetcher: typeof fetch = fetch): MembersAdapter 
     save: member => {
       if (!isOverseasMember(member)) return Promise.reject(new Error('成员必须符合单角色规则'))
       return request(`${base}/${encodeURIComponent(member.id)}`, isOverseasMember,
-      { roles: [...new Set(member.roles)], status: member.status, version: member.version }, { method: 'PATCH' })
+      { roles: [...new Set(member.roles)], status: member.status, version: member.version, feedbackManage: member.feedbackManage }, { method: 'PATCH' })
     }
   }
 }

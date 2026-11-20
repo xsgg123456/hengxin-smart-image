@@ -55,6 +55,7 @@ def picture_dto(row):
 def dto(record, cover=None, latest=None):
     return dict(id=str(record.id), taskId=str(record.task_id) if record.task_id else None,
         sourceDeleted=record.task_id is None, taskName=record.task_name, language=record.language,
+        designType=record.design_type,
         productName=record.product_name, brand=record.brand,
         platform=record.platform, skus=record.skus or [], pictureCount=len(record.versions),
         createdAt=record.created_at, latestArchive=event_dto(latest) if latest else None, cover=picture_dto(cover) if cover else None)

@@ -59,7 +59,7 @@ test('正式成品卡片明确四字段，只有已归档状态，没有重复�
   const view = mount(page, { refresh: 0 })
   try {
     await flush()
-    assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '平台', 'SKU', '最近归档人', '归档时间'])
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '设计类型', 'SKU', '最近归档人', '归档时间'])
     assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTag').map(text), ['21 套归档', '已归档'])
     assert.match(text(view.root), /归档人实际确认者/)
     assert.match(text(view.root), /2026-10-19 09:02:03/)

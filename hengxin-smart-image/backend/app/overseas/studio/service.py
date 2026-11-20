@@ -59,6 +59,8 @@ def replay(session, actor, task, conversation_id=None):
 
 def send(session, actor, task_id, body, key, conversation_hint=None):
     actor, task, digest, previous = mutate(session, actor, task_id, body, key, 'studio_send')
+    if task.design_type == 'custom' and body.skillId is not None:
+        raise HTTPException(422, '自定义生图不支持绑定 Skill')
     if body.conversationId and conversation_hint and body.conversationId != conversation_hint:
         raise HTTPException(409, '请求会话与核实会话不一致，请核实原请求')
     channel_id = body.conversationId or conversation_hint

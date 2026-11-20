@@ -25,7 +25,7 @@ const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
 let authenticated = true, domesticValid = true, overseasValid = true, overseasDenied = false, configFailure = 0
 const domestic = { id: 'fixture-domestic', name: '隔离成员', status: 'active', role: 'designer', identitySessionId: 'fixture-session' }
-const overseas = { id: 'fixture-overseas', name: '隔离成员', status: 'active', roles: ['designer'], capabilities: [], identitySessionId: 'fixture-session' }
+const overseas = { id: 'fixture-overseas', name: '隔离成员', status: 'active', roles: ['designer'], capabilities: ['task.create', 'task.read', 'task.design'], identitySessionId: 'fixture-session' }
 const errors = [], requests = [], documents = []
 await context.route('**/api/**', async route => {
   const path = new URL(route.request().url()).pathname
@@ -56,7 +56,7 @@ const freshEntry = async path => { await page.goto('about:blank'); await page.go
 try {
   for (const [scope, defaultHash] of [
     ['domestic', '#/new-product/general'],
-    ['overseas', '#/overseas/tasks'],
+    ['overseas', '#/overseas/design-center'],
     ['shared', '#/auth/business'],
   ]) {
     for (const entry of ['', '?entry=bare', '?entry=bare#/', defaultHash]) {
@@ -81,6 +81,37 @@ try {
       }
     }
   }
+
+  reset()
+  await freshEntry('/overseas/#/overseas/create')
+  const cards = page.locator('.dc-card')
+  await cards.first().waitFor()
+  assert.equal(await cards.count(), 6)
+  assert.equal(new URL(page.url()).hash, '#/overseas/design-center')
+  for (const card of await cards.all()) {
+    await card.hover()
+    assert.ok(await card.locator('img').evaluateAll(images => images.length > 0 && images.every(img => img.complete && img.naturalWidth > 0)))
+  }
+  assert.equal(await page.getByRole('button', { name: /虾皮/ }).count(), 0)
+  await button('自定义生图，开始创作').click()
+  const customDialog = page.getByRole('dialog', { name: '新建自定义生图' })
+  assert.equal(await customDialog.locator('input').count(), 1)
+  await customDialog.getByRole('button', { name: '进入 AI 设计工作台' }).click()
+  await customDialog.getByText(/请用一个加号/).waitFor()
+  await page.keyboard.press('Escape')
+  await button('新建家得宝图需').click()
+  const dialog = page.getByRole('dialog')
+  await dialog.waitFor()
+  await dialog.getByText('新建图需', { exact: true }).first().waitFor()
+  await dialog.getByLabel('商品 SKU', { exact: true }).first().waitFor()
+  assert.equal(await dialog.getByText('图需说明', { exact: true }).count(), 0)
+  await page.keyboard.press('Escape')
+  await button('继续任务').click()
+  assert.equal(new URL(page.url()).hash, '#/overseas/design-center?view=tasks')
+  assert.equal(await cards.count(), 0)
+  await page.getByText('全部设计类型', {exact:true}).click()
+  await page.getByRole('option', {name:'Lazada', exact:true}).click()
+  console.log('PASS five platform cards, custom design dialog and independent task list using production entry')
 
   reset()
   await freshEntry('/?source=legacy#/auth/callback?auth=provider_error&state=%2F')

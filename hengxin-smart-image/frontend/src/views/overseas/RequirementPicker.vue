@@ -1,5 +1,5 @@
 <template>
-  <ElDialog v-model="open" title="选择要导入的需求" width="860px" class="sku-picker" style="max-width:calc(100vw - 32px)" :close-on-click-modal="false">
+  <ElDialog v-model="open" title="选择要导入的需求" width="860px" class="sku-picker" style="max-width:calc(100vw - 32px)" append-to-body :close-on-click-modal="false">
     <p class="picker-note">SKU <strong>{{ sku }}</strong> 共找到 {{ items.length }} 条需求。选择一条，回填信息并导入该条需求的全部附件。</p>
     <ElRadioGroup v-model="selected" class="requirement-options" aria-label="选择需求">
       <label v-for="item in items" :key="item.id" class="requirement-option" :class="{ chosen: selected === item.id }">

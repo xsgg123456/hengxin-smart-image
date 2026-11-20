@@ -134,8 +134,8 @@ async function enter(business: Business) {
     if (epoch !== generation) return
     if (current.identitySessionId !== identitySession.value || latest.sessionId !== identitySession.value) throw new IdentityError(401, '企业身份已变化，请重新选择业务')
     if (business === 'domestic') { legacySession(); return }
-    if (isIndependentRelease()) { window.location.assign(releaseDestination('overseas', '/overseas/tasks')); return }
-    member.value = current; overseas.value = true; window.location.hash = '/overseas/tasks'
+    if (isIndependentRelease()) { window.location.assign(releaseDestination('overseas', '/overseas/design-center')); return }
+    member.value = current; overseas.value = true; window.location.hash = '/overseas/design-center'
   }
   catch (reason) { if (epoch === generation) businessFailure(reason) }
   finally { if (epoch === generation) busy.value = false }

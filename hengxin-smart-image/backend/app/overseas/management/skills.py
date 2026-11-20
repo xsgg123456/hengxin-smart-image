@@ -8,6 +8,7 @@ from app.overseas.tasks.service import lock_actor
 from app.overseas.permissions import has_full_access_grant
 from .installed_catalog import listing
 from .models import Audit, InstalledSkillAvailability
+from .schemas import SKILL_PLATFORMS
 
 
 def can_toggle(actor):
@@ -23,12 +24,15 @@ def states(session):
 def list_skills(session, actor):
     current = states(session)
     return {'items': [{**item, 'enabled': current[item['name']].enabled if item['name'] in current else False,
-                      'platforms': current[item['name']].platforms if item['name'] in current else [],
+                      'platforms': [p for p in current[item['name']].platforms if p in SKILL_PLATFORMS]
+                                   if item['name'] in current else [],
                       'version': current[item['name']].version if item['name'] in current else 1}
                      for item in listing()], 'canToggle': can_toggle(actor), 'canManagePlatforms': True}
 
 
 def enabled_listing(session, platform):
+    if platform not in SKILL_PLATFORMS:
+        return []
     current = states(session)
     return [item for item in listing() if item['name'] in current and current[item['name']].enabled
             and platform in current[item['name']].platforms]
@@ -39,7 +43,7 @@ def require_enabled(session, name, platform=None):
                          .execution_options(populate_existing=True))
     if row is None or not row.enabled:
         raise HTTPException(422, '所选 Skill 已关闭，请重新选择后发送')
-    if platform is not None and platform not in row.platforms:
+    if platform is not None and (platform not in SKILL_PLATFORMS or platform not in row.platforms):
         raise HTTPException(422, '所选 Skill 不属于当前任务平台，请重新选择或不选 Skill 后发送')
 
 
@@ -88,7 +92,7 @@ def set_platforms(session, actor, body):
         if row is None:
             row = InstalledSkillAvailability(id=item['name'], enabled=item['enabled'])
             session.add(row)
-        before = {'platforms': item['platforms'], 'version': item['version']}
+        before = {'platforms': row.platforms or [], 'version': item['version']}
         row.platforms, row.version = list(change.platforms), item['version'] + 1
         row.updated_at = utcnow()
         session.add(Audit(actor_id=actor.id, action='skill.platforms', target=item['name'],

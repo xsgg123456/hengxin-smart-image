@@ -9,7 +9,7 @@ from sqlalchemy import delete, text
 from app.overseas.auth.models import Member, MemberRole
 from app.overseas.members import service as members
 from app.overseas.tasks import service, assignment
-from app.overseas.tasks.schemas import CreateTask, Assignment
+from app.overseas.tasks.schemas import CreateTask, CreateCustomTask, Assignment
 from test_overseas_members_postgres import pg_factory, member
 from test_overseas_tasks import payload, counts
 
@@ -50,6 +50,30 @@ def test_concurrent_same_key_create(pg_factory, different):
                                'other' if i and different else None) for i in range(2)]
         assert sorted(f.result(timeout=15)[0] for f in futures) == ([201, 409] if different else [200, 201])
     assert counts(pg_factory) == [1, 2, 1, 1, 1]
+
+
+def test_custom_concurrent_replay_with_full_length_title(pg_factory):
+    from app.overseas.studio.models import Conversation
+    from sqlalchemy import select
+    creator = member(pg_factory, 'designer')
+    barrier = Barrier(2)
+    title = '灯' * 80 + '+' + 'A' * 80
+
+    def submit():
+        with pg_factory() as session:
+            actor = session.get(Member, creator)
+            barrier.wait(timeout=8)
+            return service.create_task(session, actor, CreateCustomTask(productNameSku=title), 'same-custom-key')
+
+    with ThreadPoolExecutor(2) as pool:
+        responses = [pool.submit(submit) for _ in range(2)]
+        results = [future.result(timeout=15) for future in responses]
+    assert sorted(created for _, created in results) == [False, True]
+    assert results[0][0]['id'] == results[1][0]['id']
+    assert results[0][0]['name'] == title
+    assert counts(pg_factory) == [1, 1, 1, 1, 1]
+    with pg_factory() as session:
+        assert len(session.scalars(select(Conversation)).all()) == 1
 
 
 def test_same_key_is_independent_per_actor(pg_factory):

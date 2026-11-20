@@ -1,9 +1,18 @@
 <template>
   <OverseasShell>
+    <template #sidebar-footer>
+      <SupportMenu :key="feedbackPageKey" :api="feedbackApi" :source="feedbackSource" :task-name="currentTask?.name" :sku="currentTask?.sku" :pending-context="pendingFeedbackContext"
+        @submitted="feedbackRevision++" @failure="managementFailure" />
+    </template>
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
-    <div class="layout-content"><div :class="managementPage === 'codex-auth' && managementAllowed ? undefined : 'hx-page'">
-      <div v-if="!taskPage && !archivePage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p v-if="managementPage === 'activity'">按人员查看使用情况，跟进每一次 Codex 执行。</p><p v-else>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
-      <OverseasTasksPage v-if="taskPage" :actor-id="member.id" :api="tasksAdapter" :materials-api="materialsAdapter" :drafts-api="draftsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+    <div class="layout-content"><div :class="centerPage || toolPage || aboutPage || feedbackPage || (managementPage === 'codex-auth' && managementAllowed) ? undefined : 'hx-page'">
+      <div v-if="!toolPage && !taskPage && !archivePage && !aboutPage && !feedbackPage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p v-if="managementPage === 'activity'">按人员查看使用情况，跟进每一次 Codex 执行。</p><p v-else>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
+      <OverseasTasksPage v-if="taskPage" :key="identityKey" :actor-id="member.id" :actor-name="member.name" @context="setTaskContext" :api="tasksAdapter" :materials-api="materialsAdapter" :drafts-api="draftsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+      <CreativeTools v-else-if="toolPage && canSeeTaskMenu" />
+      <ElAlert v-else-if="toolPage" title="暂无创作工具集访问权限" type="warning" :closable="false" />
+      <OverseasAbout v-else-if="aboutPage" />
+      <FeedbackAdmin v-else-if="feedbackPage && canManageFeedback" :key="identityKey" :api="feedbackApi" :refresh="feedbackRevision + refreshKey" @failure="managementFailure" />
+      <ElAlert v-else-if="feedbackPage" title="暂无反馈管理权限" type="warning" :closable="false" />
       <OverseasArchivePage v-else-if="archivePage && member.capabilities?.includes('task.read')" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
       <AccountPage v-else-if="managementPage === 'codex-auth' && managementAllowed" :key="'codex-auth-' + member.id + refreshKey" side="overseas" :adapter="codexAdapter" @failure="managementFailure" />
       <OverseasLiveManagement v-else-if="managementPage && managementPage !== 'users' && managementAllowed" :key="managementPage + refreshKey" :page="managementPage" :api="managementAdapter" :all-members="member.roles?.some(role => ['super_admin', 'design_manager'].includes(role))" @failure="managementFailure" />
@@ -21,6 +30,11 @@ import { useMenuStore } from '@/store/modules/menu'
 import { useSettingStore } from '@/store/modules/setting'
 import { useWorktabStore } from '@/store/modules/worktab'
 import type { AppRouteRecord } from '@/types/router'
+import SupportMenu from './feedback/SupportMenu.vue'
+import FeedbackAdmin from './feedback/FeedbackAdmin.vue'
+import OverseasAbout from './feedback/OverseasAbout.vue'
+import { createFeedbackApi, type TaskFeedbackContext } from '@/api/overseas/feedback'
+import CreativeTools from './creative-tools/CreativeTools.vue'
 import OverseasShell from './OverseasShell.vue'
 import OverseasMembers from './admin/OverseasMembers.vue'
 import OverseasLiveManagement from './admin/OverseasLiveManagement.vue'
@@ -41,23 +55,52 @@ const allowed = computed(() => props.member.capabilities?.includes('members.mana
 const managementPage = computed(() => { const key = route.path.split('/')[3]; return route.path.startsWith('/overseas/admin/') && Object.hasOwn(managementPages, key) ? key as ManagementPage : undefined })
 const managementAllowed = computed(() => !!managementPage.value && props.member.capabilities?.includes(managementCapability(managementPage.value)))
 const managing = computed(() => route.path === '/overseas/admin/users')
-const taskPage = computed(() => /^\/overseas\/(create|tasks)(\/|$)/.test(route.path))
+const toolPage = computed(() => route.path === '/overseas/creative-tools')
+const canSeeTaskMenu = computed(() => props.member.capabilities?.some(cap => ['task.read','task.create'].includes(cap)))
+const centerPage = computed(() => route.path === '/overseas/design-center')
+const aboutPage = computed(() => route.path === '/overseas/about')
+const feedbackPage = computed(() => route.path === '/overseas/admin/feedback')
+const canManageFeedback = computed(() => props.member.capabilities?.includes('feedback.manage'))
+const identityKey = computed(() => props.member.identitySessionId + ':' + props.member.id)
+const feedbackRevision = ref(0)
+const taskContext = ref<TaskFeedbackContext>()
+const continuingTasks = computed(() => centerPage.value && (route.query.view === 'tasks' || !props.member.capabilities?.includes('task.create')))
+const feedbackPageKey = computed(() => JSON.stringify([identityKey.value, route.path, continuingTasks.value]))
+watch(feedbackPageKey, () => { taskContext.value = undefined }, { flush: 'sync' })
+const currentTask = computed(() => taskContext.value?.id === route.params.id ? taskContext.value : undefined)
+function setTaskContext(update: TaskFeedbackContext) {
+  if (update.id === route.params.id) taskContext.value = { ...currentTask.value, ...update }
+}
+const pendingFeedbackContext = computed(() => !!route.params.id && !!props.member.capabilities?.includes('task.read') && (currentTask.value?.pending ?? true))
+const feedbackSource = computed(() => {
+  if (currentTask.value?.studio) return 'AI 设计工作台'
+  if (currentTask.value && !currentTask.value.pending && !currentTask.value.name) return '任务详情 · ' + currentTask.value.id.slice(0, 480)
+  if (continuingTasks.value) return '设计任务中心 · 继续任务'
+  return String(route.meta.title || '海外业务')
+})
+const feedbackApi = createFeedbackApi(fetch, management => taskAuthorize(management ? 'feedback.manage' : 'task.read'))
+const taskPage = computed(() => centerPage.value || /^\/overseas\/(create|tasks)(\/|$)/.test(route.path))
 const archivePage = computed(() => route.path === '/overseas/archive')
 const refreshKey = ref(0)
 let active = true
 
 watch(() => props.member.capabilities?.join(','), () => {
   const taskMenus: AppRouteRecord[] = []
-  for (const [cap, path, title, icon] of [['task.create', '/overseas/create', '提交图需', 'ri:add-circle-line'], ['task.read', '/overseas/tasks', '工作流任务', 'ri:task-line'], ['task.read', '/overseas/archive', '成品库', 'ri:folder-check-line']]) if (props.member.capabilities?.includes(cap)) taskMenus.push({ path, name: path.split('/').pop(), component: () => import('./OverseasTasksPage.vue'), meta: { title, icon } })
+  if (canSeeTaskMenu.value) {
+    taskMenus.push({path:'/overseas/design-center', name:'overseas-design-center', component:() => import('./OverseasTasksPage.vue'), meta:{title:'设计任务中心',icon:'ri:layout-grid-line'}})
+    taskMenus.push({path:'/overseas/creative-tools', name:'overseas-creative-tools', component:() => import('./creative-tools/CreativeTools.vue'), meta:{title:'创作工具集',icon:'ri:apps-2-line'}})
+  }
+  if (props.member.capabilities?.includes('task.read')) taskMenus.push({path:'/overseas/archive',name:'archive',component:() => import('./OverseasArchivePage.vue'),meta:{title:'成品库',icon:'ri:folder-check-line'}})
   const adminMenus: AppRouteRecord[] = (Object.entries(managementPages) as [ManagementPage,string][]).filter(([page]) => !['usage', 'monitor'].includes(page) && props.member.capabilities?.includes(managementCapability(page))).map(([page,title]) => ({ path: '/overseas/admin/' + page, name: 'overseas-' + page, component: () => import('./admin/OverseasLiveManagement.vue'), meta: { title, icon: 'ri:settings-3-line' } }))
+  if (canManageFeedback.value) adminMenus.push({path:'/overseas/admin/feedback',name:'overseas-feedback',component:()=>import('./feedback/FeedbackAdmin.vue'),meta:{title:'反馈管理',icon:'ri:message-3-line'}})
   menus.setMenuList([...taskMenus, ...(adminMenus.length ? [{ path: '/overseas/admin', name: 'overseas-admin', meta: { title: '管理中心', icon: 'ri:settings-3-line' }, children: adminMenus }] : [])])
-  menus.setHomePath('/overseas/tasks')
+  menus.setHomePath('/overseas/design-center')
   tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = []
 }, { immediate: true, flush: 'sync' })
 watch(() => [route.path, props.member.capabilities?.join(',')], () => {
   const page = managementAllowed.value ? managementPage.value : undefined
   tabs.opened = []; tabs.current = {}
-  tabs.openTab({ title: archivePage.value ? '成品库' : taskPage.value ? String(route.meta.title || '工作流任务') : page ? managementPages[page] : '工作流任务', path: archivePage.value ? '/overseas/archive' : taskPage.value ? route.path : page ? '/overseas/admin/' + page : '/overseas/tasks', name: String(route.name || 'overseas-tasks'), keepAlive: false })
+  tabs.openTab({title:String(route.meta.title || (page && managementPages[page]) || '设计任务中心'),path:route.fullPath,name:String(route.name || 'overseas-design-center'),keepAlive:false})
 }, { immediate: true })
 function fail(reason: unknown) {
   if (!active) return
@@ -108,12 +151,13 @@ const tasksAdapter: TasksApi = {
   async get(id) { await taskAuthorize('task.read'); return tasksApi.get(id) },
   async remove(id, version) { await taskAuthorize('task.delete'); return tasksApi.remove(id, version) },
   async deletion(id) { await taskAuthorize('task.read'); return tasksApi.deletion(id) },
+  async createCustom(value, key) { await taskAuthorize('task.create'); return tasksApi.createCustom(value, key) },
   async create(draft, key) { await taskAuthorize('task.create'); return tasksApi.create(draft, key) },
   async submitMaterials(id, ids, version, key) { await taskAuthorize('task.create'); return tasksApi.submitMaterials(id, ids, version, key) },
   async assign(id, designerId, version, key) { await taskAuthorize('task.reassign'); return tasksApi.assign(id, designerId, version, key) },
   async reviewRequirements(id, decision, comment, version, key) { await taskAuthorize('task.design'); return tasksApi.reviewRequirements(id, decision, comment, version, key) },
   async resubmit(id, draft, version, key) { await taskAuthorize('task.create'); return tasksApi.resubmit(id, draft, version, key) },
-  async designers(query) { await taskAuthorize(route.path === '/overseas/create' ? 'task.create' : 'task.reassign'); return tasksApi.designers(query) }
+  async designers(query) { await taskAuthorize((centerPage.value || route.path === '/overseas/create') ? 'task.create' : 'task.reassign'); return tasksApi.designers(query) }
 }
 const draftService = createDraftsApi()
 const draftsAdapter: DraftsApi = {

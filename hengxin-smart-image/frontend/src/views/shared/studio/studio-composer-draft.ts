@@ -84,7 +84,7 @@ export function useComposerDraft(actor: string, task: string, state: Composer) {
       if (references.length !== saved.references.length) throw Error('missing reference')
       state.text.value = saved.text; state.skill.value = saved.skill; state.attachments.value = saved.attachments
       state.references.value = references; state.revisions.value = revisions
-      notice.value = saved.skill && !availableSkills.has(saved.skill) ? skillWarning : ''
+      notice.value = state.skill.value && !availableSkills.has(state.skill.value) ? skillWarning : ''
     } catch { notice.value = '草稿暂时无法恢复，请检查浏览器存储或重新添加内容；任务素材仍可引用。' }
     finally { changing = false }
   }

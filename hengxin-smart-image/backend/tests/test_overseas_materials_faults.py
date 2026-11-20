@@ -6,20 +6,36 @@ from app.overseas.auth.models import Member
 from app.overseas.materials import files, parsers
 from app.overseas.materials.models import Material
 from app.overseas.tasks.models import TaskRequest, Task
-from app.overseas.tasks.schemas import CreateTask
 from test_overseas_tasks import overseas, payload, create, counts, ROOT, HEADERS, add_member
 from test_overseas_materials import materials, upload, submit
 from test_overseas_assignment import change_roles
 
 
-def test_phase19_hash_replays_without_new_field(materials):
+@pytest.mark.parametrize('with_language', [False, True])
+@pytest.mark.parametrize('with_material', [False, True])
+def test_phase19_hash_replays_without_new_field(materials, with_language, with_material):
     client, factory, _, designer, _ = materials
     body = payload(designer)
+    if with_material:
+        body['materialIds'] = [upload(client).json()['id']]
     data = create(client, body).json()
-    old = CreateTask(**body).model_dump(mode='json', exclude={'materialIds', 'draftId', 'draftVersion'})
+    # Fixed historical wire fields, independent of the current CreateTask model.
+    old = {'name': '图需', 'productName': '手机', 'brand': '品牌', 'platform': 'Amazon',
+           'market': '美国', 'remarks': '说明', 'skus': [{'code': 'A'}, {'code': 'B'}],
+           'designerId': str(designer)}
+    if with_material:
+        old['materialIds'] = body['materialIds']
+    if with_language:
+        old['language'] = 'en'
+    else:
+        del body['language']
     with factory.begin() as session:
         session.scalar(select(TaskRequest)).body_hash = fingerprint_payload(old)
-    assert create(client, body).status_code == 200
+        if not with_language:
+            session.get(Task, UUID(data['id'])).language = None
+    replay = create(client, body)
+    assert replay.status_code == 200 and replay.json()['id'] == data['id']
+    assert create(client, {**body, 'brand': '不同品牌'}).status_code == 409
     assert counts(factory) == [1, 2, 1, 1, 1]
 
 

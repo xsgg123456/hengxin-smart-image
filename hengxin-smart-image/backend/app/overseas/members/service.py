@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.timestamps import utcnow
 from app.overseas.auth.models import BusinessSession, Member, MemberRole
+from app.overseas.feedback.models import FeedbackGrant
 from app.overseas.members.models import MemberAudit
 from app.overseas.members.schemas import MemberPatch
 from app.overseas.permissions import authorize_member
@@ -37,8 +38,11 @@ def snapshot(session, member):
             'version': member.version}
 
 
-def describe(session, member):
+def describe(session, member, feedback_manage=None):
+    if feedback_manage is None:
+        feedback_manage = session.get(FeedbackGrant, member.id) is not None
     return {'id': str(member.id), 'name': member.name, 'department': member.department,
+            'feedbackManage': feedback_manage,
             **snapshot(session, member), 'createdAt': member.created_at,
             'updatedAt': member.updated_at}
 
@@ -55,9 +59,10 @@ def list_members(session, search='', status=None, role=None, page=1, page_size=2
         filters.append(select(MemberRole.id).where(
             MemberRole.user_id == Member.id, MemberRole.role == role).exists())
     total = session.scalar(select(func.count()).select_from(Member).where(*filters))
-    members = session.scalars(select(Member).where(*filters).order_by(
+    members = session.execute(select(Member, FeedbackGrant.id).outerjoin(
+        FeedbackGrant, FeedbackGrant.id == Member.id).where(*filters).order_by(
         Member.created_at.desc(), Member.id).offset((page - 1) * page_size).limit(page_size))
-    return {'items': [describe(session, member) for member in members], 'total': total,
+    return {'items': [describe(session, member, grant_id is not None) for member, grant_id in members], 'total': total,
             'page': page, 'pageSize': page_size}
 
 
@@ -67,10 +72,18 @@ def active_admin_ids(session):
                                      Member.status == 'active', MemberRole.role == 'super_admin')))
 
 
-def write_change(session, member, roles, status, actor_id, action):
+def write_change(session, member, roles, status, actor_id, action, feedback_manage=None):
     if len(roles) > 1 or (status == 'active' and len(roles) != 1):
         raise ValueError('启用成员必须且只能有一个角色')
     before = snapshot(session, member)
+    grant = session.get(FeedbackGrant, member.id)
+    had_grant = grant is not None
+    keep_grant = (had_grant if feedback_manage is None else feedback_manage)
+    keep_grant = keep_grant and status == 'active' and bool({'design_manager', 'super_admin'}.intersection(roles))
+    if keep_grant and not had_grant:
+        session.add(FeedbackGrant(id=member.id))
+    elif had_grant and not keep_grant:
+        session.delete(grant)
     session.execute(delete(MemberRole).where(MemberRole.user_id == member.id))
     session.add_all([MemberRole(user_id=member.id, role=role) for role in roles])
     member.status = status
@@ -80,9 +93,11 @@ def write_change(session, member, roles, status, actor_id, action):
         session.execute(update(BusinessSession).where(
             BusinessSession.user_id == member.id, BusinessSession.revoked_at.is_(None),
         ).values(revoked_at=utcnow()))
+    after = {'roles': sorted(roles), 'status': status, 'version': member.version}
+    if had_grant or keep_grant:
+        before['feedbackManage'], after['feedbackManage'] = had_grant, keep_grant
     session.add(MemberAudit(member_id=member.id, actor_id=actor_id, action=action,
-                            before=before, after={'roles': sorted(roles), 'status': status,
-                                                  'version': member.version}))
+                            before=before, after=after))
     session.flush()
 
 
@@ -99,7 +114,7 @@ def patch_member(session, actor, member_id, body: MemberPatch):
     if member.id in admins and (body.status != 'active' or 'super_admin' not in body.roles):
         if len(admins) <= 1:
             raise HTTPException(409, '不能停用或移除最后一名有效超级管理员')
-    write_change(session, member, body.roles, body.status, actor.id, 'update')
+    write_change(session, member, body.roles, body.status, actor.id, 'update', body.feedbackManage)
     result = describe(session, member)
     session.commit()
     return result

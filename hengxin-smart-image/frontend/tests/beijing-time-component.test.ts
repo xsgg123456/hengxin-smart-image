@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as Languages from '../src/views/overseas/languages'
+import * as Platforms from '../src/views/overseas/platforms'
 import * as Tasks from '../src/api/overseas/tasks'
 import * as TaskStatus from '../src/views/overseas/task-status'
 import { compile, mount, table, text } from './membership-test-harness'
@@ -15,6 +16,7 @@ test('实际海外列表 SFC 将原始 UTC 列渲染为北京时间', () => {
   const component = compile('views/overseas/OverseasWorkspace.vue', {
     '@/api/overseas/tasks': Tasks,
     './task-status': TaskStatus,
+    './platforms': Platforms,
     '@/components/core/tables/art-table/index.vue': { default: table, __esModule: true }
   })
   const view = mount(component, { tasks: [task], total: 1, allowed: true, query: '', scope: 'all', status: '' })

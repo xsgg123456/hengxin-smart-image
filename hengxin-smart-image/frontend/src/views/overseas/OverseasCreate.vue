@@ -1,5 +1,5 @@
 <template>
-  <div class="hx-heading">
+  <div v-if="!embedded" class="hx-heading">
     <div>
       <h1>{{ editing ? '修改图需' : '提交图需' }}</h1>
       <p>{{ editing ? '按设计反馈补充资料，修改完成后重新提交设计审核。' : preview ? '填写品名与 SKU，提供图需资料以体验模拟流程。' : '填写商品信息、SKU 并指定负责设计，提交后由设计先审核资料。' }}</p>
@@ -12,7 +12,7 @@
     type="warning"
     :closable="false"
   />
-  <div class="hx-create-grid">
+  <div class="hx-create-grid" :class="{ embedded }">
     <div class="hx-stack">
       <ElCard class="art-card hx-section" shadow="never">
         <div class="hx-section-title">
@@ -57,7 +57,7 @@
       </ElCard>
       <slot name="after" />
     </div>
-    <ElCard class="art-card hx-summary" shadow="never"
+    <ElCard v-if="!embedded" class="art-card hx-summary" shadow="never"
       ><h2>这套图如何完成</h2>
       <ElSteps direction="vertical" :active="0" :space="85"
         ><ElStep
@@ -83,13 +83,22 @@ interface Fields { name: string; productName: string; brand: string; platform: s
 const draft = defineModel<Fields>({ required: true })
 const brands = ['OUTON', 'OUTONLIFE', 'BELEEV']
 const brandOptions = computed(() => !draft.value.brand || brands.includes(draft.value.brand) ? brands : [...brands, draft.value.brand])
-const platformOptions = computed(() => OVERSEAS_PLATFORMS.some(p => p.value === draft.value.platform) || !draft.value.platform ? OVERSEAS_PLATFORMS : [...OVERSEAS_PLATFORMS, { value: draft.value.platform, label: draft.value.platform }])
-const props = defineProps<{ allowed: boolean; busy?: boolean; preview?: boolean; editing?: boolean; workflow?: 'studio' | 'legacy' }>()
+const platformOptions = computed(() => !props.editing || OVERSEAS_PLATFORMS.some(p => p.value === draft.value.platform) || !draft.value.platform ? OVERSEAS_PLATFORMS : [...OVERSEAS_PLATFORMS, { value: draft.value.platform, label: draft.value.platform }])
+const props = defineProps<{ allowed: boolean; embedded?: boolean; busy?: boolean; preview?: boolean; editing?: boolean; workflow?: 'studio' | 'legacy' }>()
 const studio = computed(() => !props.preview && props.workflow !== 'legacy')
 const stages = computed(() => studio.value ? STUDIO_STAGES : STAGES)
 defineEmits<{ back: [] }>()
 </script>
 <style scoped>
+.hx-create-grid.embedded { grid-template-columns: minmax(0, 1fr); }
+.embedded .form-grid { column-gap: 20px; row-gap: 0; }
+.embedded .hx-section-title { margin-bottom: 16px; }
+.embedded :deep(.hx-section .el-card__body) { padding: 20px 24px; }
+.embedded :deep(.el-form-item) { margin-bottom: 13px; }
+.embedded :deep(.el-form-item__label) { height: auto; line-height: 20px; margin-bottom: 7px; }
+@media (max-width: 600px) {
+  .embedded :deep(.hx-section .el-card__body) { padding: 16px; }
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

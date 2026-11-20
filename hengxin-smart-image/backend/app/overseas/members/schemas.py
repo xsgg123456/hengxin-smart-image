@@ -13,6 +13,7 @@ class MemberPatch(BaseModel):
     roles: list[Role] = Field(max_length=1)
     status: Literal['active', 'disabled']
     version: int = Field(ge=1, strict=True)
+    feedbackManage: bool | None = Field(default=None, strict=True)
 
     @field_validator('roles')
     @classmethod
@@ -23,4 +24,6 @@ class MemberPatch(BaseModel):
     def active_has_role(self):
         if self.status == 'active' and not self.roles:
             raise ValueError('启用成员必须且只能有一个角色')
+        if self.feedbackManage and (self.status != 'active' or self.roles == ['designer']):
+            raise ValueError('仅可授予已启用的管理员反馈管理权限')
         return self

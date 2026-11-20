@@ -30,7 +30,7 @@ import { formatAttachmentSize } from '@/api/overseas/attachment-download'
 const files = defineModel<Material[]>({ required: true })
 const props = defineProps<{ api: MaterialsApi; editable: boolean; disabled?: boolean; replaceable?: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean]; failure: [reason: unknown] }>()
-const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '竞品分析表格' }] as const
+const kinds = [{ key: 'requirement', label: '图片需求文件' }, { key: 'competitor', label: '图需参考资料' }] as const
 const busy = ref(false), progress = ref(0), uploading = ref<MaterialKind>(), error = ref(''), inputKey = ref(0)
 const locked = computed(() => busy.value || props.disabled), group = (kind: MaterialKind) => files.value.filter(f => f.kind === kind)
 let pending: { file: UploadFile; kind: MaterialKind }[] = []

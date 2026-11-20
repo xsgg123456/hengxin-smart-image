@@ -70,11 +70,11 @@ test('图需表单保持默认及历史值，平台顺序与品牌下拉按要�
   const draft = emptyTaskDraft(); assert.equal(draft.brand, ''); assert.equal(draft.platform, '')
   for (const legacy of [false, true]) {
     const modelValue = legacy ? { ...draft, platform: '旧平台', brand: '旧品牌' } : draft
-    const view = mount(component, { modelValue, allowed: true })
+    const view = mount(component, { modelValue, allowed: true, editing: legacy })
     const items = all(view.root).filter(n => n.tag === 'ElFormItem')
     const field = (label: string) => items.find(n => n.props.label === label)!
     assert.equal(all(field('任务名称')).find(n => n.tag === 'ElInput')!.props.placeholder, undefined)
-    assert.deepEqual(all(field('目标平台')).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['Amazon','Wayfair','Mercado Libre','Walmart','The Home Depot','Shopee', ...(legacy ? ['旧平台'] : [])])
+    assert.deepEqual(all(field('目标平台')).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['Amazon','Wayfair','Mercado Libre','Walmart','The Home Depot', ...(legacy ? ['旧平台'] : [])])
     assert.equal(all(field('品牌')).some(n => n.tag === 'ElInput'), false)
     assert.deepEqual(all(field('品牌')).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['OUTON','OUTONLIFE','BELEEV', ...(legacy ? ['旧品牌'] : [])])
     assert.equal(modelValue.brand, legacy ? '旧品牌' : ''); view.close()

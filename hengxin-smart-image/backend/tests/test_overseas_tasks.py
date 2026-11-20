@@ -113,6 +113,22 @@ def test_candidate_search_pagination_and_minimal_fields(overseas):
     assert client.get(ROOT + '/task-designers?search=无匹配').json()['items'] == []
 
 
+def test_platform_filter_matches_exactly_and_respects_visibility(overseas):
+    from app.overseas.tasks import service
+    from app.overseas.tasks.schemas import CreateTask
+    client, factory, actor, other = setup(overseas)
+    for platform in ('Amazon', 'Wayfair', 'Lazada'):
+        assert create(client, {**payload(actor), 'platform': platform}, key=platform).status_code == 201
+    with factory() as session:
+        service.create_task(session, session.get(Member, other), CreateTask(**payload(other)), 'hidden')
+    def matches(platform):
+        return client.get(ROOT + '/tasks', params={'platform': platform, 'search': 'A'}).json()
+    result = matches('Amazon')
+    assert result['total'] == 1 and result['items'][0]['createdBy']['id'] == str(actor)
+    assert [task['platform'] for task in matches('Lazada')['items']] == ['Lazada']
+    assert matches('Ama')['total'] == matches('amazon')['total'] == 0
+
+
 def test_fault_rolls_back_all_five_tables(overseas, monkeypatch):
     from app.overseas.tasks import service
     client, factory, _, designer = setup(overseas)

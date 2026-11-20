@@ -4,8 +4,9 @@ import { STATUS_LABELS } from '../../views/overseas/types'
 import { validateLanguage } from '../../views/overseas/languages'
 export const taskStatuses = { created: '图需已保存', submitted: '图需已提交', studio: 'AI 设计工作台', completed: '已完成', deleting: '正在删除', delete_failed: '删除失败', deleted: '已删除', reworking: '返工中', ...STATUS_LABELS }
 export interface TaskDeletion { taskId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
-export interface TaskDraft { name: string; productName: string; brand: string; platform: string; language: string; market: string; skus: { code: string }[]; designerId: string; materialIds?: string[]; draftId?: string; draftVersion?: number }
-export interface TaskSummary extends Omit<TaskDraft, 'designerId' | 'language'> {
+export interface TaskDraft { name: string; productName: string; brand: string; platform: string; language: string; market: string; skus: { code: string }[]; designerId: string; materialIds?: string[]; draftId?: string; draftVersion?: number; creationSource?: 'design_center' }
+export interface TaskSummary extends Omit<TaskDraft, 'designerId' | 'language' | 'creationSource'> {
+  designType?: 'custom' | 'platform'
   language?: string | null
   remarks: string
   workflow?: 'legacy' | 'studio'
@@ -19,7 +20,7 @@ export interface RequirementsReview { id: string; decision: 'approve' | 'reject'
 export interface TaskDetail extends TaskSummary { events: TaskEvent[]; requirementsReviews?: RequirementsReview[] }
 export interface Designer { id: string; name: string; department: string }
 export interface Page<T> { items: T[]; total: number; page: number; pageSize: number }
-export interface TaskQuery { search: string; scope: string; status: string; page: number; pageSize: number; designerId?: string; statusGroup?: string }
+export interface TaskQuery { search: string; scope: string; status: string; page: number; pageSize: number; designerId?: string; statusGroup?: string; platform?: string; designType?: string }
 export interface Assignee { id: string; name: string }
 export interface TasksApi {
   list(query: TaskQuery): Promise<Page<TaskSummary>>
@@ -28,6 +29,7 @@ export interface TasksApi {
   remove(id: string, version: number): Promise<TaskDeletion>
   deletion(id: string): Promise<TaskDeletion>
   create(draft: TaskDraft, key: string): Promise<TaskDetail>
+  createCustom(value: string, key: string): Promise<TaskDetail>
   submitMaterials(id: string, materialIds: string[], version: number, key: string): Promise<TaskDetail>
   assign(id: string, designerId: string, version: number, key: string): Promise<TaskDetail>
   reviewRequirements(id: string, decision: 'approve' | 'reject', comment: string, version: number, key: string): Promise<TaskDetail>
@@ -40,6 +42,7 @@ const person = (v: unknown) => record(v) && text(v.id) && text(v.name)
 export function isTask(v: unknown): v is TaskSummary {
   return record(v) && ['id', 'name', 'productName', 'brand', 'platform', 'market', 'remarks', 'createdAt', 'updatedAt'].every(k => text(v[k]))
     && text(v.status) && Object.hasOwn(taskStatuses, v.status) && positive(v.version)
+    && (v.designType === undefined || v.designType === 'platform' || v.designType === 'custom')
     && (v.workflow === undefined || v.workflow === 'legacy' || v.workflow === 'studio')
     && (v.language == null || text(v.language))
     && (v.deletionStatus === undefined || v.deletionStatus === null || v.deletionStatus === 'deleting' || v.deletionStatus === 'delete_failed')
@@ -82,6 +85,10 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
     remove: (id, version) => request(`${base}/${encodeURIComponent(id)}`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id, { version }, { method: 'DELETE' }),
     deletion: id => request(`${base}/${encodeURIComponent(id)}/deletion`, (v): v is TaskDeletion => isTaskDeletion(v) && v.taskId === id),
     create: (draft, key) => request(base, isTaskDetail, cleanDraft(draft), { idempotencyKey: key }),
+    createCustom: (value, key) => {
+      const { productName, sku } = parseCustomTaskInput(value)
+      return request(`${base}/custom`, isTaskDetail, { productNameSku: `${productName}+${sku}` }, { idempotencyKey: key })
+    },
     submitMaterials: (id, materialIds, version, key) => request(`${base}/${encodeURIComponent(id)}/materials`, isTaskDetail, { materialIds, version }, { idempotencyKey: key }),
     assign: (id, designerId, version, key) => request(`${base}/${encodeURIComponent(id)}/assignment`, isTaskDetail, { designerId, version }, { method: 'PATCH', idempotencyKey: key }),
     reviewRequirements: (id, decision, comment, version, key) => request(`${base}/${encodeURIComponent(id)}/requirements-review`, isTaskDetail, { decision, comment: comment.trim(), version }, { idempotencyKey: key }),
@@ -90,8 +97,14 @@ export function createTasksApi(fetcher: typeof fetch = fetch): TasksApi {
   }
 }
 export function emptyTaskDraft(): TaskDraft { return { name: '', productName: '', brand: '', platform: '', language: '', market: '', skus: [{ code: '' }], designerId: '' } }
+export function parseCustomTaskInput(value: string) {
+  const parts = value.split('+').map(part => part.trim())
+  if (parts.length !== 2 || parts.some(part => !part)) throw Error('请用一个加号分隔商品名称和 SKU，两项均须填写')
+  if (parts.some(part => [...part].length > 80 || part.includes('\0'))) throw Error('商品名称和 SKU 各限 80 个有效字符')
+  return { productName: parts[0], sku: parts[1] }
+}
 export function cleanDraft(d: TaskDraft): TaskDraft {
-  return { name: d.name.trim(), productName: d.productName.trim(), brand: d.brand.trim(), platform: d.platform.trim(), language: d.language, market: d.market.trim(), skus: d.skus.map(s => ({ code: s.code.trim() })), designerId: d.designerId, ...(d.materialIds ? { materialIds: [...d.materialIds] } : {}), ...(d.draftId ? { draftId: d.draftId, draftVersion: d.draftVersion } : {}) }
+  return { name: d.name.trim(), productName: d.productName.trim(), brand: d.brand.trim(), platform: d.platform.trim(), language: d.language, market: d.market.trim(), skus: d.skus.map(s => ({ code: s.code.trim() })), designerId: d.designerId, ...(d.creationSource ? { creationSource: d.creationSource } : {}), ...(d.materialIds ? { materialIds: [...d.materialIds] } : {}), ...(d.draftId ? { draftId: d.draftId, draftVersion: d.draftVersion } : {}) }
 }
 export function validateDraft(d: TaskDraft) {
   if (![d.name, d.productName, d.brand, d.platform, d.designerId].every(v => v.trim())) throw Error('请填写必填信息并指定设计')

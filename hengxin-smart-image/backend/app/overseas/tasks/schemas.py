@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 Text80 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 Text60 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+Language = Literal['en', 'de', 'fr', 'es']
 
 
 class StrictBody(BaseModel):
@@ -14,13 +15,27 @@ class Sku(StrictBody):
     code: Text80
 
 
+class CreateCustomTask(StrictBody):
+    productNameSku: str
+
+    @field_validator('productNameSku')
+    @classmethod
+    def normalize_parts(cls, value):
+        parts = [part.strip() for part in value.split('+')]
+        if len(parts) != 2 or not all(parts):
+            raise ValueError('请用一个加号分隔商品名称和 SKU，两项均须填写')
+        if any(len(part) > 80 or '\x00' in part for part in parts):
+            raise ValueError('商品名称和 SKU 各限 80 个有效字符')
+        return '+'.join(parts)
+
+
 class TaskInput(StrictBody):
     name: Text80
     productName: Text80
     brand: Text60
     platform: Literal['Amazon', 'Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot',
                       'TikTok Shop', 'Shopee', 'Lazada', '其他']
-    language: Literal['en', 'de', 'fr', 'es']
+    language: Language
     market: str = Field(default='', max_length=60)
     remarks: str = Field(default='', max_length=1000)
     skus: list[Sku] = Field(min_length=1, max_length=100)
@@ -48,11 +63,18 @@ class TaskInput(StrictBody):
 
 
 class CreateTask(TaskInput):
+    # Requests persisted before language was introduced can still be replayed.
+    language: Language | None = None
     draftId: UUID | None = None
     draftVersion: int | None = Field(default=None, ge=1, strict=True)
+    creationSource: Literal['design_center'] | None = None
 
     @model_validator(mode='after')
     def draft_reference(self):
+        if self.language is None and ('language' in self.model_fields_set or self.creationSource):
+            raise ValueError('请选择图需语言')
+        if self.creationSource and (self.draftId is None or not self.materialIds):
+            raise ValueError('设计任务中心提交需要已保存的草稿及至少一份资料')
         if (self.draftId is None) != (self.draftVersion is None):
             raise ValueError('草稿标识与版本必须一起提供')
         if self.draftId is not None and len(self.skus) != 1:

@@ -111,6 +111,8 @@
         </ElMenu>
       </ElScrollbar>
 
+      <slot name="sidebar-footer" />
+
       <!-- 双列菜单右侧折叠按钮 -->
       <div class="dual-menu-collapse-btn" v-if="isDualMenu" @click="toggleMenuVisibility">
         <ArtSvgIcon

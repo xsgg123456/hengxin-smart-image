@@ -4,6 +4,7 @@ from app.overseas.members import service as members
 from app.overseas.permissions import authorize_member
 from .models import Task, TaskEvent, TaskOutbox, TaskRequest, TaskSku
 from .queries import detail, eligible
+from .schemas import CreateCustomTask
 
 
 def lock_actor(session, actor, permission):
@@ -22,7 +23,9 @@ def require_designer(session, designer_id):
 
 def record_change(session, task, actor, kind, before=None):
     event = TaskEvent(task_id=task.id, kind=kind, actor_id=actor.id, actor_name=actor.name,
-                      title={'task.created': '提交图需' if task.status in ('submitted', 'analyzing', 'pending_review') else '保存图需', 'task.assigned': '改派设计',
+                      title={'task.created': '提交图需' if task.status in ('submitted', 'analyzing', 'pending_review') else '保存图需',
+                             'task.studio_created': '提交图需并进入设计工作台', 'task.custom_created': '开始自定义生图',
+                             'task.assigned': '改派设计',
                              'task.materials_submitted': '提交资料', 'task.analysis': '开始分析',
                              'task.plan_confirmed': '确认方案', 'task.generation_retry': '重试SKU生图',
                              'task.picture_approved': '审核图片通过', 'task.picture_revision': '发起单图返工',
@@ -44,15 +47,16 @@ def request_record(session, actor, operation, target, key, body_hash, task):
     return row
 
 
-def create_task(session, actor, body, key):
-    actor = lock_actor(session, actor, 'task.create')
-    # Keep Phase19 request hashes replayable when materialIds was omitted.
-    body_hash = fingerprint_payload(body.model_dump(mode='json', exclude_none=True))
-    previous = lookup_request(session, TaskRequest, actor.id, 'create', '', key, body_hash)
-    if previous:
-        result = detail(session, previous.task_id, actor, lock=True)
-        session.commit()
-        return result, False
+def create_platform_task(session, actor, body, key):
+    if body.platform == 'Shopee':
+        raise HTTPException(422, '虾皮已停用，请选择其他平台')
+    if body.language is None:
+        raise HTTPException(422, '请选择图需语言')
+    direct = body.creationSource == 'design_center'
+    if direct:
+        authorize_member(session, actor, 'task.design')
+        if actor.id != body.designerId:
+            authorize_member(session, actor, 'task.reassign')
     require_designer(session, body.designerId)
     task = Task(name=body.name, product_name=body.productName, brand=body.brand,
                 platform=body.platform, language=body.language, market=body.market, remarks=body.remarks,
@@ -67,8 +71,39 @@ def create_task(session, actor, body, key):
     if body.draftId is not None:
         from app.overseas.drafts.hooks import consume_for_task
         consume_for_task(session, actor, body, task, key=key)
-    record_change(session, task, actor, 'task.created')
-    request_record(session, actor, 'create', '', key, body_hash, task)
+    if direct:
+        task.status = 'studio'
+        task.requirements_approved = True
+    return task, 'task.studio_created' if direct else 'task.created'
+
+
+def create_task(session, actor, body, key):
+    actor = lock_actor(session, actor, 'task.create')
+    custom = isinstance(body, CreateCustomTask)
+    operation = 'create_custom' if custom else 'create'
+    # Omitted fields must not change fingerprints of historical platform requests.
+    body_hash = fingerprint_payload(body.model_dump(mode='json', exclude_none=True))
+    previous = lookup_request(session, TaskRequest, actor.id, operation, '', key, body_hash)
+    if previous:
+        result = detail(session, previous.task_id, actor, lock=True)
+        session.commit()
+        return result, False
+    if custom:
+        from app.overseas.studio.conversations import create as create_conversation
+        authorize_member(session, actor, 'task.design')
+        product_name, sku = body.productNameSku.split('+')
+        task = Task(name=body.productNameSku, product_name=product_name, design_type='custom',
+                    brand='', platform='', market='', created_by=actor.id, designer_id=actor.id,
+                    status='studio', workflow='studio', requirements_approved=True)
+        session.add(task)
+        session.flush()
+        session.add(TaskSku(task_id=task.id, code=sku, code_key=sku.casefold(), position=0))
+        create_conversation(session, task)
+        event = 'task.custom_created'
+    else:
+        task, event = create_platform_task(session, actor, body, key)
+    record_change(session, task, actor, event)
+    request_record(session, actor, operation, '', key, body_hash, task)
     session.flush()
     result = detail(session, task.id, actor)
     session.commit()

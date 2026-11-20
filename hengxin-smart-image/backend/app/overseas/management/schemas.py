@@ -1,11 +1,13 @@
 import re
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.contracts.skill_package import SkillRegisterInput
 from app.core.skill_package import MAX_FILES, MAX_TOTAL, MAX_ZIP
 
 Stage = Literal['analysis', 'generation', 'revision']
+SkillPlatform = Literal['Amazon', 'Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot']
+SKILL_PLATFORMS = frozenset(get_args(SkillPlatform))
 
 
 def validate_files(files):
@@ -63,7 +65,7 @@ class SkillPatch(Strict):
 class SkillPlatformsItem(Strict):
     id: UUID
     version: int = Field(ge=1, strict=True)
-    platforms: list[Literal['Amazon', 'Wayfair', 'Mercado Libre', 'Walmart', 'The Home Depot', 'Shopee']] = Field(max_length=6)
+    platforms: list[SkillPlatform] = Field(max_length=len(SKILL_PLATFORMS))
 
     @field_validator('platforms')
     @classmethod
