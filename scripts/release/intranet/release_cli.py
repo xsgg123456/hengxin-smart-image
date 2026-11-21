@@ -6,7 +6,7 @@ from pathlib import Path
 
 def run(cli, argv=None):
     parser = argparse.ArgumentParser(description=cli.__doc__)
-    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status',
+    parser.add_argument('action', choices=('init', 'status', 'verify', 'prepare', 'prepare-fast', 'prepare-model', 'prepare-logs', 'deploy', 'recover', 'rollback', 'cancel', 'cleanup', 'restore-ingress', 'tasks-prepare', 'tasks-deploy', 'tasks-recover', 'tasks-finish', 'tasks-status',
                                           'workspaces-prepare', 'workspaces-deploy', 'workspaces-recover',
                                           'workspaces-finish', 'workspaces-status',
                                           'general-prepare', 'general-deploy', 'general-recover', 'general-finish', 'general-status',
@@ -24,9 +24,9 @@ def run(cli, argv=None):
     args.mode = args.mode or 'full'
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
-    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare', 'general-prepare', 'design-prepare', 'design-shared-prepare', 'creative-prepare', 'creative-shared-prepare'):
+    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'prepare-logs', 'tasks-prepare', 'workspaces-prepare', 'general-prepare', 'design-prepare', 'design-shared-prepare', 'creative-prepare', 'creative-shared-prepare'):
         parser.error('--release is only valid for a preparation command')
-    if args.action in ('prepare-fast', 'prepare-model') and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
+    if args.action in ('prepare-fast', 'prepare-model', 'prepare-logs') and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
         parser.error(args.action + ' requires a domestic or overseas scope and cannot run frontend-only')
     if cli.socket.gethostname() != 'hengxin-ai-245' or cli.os.geteuid() != 0:
         raise RuntimeError('Only root on hengxin-ai-245 is supported')
@@ -91,11 +91,13 @@ def run(cli, argv=None):
                 data = prepare(tool, args.release, overseas_creative_policy)
             else:
                 data = prepare(tool, args.release)
-        elif args.action in ('prepare', 'prepare-fast', 'prepare-model'):
+        elif args.action in ('prepare', 'prepare-fast', 'prepare-model', 'prepare-logs'):
             if args.release is None:
                 parser.error('prepare requires --release')
             if args.action == 'prepare-fast':
                 data = tool.prepare(args.release, args.mode, args.scope, fast_maintenance=True)
+            elif args.action == 'prepare-logs':
+                data = tool.prepare(args.release, 'backend', args.scope, log_maintenance=True)
             elif args.action == 'prepare-model':
                 data = tool.prepare(args.release, 'backend', args.scope)
             else:

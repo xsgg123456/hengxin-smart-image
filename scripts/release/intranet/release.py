@@ -62,11 +62,13 @@ class Release:
         self.save(data)
         return data
 
-    def prepare(self, release, mode, scope=None, rollback_target=None, fast_maintenance=False):
+    def prepare(self, release, mode, scope=None, rollback_target=None, fast_maintenance=False, log_maintenance=False):
         if mode == 'backend' and scope not in ('domestic', 'overseas'):
             raise RuntimeError('Backend maintenance requires a business scope')
         if fast_maintenance and (scope not in ('domestic', 'overseas') or mode != 'full' or rollback_target):
             raise RuntimeError('Fast maintenance requires a full business release')
+        if log_maintenance and (mode != 'backend' or fast_maintenance or rollback_target):
+            raise RuntimeError('CLI log maintenance requires a new business backend release')
         data = self.load()
         if data['pending']:
             raise RuntimeError('Pending release exists; recover or cancel it first')
@@ -82,7 +84,10 @@ class Release:
             raise RuntimeError('Candidate must be a new immutable directory')
         old = snapshot.manifest(self.u, selected['backend'])
         candidate = snapshot.manifest(self.u, release)
-        if scope:
+        if log_maintenance:
+            import cli_log_maintenance
+            cli_log_maintenance.validate(data, selected, old, candidate, release, scope)
+        elif scope:
             scope_release.candidate(self.u, data, before, release, mode, scope, bool(rollback_target),
                                     fast_maintenance=fast_maintenance)
         else:
@@ -98,7 +103,7 @@ class Release:
         if fast_maintenance:
             pending['maintenance'] = 'codex-fast-20261113'
         if mode == 'backend' and not rollback_target:
-            pending['maintenance'] = 'codex-model-20261118'
+            pending['maintenance'] = 'cli-logs-20261121' if log_maintenance else 'codex-model-20261118'
         if scope:
             import scope_snapshot
             import scopes
