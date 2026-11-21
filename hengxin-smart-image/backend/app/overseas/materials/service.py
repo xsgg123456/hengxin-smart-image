@@ -29,7 +29,7 @@ def readable(session, material_id, actor):
     record = find(session, material_id)
     if record.task_id:
         task = get_task(session, record.task_id)
-        require_task_access(principal_for(session, actor), task.created_by, task.designer_id)
+        require_task_access(principal_for(session, actor), task.created_by, task.designer_id, tool_key=task.tool_key)
     else:
         from app.overseas.permissions import authorize_member
         authorize_member(session, actor, 'task.create')
@@ -99,7 +99,7 @@ def submit(session, actor, task_id, body, key):
 
 def for_task(session, actor, task_id):
     task = get_task(session, task_id)
-    require_task_access(principal_for(session, actor), task.created_by, task.designer_id)
+    require_task_access(principal_for(session, actor), task.created_by, task.designer_id, tool_key=task.tool_key)
     return [describe(session, record) for record in current_materials(session, task)]
 
 

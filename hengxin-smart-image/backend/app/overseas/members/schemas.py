@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.overseas.auth.models import ROLES
 
-Role = Literal['designer', 'design_manager', 'super_admin']
+Role = Literal['designer', 'non_designer', 'design_manager', 'super_admin']
 Status = Literal['active', 'pending', 'disabled']
 
 
@@ -24,6 +24,6 @@ class MemberPatch(BaseModel):
     def active_has_role(self):
         if self.status == 'active' and not self.roles:
             raise ValueError('启用成员必须且只能有一个角色')
-        if self.feedbackManage and (self.status != 'active' or self.roles == ['designer']):
+        if self.feedbackManage and (self.status != 'active' or not {'design_manager', 'super_admin'}.intersection(self.roles)):
             raise ValueError('仅可授予已启用的管理员反馈管理权限')
         return self

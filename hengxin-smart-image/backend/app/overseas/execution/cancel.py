@@ -14,7 +14,8 @@ def cancel(session, actor, job_id, version):
     if reference is None:
         raise HTTPException(404, '海外执行作业不存在')
     task = get_task(session, reference.task_id, lock=True)
-    require_task_access(principal_for(session, actor), task.created_by, task.designer_id, 'task.design')
+    require_task_access(principal_for(session, actor), task.created_by, task.designer_id, 'task.design',
+                        tool_key=task.tool_key)
     job = locked_job(session, job_id)
     if job.version != version:
         raise HTTPException(409, '执行状态已变化，请刷新后重试')

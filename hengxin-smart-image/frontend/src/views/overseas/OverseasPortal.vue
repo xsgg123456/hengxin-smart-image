@@ -7,8 +7,8 @@
     <template #account><ElTag>海外业务</ElTag><ElButton text @click="$emit('switch')">切换业务</ElButton><ElButton text @click="$emit('logout')">退出登录</ElButton></template>
     <div class="layout-content"><div :class="centerPage || toolPage || aboutPage || feedbackPage || (managementPage === 'codex-auth' && managementAllowed) ? undefined : 'hx-page'">
       <div v-if="!toolPage && !taskPage && !archivePage && !aboutPage && !feedbackPage && managementPage !== 'codex-auth'" class="hx-heading"><div><h1>{{ managementPage ? managementPages[managementPage] : '海外业务' }}</h1><p v-if="managementPage === 'activity'">按人员查看使用情况，跟进每一次 Codex 执行。</p><p v-else>{{ member.name }} · {{ member.roles?.map(r => memberRoles[r as MemberRole] || r).join('、') }}</p></div></div>
-      <OverseasTasksPage v-if="taskPage" :key="identityKey" :actor-id="member.id" :actor-name="member.name" @context="setTaskContext" :api="tasksAdapter" :materials-api="materialsAdapter" :drafts-api="draftsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
-      <CreativeTools v-else-if="toolPage && canSeeTaskMenu" />
+      <OverseasTasksPage v-if="taskPage && (!toolOnly || !!route.params.id)" :tool-only="toolOnly" :key="identityKey + String(toolOnly)" :actor-id="member.id" :actor-name="member.name" @context="setTaskContext" :api="tasksAdapter" :materials-api="materialsAdapter" :drafts-api="draftsAdapter" :capabilities="member.capabilities || []" :refresh="refreshKey" @failure="taskFailure" />
+      <CreativeTools v-else-if="toolPage && canUseTools" :key="identityKey" :api="tasksAdapter" :actor-id="member.id" :refresh="refreshKey" @failure="taskFailure" />
       <ElAlert v-else-if="toolPage" title="暂无创作工具集访问权限" type="warning" :closable="false" />
       <OverseasAbout v-else-if="aboutPage" />
       <FeedbackAdmin v-else-if="feedbackPage && canManageFeedback" :key="identityKey" :api="feedbackApi" :refresh="feedbackRevision + refreshKey" @failure="managementFailure" />
@@ -56,6 +56,12 @@ const managementPage = computed(() => { const key = route.path.split('/')[3]; re
 const managementAllowed = computed(() => !!managementPage.value && props.member.capabilities?.includes(managementCapability(managementPage.value)))
 const managing = computed(() => route.path === '/overseas/admin/users')
 const toolPage = computed(() => route.path === '/overseas/creative-tools')
+const toolOnly = computed(() => props.member.roles?.includes('non_designer') === true)
+const canUseTools = computed(() => props.member.capabilities?.includes('task.tool.create') === true)
+watch([toolOnly, () => route.path], () => {
+  if (toolOnly.value && ['/overseas', '/overseas/design-center', '/overseas/tasks', '/overseas/create'].includes(route.path))
+    void router.replace('/overseas/creative-tools')
+}, { immediate: true })
 const canSeeTaskMenu = computed(() => props.member.capabilities?.some(cap => ['task.read','task.create'].includes(cap)))
 const centerPage = computed(() => route.path === '/overseas/design-center')
 const aboutPage = computed(() => route.path === '/overseas/about')
@@ -84,17 +90,19 @@ const archivePage = computed(() => route.path === '/overseas/archive')
 const refreshKey = ref(0)
 let active = true
 
-watch(() => props.member.capabilities?.join(','), () => {
+watch([() => props.member.capabilities?.join(','), toolOnly], () => {
   const taskMenus: AppRouteRecord[] = []
-  if (canSeeTaskMenu.value) {
+  if (canSeeTaskMenu.value && !toolOnly.value) {
     taskMenus.push({path:'/overseas/design-center', name:'overseas-design-center', component:() => import('./OverseasTasksPage.vue'), meta:{title:'设计任务中心',icon:'ri:layout-grid-line'}})
+  }
+  if (canUseTools.value) {
     taskMenus.push({path:'/overseas/creative-tools', name:'overseas-creative-tools', component:() => import('./creative-tools/CreativeTools.vue'), meta:{title:'创作工具集',icon:'ri:apps-2-line'}})
   }
   if (props.member.capabilities?.includes('task.read')) taskMenus.push({path:'/overseas/archive',name:'archive',component:() => import('./OverseasArchivePage.vue'),meta:{title:'成品库',icon:'ri:folder-check-line'}})
   const adminMenus: AppRouteRecord[] = (Object.entries(managementPages) as [ManagementPage,string][]).filter(([page]) => !['usage', 'monitor'].includes(page) && props.member.capabilities?.includes(managementCapability(page))).map(([page,title]) => ({ path: '/overseas/admin/' + page, name: 'overseas-' + page, component: () => import('./admin/OverseasLiveManagement.vue'), meta: { title, icon: 'ri:settings-3-line' } }))
   if (canManageFeedback.value) adminMenus.push({path:'/overseas/admin/feedback',name:'overseas-feedback',component:()=>import('./feedback/FeedbackAdmin.vue'),meta:{title:'反馈管理',icon:'ri:message-3-line'}})
   menus.setMenuList([...taskMenus, ...(adminMenus.length ? [{ path: '/overseas/admin', name: 'overseas-admin', meta: { title: '管理中心', icon: 'ri:settings-3-line' }, children: adminMenus }] : [])])
-  menus.setHomePath('/overseas/design-center')
+  menus.setHomePath(toolOnly.value ? '/overseas/creative-tools' : '/overseas/design-center')
   tabs.opened = []; tabs.current = {}; tabs.keepAliveExclude = []
 }, { immediate: true, flush: 'sync' })
 watch(() => [route.path, props.member.capabilities?.join(',')], () => {
@@ -151,6 +159,7 @@ const tasksAdapter: TasksApi = {
   async get(id) { await taskAuthorize('task.read'); return tasksApi.get(id) },
   async remove(id, version) { await taskAuthorize('task.delete'); return tasksApi.remove(id, version) },
   async deletion(id) { await taskAuthorize('task.read'); return tasksApi.deletion(id) },
+  async createCreative(draft, key) { await taskAuthorize('task.tool.create'); return tasksApi.createCreative(draft, key) },
   async createCustom(value, key) { await taskAuthorize('task.create'); return tasksApi.createCustom(value, key) },
   async create(draft, key) { await taskAuthorize('task.create'); return tasksApi.create(draft, key) },
   async submitMaterials(id, ids, version, key) { await taskAuthorize('task.create'); return tasksApi.submitMaterials(id, ids, version, key) },
@@ -191,6 +200,8 @@ const managementAdapter: ManagementApi = {
   usage: query => managementCall('stats.read', () => managementApi.usage(query)),
   people: query => managementCall('stats.read', () => managementApi.people(query)),
   jobs: query => managementCall('stats.read', () => managementApi.jobs(query)),
+  toolBindings: () => managementCall('skills.manage', () => managementApi.toolBindings()),
+  setToolBindings: (key, expected, ids) => managementCall('skills.manage', () => managementApi.setToolBindings(key, expected, ids), true),
   skills: () => managementCall('skills.manage', () => managementApi.skills()),
   async setSkillAvailability(id, enabled, version) {
     await taskAuthorize('skills.manage')

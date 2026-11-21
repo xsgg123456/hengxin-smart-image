@@ -11,8 +11,9 @@ from app.core.config import get_settings
 from app.overseas.auth.dependencies import get_current_member, member_roles
 from app.overseas.auth.models import Member, ROLES
 from app.overseas.feedback.models import FeedbackGrant
+from app.overseas.tasks.creative_tools import TOOL_KEYS
 
-CAPABILITIES = ('task.read', 'task.create', 'task.design', 'task.reassign', 'task.delete',
+CAPABILITIES = ('task.read', 'task.create', 'task.tool.create', 'task.design', 'task.reassign', 'task.delete',
                 'stats.read', 'members.manage', 'skills.manage', 'settings.manage')
 MANAGERS = frozenset(('design_manager', 'super_admin'))
 
@@ -31,6 +32,10 @@ def scopes(roles, permission):
         return frozenset()
     if 'super_admin' in roles:
         return frozenset(('all',))
+    if permission == 'task.tool.create':
+        return frozenset(('all',))
+    if roles == {'non_designer'} and permission in ('task.read', 'task.design'):
+        return frozenset(('own_tool',))
     if permission in ('task.read', 'stats.read'):
         if roles & MANAGERS:
             return frozenset(('all',))
@@ -61,7 +66,7 @@ def has_full_access_grant(member: Member | None) -> bool:
 def principal_for(session: Session, member: Member) -> Principal:
     # Validate membership and the real single role before applying an account grant.
     roles = member_roles(session, member)
-    policy_roles = ('super_admin',) if has_full_access_grant(member) else roles
+    policy_roles = ('super_admin',) if roles != ['non_designer'] and has_full_access_grant(member) else roles
     collaborator = (roles == ['designer'] and member.id in getattr(
         get_settings(), 'workflow_collaborator_member_ids', frozenset()))
     return Principal(member.id, frozenset(policy_roles), collaborator)
@@ -106,12 +111,14 @@ def require_permission(permission: str):
     return dependency
 
 
-def task_filter(principal: Principal, created_by, designer_id, permission='task.read'):
+def task_filter(principal: Principal, created_by, designer_id, permission='task.read', *, tool_key=None):
     """Apply to task queries before pagination/counting; caller supplies overseas columns."""
     scope = task_scopes(principal, permission)
     if 'all' in scope:
         return true()
     conditions = []
+    if 'own_tool' in scope and tool_key is not None:
+        conditions.append((created_by == principal.id) & tool_key.in_(TOOL_KEYS))
     if 'created' in scope:
         conditions.append(created_by == principal.id)
     if 'assigned' in scope:
@@ -119,12 +126,13 @@ def task_filter(principal: Principal, created_by, designer_id, permission='task.
     return or_(*conditions) if conditions else false()
 
 
-def can_access_task(principal: Principal, created_by, designer_id, permission='task.read') -> bool:
+def can_access_task(principal: Principal, created_by, designer_id, permission='task.read', *, tool_key=None) -> bool:
     scope = task_scopes(principal, permission)
     return ('all' in scope or ('created' in scope and created_by == principal.id)
-            or ('assigned' in scope and designer_id == principal.id))
+            or ('assigned' in scope and designer_id == principal.id)
+            or ('own_tool' in scope and created_by == principal.id and tool_key in TOOL_KEYS))
 
 
-def require_task_access(principal: Principal, created_by, designer_id, permission='task.read'):
-    if not can_access_task(principal, created_by, designer_id, permission):
+def require_task_access(principal: Principal, created_by, designer_id, permission='task.read', *, tool_key=None):
+    if not can_access_task(principal, created_by, designer_id, permission, tool_key=tool_key):
         raise HTTPException(403, '没有该海外任务的操作权限')

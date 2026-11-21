@@ -3,7 +3,7 @@ import json
 import os
 from uuid import UUID, uuid4
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete as delete_rows, select
 from app.overseas.auth.models import Member
 from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
@@ -12,7 +12,7 @@ from .installed_tree import digest, read_file
 from . import skill_cleanup as cleanup, skill_references as references
 from . import skill_preparation as preparation
 from .skill_objects import prepare_release as prepare_objects
-from .models import Audit, InstalledSkillAvailability
+from .models import Audit, InstalledSkillAvailability, ToolSkillBinding
 from .skill_transfer_store import atomic_json, sync_directory
 from .skills import can_toggle
 
@@ -185,6 +185,7 @@ def delete(store, session, actor_id, skill_id, body):
                                 baseline['beforeBytes'], preparation.history_bytes(baseline))
     if row:
         row.enabled, row.platforms, row.version = False, [], version + 1
+    session.execute(delete_rows(ToolSkillBinding).where(ToolSkillBinding.skill_name == item['name']))
     result = switch(store, session, actor, 'skill.delete', item['name'],
            {'release': release, 'checksum': item['checksum'], 'version': version},
            {'release': new_release, 'deleted': True}, new_release, cleanup_plan)

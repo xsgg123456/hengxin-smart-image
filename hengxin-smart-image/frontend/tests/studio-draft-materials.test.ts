@@ -37,8 +37,8 @@ function fixture() {
     removeMaterial: async (_task, id) => { calls.push(id); current.materials = current.materials.filter(a => a.id !== id); return structuredClone(current) } }
   return { api, calls, sends, get current() { return current } }
 }
-function mount(api: StudioApi, actor = 'designer', taskId = 't', capabilities = ['task.design'], designType: TaskDetail['designType'] = 'platform') {
-  const task = { ...emptyTaskDraft(), remarks: '', id: taskId, version: 1, capabilities, designType } as TaskDetail
+function mount(api: StudioApi, actor = 'designer', taskId = 't', capabilities = ['task.design'], designType: TaskDetail['designType'] = 'platform', toolKey?: TaskDetail['toolKey']) {
+  const task = { ...emptyTaskDraft(), remarks: '', id: taskId, version: 1, capabilities, designType, toolKey } as TaskDetail
   let state!: ReturnType<typeof useStudio>
   const failures: unknown[] = []
   const app = renderer.createApp(defineComponent({ setup() {
@@ -62,6 +62,21 @@ test('自定义任务恢复文本和附件，忽略草稿中遗留的 Skill 并�
     assert.equal(f.sends[0].body.text, '参考样图')
     assert.equal(f.sends[0].body.skillId, null)
     assert.deepEqual(f.sends[0].body.attachmentIds, ['upload:a'])
+  } finally { view.close() }
+})
+
+test('其他平台自定义尺寸可以发送绑定 Skill，已移除的选择必须重新核对', async () => {
+  const f = fixture()
+  const view = mount(f.api, 'designer', 't', ['task.design'], 'custom', 'custom-size')
+  try {
+    await flush()
+    view.state.text.value = '商品图'
+    view.state.skill.value = 'retired'
+    assert.equal(view.state.canSend.value, false)
+    view.state.skill.value = 's'
+    assert.equal(view.state.canSend.value, true)
+    await view.state.send()
+    assert.equal(f.sends[0].body.skillId, 's')
   } finally { view.close() }
 })
 

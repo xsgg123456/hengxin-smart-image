@@ -27,8 +27,9 @@ class StudioProtocol:
             task = session.get(Task, job.task_id)
             if not task:
                 raise ValueError('Studio task missing')
-            custom = task.design_type == 'custom'
-            if custom and job.payload.get('skill') is not None:
+            legacy_custom = task.design_type == 'custom' and not task.tool_key
+            disable_skills = legacy_custom or (bool(task.tool_key) and job.payload.get('skill') is None)
+            if legacy_custom and job.payload.get('skill') is not None:
                 raise ValueError('Custom design cannot execute a frozen Skill')
             conversation = session.get(Conversation, turn.conversation_id)
             if not conversation or conversation.task_id != job.task_id:
@@ -56,7 +57,7 @@ class StudioProtocol:
         if previous and not any((home / 'sessions').rglob(f'*{previous}*')):
             raise ValueError('Original session files missing')
         workspace.previous_session = previous
-        workspace.disable_skills = custom
+        workspace.disable_skills = disable_skills
         workspace.baseline = snapshot_outputs(home, previous) if previous else {}
         from .context_workspace import prepare
         workspace.input_paths = prepare(workspace, history, job.payload['inputs'],

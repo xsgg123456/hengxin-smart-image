@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.browser_auth import browser_request
 from app.db.session import get_session
 from app.overseas.permissions import require_permission
-from . import facts, monitor, settings, skills, usage
-from .schemas import SettingsPatch, SkillPatch, SkillPlatformsPatch
+from . import facts, monitor, settings, skills, tool_bindings, usage
+from .schemas import SettingsPatch, SkillPatch, SkillPlatformsPatch, ToolBindingsPatch
 from .skill_transfer_router import router as transfers_router
 
 router = APIRouter(prefix='/api/overseas/v1/management', tags=['overseas-management'])
@@ -51,6 +51,17 @@ def patch_skill_availability(skill_id: UUID, body: SkillPatch, actor=Depends(ski
 def patch_skill_platforms(body: SkillPlatformsPatch, actor=Depends(skill_admin),
                          session: Session = Depends(get_session)):
     return skills.set_platforms(session, actor, body)
+
+
+@router.get('/skills/tool-bindings')
+def read_tool_bindings(actor=Depends(skill_admin), session: Session = Depends(get_session)):
+    return tool_bindings.catalog(session, actor)
+
+
+@router.put('/skills/tool-bindings/{tool_key}', dependencies=[Depends(browser_request)])
+def replace_tool_bindings(tool_key: str, body: ToolBindingsPatch, actor=Depends(skill_admin),
+                          session: Session = Depends(get_session)):
+    return tool_bindings.replace(session, actor, tool_key, body)
 
 
 @router.get('/settings')

@@ -54,14 +54,14 @@ test('真实国内目录SFC：仅成员和申请，不请求历史目录，403�
 })
 
 
-test('海外正式及预览角色选项统一三项，新成员默认设计', async () => {
-  assert.deepEqual(Object.keys(memberRoles), ['designer', 'design_manager', 'super_admin'])
+test('海外正式及预览角色选项包含非设计人员，新成员默认设计', async () => {
+  assert.deepEqual(Object.keys(memberRoles), ['designer', 'non_designer', 'design_manager', 'super_admin'])
   const adapter: MembersAdapter = { preview: true, async list() { return { items: [], total: 0, page: 1, pageSize: 20 } }, async get() { return member }, async save(value) { return value } }
   const view = mount(foreign, { adapter })
   try {
     await flush(); click(view.root, '新增成员'); await flush()
     const select = all(view.root).find(n => n.tag === 'ElSelect' && n.props['aria-label'] === '海外业务角色')!
     assert.equal(select.props.modelValue, 'designer')
-    assert.deepEqual(all(select).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['designer', 'design_manager', 'super_admin'])
+    assert.deepEqual(all(select).filter(n => n.tag === 'ElOption').map(n => n.props.value), ['designer', 'non_designer', 'design_manager', 'super_admin'])
   } finally { view.close() }
 })

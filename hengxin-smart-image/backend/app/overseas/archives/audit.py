@@ -23,13 +23,15 @@ def record_confirmation(session, record, actor, versions, had_versions=False):
     session.flush()
 
 
-def event_dto(event):
+def event_dto(event, show_sources=True):
+    pictures = event.pictures if show_sources else [
+        {key: row[key] for key in ('id', 'name', 'sku')} for row in event.pictures]
     return dict(id=str(event.id), actorId=str(event.actor_id), actorName=event.actor_name,
-                at=event.created_at.replace(tzinfo=timezone.utc) if event.created_at.tzinfo is None else event.created_at, pictures=event.pictures)
+                at=event.created_at.replace(tzinfo=timezone.utc) if event.created_at.tzinfo is None else event.created_at, pictures=pictures)
 
 
-def history(session, archive_id):
+def history(session, archive_id, show_sources=True):
     rows = session.scalars(select(ArchiveEvent).where(ArchiveEvent.archive_id == archive_id)
         .order_by(ArchiveEvent.created_at.desc(), ArchiveEvent.id.desc())).all()
-    return dict(archiveHistory=[event_dto(row) for row in rows],
+    return dict(archiveHistory=[event_dto(row, show_sources) for row in rows],
                 historyIncomplete=not rows or any(row.prior_history_unknown for row in rows))

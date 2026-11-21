@@ -59,7 +59,7 @@ def replay(session, actor, task, conversation_id=None):
 
 def send(session, actor, task_id, body, key, conversation_hint=None):
     actor, task, digest, previous = mutate(session, actor, task_id, body, key, 'studio_send')
-    if task.design_type == 'custom' and body.skillId is not None:
+    if task.design_type == 'custom' and not task.tool_key and body.skillId is not None:
         raise HTTPException(422, '自定义生图不支持绑定 Skill')
     if body.conversationId and conversation_hint and body.conversationId != conversation_hint:
         raise HTTPException(409, '请求会话与核实会话不一致，请核实原请求')
@@ -88,7 +88,7 @@ def send(session, actor, task_id, body, key, conversation_hint=None):
     edits = freeze_edits(body, attachments, references)
     channel.updated_at = utcnow()
     channel.version += 1
-    frozen = freeze_selected(session, body.skillId, task.platform)
+    frozen = freeze_selected(session, body.skillId, task.platform, task.tool_key)
     turn_id = uuid4()
     inputs = [dict(id=str(row.id), name=row.name, bucket=row.bucket, object_key=row.object_key,
                    content_type=row.content_type, size_bytes=row.size_bytes, checksum=row.checksum)

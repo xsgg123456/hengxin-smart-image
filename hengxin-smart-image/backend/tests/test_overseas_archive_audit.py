@@ -148,3 +148,36 @@ def test_legacy_whole_set_archive_records_actor_and_replays_once(materials, monk
     assert len(view['archiveHistory']) == 1 and not view['historyIncomplete']
     assert view['latestArchive']['actorId'] == str(actor)
     assert {p['sku'] for p in view['latestArchive']['pictures']} == {'A', 'B'}
+
+def test_team_archive_download_does_not_open_creators_workspace(deletion):
+    from app.overseas.tasks.models import Task
+
+    client, factory, creator, task, _, _ = deletion
+    rows = generated(deletion)
+    # Capture the role when the task starts. Another user can archive it later.
+    with factory.begin() as session:
+        session.get(Task, UUID(task['id'])).creator_identity = 'designer'
+    archive = archived(deletion, rows[:1])
+    change_roles(factory, creator, ('design_manager',))
+    visitor = add_member(factory, ('non_designer',), name='非设计同事')
+    with factory.begin() as session:
+        session.scalar(select(BusinessSession)).user_id = visitor
+
+    base = ROOT + '/archives'
+    assert client.get(base, params={'creatorIdentity': 'designer'}).json()['total'] == 1
+    assert client.get(base, params={'creatorIdentity': 'non_designer'}).json()['total'] == 0
+    item = client.get(base + '/' + archive['id']).json()
+    assert item['creatorIdentity'] == 'designer' and item['canOpenSource'] is False
+    assert len(item['pictures']) == 1
+    card = client.get(base).json()['items'][0]
+    assert item['canViewSourceConversations'] is False
+    hidden = [card['cover'], card['latestArchive']['pictures'][0], item['pictures'][0],
+              item['cover'], item['archiveHistory'][0]['pictures'][0], item['latestArchive']['pictures'][0]]
+    assert all(not p.get('sourceConversationId') and not p.get('sourceConversationName') for p in hidden)
+    assert client.get(item['pictures'][0]['url']).status_code == 200
+    assert client.get(base + '/' + archive['id'] + '/download').status_code == 200
+    assert client.get(ROOT + '/tasks/' + task['id']).status_code in (403, 404)
+    with factory.begin() as session:
+        session.get(Archive, UUID(archive['id'])).creator_identity = None
+    assert client.get(base).json()['items'][0]['creatorIdentity'] is None
+    assert client.get(base, params={'creatorIdentity': 'designer'}).json()['total'] == 0

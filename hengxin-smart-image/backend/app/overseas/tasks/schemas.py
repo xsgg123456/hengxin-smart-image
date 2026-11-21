@@ -2,6 +2,8 @@ from typing import Annotated, Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
+from .creative_tools import PlatformToolKey
+
 Text80 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 Text60 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Language = Literal['en', 'de', 'fr', 'es']
@@ -27,6 +29,27 @@ class CreateCustomTask(StrictBody):
         if any(len(part) > 80 or '\x00' in part for part in parts):
             raise ValueError('商品名称和 SKU 各限 80 个有效字符')
         return '+'.join(parts)
+
+
+class PlatformToolTask(StrictBody):
+    toolKey: PlatformToolKey
+    productName: Text80
+    sku: Text80
+    language: Language
+
+    @field_validator('productName', 'sku')
+    @classmethod
+    def valid_text(cls, value):
+        if '\x00' in value:
+            raise ValueError('品名和 SKU 含无效字符')
+        return value
+
+
+class CustomSizeToolTask(CreateCustomTask):
+    toolKey: Literal['custom-size']
+
+
+CreativeToolTask = Annotated[PlatformToolTask | CustomSizeToolTask, Field(discriminator='toolKey')]
 
 
 class TaskInput(StrictBody):

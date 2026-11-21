@@ -12,6 +12,7 @@ class Archive(Timestamps, Base):
     versions: Mapped[list] = mapped_column(JSON)
     task_name: Mapped[str | None] = mapped_column(String(161))
     design_type: Mapped[str] = mapped_column(String(20), server_default='platform', default='platform')
+    creator_identity: Mapped[str | None] = mapped_column(String(20))
     language: Mapped[str | None] = mapped_column(String(2))
     product_name: Mapped[str | None] = mapped_column(String(80))
     brand: Mapped[str | None] = mapped_column(String(60))

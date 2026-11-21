@@ -76,6 +76,30 @@ def test_custom_concurrent_replay_with_full_length_title(pg_factory):
         assert len(session.scalars(select(Conversation)).all()) == 1
 
 
+def test_tool_concurrent_replay_creates_one_owned_conversation(pg_factory):
+    from sqlalchemy import select, func
+    from app.overseas.studio.models import Conversation
+    from app.overseas.tasks.schemas import PlatformToolTask
+
+    actor_id = member(pg_factory, 'non_designer')
+    barrier = Barrier(2)
+    body = PlatformToolTask(toolKey='beleev', productName='商品', sku='SKU', language='es')
+    def submit():
+        with pg_factory() as session:
+            actor = session.get(Member, actor_id)
+            barrier.wait(timeout=8)
+            return service.create_task(session, actor, body, 'same-tool')
+
+    with ThreadPoolExecutor(2) as pool:
+        futures = [pool.submit(submit) for _ in range(2)]
+        results = [future.result(timeout=15) for future in futures]
+    assert sorted(created for _, created in results) == [False, True]
+    assert results[0][0]['id'] == results[1][0]['id']
+    assert counts(pg_factory) == [1] * 5
+    with pg_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Conversation)) == 1
+
+
 def test_same_key_is_independent_per_actor(pg_factory):
     a, b = member(pg_factory, 'designer'), member(pg_factory, 'designer')
     designer = member(pg_factory, 'designer')

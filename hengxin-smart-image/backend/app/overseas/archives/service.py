@@ -4,10 +4,10 @@ from zipfile import ZipFile, ZIP_STORED
 from fastapi import HTTPException
 from app.modules.files.delivery import FileDelivery
 from app.overseas.attachment_delivery import deliver
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, true
 from app.overseas.tasks.models import Task
 from app.overseas.tasks.queries import detail
-from app.overseas.permissions import principal_for, require_task_access, task_filter
+from app.overseas.permissions import can_access_task, principal_for, require_task_access, task_filter
 from app.overseas.execution.models import Job, TERMINAL
 from app.overseas.execution.queue import lock_gate
 from app.overseas.plans.service import mutation, complete
@@ -44,26 +44,35 @@ def archive(session, actor, task_id, body, key, store):
     return complete(session, actor, task, 'archived', target, key, digest)
 
 
-def picture_dto(row):
+def picture_dto(row, show_sources=True):
     return dict(id=str(row.id), name=row.name, sku=row.sku, width=row.width, height=row.height,
         contentType=row.content_type, sizeBytes=row.size_bytes,
-        sourceConversationId=str(row.source_conversation_id) if row.source_conversation_id else None,
-        sourceConversationName=row.source_conversation_name,
+        sourceConversationId=str(row.source_conversation_id) if show_sources and row.source_conversation_id else None,
+        sourceConversationName=row.source_conversation_name if show_sources else None,
         url=f'/api/overseas/v1/archives/{row.archive_id}/pictures/{row.id}/content')
 
 
-def dto(record, cover=None, latest=None):
+def dto(record, cover=None, latest=None, show_sources=True):
     return dict(id=str(record.id), taskId=str(record.task_id) if record.task_id else None,
         sourceDeleted=record.task_id is None, taskName=record.task_name, language=record.language,
-        designType=record.design_type,
+        designType=record.design_type, creatorIdentity=record.creator_identity,
         productName=record.product_name, brand=record.brand,
         platform=record.platform, skus=record.skus or [], pictureCount=len(record.versions),
-        createdAt=record.created_at, latestArchive=event_dto(latest) if latest else None, cover=picture_dto(cover) if cover else None)
+        createdAt=record.created_at, latestArchive=event_dto(latest, show_sources) if latest else None, cover=picture_dto(cover, show_sources) if cover else None)
 
 
-def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20, archiver_id=None):
+def archive_filter(principal):
+    if principal.roles == {'non_designer'}:
+        return true()
+    return task_filter(principal, Archive.created_by, Archive.designer_id)
+
+
+def listing(session, actor, product='', brand='', sku='', search='', page=1, page_size=20,
+            archiver_id=None, creator_identity=None):
     principal = principal_for(session, actor)
-    filters = [task_filter(principal, Archive.created_by, Archive.designer_id)]
+    filters = [archive_filter(principal)]
+    if creator_identity:
+        filters.append(Archive.creator_identity == creator_identity)
     if archiver_id:
         filters.append(select(ArchiveEvent.id).where(ArchiveEvent.archive_id == Archive.id,
             ArchiveEvent.actor_id == archiver_id).correlate(Archive).exists())
@@ -81,11 +90,16 @@ def listing(session, actor, product='', brand='', sku='', search='', page=1, pag
         .order_by(ArchiveAsset.position, ArchiveAsset.id).limit(1).correlate(Archive).scalar_subquery())
     last_event = (select(ArchiveEvent.id).where(ArchiveEvent.archive_id == Archive.id)
         .order_by(ArchiveEvent.created_at.desc(), ArchiveEvent.id.desc()).limit(1).correlate(Archive).scalar_subquery())
-    rows = session.execute(select(Archive, ArchiveAsset, ArchiveEvent).outerjoin(ArchiveAsset, ArchiveAsset.id == first_asset)
+    rows = session.execute(select(Archive, ArchiveAsset, ArchiveEvent, Task.tool_key, Task.created_by)
+        .outerjoin(Task, Task.id == Archive.task_id).outerjoin(ArchiveAsset, ArchiveAsset.id == first_asset)
         .outerjoin(ArchiveEvent, ArchiveEvent.id == last_event)
         .where(*filters).order_by(Archive.created_at.desc(), Archive.id)
         .offset((page - 1) * page_size).limit(page_size))
-    return {'items': [{**dto(row, cover, latest), **deletion.fields(session, row)} for row, cover, latest in rows], 'total': total, 'page': page, 'pageSize': page_size}
+    items = []
+    for record, cover, latest, tool_key, owner in rows:
+        show_sources = principal.roles != {'non_designer'} or can_access_task(principal, owner, None, tool_key=tool_key)
+        items.append({**dto(record, cover, latest, show_sources), **deletion.fields(session, record)})
+    return {'items': items, 'total': total, 'page': page, 'pageSize': page_size}
 
 
 def archivers(session, actor):
@@ -94,7 +108,7 @@ def archivers(session, actor):
         func.row_number().over(partition_by=ArchiveEvent.actor_id,
             order_by=(ArchiveEvent.created_at.desc(), ArchiveEvent.id.desc())).label('rank'))
         .join(Archive, Archive.id == ArchiveEvent.archive_id)
-        .where(task_filter(principal, Archive.created_by, Archive.designer_id)).subquery())
+        .where(archive_filter(principal)).subquery())
     rows = session.execute(select(ranked.c.actor_id, ranked.c.actor_name).where(ranked.c.rank == 1)
                            .order_by(ranked.c.actor_name, ranked.c.actor_id))
     return {'items': [{'id': str(identity), 'name': name} for identity, name in rows]}
@@ -106,7 +120,9 @@ def access(session, actor, archive_id, store, metadata_only=False, protect_origi
         raise HTTPException(404, '归档不存在')
     if record.created_by is None and task:
         metadata(session, record, task)
-    require_task_access(principal_for(session, actor), record.created_by, record.designer_id)
+    principal = principal_for(session, actor)
+    if principal.roles != {'non_designer'}:
+        require_task_access(principal, record.created_by, record.designer_id)
     if receipt:
         if not metadata_only:
             deletion.available(session, record.id)
@@ -120,10 +136,16 @@ def access(session, actor, archive_id, store, metadata_only=False, protect_origi
 def view(session, store, actor, archive_id):
     record = access(session, actor, archive_id, store, metadata_only=True)
     pictures = assets(session, record)
-    audit = history(session, record.id)
-    result = {**dto(record, pictures[0] if pictures else None), **audit,
+    task = session.get(Task, record.task_id) if record.task_id else None
+    principal = principal_for(session, actor)
+    can_open_source = bool(task and can_access_task(principal, task.created_by,
+        task.designer_id, tool_key=task.tool_key))
+    show_sources = principal.roles != {'non_designer'} or can_open_source
+    audit = history(session, record.id, show_sources)
+    result = {**dto(record, pictures[0] if pictures else None, show_sources=show_sources), **audit,
+        'canOpenSource': can_open_source, 'canViewSourceConversations': show_sources,
         'latestArchive': audit['archiveHistory'][0] if audit['archiveHistory'] else None,
-        'pictures': [picture_dto(row) for row in pictures], **deletion.fields(session, record)}
+        'pictures': [picture_dto(row, show_sources) for row in pictures], **deletion.fields(session, record)}
     session.commit()
     return result
 

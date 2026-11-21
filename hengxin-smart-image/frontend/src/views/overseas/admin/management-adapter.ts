@@ -1,3 +1,4 @@
+import { memberRoles, type MemberRole } from "../../../api/overseas/members";
 import { randomUUID } from '../../../utils/browser-crypto'
 import { reactive } from "vue";
 import type { Task } from "../types";
@@ -9,12 +10,12 @@ export type ManagementPage =
   | "users"
   | "skills"
   | "settings";
-export const roles = { designer: "设计", design_manager: "设计主管", super_admin: "超级管理员" };
+export { memberRoles as roles };
 export interface Member {
   id: string;
   name: string;
   department: string;
-  role: keyof typeof roles;
+  role: MemberRole;
   enabled: boolean;
 }
 export const members = reactive<Member[]>([]);
@@ -39,7 +40,7 @@ export function saveMember(input: Member) {
     value.department.length > 60
   )
     throw new Error("请填写姓名（1–40 字）");
-  if (!(value.role in roles)) throw new Error("请选择海外业务角色");
+  if (!(value.role in memberRoles)) throw new Error("请选择海外业务角色");
   if (
     members.some(
       (m) =>

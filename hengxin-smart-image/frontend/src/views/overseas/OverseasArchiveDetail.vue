@@ -7,6 +7,7 @@
       <OverseasArchiveFields :archive="detail" />
       <p class="hx-footnote">{{ detail.pictureCount }} 张图片</p>
       <dl class="archive-detail-audit">
+        <div><dt>创作者身份</dt><dd>{{ creatorLabel(detail.creatorIdentity) }}</dd></div>
         <div><dt>归档人</dt><dd>{{ detail.latestArchive?.actorName || '历史记录未记录' }}</dd></div>
         <div><dt>归档时间</dt><dd>{{ detail.latestArchive ? `${formatBeijingTime(detail.latestArchive.at)}（北京时间）` : '历史记录未记录' }}</dd></div>
       </dl>
@@ -22,15 +23,16 @@
         </ol>
       </details>
       <p v-if="detail.sourceDeleted || !detail.taskId" class="hx-gap">原任务已删除</p>
-      <ElButton v-else text type="primary" @click="$emit('source', detail.taskId)">查看原任务</ElButton>
-      <ElSelect v-model="sourceFilter" aria-label="筛选来源会话" class="hx-gap"><ElOption label="全部会话" value="" /><ElOption v-for="source in archiveSources" :key="source.id" :label="source.name" :value="source.id" /></ElSelect>
-      <div class="archive-pictures hx-gap"><div v-for="picture in filteredPictures" :key="detail.id + picture.id + revision"><OverseasArchivePicture :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = filteredPictures.findIndex(p => p.id === picture.id)" /><p class="hx-footnote">来源会话：{{ picture.sourceConversationName || '历史会话未记录' }}</p></div></div>
+      <ElButton v-else-if="detail.canOpenSource !== false" text type="primary" @click="$emit('source', detail.taskId)">查看原任务</ElButton>
+      <ElSelect v-if="detail.canViewSourceConversations !== false" v-model="sourceFilter" aria-label="筛选来源会话" class="hx-gap"><ElOption label="全部会话" value="" /><ElOption v-for="source in archiveSources" :key="source.id" :label="source.name" :value="source.id" /></ElSelect>
+      <div class="archive-pictures hx-gap"><div v-for="picture in filteredPictures" :key="detail.id + picture.id + revision"><OverseasArchivePicture :archive-id="detail.id" :picture="picture" :api="api" @failure="failure" @preview="previewIndex = filteredPictures.findIndex(p => p.id === picture.id)" /><p v-if="detail.canViewSourceConversations !== false" class="hx-footnote">来源会话：{{ picture.sourceConversationName || '历史会话未记录' }}</p></div></div>
     </template>
     <template #footer><ElButton @click="$emit('close')">关闭</ElButton></template>
   </ElDialog>
   <OverseasArchiveViewer v-if="detail && previewIndex !== null" :key="detail.id" :archive-id="detail.id" :api="api" :group="filteredPictures" :initial-index="previewIndex" @close="previewIndex = null" @failure="failure" />
 </template>
 <script setup lang="ts">
+import { creatorLabel } from '@/api/overseas/archives'
 import { formatBeijingTime } from '@/utils/beijing-time'
 
 import { computed, onUnmounted, ref, watch } from 'vue'

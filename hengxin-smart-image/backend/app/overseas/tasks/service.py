@@ -2,9 +2,10 @@ from fastapi import HTTPException
 from app.core.idempotency import fingerprint_payload, lookup_request
 from app.overseas.members import service as members
 from app.overseas.permissions import authorize_member
+from .creative_tools import PLATFORM_TOOLS
 from .models import Task, TaskEvent, TaskOutbox, TaskRequest, TaskSku
 from .queries import detail, eligible
-from .schemas import CreateCustomTask
+from .schemas import CreateCustomTask, CustomSizeToolTask, PlatformToolTask
 
 
 def lock_actor(session, actor, permission):
@@ -25,7 +26,7 @@ def record_change(session, task, actor, kind, before=None):
     event = TaskEvent(task_id=task.id, kind=kind, actor_id=actor.id, actor_name=actor.name,
                       title={'task.created': '提交图需' if task.status in ('submitted', 'analyzing', 'pending_review') else '保存图需',
                              'task.studio_created': '提交图需并进入设计工作台', 'task.custom_created': '开始自定义生图',
-                             'task.assigned': '改派设计',
+                             'task.tool_created': '从创作工具集开始创作', 'task.assigned': '改派设计',
                              'task.materials_submitted': '提交资料', 'task.analysis': '开始分析',
                              'task.plan_confirmed': '确认方案', 'task.generation_retry': '重试SKU生图',
                              'task.picture_approved': '审核图片通过', 'task.picture_revision': '发起单图返工',
@@ -77,10 +78,31 @@ def create_platform_task(session, actor, body, key):
     return task, 'task.studio_created' if direct else 'task.created'
 
 
+def create_studio_task(session, actor, body, tool_key):
+    from app.overseas.studio.conversations import create as create_conversation
+    if isinstance(body, CreateCustomTask):
+        product_name, sku = body.productNameSku.split('+')
+        platform, brand, language, design_type = '', '', None, 'custom'
+    else:
+        product_name, sku = body.productName, body.sku
+        platform, brand = PLATFORM_TOOLS[tool_key]
+        language, design_type = body.language, 'platform'
+    task = Task(name=f'{product_name}+{sku}', product_name=product_name, design_type=design_type,
+                tool_key=tool_key, platform=platform, brand=brand, language=language, market='',
+                created_by=actor.id, designer_id=actor.id, status='studio', workflow='studio',
+                requirements_approved=True)
+    session.add(task)
+    session.flush()
+    session.add(TaskSku(task_id=task.id, code=sku, code_key=sku.casefold(), position=0))
+    create_conversation(session, task)
+    return task
+
+
 def create_task(session, actor, body, key):
-    actor = lock_actor(session, actor, 'task.create')
+    tool = isinstance(body, (PlatformToolTask, CustomSizeToolTask))
     custom = isinstance(body, CreateCustomTask)
-    operation = 'create_custom' if custom else 'create'
+    actor = lock_actor(session, actor, 'task.tool.create' if tool else 'task.create')
+    operation = 'create_tool' if tool else 'create_custom' if custom else 'create'
     # Omitted fields must not change fingerprints of historical platform requests.
     body_hash = fingerprint_payload(body.model_dump(mode='json', exclude_none=True))
     previous = lookup_request(session, TaskRequest, actor.id, operation, '', key, body_hash)
@@ -88,20 +110,15 @@ def create_task(session, actor, body, key):
         result = detail(session, previous.task_id, actor, lock=True)
         session.commit()
         return result, False
-    if custom:
-        from app.overseas.studio.conversations import create as create_conversation
+    if tool or custom:
         authorize_member(session, actor, 'task.design')
-        product_name, sku = body.productNameSku.split('+')
-        task = Task(name=body.productNameSku, product_name=product_name, design_type='custom',
-                    brand='', platform='', market='', created_by=actor.id, designer_id=actor.id,
-                    status='studio', workflow='studio', requirements_approved=True)
-        session.add(task)
-        session.flush()
-        session.add(TaskSku(task_id=task.id, code=sku, code_key=sku.casefold(), position=0))
-        create_conversation(session, task)
-        event = 'task.custom_created'
+        task = create_studio_task(session, actor, body, body.toolKey if tool else None)
+        event = 'task.tool_created' if tool else 'task.custom_created'
     else:
         task, event = create_platform_task(session, actor, body, key)
+    actual_role, = members.roles_for(session, actor.id)
+    task.creator_identity = {'designer': 'designer', 'design_manager': 'designer',
+                             'non_designer': 'non_designer'}.get(actual_role)
     record_change(session, task, actor, event)
     request_record(session, actor, operation, '', key, body_hash, task)
     session.flush()

@@ -1,7 +1,7 @@
 <template>
   <div>
     <template v-if="detailId">
-      <div v-if="!editingRequirements" class="hx-heading" :class="{ 'studio-task-heading': studio }"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail && !studio">{{ taskStatusLabel(detail.status) }}<template v-if="taskStatusNote(detail.status)"> · {{ taskStatusNote(detail.status) }}</template></p></div><div class="studio-actions"><ElButton v-if="studio" size="small" :loading="busy" @click="load">刷新任务详情</ElButton><ElButton :size="studio ? 'small' : 'default'" @click="router.push('/overseas/tasks')">返回任务列表</ElButton></div></div>
+      <div v-if="!editingRequirements" class="hx-heading" :class="{ 'studio-task-heading': studio }"><div><h1>{{ preReview ? '图需审核' : detail?.name || '任务详情' }}</h1><p v-if="detail && !studio">{{ taskStatusLabel(detail.status) }}<template v-if="taskStatusNote(detail.status)"> · {{ taskStatusNote(detail.status) }}</template></p></div><div class="studio-actions"><ElButton v-if="studio" size="small" :loading="busy" @click="load">刷新任务详情</ElButton><ElButton :size="studio ? 'small' : 'default'" @click="returnToList">{{ detail?.toolKey || toolOnly ? '返回我的创作' : '返回任务列表' }}</ElButton></div></div>
       <p v-if="busy" role="status">正在加载任务…</p>
       <ElAlert v-if="error" :title="error" type="error" :closable="false" />
       <ElButton v-if="!editingRequirements && !studio" :loading="busy" @click="load">刷新任务详情</ElButton>
@@ -15,7 +15,7 @@
           </div>
         </template>
       </OverseasRequirementsReview>
-      <div v-if="detail && !deleting && studio" class="hx-filter studio-task-meta"><span v-if="detail.designType === 'custom'">{{ detail.productName }} · SKU：{{ detail.skus.map(s => s.code).join('、') }} · 自定义生图 · 负责设计：{{ detail.designer.name }}</span><span v-else>{{ detail.productName }} · {{ detail.brand }} · {{ detail.platform }} · 语言：{{ languageLabel(detail.language) }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
+      <div v-if="detail && !deleting && studio" class="hx-filter studio-task-meta"><span v-if="detail.designType === 'custom'">{{ detail.productName }} · SKU：{{ detail.skus.map(s => s.code).join('、') }} · 自定义生图 · 负责设计：{{ detail.designer.name }}</span><span v-else>{{ [detail.productName, detail.brand, detail.platform].filter(Boolean).join(' · ') }} · 语言：{{ languageLabel(detail.language) }} · 负责设计：{{ detail.designer.name }}</span><template v-if="detail.capabilities.includes('task.reassign')"><ElButton v-if="!assigning" text size="small" @click="assigning = true">改派设计</ElButton><template v-else><DesignerPicker :api="api" v-model="designerId" :disabled="saving" @failure="failure" /><ElButton :disabled="!designerId || designerId === detail.designer.id" :loading="saving" @click="assign">确认改派</ElButton><ElButton @click="assigning = false">取消</ElButton></template></template></div>
       <OverseasStudio :actor-id="actorId" v-if="detail && !deleting && studio" :key="detail.id" :task="detail" @failure="failure" @changed="refreshDetail" />
       <OverseasTaskInfo v-if="detail && !deleting && !preReview && !studio" :task="detail" class="hx-gap">
         <template #assignment>
@@ -78,7 +78,7 @@ import DesignerPicker from './DesignerPicker.vue'
 import OverseasMaterialsPanel from './OverseasMaterialsPanel.vue'
 import OverseasStudio from './studio/OverseasStudio.vue'
 import { readyMaterialIds, type Material, type MaterialsApi } from '@/api/overseas/materials'
-const props = defineProps<{ actorId: string; actorName?: string; api: TasksApi; materialsApi: MaterialsApi; draftsApi?: DraftsApi; capabilities: string[]; refresh: number }>()
+const props = defineProps<{ actorId: string; actorName?: string; toolOnly?: boolean; api: TasksApi; materialsApi: MaterialsApi; draftsApi?: DraftsApi; capabilities: string[]; refresh: number }>()
 const emit = defineEmits<{ failure: [reason: unknown]; context: [value: TaskFeedbackContext] }>()
 const route = useRoute(), router = useRouter(), detailId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
 const canCreate = computed(() => props.capabilities.includes('task.create')), canRead = computed(() => props.capabilities.includes('task.read'))
@@ -94,6 +94,10 @@ const editingRequirements = ref(false)
 const deleting = computed(() => !!detail.value && taskDeletionActive(detail.value))
 const preReview = computed(() => detail.value && ['pending_review', 'returned'].includes(detail.value.status))
 const studio = computed(() => detail.value?.workflow === 'studio' && ['studio', 'completed'].includes(detail.value.status))
+function returnToList() {
+  if (detail.value?.toolKey || props.toolOnly) void router.push({ path: '/overseas/creative-tools', query: { view: 'mine' } })
+  else void router.push('/overseas/tasks')
+}
 function publishTaskContext(task: TaskDetail) {
   emit('context', { id: task.id, pending: false, name: task.name, sku: task.skus.map(s => s.code).join('、'),
     studio: task.workflow === 'studio' && ['studio', 'completed'].includes(task.status) })
@@ -133,7 +137,7 @@ async function load() {
     if (detailId.value) {
       const value = await readDetail(detailId.value)
       if (!value || current !== generation) return
-      const files = taskDeletionActive(value) || value.designType === 'custom' ? [] : await props.materialsApi.list(value.id)
+      const files = taskDeletionActive(value) || value.designType === 'custom' || value.toolKey ? [] : await props.materialsApi.list(value.id)
       if (current === generation) { detail.value = value; materials.value = files }
     }
     else { const value = await props.api.list({ search: search.value.trim(), scope: scope.value, ...(designType.value ? { designType: designType.value } : {}), status: '', statusGroup: status.value, designerId: assignee.value, page: page.value, pageSize: 20 }); if (current === generation) { tasks.value = value.items; total.value = value.total; if (!value.items.length && page.value > 1) page.value = Math.max(1, Math.ceil(value.total / 20)) } }
@@ -143,7 +147,7 @@ async function load() {
 function deletionChanged(value: TaskDeletion) {
   if (value.status === 'deleted') {
     ElMessage.success('任务已永久删除，已归档成品保留')
-    if (detailId.value === value.taskId) void router.push('/overseas/tasks')
+    if (detailId.value === value.taskId) returnToList()
     else { void load(); void loadAssignees() }
     return
   }
@@ -156,14 +160,21 @@ function updateDetail(value: TaskDetail) { if (detail.value?.id === value.id && 
 async function requirementsChanged(value: TaskDetail) {
   updateDetail(value); editingRequirements.value = false
   const current = generation
-  try { const files = taskDeletionActive(value) || value.designType === 'custom' ? [] : await props.materialsApi.list(value.id); if (active && current === generation && detail.value?.id === value.id) materials.value = files }
+  try { const files = taskDeletionActive(value) || value.designType === 'custom' || value.toolKey ? [] : await props.materialsApi.list(value.id); if (active && current === generation && detail.value?.id === value.id) materials.value = files }
   catch (reason) { if (active && current === generation) failed(reason) }
 }
 async function refreshDetail() {
   const id = detail.value?.id, current = generation
   if (!id) return
   try { const value = await readDetail(id); if (value && active && current === generation) { updateDetail(value); plansRefresh.value++ } }
-  catch (reason) { if (active && current === generation) failed(reason) }
+  catch (reason) {
+    if (!active || current !== generation) return
+    if (reason instanceof IdentityError && reason.status === 404) {
+      detail.value = undefined
+      materials.value = []
+    }
+    failed(reason)
+  }
 }
 async function submitMaterials() {
   if (saving.value || materialsBusy.value || !ready.value || !detail.value?.capabilities.includes('task.materials.submit')) return

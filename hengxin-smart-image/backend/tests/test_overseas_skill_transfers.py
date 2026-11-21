@@ -115,6 +115,10 @@ def test_identical_delete_last_conflicts_replay_and_reinstall(transfers):
     same, _ = upload(client)
     assert same['change'] == 'identical' and install(client, same).status_code == 200
     item = client.get(URL + '/skills').json()['items'][0]
+    bindings = URL + '/skills/tool-bindings'
+    bound = client.put(bindings + '/outon', headers=HEADERS,
+                       json={'expectedSkillIds': [], 'skillIds': [item['id']]})
+    assert bound.status_code == 200 and bound.json()['bindings']['outon'] == [item['id']]
     package = client.get(URL + '/skills/' + item['id'] + '/package').json()
     with factory.begin() as session:
         row = session.get(InstalledSkillAvailability, 'folder-test')
@@ -131,6 +135,7 @@ def test_identical_delete_last_conflicts_replay_and_reinstall(transfers):
                                          'checksum': package['checksum']})
     again, _ = upload(client)
     assert again['change'] == 'create' and install(client, again).status_code == 200
+    assert client.get(bindings).json()['bindings']['outon'] == []
     item = client.get(URL + '/skills').json()['items'][0]
     assert not item['enabled'] and item['platforms'] == []
 

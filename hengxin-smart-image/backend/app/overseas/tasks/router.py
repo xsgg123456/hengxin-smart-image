@@ -8,7 +8,7 @@ from app.db.session import get_session
 from app.overseas.auth.dependencies import CurrentMember
 from app.overseas.permissions import authorize_member
 from . import assignment, queries, service, requirements
-from .schemas import Assignment, CreateTask, CreateCustomTask, RequirementsReview, ResubmitTask, DeleteTask
+from .schemas import Assignment, CreativeToolTask, CreateTask, CreateCustomTask, RequirementsReview, ResubmitTask, DeleteTask
 
 router = APIRouter(prefix='/api/overseas/v1', tags=['overseas-tasks'])
 Database = Annotated[Session, Depends(get_session)]
@@ -27,14 +27,23 @@ def tasks(actor: CurrentMember, session: Database, search: str = Query('', max_l
           scope: Literal['all', 'mine'] = 'all', status: str | None = Query(None, max_length=40),
           designerId: UUID | None = None, statusGroup: Literal['pending', 'designing', 'completed'] | None = None,
           page: int = Query(1, ge=1), page_size: int = Query(20, alias='pageSize', ge=1, le=100),
-          platform: str | None = Query(None, max_length=40), designType: str | None = Query(None, max_length=40)):
+          platform: str | None = Query(None, max_length=40), designType: str | None = Query(None, max_length=40),
+          toolScope: Literal['mine'] | None = None, keyword: str = Query('', max_length=161)):
     authorize_member(session, actor, 'task.read')
-    return queries.list_tasks(session, actor, search, scope, status, page, page_size, designerId, statusGroup,
-                              platform, designType)
+    return queries.list_tasks(session, actor, search or keyword, scope, status, page, page_size, designerId,
+                              statusGroup, platform, designType, toolScope)
 
 
 @router.post('/tasks/custom', status_code=201, dependencies=[Depends(browser_request)])
 def create_custom(body: CreateCustomTask, actor: CurrentMember, session: Database, response: Response, idempotency_key: Key):
+    result, created = service.create_task(session, actor, body, idempotency_key)
+    response.status_code = 201 if created else 200
+    return result
+
+
+@router.post('/tasks/creative-tools', status_code=201, dependencies=[Depends(browser_request)])
+def create_creative_tool(body: CreativeToolTask, actor: CurrentMember, session: Database,
+                         response: Response, idempotency_key: Key):
     result, created = service.create_task(session, actor, body, idempotency_key)
     response.status_code = 201 if created else 200
     return result

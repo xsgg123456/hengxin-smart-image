@@ -65,7 +65,7 @@ def test_list_detail_and_stats_keep_distinct_scopes(overseas):
             principal, Task.created_by, Task.designer_id, 'stats.read'))))) == 2
     me = client.get(ROOT + '/auth/me').json()
     assert me['roles'] == ['designer'] and me['id'] == str(actor)
-    assert set(me['capabilities']) == {'task.read', 'task.create', 'task.design', 'stats.read',
+    assert set(me['capabilities']) == {'task.read', 'task.create', 'task.tool.create', 'task.design', 'stats.read',
                                        'task.workflow.collaborate'}
     for endpoint in ('/members', '/management/settings', '/management/skills'):
         assert client.get(ROOT + endpoint).status_code == 403

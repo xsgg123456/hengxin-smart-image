@@ -1,9 +1,19 @@
 import { createIdentityRequest, record } from '../identity/request'
-import { isSkillCatalog, type SkillPlatformUpdate } from '../shared/skill-types'
+import { isManagedSkill, isSkillCatalog, type ManagedSkill, type SkillPlatformUpdate } from '../shared/skill-types'
+import { CREATIVE_TOOLS, type CreativeToolKey } from './creative-tools'
 export { isSkill, isManagedSkill, isSkillCatalog, managementError } from '../shared/skill-types'
 export type { Skill, ManagedSkill, SkillCatalog, SkillPlatformUpdate } from '../shared/skill-types'
 export const stages = { analysis: '整套分析', generation: '按 SKU 生图', revision: '单图返工' }
 export type Stage = keyof typeof stages
+export interface ToolBindings { items: ManagedSkill[]; bindings: Record<CreativeToolKey, string[]> }
+function isToolBindings(value: unknown): value is ToolBindings {
+  if (!record(value) || !Array.isArray(value.items) || !value.items.every(isManagedSkill) || !record(value.bindings)) return false
+  const bindings = value.bindings
+  return CREATIVE_TOOLS.every(tool => {
+    const ids = bindings[tool.value]
+    return Array.isArray(ids) && ids.every(id => typeof id === 'string')
+  })
+}
 export const managementPages = { activity: '调用与执行', usage: '调用统计', monitor: '执行监控', users: '用户与角色', skills: 'Skill 管理', settings: '系统配置', 'codex-auth': 'Codex 账号' }
 export type ManagementPage = keyof typeof managementPages
 export const managementCapability = (page: ManagementPage) => page === 'activity' || page === 'usage' || page === 'monitor' ? 'stats.read' : page === 'users' ? 'members.manage' : page === 'codex-auth' ? 'settings.manage' : page + '.manage'
@@ -27,6 +37,9 @@ export function createManagementApi(fetcher: typeof fetch = fetch) {
     people: (query: ManagementQuery) => request(base + '/people', (v): v is { items: PersonUsage[] } => record(v) && Array.isArray(v.items) && v.items.every(p => record(p) && typeof p.id === 'string' && typeof p.name === 'string' && count(p.calls) && count(p.images) && typeof p.lastCall === 'string'), undefined, { params: { ...query } }),
     jobs: (query: ManagementQuery) => request(base + '/jobs', isJobs, undefined, { params: { ...query } }),
     skills: () => request(base + '/skills', isSkillCatalog),
+    toolBindings: () => request(base + '/skills/tool-bindings', isToolBindings),
+    setToolBindings: (key: CreativeToolKey, expectedSkillIds: string[], skillIds: string[]) =>
+      request(base + '/skills/tool-bindings/' + encodeURIComponent(key), isToolBindings, { expectedSkillIds, skillIds }, { method: 'PUT' }),
     setSkillAvailability: (id: string, enabled: boolean, version: number) => request(base + '/skills/' + encodeURIComponent(id) + '/availability', isSkillCatalog, { enabled, version }, { method: 'PATCH' }),
     setSkillPlatforms: (items: SkillPlatformUpdate[]) => request(base + '/skills/platforms', isSkillCatalog, { items: items.map(({ id, version, platforms }) => ({ id, version, platforms: [...platforms] })) }, { method: 'PATCH' }),
     settings: () => request(base + '/settings', isSettings),

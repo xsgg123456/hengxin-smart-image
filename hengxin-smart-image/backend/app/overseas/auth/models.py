@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.timestamps import Timestamps
 from app.overseas.db import Base
 
-ROLES = ('designer', 'design_manager', 'super_admin')
+ROLES = ('designer', 'non_designer', 'design_manager', 'super_admin')
 
 
 class Member(Timestamps, Base):
@@ -34,7 +34,7 @@ class MemberRole(Timestamps, Base):
     __tablename__ = 'overseas_member_roles'
     __table_args__ = (
         UniqueConstraint('user_id', name='uq_overseas_member_single_role'),
-        CheckConstraint("role IN ('designer','design_manager','super_admin')",
+        CheckConstraint("role IN ('designer','non_designer','design_manager','super_admin')",
                         name="ck_overseas_member_roles_role"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)

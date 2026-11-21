@@ -23,7 +23,7 @@ class CancelBody(BaseModel):
 
 def authorize(session, actor, task_id):
     task = get_task(session, task_id)
-    require_task_access(principal_for(session, actor), task.created_by, task.designer_id)
+    require_task_access(principal_for(session, actor), task.created_by, task.designer_id, tool_key=task.tool_key)
 
 
 @router.get('/tasks/{task_id}/jobs')

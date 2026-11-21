@@ -86,6 +86,18 @@ class SkillPlatformsPatch(Strict):
         return values
 
 
+class ToolBindingsPatch(Strict):
+    expectedSkillIds: list[UUID] = Field(max_length=1000)
+    skillIds: list[UUID] = Field(max_length=1000)
+
+    @field_validator('expectedSkillIds', 'skillIds')
+    @classmethod
+    def unique_ids(cls, values):
+        if len(set(values)) != len(values):
+            raise ValueError('Skill 不能重复')
+        return values
+
+
 class Defaults(Strict):
     analysis: UUID | None
     generation: UUID | None

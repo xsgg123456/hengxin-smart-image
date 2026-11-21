@@ -41,6 +41,15 @@ def test_application_role_boundary_keeps_domestic_operator(membership_env, role)
         assert identity_post(env, 'access').json()['state'] == 'pending'
 
 
+def test_non_designer_application_role_is_overseas_only(membership_env):
+    env = membership_env
+    application = identity_post(env, 'application').json()
+    response = decide(env, application, role='non_designer')
+    assert response.status_code == (200 if env['business'] == 'overseas' else 422), response.text
+    if env['business'] == 'overseas':
+        assert identity_post(env, 'access').json()['state'] == 'allowed'
+
+
 @pytest.mark.parametrize('fields,expected', [({}, '说明'), ({'remarks': ''}, ''),
                                           ({'remarks': ' 新说明 '}, '新说明')])
 def test_resubmit_remarks_preserve_or_clear_with_distinct_replay(materials, fields, expected):

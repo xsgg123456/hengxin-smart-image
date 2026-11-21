@@ -20,7 +20,7 @@ ROOT = '/api/overseas/v1'
 def access(session, actor, task_id, write=False):
     task = get_task(session, task_id, lock=write)
     require_task_access(principal_for(session, actor), task.created_by, task.designer_id,
-                        'task.design' if write else 'task.read')
+                        'task.design' if write else 'task.read', tool_key=task.tool_key)
     if task.workflow != 'studio':
         raise HTTPException(409, '历史任务请使用原流程')
     return task
@@ -140,7 +140,8 @@ def view(session, actor, task_id, conversation_id=None):
         completed=task.status == 'completed', taskVersion=task.version,
         archiveId=str(record.id) if record else None, reopened=reopened, turns=turns,
         materials=[asset(row, source) for row, source in visible(session, task.id, channel.id if channel else None)],
-        skills=[] if task.design_type == 'custom' else enabled_listing(session, task.platform),
+        skills=[] if task.design_type == 'custom' and not task.tool_key else
+            enabled_listing(session, task.platform, task.tool_key),
         activeTurnId=active)
 
 

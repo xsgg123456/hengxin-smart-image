@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from app.core.browser_auth import browser_request
@@ -21,8 +22,9 @@ def archive(task_id: UUID, body: ArchiveRequest, actor: CurrentMember, session: 
 def listing(actor: CurrentMember, session: Database, product: str = Query('', max_length=200),
             brand: str = Query('', max_length=200), sku: str = Query('', max_length=200),
             search: str = Query('', max_length=200), page: int = Query(1, ge=1),
-            pageSize: int = Query(20, ge=1, le=100), archiverId: UUID | None = None):
-    return service.listing(session, actor, product, brand, sku, search, page, pageSize, archiverId)
+            pageSize: int = Query(20, ge=1, le=100), archiverId: UUID | None = None,
+            creatorIdentity: Literal["designer", "non_designer"] | None = None):
+    return service.listing(session, actor, product, brand, sku, search, page, pageSize, archiverId, creatorIdentity)
 
 
 @router.get('/archive-operators')

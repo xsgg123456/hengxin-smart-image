@@ -25,6 +25,13 @@ class InstalledSkillAvailability(Timestamps, Base):
     platforms: Mapped[list[str]] = mapped_column(JSON, default=list, server_default='[]')
 
 
+class ToolSkillBinding(Base):
+    __tablename__ = 'overseas_tool_skill_bindings'
+    tool_key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    skill_name: Mapped[str] = mapped_column(
+        ForeignKey('overseas_installed_skill_availability.id', ondelete='CASCADE'), primary_key=True)
+
+
 class SkillVersion(Timestamps, Base):
     __tablename__ = 'overseas_skill_versions'
     __table_args__ = (UniqueConstraint('skill_id', 'version'),)

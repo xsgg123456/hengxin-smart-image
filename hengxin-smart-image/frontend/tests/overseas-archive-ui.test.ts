@@ -54,13 +54,13 @@ const all = (n: Node): Node[] => [n, ...n.children.flatMap(all)]
 const text = (n: Node): string => n.text + n.children.map(text).join('')
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await Vue.nextTick() }
 
-test('正式成品卡片明确四字段，只有已归档状态，没有重复品牌标签', async () => {
+test('正式成品卡片明确四字段，标记归档状态和创作者身份', async () => {
   result = structuredClone(fixture); rejected = false
   const view = mount(page, { refresh: 0 })
   try {
     await flush()
     assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['品名', '品牌', '设计类型', 'SKU', '最近归档人', '归档时间'])
-    assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTag').map(text), ['21 套归档', '已归档'])
+    assert.deepEqual(all(view.root).filter(n => n.tag === 'ElTag').map(text), ['21 套归档', '身份未记录', '已归档'])
     assert.match(text(view.root), /归档人实际确认者/)
     assert.match(text(view.root), /2026-10-19 09:02:03/)
     assert.doesNotMatch(text(view.root), /2026-01-01/)
@@ -73,7 +73,7 @@ test('正式详情可展开实际操作历史、图片SKU及北京时区，未�
     const view = mount(detail, { id: 'a', api })
     try {
       await flush()
-      assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['SKU', '目标平台', '品牌', '任务名称', '品名', '语言', '归档人', '归档时间']); assert.match(text(view.root), /任务名称真实任务名称/); assert.match(text(view.root), /语言法语/)
+      assert.deepEqual(all(view.root).filter(n => n.tag === 'dt').map(text), ['SKU', '目标平台', '品牌', '任务名称', '品名', '语言', '创作者身份', '归档人', '归档时间']); assert.match(text(view.root), /任务名称真实任务名称/); assert.match(text(view.root), /语言法语/)
       assert.ok(all(view.root).some(n => n.tag === 'details'))
       if (known) { assert.match(text(view.root), /实际确认者.*2026-10-19 09:02:03/); assert.match(text(view.root), /真实图片.png · SKU：SKU-A/) }
       else { assert.match(text(view.root), /历史记录未记录/); assert.doesNotMatch(text(view.root), /实际确认者/) }

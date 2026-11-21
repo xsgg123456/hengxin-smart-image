@@ -1,7 +1,7 @@
 import { createIdentityRequest, record } from '../identity/request'
 import { createApplicationsApi, type ApplicationsAdapter } from '../identity/applications'
 
-export const memberRoles = { designer: '设计', design_manager: '设计主管', super_admin: '超级管理员' }
+export const memberRoles = { designer: '设计', non_designer: '非设计人员', design_manager: '设计主管', super_admin: '超级管理员' }
 export type MemberRole = keyof typeof memberRoles
 export type MemberStatus = 'active' | 'pending' | 'disabled'
 export interface OverseasMember {

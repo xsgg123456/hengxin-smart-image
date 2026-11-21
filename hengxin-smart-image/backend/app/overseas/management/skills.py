@@ -7,7 +7,7 @@ from app.overseas.execution.queue import lock_gate
 from app.overseas.tasks.service import lock_actor
 from app.overseas.permissions import has_full_access_grant
 from .installed_catalog import listing
-from .models import Audit, InstalledSkillAvailability
+from .models import Audit, InstalledSkillAvailability, ToolSkillBinding
 from .schemas import SKILL_PLATFORMS
 
 
@@ -30,7 +30,11 @@ def list_skills(session, actor):
                      for item in listing()], 'canToggle': can_toggle(actor), 'canManagePlatforms': True}
 
 
-def enabled_listing(session, platform):
+def enabled_listing(session, platform, tool_key=None):
+    if tool_key is not None:
+        names = set(session.scalars(select(ToolSkillBinding.skill_name).join(InstalledSkillAvailability)
+                    .where(ToolSkillBinding.tool_key == tool_key, InstalledSkillAvailability.enabled.is_(True))))
+        return [item for item in listing() if item['name'] in names] if names else []
     if platform not in SKILL_PLATFORMS:
         return []
     current = states(session)
@@ -38,12 +42,17 @@ def enabled_listing(session, platform):
             and platform in current[item['name']].platforms]
 
 
-def require_enabled(session, name, platform=None):
+def require_enabled(session, name, platform=None, tool_key=None):
     row = session.scalar(select(InstalledSkillAvailability).where(InstalledSkillAvailability.id == name)
                          .execution_options(populate_existing=True))
     if row is None or not row.enabled:
         raise HTTPException(422, '所选 Skill 已关闭，请重新选择后发送')
-    if platform is not None and (platform not in SKILL_PLATFORMS or platform not in row.platforms):
+    if tool_key is not None:
+        bound = session.scalar(select(ToolSkillBinding.skill_name).where(
+            ToolSkillBinding.tool_key == tool_key, ToolSkillBinding.skill_name == name))
+        if bound is None:
+            raise HTTPException(422, '所选 Skill 未绑定到当前创作工具，请重新选择后发送')
+    elif platform is not None and (platform not in SKILL_PLATFORMS or platform not in row.platforms):
         raise HTTPException(422, '所选 Skill 不属于当前任务平台，请重新选择或不选 Skill 后发送')
 
 

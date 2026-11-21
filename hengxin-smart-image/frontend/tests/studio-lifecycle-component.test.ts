@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import * as Vue from 'vue'
 import { compile, all, text, simple, flush, type Node } from './membership-test-harness'
 import { IdentityError } from '../src/api/identity/request'
-import { archiveError, archiveImageFailure } from '../src/api/overseas/archives'
+import { archiveError, archiveImageFailure, creatorLabel } from '../src/api/overseas/archives'
 import type { Studio } from '../src/api/overseas/studio'
 import { handleStudioSendKey } from '../src/views/overseas/studio/studio-send-key'
 import { useImagePrefetch } from '../src/views/overseas/studio/use-image-prefetch'
@@ -37,7 +37,7 @@ const archiveApi = { get: async (id: string) => {
   return { id, taskId: 'task', sourceDeleted: false, productName: '同名商品', brand: '品牌', platform: 'Amazon', skus: [], pictureCount: 0, pictures: [], createdAt: '' }
 } }
 const detail = compile('views/overseas/OverseasArchiveDetail.vue', {
-  '@/api/identity/request': { IdentityError }, '@/api/overseas/archives': { archiveError, archiveImageFailure }, './use-archive-prefetch': { useArchivePrefetch: () => undefined },
+  '@/api/identity/request': { IdentityError }, '@/api/overseas/archives': { archiveError, archiveImageFailure, creatorLabel }, './use-archive-prefetch': { useArchivePrefetch: () => undefined },
   './OverseasArchiveFields.vue': { default: simple('ArchiveFields') }, './OverseasArchivePicture.vue': { default: simple('ArchivePicture') }, './OverseasArchiveViewer.vue': { default: simple('ArchiveViewer') }
 })
 const unused = () => undefined

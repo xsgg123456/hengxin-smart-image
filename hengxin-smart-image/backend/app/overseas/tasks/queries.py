@@ -5,13 +5,15 @@ from app.overseas.auth.models import Member, MemberRole
 from app.overseas.members.service import roles_for
 from app.overseas.permissions import (can_access_task, can_submit_requirements, principal_for,
                                      require_task_access, scopes, task_filter)
+from .creative_tools import TOOL_KEYS
 from .models import Task, TaskEvent, TaskSku, RequirementsReview, TaskDeletion
 
 DESIGN_ROLES = ('designer', 'design_manager', 'super_admin')
 
 
-def eligible(session, member):
-    return member.status == 'active' and bool(set(roles_for(session, member.id)) & set(DESIGN_ROLES))
+def eligible(session, member, *, own_tool=False):
+    allowed = (*DESIGN_ROLES, 'non_designer') if own_tool else DESIGN_ROLES
+    return member.status == 'active' and bool(set(roles_for(session, member.id)).intersection(allowed))
 
 
 def get_task(session, task_id, lock=False):
@@ -32,16 +34,19 @@ def summary(session, task, principal):
     skus = session.scalars(select(TaskSku).where(TaskSku.task_id == task.id).order_by(TaskSku.position))
     result = {'id': str(task.id), 'name': task.name, 'productName': task.product_name,
             'brand': task.brand, 'platform': task.platform, 'designType': task.design_type,
+            'toolKey': task.tool_key, 'creatorIdentity': task.creator_identity,
             'language': task.language, 'market': task.market,
             'remarks': task.remarks, 'skus': [{'code': item.code} for item in skus],
             'workflow': task.workflow, 'status': task_status(session, task), 'version': task.version, 'createdAt': task.created_at,
             'updatedAt': task.updated_at, 'createdBy': {'id': str(creator.id), 'name': creator.name},
             'designer': {'id': str(designer.id), 'name': designer.name,
-                         'status': designer.status, 'eligible': eligible(session, designer)},
+                         'status': designer.status, 'eligible': eligible(session, designer,
+                             own_tool=task.created_by == designer.id and task.tool_key in TOOL_KEYS)},
             'deletionStatus': deletion.status if deletion else None,
             'deletionError': deletion.error if deletion else None,
             'capabilities': [permission for permission in ('task.read', 'task.design', 'task.reassign', 'task.delete')
-                             if can_access_task(principal, task.created_by, task.designer_id, permission)]
+                             if can_access_task(principal, task.created_by, task.designer_id, permission,
+                                                tool_key=task.tool_key)]
                             + (['task.materials.submit'] if task.status == 'created'
                                and can_submit_requirements(principal, task.created_by, task.designer_id)
                                else [])
@@ -58,7 +63,7 @@ def summary(session, task, principal):
 def detail(session, task_id, actor, lock=False):
     task = get_task(session, task_id, lock)
     principal = principal_for(session, actor)
-    require_task_access(principal, task.created_by, task.designer_id)
+    require_task_access(principal, task.created_by, task.designer_id, tool_key=task.tool_key)
     result = summary(session, task, principal)
     reviews = session.scalars(select(RequirementsReview).where(RequirementsReview.task_id == task.id)
                               .order_by(RequirementsReview.version))
@@ -83,9 +88,11 @@ STATUS_GROUPS = {
 
 
 def list_tasks(session, actor, search='', scope='all', status=None, page=1, page_size=20,
-               designer_id=None, status_group=None, platform=None, design_type=None):
+               designer_id=None, status_group=None, platform=None, design_type=None, tool_scope=None):
     principal = principal_for(session, actor)
-    filters = [task_filter(principal, Task.created_by, Task.designer_id)]
+    filters = [task_filter(principal, Task.created_by, Task.designer_id, tool_key=Task.tool_key)]
+    if tool_scope == 'mine':
+        filters.extend((Task.created_by == actor.id, Task.tool_key.in_(TOOL_KEYS)))
     if scope == 'mine':
         filters.append(or_(Task.created_by == actor.id, Task.designer_id == actor.id))
     if designer_id:
@@ -134,7 +141,8 @@ def list_tasks(session, actor, search='', scope='all', status=None, page=1, page
 def assignees(session, actor):
     principal = principal_for(session, actor)
     rows = session.execute(select(Member.id, Member.name).join(Task, Task.designer_id == Member.id)
-        .where(task_filter(principal, Task.created_by, Task.designer_id)).distinct().order_by(Member.name, Member.id))
+        .where(task_filter(principal, Task.created_by, Task.designer_id, tool_key=Task.tool_key))
+        .distinct().order_by(Member.name, Member.id))
     return {'items': [{'id': str(identity), 'name': name} for identity, name in rows]}
 
 

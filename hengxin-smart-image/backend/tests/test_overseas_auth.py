@@ -89,7 +89,7 @@ def test_authorized_member_gets_only_overseas_cookie_and_real_roles(overseas):
     response = login(client)
     assert response.status_code == 200
     assert response.json()['roles'] == ['designer']
-    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'task.design', 'stats.read'}
+    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'task.tool.create', 'task.design', 'stats.read'}
     cookie = response.headers['set-cookie']
     assert cookie.startswith(SESSION_COOKIE + '=') and 'HttpOnly' in cookie
     assert 'Path=' + COOKIE_PATH in cookie and 'SameSite=lax' in cookie
@@ -193,4 +193,4 @@ def test_existing_session_observes_role_changes_without_relogin(overseas):
     assert response.status_code == 200
     assert client.cookies.get(SESSION_COOKIE) == token
     assert response.json()['roles'] == ['designer']
-    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'task.design', 'stats.read'}
+    assert set(response.json()['capabilities']) == {'task.read', 'task.create', 'task.tool.create', 'task.design', 'stats.read'}

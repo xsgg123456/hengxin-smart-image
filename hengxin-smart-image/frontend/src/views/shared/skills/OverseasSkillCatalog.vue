@@ -1,6 +1,6 @@
 <template>
   <ElCard class="art-card hx-section hx-admin-table-card" :class="{ 'domestic-skill-catalog': domestic }">
-    <div v-if="!domestic" class="hx-admin-section-head"><div><span class="hx-admin-kicker">WORKFLOW SKILLS</span><h2>海外 Skill 目录</h2><p>{{ managed ? '按平台管理 Skill；AI 设计工作台仅显示当前任务平台下已开启的 Skill。' : '查看已安装 Skill 的名称与描述。' }}</p><p v-if="managed && !loading && !error && !canToggle">仅指定账号可调整 Skill 开关。</p></div><ElButton v-if="transferApi && canToggle" type="primary" :disabled="blocked" @click="$emit('upload')">上传 Skill 文件夹</ElButton><ElButton :loading="loading" :disabled="!!savingId || !!dialog" @click="$emit('refresh')">刷新 Skill</ElButton></div>
+    <div v-if="!domestic" class="hx-admin-section-head"><div><span class="hx-admin-kicker">WORKFLOW SKILLS</span><h2>海外 Skill 目录</h2><p>{{ managed ? '设计中心按平台使用已开启的 Skill，创作工具集按工作台绑定使用。' : '查看已安装 Skill 的名称与描述。' }}</p><p v-if="managed && !loading && !error && !canToggle">仅指定账号可调整 Skill 开关。</p></div><ElButton v-if="transferApi && canToggle" type="primary" :disabled="blocked" @click="$emit('upload')">上传 Skill 文件夹</ElButton><ElButton :loading="loading" :disabled="!!savingId || !!dialog" @click="$emit('refresh')">刷新 Skill</ElButton></div>
     <ElTabs v-if="managed && !domestic" v-model="group" class="platform-tabs">
       <ElTabPane :label="`全部 (${skills.length})`" name="all" />
       <ElTabPane v-for="p in platforms" :key="p.value" :label="`${p.value} (${count(p.value)})`" :name="p.value" />
@@ -11,7 +11,7 @@
       <div v-if="canManagePlatforms" class="catalog-actions"><ElButton :disabled="!selected.length || blocked" @click="edit(selected)">批量设置平台<span v-if="selected.length">（{{ selected.length }}）</span></ElButton><ElButton v-if="isPlatform" type="primary" :disabled="blocked" @click="openAdd">添加 Skill 到此平台</ElButton></div>
       <div v-if="domestic" class="catalog-actions"><ElButton v-if="transferApi && canToggle" type="primary" :disabled="blocked" @click="$emit('upload')">上传 Skill 文件夹</ElButton></div>
     </div>
-    <div v-if="managed" class="catalog-context"><span>{{ group === 'all' ? '全部已安装 Skill' : group === 'none' ? '未分配平台的 Skill，不出现在工作台选项中' : `${group} 平台 · 同一个 Skill 可同时属于多个平台` }} · {{ rows.length }} 项</span><span v-if="domestic" class="domestic-upload-context">完整文件夹上传 · 同名 Skill 更新</span><span v-if="hiddenSelected">另有 {{ hiddenSelected }} 项已选 Skill 被筛选隐藏，批量设置仍会包含它们</span><ElButton v-if="selected.length" text size="small" :disabled="blocked" @click="clearSelection">清空已选</ElButton></div>
+    <div v-if="managed" class="catalog-context"><span>{{ group === 'all' ? '全部已安装 Skill' : group === 'none' ? '未分配平台的 Skill' : `${group} 平台 · 同一个 Skill 可同时属于多个平台` }} · {{ rows.length }} 项</span><span v-if="domestic" class="domestic-upload-context">完整文件夹上传 · 同名 Skill 更新</span><span v-if="hiddenSelected">另有 {{ hiddenSelected }} 项已选 Skill 被筛选隐藏，批量设置仍会包含它们</span><ElButton v-if="selected.length" text size="small" :disabled="blocked" @click="clearSelection">清空已选</ElButton></div>
     <p v-if="loading" role="status">正在加载 Skill 目录…</p>
     <ElAlert v-if="error" :title="error" type="error" :closable="false" class="hx-gap"><ElButton v-if="domestic" :loading="loading" @click="$emit('refresh')">重试</ElButton></ElAlert>
     <ElAlert v-if="notice" :title="notice" type="info" :closable="false" class="hx-gap" />

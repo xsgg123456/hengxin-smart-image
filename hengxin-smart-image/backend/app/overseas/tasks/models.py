@@ -16,6 +16,8 @@ class Task(Timestamps, Base):
     brand: Mapped[str] = mapped_column(String(60))
     platform: Mapped[str] = mapped_column(String(40))
     design_type: Mapped[str] = mapped_column(String(20), default='platform', server_default='platform')
+    tool_key: Mapped[str | None] = mapped_column(String(40))
+    creator_identity: Mapped[str | None] = mapped_column(String(20))
     language: Mapped[str | None] = mapped_column(String(2))
     market: Mapped[str] = mapped_column(String(60))
     remarks: Mapped[str] = mapped_column(Text, default='')

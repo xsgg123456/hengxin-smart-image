@@ -11,12 +11,13 @@ from app.overseas.permissions import (
 
 
 @pytest.mark.parametrize('role,expected', [
-    ('designer', {'task.read', 'task.create', 'task.design', 'stats.read'}),
-    ('design_manager', {'task.read', 'task.create', 'task.design', 'task.reassign', 'stats.read'}),
-    ('super_admin', {'task.create', 'task.design', 'task.read', 'task.reassign', 'task.delete', 'stats.read', 'members.manage',
+    ('non_designer', {'task.tool.create', 'task.read', 'task.design'}),
+    ('designer', {'task.read', 'task.create', 'task.tool.create', 'task.design', 'stats.read'}),
+    ('design_manager', {'task.read', 'task.create', 'task.tool.create', 'task.design', 'task.reassign', 'stats.read'}),
+    ('super_admin', {'task.create', 'task.tool.create', 'task.design', 'task.read', 'task.reassign', 'task.delete', 'stats.read', 'members.manage',
                      'skills.manage', 'settings.manage'}),
 ])
-def test_three_role_capabilities(role, expected):
+def test_single_role_capabilities(role, expected):
     assert set(capabilities([role])) == expected
 
 

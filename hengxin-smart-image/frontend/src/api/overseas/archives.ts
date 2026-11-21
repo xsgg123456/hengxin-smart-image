@@ -1,15 +1,20 @@
 import { overseasImageCache } from './image-cache'
 import { createIdentityRequest, IdentityError, record } from '../identity/request'
 import type { Page } from './tasks'
-export interface Archive { designType?: 'platform' | 'custom'; id: string; taskId: string | null; taskName?: string | null; language?: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null; deleteToken?: string; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
+export type CreatorIdentity = 'designer' | 'non_designer'
+export const creatorLabels = { designer: '设计人员', non_designer: '非设计人员' }
+export function creatorLabel(identity?: CreatorIdentity | null) {
+  return identity ? creatorLabels[identity] : '身份未记录'
+}
+export interface Archive { creatorIdentity?: CreatorIdentity | null; canOpenSource?: boolean; designType?: 'platform' | 'custom'; id: string; taskId: string | null; taskName?: string | null; language?: string | null; sourceDeleted: boolean; productName: string; brand: string; platform: string; skus: { code: string }[]; pictureCount: number; createdAt: string; cover?: ArchivePicture | null; latestArchive?: ArchiveEvent | null; deleteToken?: string; deletionStatus?: 'deleting' | 'delete_failed' | null; deletionError?: string | null }
 export interface ArchiveDeletion { archiveId: string; status: 'deleting' | 'delete_failed' | 'deleted'; error: string | null }
 export function isArchiveDeletion(value: unknown): value is ArchiveDeletion {
   return record(value) && typeof value.archiveId === 'string' && ['deleting', 'delete_failed', 'deleted'].includes(String(value.status)) && (value.error === null || typeof value.error === 'string')
 }
 export interface ArchivePicture { sourceConversationId?: string | null; sourceConversationName?: string | null; id: string; name: string; sku: string; width: number; height: number; contentType: string; sizeBytes: number; url: string }
 export interface ArchiveEvent { id: string; actorId: string; actorName: string; at: string; pictures: { id: string; name: string; sku: string }[] }
-export interface ArchiveDetail extends Archive { pictures: ArchivePicture[]; archiveHistory?: ArchiveEvent[]; historyIncomplete?: boolean }
-export interface ArchiveQuery { search: string; page: number; pageSize: number; archiverId?: string }
+export interface ArchiveDetail extends Archive { canViewSourceConversations?: boolean; pictures: ArchivePicture[]; archiveHistory?: ArchiveEvent[]; historyIncomplete?: boolean }
+export interface ArchiveQuery { search: string; page: number; pageSize: number; archiverId?: string; creatorIdentity?: CreatorIdentity }
 export interface Archiver { id: string; name: string }
 const root = '/api/overseas/v1/archives'
 const positive = (value: unknown) => Number.isInteger(value) && Number(value) > 0
@@ -34,6 +39,8 @@ function isArchiveEvent(value: unknown): value is ArchiveEvent {
 }
 export function isArchive(value: unknown): value is Archive {
   return record(value) && ['id', 'productName', 'brand', 'platform', 'createdAt'].every(key => text(value[key]))
+    && (value.creatorIdentity == null || value.creatorIdentity === 'designer' || value.creatorIdentity === 'non_designer')
+    && (value.canOpenSource === undefined || typeof value.canOpenSource === 'boolean')
     && (value.designType === undefined || value.designType === 'platform' || value.designType === 'custom')
     && (value.taskName == null || text(value.taskName)) && (value.language == null || text(value.language))
     && (value.taskId === null || text(value.taskId)) && typeof value.sourceDeleted === 'boolean'

@@ -16,11 +16,11 @@ try {
   const platforms = page.getByRole('list', { name: '平台生图' })
   const editing = page.getByRole('list', { name: '图片工具' })
   assert.deepEqual(await platforms.getByRole('heading').allTextContents(), [
-    '亚马逊生图(OUTON)', '亚马逊生图(OUTONLIFE)', '亚马逊生图(BELEEV)', 'Waifair生图',
+    '亚马逊生图(OUTON)', '亚马逊生图(OUTONLIFE)', '亚马逊生图(BELEEV)', 'Wayfair生图',
     '沃尔玛生图', 'The Home Depot生图', '美客多生图', '其他平台(自定义尺寸)'
   ])
   assert.deepEqual(await editing.getByRole('heading').allTextContents(), [
-    'AI去掉产品', '爆款复刻', 'AI一键白底图', 'AI无痕改字', 'AI万物抠图', 'AI产品换色'
+    '爆款复刻', 'AI去掉产品', 'AI一键白底图', 'AI无痕改字', 'AI万物抠图', 'AI产品换色'
   ])
   const cards = page.locator('.tool-card')
   const rows = () => cards.evaluateAll(elements => {
@@ -36,7 +36,7 @@ try {
     ['亚马逊生图(OUTON)', 'outon'],
     ['亚马逊生图(OUTONLIFE)', 'outonlife'],
     ['亚马逊生图(BELEEV)', 'beleev'],
-    ['Waifair生图', 'wayfair'],
+    ['Wayfair生图', 'wayfair'],
     ['沃尔玛生图', 'walmart'],
     ['The Home Depot生图', 'home-depot'],
     ['美客多生图', 'mercado-libre'],

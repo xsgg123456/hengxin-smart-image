@@ -1,13 +1,15 @@
 <template>
   <div class="hx-heading"><div><h1>成品库</h1><p>搜索品名、品牌或 SKU，任一项匹配即可。</p></div><ElTag type="success">{{ total }} 套归档</ElTag></div>
   <ElCard class="art-card hx-section" shadow="never"><div class="hx-filter">
-    <ElInput v-model="search" clearable class="hx-search" aria-label="搜索成品" placeholder="搜索品名、品牌、SKU" /><ElSelect v-model="archiver" clearable filterable aria-label="归档人筛选" placeholder="全部归档人" style="width:200px"><ElOption v-for="person in archivers" :key="person.id" :label="person.name" :value="person.id" /></ElSelect><ElButton class="light-neutral" @click="reset">重置筛选</ElButton><ElButton class="light-neutral" :loading="loading" @click="refresh">刷新成品</ElButton>
+    <ElInput v-model="search" clearable class="hx-search" aria-label="搜索成品" placeholder="搜索品名、品牌、SKU" /><ElSelect v-model="archiver" clearable filterable aria-label="归档人筛选" placeholder="全部归档人" style="width:200px"><ElOption v-for="person in archivers" :key="person.id" :label="person.name" :value="person.id" /></ElSelect>
+    <ElSelect v-model="identity" aria-label="创作者身份筛选" style="width:180px"><ElOption label="全部创作者身份" value="" /><ElOption v-for="(label, value) in creatorLabels" :key="value" :label="label" :value="value" /></ElSelect>
+    <ElButton class="light-neutral" @click="reset">重置筛选</ElButton><ElButton class="light-neutral" :loading="loading" @click="refresh">刷新成品</ElButton>
   </div><p v-if="archiver" class="hx-footnote hx-gap">显示 {{ archivers.find(person => person.id === archiver)?.name || '所选人员' }} 曾参与归档的成品，包含多人分批归档。</p><ElAlert v-if="archiversError" :title="archiversError" type="error" :closable="false"><ElButton @click="loadArchivers">重试人员列表</ElButton></ElAlert></ElCard>
   <p v-if="loading" role="status">正在加载成品…</p><ElAlert v-if="error" :title="error" type="error" :closable="false" />
-  <ElEmpty v-if="!loading && !error && !items.length" description="暂无匹配成品；设计归档后的图片会显示在这里"><ElButton v-if="search || archiver" class="light-neutral" @click="reset">清空筛选</ElButton></ElEmpty>
+  <ElEmpty v-if="!loading && !error && !items.length" description="暂无匹配成品；设计归档后的图片会显示在这里"><ElButton v-if="search || archiver || identity" class="light-neutral" @click="reset">清空筛选</ElButton></ElEmpty>
   <div class="hx-library-grid hx-gap"><ElCard v-for="item in items" :key="item.id" class="art-card hx-library-card" shadow="never">
     <div class="archive-cover-layout"><OverseasArchiveCover v-if="!item.deletionStatus" :archive="item" :api="api" @preview="preview = item.id" @failure="fail" /><div v-else class="archive-unavailable">{{ item.deletionStatus === 'deleting' ? '正在删除…' : '删除未完成' }}</div>
-      <div class="hx-library-info"><div class="archive-card-status"><ElTag :type="item.deletionStatus ? 'warning' : 'success'">{{ item.deletionStatus === 'deleting' ? '正在删除' : item.deletionStatus === 'delete_failed' ? '删除未完成' : '已归档' }}</ElTag></div>
+      <div class="hx-library-info"><div class="archive-card-status"><ElTag type="info">{{ creatorLabel(item.creatorIdentity) }}</ElTag><ElTag :type="item.deletionStatus ? 'warning' : 'success'">{{ item.deletionStatus === 'deleting' ? '正在删除' : item.deletionStatus === 'delete_failed' ? '删除未完成' : '已归档' }}</ElTag></div>
         <OverseasArchiveFields :archive="item" compact />
         <p v-if="item.sourceDeleted || !item.taskId" class="hx-footnote">原任务已删除</p>
         <p class="hx-footnote">{{ item.pictureCount }} 张图片</p>
@@ -32,7 +34,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { IdentityError } from '@/api/identity/request'
 import { saveBlob } from '@/api/overseas/pictures'
-import { createArchivesApi, type Archive, type ArchiveDeletion, type Archiver } from '@/api/overseas/archives'
+import { creatorLabels, creatorLabel, type CreatorIdentity, createArchivesApi, type Archive, type ArchiveDeletion, type Archiver } from '@/api/overseas/archives'
 import OverseasArchiveDelete from './OverseasArchiveDelete.vue'
 import OverseasArchiveFields from './OverseasArchiveFields.vue'
 import OverseasArchiveDetail from './OverseasArchiveDetail.vue'
@@ -41,6 +43,7 @@ import OverseasArchiveViewer from './OverseasArchiveViewer.vue'
 import { archiveError, clearArchiveImages } from '@/api/overseas/archives'
 const props = defineProps<{ refresh: number; capabilities?: string[] }>(), emit = defineEmits<{ failure: [reason: unknown] }>()
 const router = useRouter(), api = createArchivesApi(), items = ref<Archive[]>([]), total = ref(0), page = ref(1), search = ref(''), error = ref(''), loading = ref(false), downloading = ref(''), selected = ref('')
+const identity = ref<CreatorIdentity | ''>('')
 const archiver = ref(''), archivers = ref<Archiver[]>([]), archiversError = ref('')
 const preview = ref(''), canDelete = computed(() => props.capabilities?.includes('task.delete') === true)
 function deletionChanged(value: ArchiveDeletion) {
@@ -55,7 +58,7 @@ let epoch = 0, alive = true, timer: ReturnType<typeof setTimeout> | undefined
 function fail(reason: unknown) { error.value = archiveError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) { ++epoch; ++archiversEpoch; archiver.value = ''; archivers.value = []; selected.value = ''; preview.value = ''; items.value = []; total.value = 0; loading.value = false; emit('failure', reason) } }
 async function load() {
   const current = ++epoch; loading.value = true; error.value = ''; items.value = []; total.value = 0
-  try { const result = await api.list({ search: search.value.trim(), archiverId: archiver.value, page: page.value, pageSize: 20 }); if (alive && current === epoch) { items.value = result.items; total.value = result.total; if (!items.value.length && page.value > 1) page.value = Math.max(1, Math.ceil(total.value / 20)) } }
+  try { const result = await api.list({ search: search.value.trim(), archiverId: archiver.value, ...(identity.value ? { creatorIdentity: identity.value } : {}), page: page.value, pageSize: 20 }); if (alive && current === epoch) { items.value = result.items; total.value = result.total; if (!items.value.length && page.value > 1) page.value = Math.max(1, Math.ceil(total.value / 20)) } }
   catch (reason) { if (alive && current === epoch) fail(reason) }
   finally { if (current === epoch) loading.value = false }
 }
@@ -67,8 +70,8 @@ async function loadArchivers() {
   catch (reason) { if (alive && current === archiversEpoch) { archivers.value = []; archiversError.value = archiveError(reason); if (reason instanceof IdentityError && [401, 403].includes(reason.status)) fail(reason) } }
 }
 function refresh() { void loadArchivers(); void load() }
-function reset() { if (search.value || archiver.value) { search.value = ''; archiver.value = '' } else if (page.value !== 1) page.value = 1; else void load() }
-watch([search, archiver], () => { selected.value = ''; preview.value = ''; ++epoch; loading.value = true; error.value = ''; items.value = []; total.value = 0; clearTimeout(timer); timer = setTimeout(() => { if (page.value === 1) void load(); else page.value = 1 }, 250) })
+function reset() { if (search.value || archiver.value || identity.value) { search.value = ''; archiver.value = ''; identity.value = '' } else if (page.value !== 1) page.value = 1; else void load() }
+watch([search, archiver, identity], () => { selected.value = ''; preview.value = ''; ++epoch; loading.value = true; error.value = ''; items.value = []; total.value = 0; clearTimeout(timer); timer = setTimeout(() => { if (page.value === 1) void load(); else page.value = 1 }, 250) })
 watch([page, () => props.refresh], () => { selected.value = ''; preview.value = ''; void load() }, { immediate: true })
 watch(() => props.refresh, () => { archivers.value = []; void loadArchivers() }, { immediate: true })
 onUnmounted(() => { alive = false; ++epoch; ++archiversEpoch; clearTimeout(timer); items.value = []; archivers.value = [] })
@@ -82,7 +85,7 @@ onUnmounted(() => { alive = false; ++epoch; ++archiversEpoch; clearTimeout(timer
 .hx-library-info { overflow-wrap: anywhere; min-width: 0; flex: 1; padding: 0; }
 .hx-library-info h3 { margin: 10px 0 6px; line-height: 1.5; }
 .hx-library-info p { margin: 6px 0; }
-.archive-card-status { display: flex; justify-content: flex-end; }
+.archive-card-status { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .archive-card-audit { border-top: 1px solid var(--el-border-color-lighter); margin: 16px 0 0; padding-top: 12px; font-size: 13px; }
 .archive-card-audit > div { display: flex; gap: 16px; margin: 6px 0; line-height: 1.6; }
 .archive-card-audit dt { width: 70px; flex-shrink: 0; color: var(--el-text-color-secondary); }
