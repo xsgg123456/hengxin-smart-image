@@ -57,15 +57,19 @@ def render(u, worker, policy, release=None):
                        args=('-c', 'alembic.overseas.ini', 'upgrade',
                              f'{policy.SOURCE}:{policy.TARGET}', '--sql'), cwd=cwd)
     sql = sql.replace('\r\n', '\n')
-    if hashlib.sha256(sql.encode()).hexdigest() != SQL_SHA:
-        raise RuntimeError('Generated overseas migration SQL differs from the reviewed two revisions')
+    if hashlib.sha256(sql.encode()).hexdigest() != getattr(policy, 'SQL_SHA', SQL_SHA):
+        raise RuntimeError('Generated overseas migration SQL differs from the reviewed revisions')
     return sql.strip().removeprefix('BEGIN;').removesuffix('COMMIT;')
+
+
+def source_check(policy):
+    return SOURCE_CHECK.replace('overseas_0026', policy.SOURCE)
 
 
 def preflight(u, release, policy):
     worker = u.contexts()['hengxin-overseas-worker']
     render(u, worker, policy, release)
-    u.run([*psql(u), '-c', 'BEGIN READ ONLY; SET LOCAL ROLE overseas_owner; ' + SOURCE_CHECK + ' ROLLBACK;'])
+    u.run([*psql(u), '-c', 'BEGIN READ ONLY; SET LOCAL ROLE overseas_owner; ' + source_check(policy) + ' ROLLBACK;'])
 
 
 def wait_ready(process, timeout=45):
@@ -92,7 +96,7 @@ def run_migration(u, worker, descriptor, policy):
     # connection uses the database container's local maintenance socket;
     # no privileged DSN or password enters app settings, argv or receipts.
     begin = (f"BEGIN;\nSET LOCAL statement_timeout='240s';\nSELECT {LOCK};\n"
-             f"SET LOCAL ROLE overseas_owner;\n{SOURCE_CHECK}\n"
+             f"SET LOCAL ROLE overseas_owner;\n{source_check(policy)}\n"
              f"\\echo {READY.decode()}\n")
     final = ("\nREVOKE INSERT, UPDATE, DELETE ON overseas_alembic_version FROM overseas_app;\n"
              "COMMIT;\n")

@@ -10,6 +10,7 @@ def run(cli, argv=None):
                                           'workspaces-prepare', 'workspaces-deploy', 'workspaces-recover',
                                           'workspaces-finish', 'workspaces-status',
                                           'general-prepare', 'general-deploy', 'general-recover', 'general-finish', 'general-status',
+                                          'creative-prepare', 'creative-deploy', 'creative-recover', 'creative-finish', 'creative-status', 'creative-shared-prepare',
                                           'design-prepare', 'design-deploy', 'design-recover', 'design-finish', 'design-status', 'design-shared-prepare',
                                           'upload-apply', 'upload-rollback', 'upload-recover'))
     parser.add_argument('--apply', action='store_true')
@@ -23,7 +24,7 @@ def run(cli, argv=None):
     args.mode = args.mode or 'full'
     if args.apply and args.action != 'cleanup':
         parser.error('--apply is only valid for cleanup')
-    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare', 'general-prepare', 'design-prepare', 'design-shared-prepare'):
+    if args.release is not None and args.action not in ('prepare', 'prepare-fast', 'prepare-model', 'tasks-prepare', 'workspaces-prepare', 'general-prepare', 'design-prepare', 'design-shared-prepare', 'creative-prepare', 'creative-shared-prepare'):
         parser.error('--release is only valid for a preparation command')
     if args.action in ('prepare-fast', 'prepare-model') and (args.scope not in ('domestic', 'overseas') or args.mode != 'full'):
         parser.error(args.action + ' requires a domestic or overseas scope and cannot run frontend-only')
@@ -47,6 +48,11 @@ def run(cli, argv=None):
         if not upload and args.action != 'status' and tool.path.exists():
             if (tool.load().get('pending') or {}).get('kind') == 'domestic-upload-gateway':
                 raise RuntimeError('Resolve pending domestic gateway maintenance using upload-recover')
+        if args.action.startswith('creative-') and args.action != 'creative-shared-prepare':
+            from domestic_tasks_release import run as maintenance_run
+            import overseas_creative_policy
+            print(json.dumps(maintenance_run(store, args, overseas_creative_policy), indent=2))
+            return
         if args.action.startswith('design-') and args.action != 'design-shared-prepare':
             from domestic_tasks_release import run as maintenance_run
             import overseas_design_policy
@@ -76,11 +82,15 @@ def run(cli, argv=None):
         if args.action == 'cleanup':
             tool.cleanup(apply=args.apply)
             return
-        if args.action == 'design-shared-prepare':
+        if args.action in ('design-shared-prepare', 'creative-shared-prepare'):
             if args.release is None or args.scope != 'shared' or args.mode != 'frontend':
                 parser.error('design-shared-prepare requires --scope shared --mode frontend --release PATH')
             from design_shared_frontend import prepare
-            data = prepare(tool, args.release)
+            if args.action == 'creative-shared-prepare':
+                import overseas_creative_policy
+                data = prepare(tool, args.release, overseas_creative_policy)
+            else:
+                data = prepare(tool, args.release)
         elif args.action in ('prepare', 'prepare-fast', 'prepare-model'):
             if args.release is None:
                 parser.error('prepare requires --release')

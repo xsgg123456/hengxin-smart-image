@@ -56,9 +56,11 @@ class Upgrade:
         marker.guard(self.u, self.store)
         data = self.tool.load()
         current = data['current']
+        frontend_base = getattr(self.policy, 'FRONTEND_BASE', None)
         if (data.get('version') != 2 or data.get('pending') or data.get('migration_pending')
                 or current['schema'][self.scope] != self.policy.SOURCE
                 or current['groups'][self.scope]['backend_commit'] != self.policy.BASE
+                or (frontend_base and current['groups'][self.scope]['frontend_commit'] != frontend_base)
                 or not scopes.has_domestic_publisher(current)):
             raise RuntimeError(f'Maintenance requires the idle reviewed {self.policy.SOURCE} {self.scope} baseline')
         path = snapshot.release_path(path)

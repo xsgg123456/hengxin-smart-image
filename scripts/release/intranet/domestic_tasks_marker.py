@@ -1,6 +1,7 @@
 """Durable interlock shared by ordinary publishing and cleanup."""
 import json
 
+import overseas_creative_policy as creative
 import overseas_design_policy as design
 import domestic_general_policy as general
 import domestic_tasks_policy as tasks
@@ -22,7 +23,7 @@ def read(u, store, name=NAME):
 
 
 def guard(u, store, except_name=None):
-    for transition in (tasks, workspaces, general, design):
+    for transition in (tasks, workspaces, general, design, creative):
         if transition.MARKER != except_name:
             row = read(u, store, transition.MARKER)
             if row and row['phase'] not in TERMINAL:
