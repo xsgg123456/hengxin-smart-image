@@ -1,9 +1,9 @@
 """Read Studio CLI completion without treating extension notifications as turns."""
 from pathlib import Path
 
-from app.execution.diagnostics import _safe_read
+from app.execution.event_file import lines
 from app.execution.event_json import decode_event
-from app.execution.events import EventSummary, MAX_EVENTS_BYTES
+from app.execution.events import EventSummary
 from .native_rollout import session as check_session
 
 SUCCESS = (None, 'completed', 'success', 'succeeded')
@@ -133,10 +133,8 @@ def read(path: Path, expected_session: str | None = None) -> EventSummary:
     """Read event evidence; the runner must independently require exit code 0."""
     state = _Completion(expected_session)
     try:
-        raw = _safe_read(Path(path), MAX_EVENTS_BYTES, allow_windows_fallback=True)
-        for line in raw.decode('utf-8').splitlines():
-            if line.strip():
-                state.consume(decode_event(line))
+        for line in lines(path):
+            state.consume(decode_event(line))
     except OSError:
         state.error = 'unreadable_event_stream'
     except (ValueError, UnicodeError, RecursionError):

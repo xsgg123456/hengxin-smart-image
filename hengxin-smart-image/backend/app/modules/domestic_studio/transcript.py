@@ -1,9 +1,9 @@
 """Persist the shared, public Codex stream for the owning conversation."""
-import os
 import time
 
 from sqlalchemy import select
 
+from app.execution.safe_stream import reader
 from app.overseas.studio import transcript as common
 from .bindings import lock_admission
 from .runtime import changed, locked, valid
@@ -40,9 +40,8 @@ class Monitor:
                 return False
             if self.path.is_symlink():
                 raise ValueError('Invalid public event file')
-            flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_BINARY', 0)
             previous = turn.event_offset
-            with os.fdopen(os.open(self.path, flags), 'rb') as stream:
+            with reader(self.path.absolute(), growing=not final) as stream:
                 common.consume(session, turn, channel, stream, final, append_entry=append)
             if turn.event_offset != previous or turn.event_invalid:
                 changed(state, channel, turn)

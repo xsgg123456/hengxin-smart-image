@@ -4,6 +4,8 @@ import re
 from uuid import UUID
 from sqlalchemy import select
 from app.execution.event_json import decode_event
+from app.execution.event_file import COMPACTED, COMPACTED_NOTICE, LIVE_POLL_RECORDS, read_line
+from app.execution.safe_stream import reader
 from app.overseas.execution import claims
 from .models import Conversation, Turn, Transcript
 
@@ -14,6 +16,8 @@ TOOLS = {'command_execution': '命令执行', 'file_change': '文件修改',
 
 def public_item(event, offset):
     event_type = event.get('type')
+    if event_type == COMPACTED:
+        return 'platform:log_compacted', 'notice', COMPACTED_NOTICE, 'completed'
     if event_type in ('turn.failed', 'error'):
         return f'notice:{offset}', 'notice', '执行发生错误', 'failed'
     if event_type not in ('item.started', 'item.updated', 'item.completed'):
@@ -58,9 +62,15 @@ def consume(session, turn, channel, stream, final, *, append_entry=None):
         turn.event_invalid = True
         return
     stream.seek(turn.event_offset)
-    while not turn.event_invalid:
+    records = 0
+    while not turn.event_invalid and (final or records < LIVE_POLL_RECORDS):
+        records += 1
         offset = stream.tell()
-        raw = stream.readline()
+        try:
+            raw = read_line(stream)
+        except ValueError:
+            turn.event_invalid = True
+            break
         if not raw or (not raw.endswith(b'\n') and not final):
             break
         if not raw.strip():
@@ -82,7 +92,7 @@ def consume(session, turn, channel, stream, final, *, append_entry=None):
                 turn.event_invalid = True
                 break
             channel.session_id = turn.event_session_id = identity
-        elif turn.event_session_id:
+        elif turn.event_session_id or event.get('type') == COMPACTED:
             value = public_item(event, offset)
             if value:
                 append_entry(session, turn, value)
@@ -105,6 +115,5 @@ def poll(factory, job, token, workspace, final=False):
         if (turn.job_id != current.id or turn.task_id != current.task_id
                 or channel.task_id != turn.task_id or str(channel.id) != job.payload['conversationId']):
             raise ValueError('Transcript ownership mismatch')
-        flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_BINARY', 0)
-        with os.fdopen(os.open(path, flags), 'rb') as stream:
+        with reader(path.absolute(), growing=not final) as stream:
             consume(session, turn, channel, stream, final)

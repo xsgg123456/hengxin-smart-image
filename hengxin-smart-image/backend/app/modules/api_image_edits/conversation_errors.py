@@ -7,6 +7,7 @@ AUTH_ERROR = 'Codex 登录凭据已失效，请联系管理员恢复登录后重
 def execution_error(control, receipt):
     messages = {
         'timeout': '图片修改超过本轮执行时限，已停止；请检查修改要求后重新提交',
+        'storage_failed': '本轮执行日志写入失败，请联系管理员检查磁盘空间和权限',
         'output_limit': '本轮执行日志超过安全上限，已停止；请联系管理员检查',
         'cancelled': '本轮图片修改已停止',
         'authentication_failed': AUTH_ERROR,

@@ -25,6 +25,9 @@ class Workspace:
         return '/work/skills/' + self.skill_name
 
 
+IMAGE_PATH_HINT = '处理图片时优先直接使用现有图片文件路径，避免在命令、输出或回复中嵌入 Base64 图片。'
+
+
 def prepare_workspace(root, task_id, round_id, auth_file, *, copy_auth=True):
     root = Path(root).resolve()
     task = root / str(UUID(str(task_id)))

@@ -4,14 +4,15 @@ No model invocation, object writes, new execution lease or completion timestamp.
 Call recover inside the installed worker environment; default is read-only.
 """
 import json
-from hashlib import sha256
 from pathlib import Path
 from uuid import UUID
 from sqlalchemy import select
 from app.core.config import get_settings
 from app.execution.diagnostics import _safe_read, _unique_object
 from app.execution.event_json import decode_event
-from app.execution.events import MAX_EVENTS_BYTES, parse_events
+from app.execution.event_file import lines
+from app.execution.events import parse_events
+from .context_fs import digest
 from app.overseas.db import require_overseas_context
 from app.overseas.auth.models import Member
 from app.overseas.tasks.models import Task, TaskDeletion
@@ -64,16 +65,14 @@ def recover(factory, turn_id, actor_id, expected_sha256, *, apply=False):
         root = Path(get_settings().codex_execution_root)
         control = root / 'studio' / str(channel.id) / 'control' / str(turn.id)
         path = control / 'events.jsonl'
-        raw = _safe_read(path, MAX_EVENTS_BYTES, allow_windows_fallback=True)
-        require(sha256(raw).hexdigest() == expected_sha256, 'Event checksum mismatch')
+        checksum, size = digest(path.absolute())
+        require(checksum == expected_sha256, 'Event checksum mismatch')
         receipt = json.loads(_safe_read(control / 'exit.json', 4096, allow_windows_fallback=True),
                              object_pairs_hook=_unique_object)
         require(type(receipt.get('exit_code')) is int and receipt['exit_code'] == 0
                 and receipt.get('reason') is None, 'CLI did not exit successfully')
         messages, duplicates = {}, 0
-        for line in raw.decode('utf-8').splitlines():
-            if not line.strip():
-                continue
+        for line in lines(path):
             event = decode_event(line)
             try:
                 json.loads(line, object_pairs_hook=_unique_object)
@@ -88,14 +87,14 @@ def recover(factory, turn_id, actor_id, expected_sha256, *, apply=False):
         require(not summary.error and summary.turn_completed and bool(summary.final_text)
                 and summary.session_id == channel.session_id == turn.event_session_id,
                 'Completion or session mismatch')
-        require(turn.reply == summary.final_text and turn.event_offset == len(raw)
+        require(turn.reply == summary.final_text and turn.event_offset == size
                 and not turn.event_invalid, 'Stored reply or cursor mismatch')
         require(not list(references(summary.final_text)), 'Image delivery requires separate recovery')
         stored = {row.item_id: row.text for row in session.scalars(select(Transcript).where(
             Transcript.turn_id == turn.id, Transcript.kind == 'message',
             Transcript.state == 'completed').order_by(Transcript.id))}
         require(stored == messages and bool(messages), 'Transcript mismatch')
-        require(_safe_read(path, MAX_EVENTS_BYTES, allow_windows_fallback=True) == raw, 'Events changed')
+        require(digest(path.absolute()) == (checksum, size), 'Events changed')
         result = dict(reply=summary.final_text, sessionId=summary.session_id, pictures=[], deliveryError=None)
         report = dict(status='eligible', jobId=str(job.id), eventSha256=expected_sha256,
                       messageCount=len(messages), executionCount=job.execution_count)

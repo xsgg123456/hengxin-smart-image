@@ -3,11 +3,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.execution.diagnostics import _safe_read
+from app.execution.event_file import COMPACTED, lines
 from app.execution.event_json import decode_event
-
-MAX_EVENTS_BYTES = 64 * 1024 * 1024
-
 
 @dataclass(frozen=True)
 class EventSummary:
@@ -29,14 +26,13 @@ def parse_events(path: Path, expected_session: str | None = None) -> EventSummar
     generation = 0
     terminals = set()
     try:
-        raw = _safe_read(Path(path), MAX_EVENTS_BYTES, allow_windows_fallback=True)
-        for line in raw.decode('utf-8').splitlines():
-            if not line.strip():
-                continue
+        for line in lines(path):
             event = decode_event(line)
             if not isinstance(event, dict) or not isinstance(event.get('type'), str):
                 raise ValueError
             kind = event['type']
+            if kind == COMPACTED:
+                continue
             turn_id = event.get('turn_id')
             if turn_id is not None and (not isinstance(turn_id, str) or not turn_id):
                 error = error or 'invalid_turn_id'

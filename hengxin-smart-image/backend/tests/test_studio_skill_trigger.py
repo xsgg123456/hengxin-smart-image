@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.execution.workspace import IMAGE_PATH_HINT
 from app.overseas.execution import materials
 from app.overseas.management import installed_catalog
 from app.overseas.studio import execution
@@ -43,6 +44,7 @@ def test_selected_skill_prompt_preserves_text_persona_and_attachments(
         assert (workspace.local_skill / 'SKILL.md').is_file()
     expected.append(ORIGINAL)
     if attachment:
+        expected.append(IMAGE_PATH_HINT)
         expected.append('附件文件：' + json.dumps(
             [dict(name='设计参考.PNG', path='/work/inputs/1.png')], ensure_ascii=False))
         assert (workspace.work / 'inputs/1.png').read_bytes() == b'original attachment'

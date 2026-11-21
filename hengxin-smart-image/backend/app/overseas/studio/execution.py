@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 from sqlalchemy import select
 from app.core.config import get_settings
-from app.execution.workspace import prepare_workspace
+from app.execution.workspace import IMAGE_PATH_HINT, prepare_workspace
 from app.execution.output_collector import snapshot_outputs
 from app.overseas.execution import claims
 from app.overseas.execution.models import Job
@@ -98,6 +98,8 @@ class StudioProtocol:
         if skill:
             parts.append('$' + workspace.skill_name)
         parts.append(job.payload['text'])
+        if paths:
+            parts.append(IMAGE_PATH_HINT)
         edits = prompt_edits(job.payload, paths)
         if edits:
             parts.append(edits)

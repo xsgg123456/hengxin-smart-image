@@ -26,7 +26,10 @@ def test_real_sleep_process_is_stopped_and_receipt_persisted(tmp_path, reason):
 
 def test_real_process_gets_prompt_via_stdin_without_shell_interpolation(tmp_path):
     prompt = '$(touch should-not-exist); "quoted"\nsecond line'
-    receipt = execute([sys.executable, '-c', 'import sys; print(sys.stdin.read(), end="")'],
+    code = ('import sys,json; print(json.dumps({"type":"item.completed","item":'
+            '{"type":"agent_message","text":sys.stdin.read()}}))')
+    receipt = execute([sys.executable, '-c', code],
                       prompt, tmp_path, 10, lambda: False, lambda *identity: None)
     assert receipt['reason'] is None and receipt['exit_code'] == 0
-    assert (tmp_path / 'events.jsonl').read_text() == prompt
+    event = json.loads((tmp_path / 'events.jsonl').read_text())
+    assert event['item']['text'] == prompt

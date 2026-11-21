@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 
 from app.execution.output_collector import snapshot_outputs
-from app.execution.workspace import prepare_workspace
+from app.execution.workspace import IMAGE_PATH_HINT, prepare_workspace
 from app.models import Job
 from app.overseas.studio import context_workspace
 from app.overseas.execution.materials import write_input
@@ -74,6 +74,8 @@ def prompt(workspace, payload):
         parts.append('本轮未选择 Skill。沿用当前会话与图片上下文，仅处理本轮请求，不主动重启历史 Skill 流程。')
     if payload['text']:
         parts.append(payload['text'])
+    if workspace.input_paths:
+        parts.append(IMAGE_PATH_HINT)
     edits = prompt_edits(payload, workspace.input_paths)
     if edits:
         parts.append(edits)

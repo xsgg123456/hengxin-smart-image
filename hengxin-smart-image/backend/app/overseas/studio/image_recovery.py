@@ -1,6 +1,5 @@
 """Evidence-bound operator repair of missed native images; never invoke the CLI."""
 import json
-from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +7,8 @@ from uuid import UUID, uuid5
 from sqlalchemy import select
 from app.core.config import get_settings
 from app.execution.diagnostics import _safe_read, _unique_object
-from app.execution.events import MAX_EVENTS_BYTES, parse_events
+from app.execution.events import parse_events
+from .context_fs import digest as event_digest
 from app.execution.final_delivery import _local_file
 from app.execution.output_collector import _checked, _root
 from app.modules.files.validation import MAX_UPLOAD_BYTES, validate_image
@@ -63,8 +63,8 @@ def _evidence(turn, channel, job, digest):
     home = _checked(workspace / 'home' / '.codex', base)
     control = _checked(workspace / 'control' / str(turn.id), base)
     path = _checked(control / 'events.jsonl', base)
-    raw = _safe_read(path, MAX_EVENTS_BYTES, allow_windows_fallback=True)
-    require(sha256(raw).hexdigest() == digest, 'Event checksum mismatch')
+    checksum, size = event_digest(path.absolute())
+    require(checksum == digest, 'Event checksum mismatch')
     receipt = json.loads(_safe_read(_checked(control / 'exit.json', base), 4096,
                                   allow_windows_fallback=True), object_pairs_hook=_unique_object)
     require(isinstance(receipt, dict) and type(receipt.get('exit_code')) is int
@@ -75,7 +75,7 @@ def _evidence(turn, channel, job, digest):
             and summary.session_id == channel.session_id == turn.event_session_id,
             'Completion or session mismatch')
     require(not turn.event_invalid and turn.reply == summary.final_text
-            and turn.event_offset == len(raw), 'Stored reply or cursor mismatch')
+            and turn.event_offset == size, 'Stored reply or cursor mismatch')
     require(isinstance(job.result, dict) and job.result.get('reply') == turn.reply
             and job.result.get('sessionId') == channel.session_id
             and isinstance(job.result.get('pictures'), list), 'Stored result mismatch')
@@ -91,7 +91,7 @@ def _evidence(turn, channel, job, digest):
         prefix = '/home/runner/.codex/generated_images/' + channel.session_id + '/'
         require(outputs and not warnings and all(path.startswith(prefix) for path, _ in outputs),
                 'No unambiguous native-only delivery evidence')
-        require(_safe_read(path, MAX_EVENTS_BYTES, allow_windows_fallback=True) == raw, 'Events changed')
+        require(event_digest(path.absolute()) == (checksum, size), 'Events changed')
         return dict(outputs)
     require(bool(links) and all(logical is not None for _, logical in links),
             'No complete formal image references')
@@ -107,7 +107,7 @@ def _evidence(turn, channel, job, digest):
         require(image.checksum == proofs[logical], 'Native image checksum mismatch')
         # Canonical decoded native path makes sandbox: aliases idempotent too.
         images[logical] = image
-    require(_safe_read(path, MAX_EVENTS_BYTES, allow_windows_fallback=True) == raw, 'Events changed')
+    require(event_digest(path.absolute()) == (checksum, size), 'Events changed')
     return images
 
 

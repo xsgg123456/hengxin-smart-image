@@ -1,5 +1,5 @@
 """Lease fencing, shared CLI admission and durable public events."""
-import json
+import re
 import time
 from datetime import timedelta
 from uuid import UUID, uuid4
@@ -7,6 +7,9 @@ from sqlalchemy import or_, select
 from app.capacity.admission import reserve, WAITING
 from app.core.config import get_settings
 from app.models import Job, Outbox, utcnow
+from app.execution.event_file import COMPACTED, COMPACTED_NOTICE, LIVE_POLL_RECORDS, read_line
+from app.execution.event_json import decode_event
+from app.execution.safe_stream import reader
 from app.execution.models import ExecutionGate
 from app.execution.cli_capacity import active_count
 from app.worker.leases import lease_active
@@ -97,38 +100,41 @@ class Monitor:
         self.path, self.previous, self.offset = path, previous, 0
         self.last_poll = 0
 
-    def __call__(self):
-        if time.monotonic() - self.last_poll < .5:
+    def __call__(self, final=False):
+        if not final and time.monotonic() - self.last_poll < .5:
             return False
         self.last_poll = time.monotonic()
-        events = []
-        if self.path.exists():
-            with self.path.open('rb') as stream:
-                stream.seek(self.offset)
-                for line in stream:
-                    if not line.endswith(b'\n'):
-                        break
-                    self.offset += len(line)
-                    try:
-                        events.append(json.loads(line))
-                    except (ValueError, UnicodeError):
-                        pass
         with self.factory.begin() as session:
             task, _, conversation, turn, job = locked(session, self.job_id)
             if not job or not valid(task, turn, job, self.token):
                 return True
-            for event in events:
-                if isinstance(event, dict) and event.get('type') == 'thread.started':
-                    from re import fullmatch
-                    sid = event.get('thread_id')
-                    if isinstance(sid, str) and fullmatch(r'[A-Za-z0-9_-]{1,128}', sid):
-                        if conversation.session_id not in (None, sid):
-                            raise ValueError('Session mismatch')
-                        conversation.session_id = sid
-                message = public_message(event)
-                if message:
-                    turn.messages = [*turn.messages, message]
-                    emit(session, conversation, turn, 'message', message)
+            if self.path.exists():
+                with reader(self.path.absolute(), growing=not final) as stream:
+                    stream.seek(self.offset)
+                    records = 0
+                    while final or records < LIVE_POLL_RECORDS:
+                        line = read_line(stream)
+                        if not line:
+                            break
+                        records += 1
+                        if not line.endswith(b'\n') and not final:
+                            break
+                        self.offset = stream.tell()
+                        try:
+                            event = decode_event(line)
+                        except (ValueError, UnicodeError, RecursionError):
+                            continue
+                        if event.get('type') == 'thread.started':
+                            sid = event.get('thread_id')
+                            if isinstance(sid, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', sid):
+                                if conversation.session_id not in (None, sid):
+                                    raise ValueError('Session mismatch')
+                                conversation.session_id = sid
+                        message = (COMPACTED_NOTICE if event.get('type') == COMPACTED
+                                   else public_message(event))
+                        if message:
+                            turn.messages = [*turn.messages, message]
+                            emit(session, conversation, turn, 'message', message)
             return False
 
 

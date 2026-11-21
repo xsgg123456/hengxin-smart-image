@@ -10,7 +10,7 @@ from app.execution.final_delivery import collect_final_outputs
 from app.execution.delivery_markdown import delivery_links
 from app.execution.output_collector import snapshot_outputs
 from app.execution.process import execute
-from app.execution.workspace import prepare_workspace, sandbox_command
+from app.execution.workspace import IMAGE_PATH_HINT, prepare_workspace, sandbox_command
 from app.execution.managed_credentials import CredentialsError, sync_credentials
 from app.modules.files.validation import DECODE_SLOTS, MAX_UPLOAD_BYTES
 from app.modules.files.variants import register
@@ -44,7 +44,7 @@ def prepare_inputs(factory, store, turn, workspace):
             output.write(read_bytes(store, record))
         paths.append('/work/inputs/' + path.name)
     # Fixed v2 prompt remains byte-for-byte at the front; only binding and delivery are appended.
-    return turn.prompt + '\n\n本轮输入按上述图1/图2/图3/可选图4顺序：\n' + '\n'.join(paths) + (
+    return turn.prompt + '\n\n' + IMAGE_PATH_HINT + '\n本轮输入按上述图1/图2/图3/可选图4顺序：\n' + '\n'.join(paths) + (
         '\n本轮仅修改图1，图2为最初原图，图3为素材，图4（若有）为标注。'
         '\n如果需要澄清可直接文字回复；交付图片时将唯一最终图片保存到本轮 /work，'
         '最终回复用 Markdown 图片链接明确交付该文件。不要交付输入图片或历史轮次文件。')
@@ -180,8 +180,7 @@ def run_turn(job_id, factory=None, store=None):
             spawned = True
             receipt = execute(command, prompt, workspace.control, turn.snapshot['timeoutSeconds'], monitor, started)
             completed = True
-            monitor.last_poll = 0
-            if monitor():
+            if monitor(final=True):
                 complete(factory, store, job_id, token, status='cancelled')
                 return
             summary = parse_events(workspace.control / 'events.jsonl', previous)

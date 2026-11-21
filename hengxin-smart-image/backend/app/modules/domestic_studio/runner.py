@@ -137,7 +137,10 @@ def run_turn(job_id, factory, store=None, catalog=None):
                 lambda pid, boot, birth: record_start(factory, job_id, token, settings, pid, boot, birth))
             exited = True
             if monitor.poll(final=True) or receipt.get('reason') or receipt.get('exit_code') != 0:
-                settle(factory, job_id, token, 'failed', '本轮执行未完成', stopped=True)
+                reason = receipt.get('reason')
+                message = {'storage_failed': '本轮执行日志写入失败，请联系管理员检查磁盘空间和权限',
+                           'timeout': '本轮执行超过时限，已停止'}.get(reason, '本轮执行未完成')
+                settle(factory, job_id, token, 'failed', message, stopped=True)
                 return
             # success() requires the process exit receipt and complete event stream.
             summary = delivery_context.success(workspace)

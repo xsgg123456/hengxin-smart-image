@@ -276,3 +276,22 @@ def test_candidate_normalized_to_original_dimensions(files_env, monkeypatch):
     candidate = result['turns'][0]['candidate']
     assert (candidate['width'], candidate['height']) == (8, 6)
     assert result['currentVersion'] == 1
+
+def test_compaction_notice_survives_reconnect_and_late_image_delivery(files_env, monkeypatch):
+    client, factory, store, _ = files_env
+    _, _, path = setup_result(client, factory)
+    calls = fake_executor(monkeypatch, image=True)
+    original_execute = runner.execute
+
+    def execute(*args):
+        receipt = original_execute(*args)
+        with (args[2] / 'events.jsonl').open('ab') as stream:
+            stream.write(b'{"type":"platform.log_compacted"}\n')
+        return receipt
+
+    monkeypatch.setattr(runner, 'execute', execute)
+    run(factory, store, submit(client, path))
+    view = client.get(path + '/conversation').json()['turns'][0]
+    assert len(calls) == 1 and 'Base64' in calls[0][1]
+    assert view['status'] == 'candidate' and view['candidate']
+    assert sum('详细日志已精简' in message for message in view['messages']) == 1

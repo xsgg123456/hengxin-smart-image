@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
 from app.execution.diagnostics import _safe_read
+from app.execution.safe_stream import checked, reader, stamp
 
 
 def relative(value):
@@ -20,78 +21,10 @@ def relative(value):
     return value
 
 
-def checked(path, *, missing=False, directory=None):
-    path = Path(path)
-    if not path.is_absolute() or '..' in path.parts:
-        raise ValueError('Context path must be absolute without traversal')
-    if os.name == 'nt' and not str(path).startswith('\\\\?\\'):
-        value = str(path)
-        path = Path('\\\\?\\UNC\\' + value[2:] if value.startswith('\\\\') else '\\\\?\\' + value)
-    for part in reversed((path, *path.parents)):
-        try:
-            info = part.lstat()
-        except FileNotFoundError:
-            if missing:
-                continue
-            raise
-        if (stat.S_ISLNK(info.st_mode) or getattr(part, 'is_junction', lambda: False)()
-                or getattr(info, 'st_file_attributes', 0) & 0x400):
-            raise ValueError('Context path cannot contain links')
-        if part != path or directory is True:
-            if not stat.S_ISDIR(info.st_mode):
-                raise ValueError('Context parent must be a directory')
-        elif not stat.S_ISDIR(info.st_mode):
-            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-                raise ValueError('Context file cannot be linked or special')
-        if part == path and directory is False and not stat.S_ISREG(info.st_mode):
-            raise ValueError('Context target must be a regular file')
-    return path
-
-
 def mkdir(path):
     path = checked(path, missing=True, directory=True)
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     return checked(path, directory=True)
-
-
-def stamp(info):
-    # Windows stat() and fstat() report different ctime values after a rename.
-    # Identity, size and mtime still fence replacement; content is also hashed.
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
-            info.st_ctime_ns if os.name != 'nt' else 0, info.st_nlink)
-
-
-@contextmanager
-def reader(path):
-    path = checked(path, directory=False)
-    before = path.lstat()
-    parent_fd = None
-    try:
-        if os.name == 'posix':
-            parent_fd = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            for part in path.parts[1:-1]:
-                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                                dir_fd=parent_fd)
-                os.close(parent_fd)
-                parent_fd = child
-            fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
-                         dir_fd=parent_fd)
-        else:
-            fd = os.open(path, os.O_RDONLY | getattr(os, 'O_BINARY', 0))
-        with os.fdopen(fd, 'rb') as stream:
-            current = os.fstat(stream.fileno())
-            if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
-                    or stamp(before) != stamp(current)):
-                raise ValueError('Context source changed before reading')
-            yield stream
-            if stamp(current) != stamp(os.fstat(stream.fileno())):
-                raise ValueError('Context source changed while reading')
-            checked(path, directory=False)
-            if stamp(path.lstat()) != stamp(current):
-                raise ValueError('Context source replaced while reading')
-    finally:
-        if parent_fd is not None:
-            os.close(parent_fd)
 
 
 def digest(path):

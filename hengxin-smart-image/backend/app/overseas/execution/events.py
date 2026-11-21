@@ -13,6 +13,7 @@ FAILURES = {
     'credentials_busy': 'Codex 登录凭据正在更新，请稍后重新提交',
     'credentials_refresh_failed': 'Codex 登录已失效或暂时无法更新，请联系管理员恢复登录后重新提交',
     'timeout': '本轮执行超过时限，已停止；请检查要求后重新提交',
+    'storage_failed': '本轮执行日志写入失败，请联系管理员检查磁盘空间和权限',
     'output_limit': '本轮执行日志超过安全上限，已停止；请联系管理员检查',
     'cancelled': '本轮执行已停止',
     'execution_failed': 'Codex 本轮执行失败，未生成可用图片；请重新提交，若仍失败请联系管理员',
