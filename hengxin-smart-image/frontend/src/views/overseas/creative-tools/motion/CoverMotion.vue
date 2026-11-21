@@ -4,6 +4,7 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { FADE_DURATION_MS } from './removal-frame'
 import { getScene, type Scene } from './scenes'
 
 const props = defineProps<{ photo: HTMLImageElement; scene: Scene }>()
@@ -21,18 +22,21 @@ onMounted(async () => {
     if (!ctx) return
     const draw = getScene(props.photo, props.scene)
     const start = performance.now()
+    const stopAfterFade = props.scene === 'edit-text' || props.scene === 'recolor'
     let last = -Infinity
     function tick(now: number) {
       if (disposed || !ctx) return
-      if (now - last >= 1000 / 30 - 1) {
+      const elapsed = now - start
+      const finished = stopAfterFade && elapsed >= FADE_DURATION_MS
+      if (finished || now - last >= 1000 / 30 - 1) {
         last = now
         ctx.drawImage(props.photo, 0, 0, 500, 278)
         ctx.save()
-        draw(ctx, ((now - start) % 3000) / 3000)
+        draw(ctx, elapsed)
         ctx.restore()
         ready.value = true
       }
-      frame = requestAnimationFrame(tick)
+      if (!finished) frame = requestAnimationFrame(tick)
     }
     tick(start)
   } catch {

@@ -59,29 +59,121 @@ try {
     const asset = new URL(`../src/views/overseas/creative-tools/tool-covers/${filename}.jpg`, import.meta.url)
     assert.deepEqual(await (await page.request.get(src)).body(), await readFile(asset))
   }
-  // Sample real canvas frames: CSS zoom alone must not pass the hover check.
-  for (const card of await cards.all()) {
-    await card.hover()
-    const layer = card.locator('canvas.ready')
-    await layer.waitFor()
+  async function assertMoving(layer) {
     const previous = await layer.evaluate(canvas => canvas.toDataURL())
     await page.waitForFunction(({ canvas, previous }) => canvas.toDataURL() !== previous, {
       canvas: await layer.elementHandle(), previous
     }, { polling: 120, timeout: 4000 })
+  }
+  function waitForLift(card, y) {
+    return page.waitForFunction(({ el, y }) =>
+      new DOMMatrixReadOnly(getComputedStyle(el).transform).m42 === y, { el: card, y })
+  }
+  // Both yellow fan silhouettes, the rider and sled, and the house and street lamp
+  // have distinct points on the 500 x 278 covers. Compare their actual pixels.
+  async function checkFade(card, scene) {
+    const layer = card.locator('canvas.ready')
+    await layer.waitFor()
+    const fan = scene === 'replicate'
+    const snow = scene === 'edit-text'
+    const background = fan ? [[130, 130], [375, 169]] : snow ? [[75, 55], [100, 85]] : [[75, 100], [78, 100]]
+    const subject = fan ? [[329, 33], [309, 194]]
+      : snow ? [[222, 151], [200, 170], [152, 221]]
+        : [[226, 87], [195, 150], [167, 170], [190, 225], [300, 213]]
+    const sample = () => layer.evaluate((canvas, { background, subject }) => {
+      const photo = document.createElement('canvas')
+      photo.width = canvas.width
+      photo.height = canvas.height
+      const source = photo.getContext('2d')
+      source.drawImage(canvas.parentElement.querySelector('img'), 0, 0, photo.width, photo.height)
+      const frame = canvas.getContext('2d')
+      function pixels(ctx, coordinates) {
+        return coordinates.map(([x, y]) => Array.from(ctx.getImageData(x, y, 1, 1).data).slice(0, 3))
+      }
+      return {
+        background: pixels(frame, background), original: pixels(source, background),
+        subject: pixels(frame, subject), originalSubject: pixels(source, subject),
+        checker: pixels(source, [[396, 100], [399, 100]]),
+        fanBlades: pixels(frame, Array.from({ length: 115 }, (_, i) => [265 + i, 66]))
+      }
+    }, { background, subject })
+    await page.waitForTimeout(600)
+    const middle = await sample()
+    await page.waitForTimeout(1400)
+    const end = await sample()
+    assert.notDeepEqual(middle.background, middle.original, scene + ' begins fading')
+    assert.notDeepEqual(middle.background, end.background, scene + ' fades progressively')
+    assert.deepEqual(middle.subject, middle.originalSubject, scene + ' subject during fade')
+    assert.deepEqual(end.subject, end.originalSubject, scene + ' subject after fade')
+    if (fan) {
+      for (const rgb of end.background) assert.ok(Math.max(...rgb) - Math.min(...rgb) < 32, 'ceiling replaces yellow fans')
+      await page.waitForTimeout(230)
+      const later = await sample()
+      assert.deepEqual(later.background, end.background)
+      assert.notDeepEqual(later.fanBlades, end.fanBlades, 'photographed fan keeps turning')
+    } else {
+      assert.deepEqual(end.background, snow ? [[255, 255, 255], [255, 255, 255]] : end.checker)
+      assert.equal(await card.locator('.cover-scene').evaluate(el => getComputedStyle(el).transform), 'none')
+      const finalFrame = await layer.evaluate(canvas => canvas.toDataURL())
+      await page.waitForTimeout(1300)
+      assert.equal(await layer.evaluate(canvas => canvas.toDataURL()), finalFrame, scene + ' holds final frame')
+    }
+  }
+  for (const card of await platforms.locator('.tool-card').all()) {
+    await card.getByRole('heading').hover()
+    const layer = card.locator('canvas.ready')
+    await layer.waitFor()
+    await assertMoving(layer)
     assert.equal(await card.locator('.cover-scene').evaluate(el => getComputedStyle(el).transitionDuration), '3s')
   }
+  for (const item of await editing.getByRole('listitem').all()) {
+    const scene = await item.getAttribute('data-scene')
+    const card = item.locator('.tool-card')
+    const element = await card.elementHandle()
+    const title = card.getByRole('heading')
+    const photo = card.locator('img')
+    const canvas = card.locator('canvas')
+    await title.hover()
+    await waitForLift(element, -3)
+    assert.equal(await canvas.count(), 0, scene + ' title hover')
+    await photo.hover()
+    await waitForLift(element, -3)
+    if (['white-background', 'cutout'].includes(scene)) {
+      await page.waitForFunction(el => new DOMMatrixReadOnly(getComputedStyle(el).transform).a > 1.001,
+        await card.locator('.cover-scene').elementHandle())
+      assert.equal(await canvas.count(), 0, scene + ' gently zooms the original photograph')
+    } else if (scene === 'remove-product') {
+      const layer = card.locator('canvas.ready')
+      await layer.waitFor()
+      await assertMoving(layer)
+    } else {
+      await checkFade(card, scene)
+    }
+    await title.hover()
+    await canvas.waitFor({ state: 'detached' })
+    await page.waitForFunction(el => new DOMMatrixReadOnly(getComputedStyle(el).transform).isIdentity,
+      await card.locator('.cover-scene').elementHandle())
+    await waitForLift(element, -3)
+    await page.mouse.move(0, 0)
+    await waitForLift(element, 0)
+  }
   await page.mouse.move(0, 0)
-  await page.locator('canvas.motion-layer').first().waitFor({state:'detached'})
-  await cards.first().hover()
-  await cards.first().locator('canvas.ready').waitFor()
-  await page.emulateMedia({reducedMotion:'reduce'})
-  await page.locator('canvas.motion-layer').first().waitFor({state:'detached'})
-  assert.equal(await cards.first().evaluate(el => getComputedStyle(el).transform), 'none')
+  const activePhoto = editing.locator('[data-scene="replicate"] img')
+  await activePhoto.hover()
+  await editing.locator('canvas.ready').waitFor()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.locator('canvas').first().waitFor({ state: 'detached' })
+  for (const card of await cards.all()) {
+    await card.hover()
+    assert.equal(await card.evaluate(el => getComputedStyle(el).transform), 'none')
+    assert.equal(await card.locator('.cover-scene').evaluate(el => getComputedStyle(el).transform), 'none')
+    assert.equal(await card.locator('canvas').count(), 0)
+  }
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
   await editing.waitFor()
   assert.deepEqual(await rows(), [2, 2, 2, 2, 2, 2, 2])
-  console.log('PASS official navigation, refresh, 14 cards, responsive rows and all fourteen original covers, animated scenes and reduced motion')
+  console.log('PASS official navigation, refresh, 14 original covers, responsive rows, eight platform animations, six image-only hover effects, whole-card lift, exit reset and reduced motion')
 } finally {
   await browser.close()
 }

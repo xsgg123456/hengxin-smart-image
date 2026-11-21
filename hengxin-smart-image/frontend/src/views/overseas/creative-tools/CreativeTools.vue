@@ -90,13 +90,14 @@ useEventListener(window, 'blur', stop)
     </header>
     <ul v-for="group in groups" :key="group.label" :aria-label="group.label" class="tool-grid">
       <li v-for="tool in group.tools" :key="tool.scene" :data-scene="tool.scene" :class="{ 'in-motion': active?.scene === tool.scene }"
-          @pointerenter="enter($event, tool.scene)" @pointerleave="stop" @pointercancel="stop">
+          @pointerenter="group.tools === platformTools && enter($event, tool.scene)" @pointerleave="stop" @pointercancel="stop">
         <ElCard shadow="never" class="tool-card" :body-style="{ padding: '0' }">
-          <div class="cover-window">
+          <div class="cover-window" @pointerenter="group.tools === editingTools && enter($event, tool.scene)"
+               @pointerleave="group.tools === editingTools && stop()">
             <div class="cover-scene">
               <img class="tool-cover" :src="tool.cover" alt="" />
               <Transition name="motion">
-                <CoverMotion v-if="active && active.scene === tool.scene" :scene="tool.scene" :photo="active.photo" />
+                <CoverMotion v-if="active?.scene === tool.scene && tool.scene !== 'white-background' && tool.scene !== 'cutout'" :scene="tool.scene" :photo="active.photo" />
               </Transition>
             </div>
           </div>
@@ -137,7 +138,8 @@ useEventListener(window, 'blur', stop)
   .cover-scene { transform-origin: 78% 50%; transition: transform .38s ease-out; }
   [data-scene="replicate"] .cover-scene, [data-scene="recolor"] .cover-scene,
   [data-scene="home-depot"] .cover-scene, [data-scene="edit-text"] .cover-scene { transform-origin: center; }
-  .in-motion .tool-card { transform: translateY(-3px); }
+  .tool-grid > li:hover .tool-card { transform: translateY(-3px); }
+  :is([data-scene="edit-text"], [data-scene="recolor"]).in-motion .cover-scene { transform: none; }
   .in-motion .cover-scene { transform: scale(1.05); transition: transform 3s ease-in-out; }
 }
 @media(max-width:1500px) { .tool-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
